@@ -54,7 +54,11 @@ repos:
     hooks:
       - id: bashate
         args: ["-i", "E003,E006", "-e", "E005"]  # allow 2-space indent; error on tabs
-        exclude: ^test/(.*\.bats|test_helper(/.*|\.bash))$
+        exclude: >-
+          (?x)(
+          ^test/(.*\.bats|test_helper(/.*|\.bash))$
+          |^completions/.*\.bash$
+          )
 
   # Pre-commit hook to check for spelling mistakes
   - repo: https://github.com/crate-ci/typos

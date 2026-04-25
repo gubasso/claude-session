@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+shopt -s inherit_errexit 2>/dev/null || true
+shopt -s failglob nullglob
+
+SCRIPT_PATH="$(readlink -f "$0")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+PREFIX_DIR="$(dirname "$SCRIPT_DIR")"
+LIB_DIR="$PREFIX_DIR/lib/claude-session"
+
+if [[ ! -d "$LIB_DIR" ]]; then
+  LIB_DIR="$PREFIX_DIR/lib"
+fi
+
+export CS_WRAPPER_PATH="$SCRIPT_PATH"
+export LIB_DIR
+
+# shellcheck source=lib/helpers.sh
+. "$LIB_DIR/helpers.sh"
+# shellcheck source=lib/loader.sh
+. "$LIB_DIR/loader.sh"
+# shellcheck source=lib/core.sh
+. "$LIB_DIR/core.sh"
+
+cs::main "$@"

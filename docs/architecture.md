@@ -35,14 +35,8 @@ claude-session/
 │       └── fn_error.sh              # three-part error emitter
 ├── completions/
 │   └── claude-session.bash
-├── man/
-│   └── claude-session.1.scd         # scdoc source → claude-session.1
 ├── test/
-│   ├── test_helper.bash             # common setup; loads bats-* submodules
-│   ├── test_helper/
-│   │   ├── bats-support/            # submodule
-│   │   ├── bats-assert/             # submodule
-│   │   └── bats-file/               # submodule
+│   ├── test_helper.bash             # common setup
 │   ├── cmd_<name>_test.bats         # per-command tests
 │   └── fn_<name>_test.bats          # per-function tests
 ├── .shellcheckrc
