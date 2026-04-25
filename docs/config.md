@@ -133,10 +133,11 @@ unchanged to the child process. That is how profile files inject
 
 - Invalid dotenv syntax: exit code 3 with the offending line number.
 - `CLAUDE_SESSION_OAUTH_CMD` / `CLAUDE_SESSION_POST_EXIT_CMD` exit
-  non-zero: logged to stderr as a warning. Non-fatal for OAuth (token
-  just isn't set; user may already have it in env). Fatal (exit 7)
-  for `run` if the pre-start OAuth step fails **and** no token is
-  available from any source.
+  non-zero: logged to stderr as a warning, never fatal. For OAuth, the
+  wrapper falls through without exporting `CLAUDE_CODE_OAUTH_TOKEN` and
+  lets the real `claude` binary handle native auth on its own
+  (`~/.claude/.credentials.json`, keychain, interactive `/login`,
+  `ANTHROPIC_API_KEY`, `apiKeyHelper`).
 
 ## Migration from single-script predecessors
 
