@@ -60,7 +60,7 @@ Stable contract. Agents and scripts may depend on these.
 | `4`  | Real `claude` binary not found (or discovery resolved back to this wrapper).             |
 | `5`  | Secure session-dir validation failed: neither `XDG_RUNTIME_DIR` nor the `XDG_STATE_HOME` fallback resolved a usable, owner-correct, non-symlink directory. |
 | `6`  | Profile not found — name passed via `--profile` / `CLAUDE_SESSION_PROFILE` has no file.  |
-| `7`  | Hook command (`OAUTH_CMD` or `POST_EXIT_CMD`) failed in a path where failure is fatal.   |
+| `7`  | Reserved for fatal hook failures. No current command exits 7 (OAuth and post-exit hook failures are warn-only and fall through to native auth / normal exit). |
 | `130`| Interrupted by SIGINT (128 + 2).                                                         |
 | `143`| Terminated by SIGTERM (128 + 15).                                                        |
 
@@ -107,7 +107,6 @@ EXIT CODES:
   4    real claude binary not found
   5    secure-dir validation failed
   6    profile not found
-  7    mandatory OAuth hook failed and no token available
   130  SIGINT
   143  SIGTERM
   *    anything else is the real claude's exit code, forwarded unchanged

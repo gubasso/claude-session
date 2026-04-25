@@ -33,7 +33,7 @@ EXIT CODES:
   4 real claude binary not found
   5 secure session-dir validation failed
   6 profile not found
-  7 hook command failed where fatal
+  7 reserved for fatal hook failures (no current path uses this)
   130 interrupted by SIGINT
   143 terminated by SIGTERM
 

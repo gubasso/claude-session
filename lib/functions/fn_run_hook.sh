@@ -5,19 +5,14 @@ cs::fn::run_hook() {
   local cmd=$1
   shift || true
   local timeout_s=""
-  local fatal=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --timeout)
         timeout_s=$2
         shift 2
         ;;
-      --fatal)
-        fatal=1
-        shift
-        ;;
       *)
-        cs::helpers::die 2 "unknown hook flag \"$1\"." "run_hook accepts --timeout and --fatal only." "  Report this as an internal bug."
+        cs::helpers::die 2 "unknown hook flag \"$1\"." "run_hook accepts --timeout only." "  Report this as an internal bug."
         ;;
     esac
   done
@@ -39,8 +34,7 @@ cs::fn::run_hook() {
       cs::helpers::log "warning: hook command failed: $cmd"
     fi
     rm -f "$err"
-    [[ $fatal -eq 1 ]] && return "$status"
-    return 0
+    return "$status"
   fi
   rm -f "$err"
   printf '%s\n' "$output"
