@@ -128,7 +128,7 @@ cs::cmd::run() {
 
   if [[ $bare -eq 0 && -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" && -n "${CLAUDE_SESSION_OAUTH_CMD:-}" ]]; then
     local token=""
-    if token=$(cs::fn::run_hook "$CLAUDE_SESSION_OAUTH_CMD" --timeout 5 --fatal); then
+    if token=$(cs::fn::run_hook "$CLAUDE_SESSION_OAUTH_CMD" --timeout 5); then
       token=${token//$'\n'/}
       token=${token//$'\r'/}
       if [[ -n "${token//[[:space:]]/}" ]]; then
@@ -136,9 +136,9 @@ cs::cmd::run() {
         export CLAUDE_CODE_OAUTH_TOKEN
       fi
     fi
-    if [[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
-      cs::helpers::die 7 "OAuth hook failed." "CLAUDE_SESSION_OAUTH_CMD did not provide a token and CLAUDE_CODE_OAUTH_TOKEN is unset." "  Fix CLAUDE_SESSION_OAUTH_CMD or export CLAUDE_CODE_OAUTH_TOKEN." "claude-session doctor"
-    fi
+    # Hook failure or empty output: fall through and let the real claude
+    # binary handle native auth (~/.claude/.credentials.json, keychain,
+    # interactive /login, ANTHROPIC_API_KEY, apiKeyHelper).
   fi
 
   export CLAUDE_CONFIG_DIR=$session_dir

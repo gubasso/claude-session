@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2030,SC2031  # bats @test bodies are subshells; env mutations are intentionally local
 
 setup() {
   load 'test_helper'
@@ -36,4 +37,34 @@ EOF
   export CLAUDE_SESSION_OAUTH_CMD='false'
   run claude-session run -- --bare -p ping
   assert_success
+}
+
+# bats test_tags=integration
+@test "failing oauth hook warns and falls through to native auth" {
+  cat >"$BATS_TEST_TMPDIR/fakebin/claude" <<'EOF'
+#!/usr/bin/env bash
+printf 'CLAUDE_CONFIG_DIR=%s\n' "$CLAUDE_CONFIG_DIR" >"$BATS_TEST_TMPDIR/child-env"
+printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "${CLAUDE_CODE_OAUTH_TOKEN-<unset>}" >>"$BATS_TEST_TMPDIR/child-env"
+exit 0
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/fakebin/claude"
+  export CLAUDE_SESSION_OAUTH_CMD='false'
+  run claude-session run -- chat hi
+  assert_success
+  assert_output_contains "warning: hook command failed"
+  grep -q '^CLAUDE_CODE_OAUTH_TOKEN=<unset>$' "$BATS_TEST_TMPDIR/child-env"
+}
+
+# bats test_tags=integration
+@test "successful oauth hook exports token to child" {
+  cat >"$BATS_TEST_TMPDIR/fakebin/claude" <<'EOF'
+#!/usr/bin/env bash
+printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "${CLAUDE_CODE_OAUTH_TOKEN-<unset>}" >"$BATS_TEST_TMPDIR/child-env"
+exit 0
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/fakebin/claude"
+  export CLAUDE_SESSION_OAUTH_CMD='printf sk-test-token'
+  run claude-session run -- chat hi
+  assert_success
+  grep -q '^CLAUDE_CODE_OAUTH_TOKEN=sk-test-token$' "$BATS_TEST_TMPDIR/child-env"
 }
