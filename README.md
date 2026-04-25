@@ -1,1 +1,122 @@
 # claude-session
+
+> Per-terminal session isolation for Claude Code, as a proper agent-friendly bash CLI.
+
+`claude-session` is a thin wrapper around the `claude` binary that gives each
+terminal its own `CLAUDE_CONFIG_DIR`, with shared portable config (auth,
+settings, skills) transparently linked back to `~/.claude/`. Session-specific
+state (history, projects, todos, plans) stays isolated per terminal.
+
+## What it does
+
+- **Per-terminal isolation**: each `tty` (e.g. `pts/0`, `pts/1`) gets its own
+  session directory under `$XDG_RUNTIME_DIR/claude-session/sessions/`
+  (or the XDG-spec `${XDG_STATE_HOME:-$HOME/.local/state}/claude-session/sessions/`
+  fallback when no runtime dir is available); no cross-bleed
+  of prompts, todos, or project metadata between terminals.
+- **Profile-based settings overlays**: layer a user-named profile's
+  `settings.<profile>.json` atop `settings.base.json` at startup via `jq`.
+- **Configurable OAuth and post-exit hooks**: run any command to supply an
+  OAuth token at startup, run any command after `claude` exits (cost sync,
+  analytics, cleanup). Both optional; nothing personal ships in the repo.
+- **XDG-aware install**: user install under `~/.local/`, system install under
+  `$PREFIX/`, all paths follow the XDG Base Directory spec.
+- **Scriptable / agent-friendly**: per-subcommand `--help`, three-part error
+  shape, `doctor` subcommand for structured health checks, `usage` for full
+  command-tree introspection, stable exit codes, no ANSI on non-tty output.
+
+## Why it exists
+
+When several terminals attach to the same machine (or devcontainer) and all
+run Claude Code, they share `~/.claude/` — and with it, in-flight prompts,
+session history, todo lists, and project metadata. State from one terminal
+leaks into another, prompts reappear out of context, and todos become chaotic.
+
+`claude-session` fixes this by giving each terminal a dedicated
+`CLAUDE_CONFIG_DIR`, with symlinks back to the portable bits (auth tokens,
+global settings, skills, agents, rules, commands, hooks) and atomic copy-sync
+for files Claude Code rewrites (like `.credentials.json`). The deeper design
+lives in [docs/architecture.md](docs/architecture.md).
+
+## Quick start
+
+Install (user scope):
+
+```sh
+git clone <this-repo> claude-session
+cd claude-session
+just install
+```
+
+Create a minimal config:
+
+```sh
+mkdir -p ~/.config/claude-session
+cat > ~/.config/claude-session/config.env <<'EOF'
+CLAUDE_SESSION_PROFILE=default
+EOF
+```
+
+Wrap your shell's `claude` invocation:
+
+```sh
+# ~/.bashrc or equivalent
+alias claude='claude-session run'
+```
+
+Verify:
+
+```sh
+claude-session doctor
+```
+
+Now each new terminal gets its own session directory the first time you run
+`claude`.
+
+## Command tree
+
+```
+claude-session
+├── run [--profile <n>] [-- <claude_args>...]
+├── doctor [--verbose]
+├── usage
+├── config   (show | path | edit)
+├── profile  (list | show <name>)
+└── session  (list | clean [--older-than <dur>] [--dry-run] [--yes])
+```
+
+Full reference: [docs/commands.md](docs/commands.md).
+
+## Configuration
+
+Config precedence is **CLI flags > environment variables > config file**.
+The main config file is a dotenv-style `~/.config/claude-session/config.env`;
+per-profile overrides live under `~/.config/claude-session/profiles/<name>.env`.
+Full reference and env-var table: [docs/config.md](docs/config.md).
+
+## Requirements
+
+- bash 4.4+
+- `jq` (for settings overlay merge)
+- `just` (optional; `install.sh` works standalone if you'd rather skip it)
+
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — module layout, startup flow, session-dir lifecycle.
+- [docs/features.md](docs/features.md) — feature inventory (ported / generalized / new).
+- [docs/config.md](docs/config.md) — config file format, env vars, profile system.
+- [docs/commands.md](docs/commands.md) — every subcommand, flag, exit code, and example.
+- [docs/install.md](docs/install.md) — install matrix, `just` recipes, uninstall.
+- [docs/development.md](docs/development.md) — dev setup, tests, linting, CI.
+- [AGENTS.md](AGENTS.md) — cross-agent (Codex / Claude Code / Cursor / Gemini) context.
+- [CLAUDE.md](CLAUDE.md) — Claude Code guardrails for this repo.
+
+## Contributing
+
+See [docs/development.md](docs/development.md) for environment setup,
+strict-mode policy, test layout, and the pre-commit linting workflow.
+Run `just check` before opening a pull request.
+
+## License
+
+MIT. See `LICENSE`.
