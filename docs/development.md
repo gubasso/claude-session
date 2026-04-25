@@ -12,25 +12,18 @@ this and [`architecture.md`](architecture.md) first.
 - [`bats-core`](https://bats-core.readthedocs.io/) — test runner.
 - [`shellcheck`](https://www.shellcheck.net/) — static analysis.
 - [`shfmt`](https://github.com/mvdan/sh) — formatter.
-- [`scdoc`](https://git.sr.ht/~sircmpwn/scdoc) — man page compiler.
 - `jq`, `flock` — runtime deps, but tests rely on them too.
 - `just` — recipe runner.
 - [`pre-commit`](https://pre-commit.com/) — lint orchestration.
-- `git` with submodule support.
 
 ## Repo setup
 
 ```sh
 git clone <url> claude-session
 cd claude-session
-git submodule update --init --recursive        # bats-support / -assert / -file
 pre-commit install                             # install the commit hook
 just check                                     # lint + test sanity
 ```
-
-The bats helper libraries (`bats-support`, `bats-assert`, `bats-file`)
-are tracked as git submodules under `test/test_helper/`. They are
-required for every test file; check them out before running tests.
 
 ## Strict mode policy
 
@@ -146,11 +139,7 @@ and prevents drift between developers.
 
 ```
 test/
-├── test_helper.bash                      # common setup; loads bats-*, sets PATH
-├── test_helper/
-│   ├── bats-support/                     # submodule
-│   ├── bats-assert/                      # submodule
-│   └── bats-file/                        # submodule
+├── test_helper.bash                      # common setup, sets PATH
 ├── cmd_run_test.bats
 ├── cmd_doctor_test.bats
 ├── cmd_config_test.bats
@@ -169,9 +158,6 @@ Filename convention: `<module>_test.bats` (suffix, not prefix).
 
 ```bash
 _common_setup() {
-  load 'test_helper/bats-support/load'
-  load 'test_helper/bats-assert/load'
-  load 'test_helper/bats-file/load'
   PATH="${BATS_TEST_DIRNAME}/../bin:$PATH"
 }
 ```
@@ -224,13 +210,11 @@ jobs:
         bash: ['4.4', '5.0', '5.2']
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive }
       - run: just lint
       - run: just test
 ```
 
-One job per bash version. Submodules are recursive (bats helpers).
-The single gate is `just check`.
+One job per bash version. The single gate is `just check`.
 
 ## Commit style
 

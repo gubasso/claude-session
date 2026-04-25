@@ -19,15 +19,11 @@ variable.
 
 - **Language**: bash 4.4+ (`set -euo pipefail`, `shopt -s inherit_errexit`).
 - **Build / task runner**: [`just`](https://just.systems/) (see `justfile`).
-- **Tests**: [`bats-core`](https://bats-core.readthedocs.io/) with
-  `bats-support` / `bats-assert` / `bats-file` as git submodules under
-  `test/test_helper/`.
+- **Tests**: [`bats-core`](https://bats-core.readthedocs.io/).
 - **Linting**: [`shellcheck`](https://www.shellcheck.net/) and
   [`shfmt`](https://github.com/mvdan/sh), orchestrated through
   [`pre-commit`](https://pre-commit.com/). **Never invoke linters directly;
   always run them through pre-commit.**
-- **Man page**: [`scdoc`](https://git.sr.ht/~sircmpwn/scdoc) source in
-  `man/*.scd`, compiled to `.1` by `just man`.
 - **Runtime dependencies**: `jq` (settings overlay merge), `flock`
   (exit-time sync under lock).
 
@@ -45,7 +41,6 @@ Subsets:
 just test-unit         # fast bats unit tests
 just test-integration  # bats integration tests (touch filesystem)
 just lint              # pre-commit run --all-files
-just man               # build man page
 ```
 
 ## Where things live
