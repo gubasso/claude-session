@@ -1,8 +1,8 @@
 # Install
 
 `claude-session` installs as a multi-file layout: a shim in `bin/` plus
-a `lib/` tree, a completions script, and a man page. The `justfile`
-orchestrates install, uninstall, test, lint, and man-page build.
+a `lib/` tree and a completions script. The `justfile` orchestrates
+install, uninstall, test, and lint.
 
 ## Install matrix
 
@@ -15,7 +15,6 @@ XDG-aware, `PREFIX`-overridable. The **user** column is the default
 | binary            | `$HOME/.local/bin/claude-session`                      | `$PREFIX/bin/claude-session`                              |
 | lib tree          | `$HOME/.local/lib/claude-session/`                     | `$PREFIX/lib/claude-session/`                             |
 | bash completion   | `$XDG_DATA_HOME/bash-completion/completions/`          | `$(pkg-config --variable=completionsdir bash-completion)` |
-| man page          | `$XDG_DATA_HOME/man/man1/claude-session.1`             | `$PREFIX/share/man/man1/claude-session.1`                 |
 | config            | `$XDG_CONFIG_HOME/claude-session/config.env`           | `/etc/claude-session/config.env`                          |
 | state             | `${XDG_STATE_HOME:-$HOME/.local/state}/claude-session/` | `/var/lib/claude-session/`                                |
 
@@ -38,7 +37,6 @@ XDG-aware, `PREFIX`-overridable. The **user** column is the default
 - `flock` — exit-time sync safety under concurrent terminals.
 - `just` — recipe orchestration. Optional for install (`install.sh`
   works standalone), required for the test/lint workflow.
-- `scdoc` — only needed when building the man page (`just man`).
 
 ## Recipes
 
@@ -56,9 +54,8 @@ build/test/lint/install operations. Its recipes:
 | `just test-integration`                 | `bats --filter-tags integration test/`.                                                                                   |
 | `just lint`                             | `pre-commit run --all-files`. Never invoke shellcheck/shfmt directly — always through pre-commit.                         |
 | `just check`                            | `just lint && just test`. The gate CI runs.                                                                                |
-| `just man`                              | `scdoc < man/claude-session.1.scd > man/claude-session.1`.                                                                 |
 | `just completions`                      | Copy `completions/claude-session.bash` to the target completions dir (honors user vs system install).                      |
-| `just clean`                            | Remove generated artifacts (`man/*.1` built output, bats tempdirs). Does **not** touch anything installed outside the repo. |
+| `just clean`                            | Remove generated artifacts (bats tempdirs). Does **not** touch anything installed outside the repo.                        |
 
 Style conventions:
 
@@ -77,7 +74,6 @@ Available recipes:
     completions             # install bash completions
     install PREFIX=""       # install claude-session (user scope if PREFIX empty)
     lint                    # run pre-commit on all files
-    man                     # build man page via scdoc
     test                    # run unit + integration tests
     test-integration        # run integration bats tests
     test-unit               # run unit bats tests
