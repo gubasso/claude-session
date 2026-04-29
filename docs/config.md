@@ -83,9 +83,9 @@ associated feature entirely.
 | `CLAUDE_SESSION_REAL_CLAUDE`      | (auto-discovered)                                             | Absolute path to the real `claude` binary. Overrides discovery; useful in devcontainers or CI.              |
 | `CLAUDE_SESSION_OAUTH_CMD`        | (unset)                                                       | Command whose stdout becomes `CLAUDE_CODE_OAUTH_TOKEN`, unless that var is already set. Run under a 5-second timeout. |
 | `CLAUDE_SESSION_POST_EXIT_CMD`    | (unset)                                                       | Command run after `claude` exits. Receives `CLAUDE_SESSION_DIR` and `CLAUDE_SESSION_PROFILE` in its env. Failures are logged, not fatal. |
-| `CLAUDE_SESSION_SYNC_FILES`       | `.credentials.json`                                           | Colon-separated list of files the upstream CLI may atomic-rewrite — copied in at start, synced back on exit under `flock`. |
+| `CLAUDE_SESSION_SYNC_FILES`       | `.credentials.json:.claude.json:mcp-needs-auth-cache.json`    | Colon-separated list of files the upstream CLI may atomic-rewrite — copied in at start, synced back on exit under `flock`. |
 | `CLAUDE_SESSION_LINK_FILES`       | `settings.local.json:keybindings.json:CLAUDE.md`              | Colon-separated list of files safe to symlink into the session dir.                                         |
-| `CLAUDE_SESSION_LINK_DIRS`        | `skills:agents:rules:commands:hooks`                          | Colon-separated list of directories to symlink into the session dir.                                        |
+| `CLAUDE_SESSION_LINK_DIRS`        | `skills:agents:rules:commands:hooks:plugins`                  | Colon-separated list of directories to symlink into the session dir.                                        |
 | `CLAUDE_SESSION_VERBOSE`          | `0`                                                           | `1` enables stderr debug logging (includes hook stderr, resolved paths, cache-hit reporting).               |
 
 The CLI also **forwards** any `CLAUDE_CODE_*` and `ANTHROPIC_*` env vars

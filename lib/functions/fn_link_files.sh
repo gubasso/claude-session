@@ -5,7 +5,7 @@ cs::fn::link_files() {
   local session_dir=$1
   local shared_dir=$2
   local link_files=${CLAUDE_SESSION_LINK_FILES:-settings.local.json:keybindings.json:CLAUDE.md}
-  local link_dirs=${CLAUDE_SESSION_LINK_DIRS:-skills:agents:rules:commands:hooks}
+  local link_dirs=${CLAUDE_SESSION_LINK_DIRS:-skills:agents:rules:commands:hooks:plugins}
   local -a items=()
   local item=""
 
