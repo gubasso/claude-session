@@ -141,9 +141,9 @@ env variables (see [config.md](config.md)).
 
    | Mode       | Example                                            | Why                                                                             |
    |------------|----------------------------------------------------|---------------------------------------------------------------------------------|
-   | `sync`     | `.credentials.json`                                | Upstream rewrites atomically (temp + rename), which would break a symlink. Copy in at start, copy back on exit under `flock`. |
+   | `sync`     | `.credentials.json`, `.claude.json`, `mcp-needs-auth-cache.json` | Upstream rewrites atomically (temp + rename), which would break a symlink. Copy in at start, copy back on exit under `flock`. |
    | `link`     | `settings.local.json`, `keybindings.json`, `CLAUDE.md` | Read-only or edited in place. Safe to symlink into the session dir.             |
-   | `dir-link` | `skills/`, `agents/`, `rules/`, `commands/`, `hooks/`  | Shared directories. Symlink the dir; rebuild the symlink if a previous run replaced it with a real dir. |
+   | `dir-link` | `skills/`, `agents/`, `rules/`, `commands/`, `hooks/`, `plugins/`  | Shared directories. Symlink the dir; rebuild the symlink if a previous run replaced it with a real dir. |
 
    All three lists are overridable via env vars documented in
    `docs/config.md`:

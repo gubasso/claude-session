@@ -5,7 +5,7 @@ cs::fn::sync_files() {
   local mode=$1
   local session_dir=$2
   local shared_dir=$3
-  local sync_files=${CLAUDE_SESSION_SYNC_FILES:-.credentials.json}
+  local sync_files=${CLAUDE_SESSION_SYNC_FILES:-.credentials.json:.claude.json:mcp-needs-auth-cache.json}
   local -a items=()
   local item=""
   cs::helpers::split_colon "$sync_files" items
