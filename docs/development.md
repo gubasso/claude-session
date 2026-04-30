@@ -147,7 +147,7 @@ test/
 ├── cmd_session_test.bats
 ├── fn_real_claude_test.bats
 ├── fn_session_dir_test.bats
-├── fn_merge_settings_test.bats
+├── fn_compose_profile_test.bats
 ├── fn_terminal_id_test.bats
 └── fn_sync_files_test.bats
 ```
