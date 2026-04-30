@@ -34,6 +34,10 @@ XDG-aware, `PREFIX`-overridable. The **user** column is the default
 
 - bash 4.4+ (for `inherit_errexit`).
 - `jq` — settings-overlay merge at runtime.
+- `yq` (mikefarah v4+) — profile manifest parsing at runtime.
+- `base64` — lossless transport of merged-env values into shell variables
+  (preserves embedded tabs, newlines, and trailing newlines). Standard
+  in GNU coreutils; macOS / BSD ship a compatible `base64 -d`.
 - `flock` — exit-time sync safety under concurrent terminals.
 - `just` — recipe orchestration. Optional for install (`install.sh`
   works standalone), required for the test/lint workflow.

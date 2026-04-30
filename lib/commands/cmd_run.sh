@@ -97,14 +97,13 @@ cs::cmd::run() {
     [[ "$arg" == "--bare" ]] && bare=1
   done
 
-  local shared_dir=${CLAUDE_SESSION_SHARED_DIR:-$HOME/.claude}
-  mkdir -p "$shared_dir"
-
+  cs::helpers::source_fn resolve_profile
+  cs::helpers::source_fn compose_profile
+  cs::helpers::source_fn apply_profile_env
   cs::helpers::source_fn terminal_id
   cs::helpers::source_fn session_dir
   cs::helpers::source_fn sync_files
   cs::helpers::source_fn link_files
-  cs::helpers::source_fn merge_settings
   cs::helpers::source_fn real_claude
   cs::helpers::source_fn run_hook
 
@@ -118,10 +117,21 @@ cs::cmd::run() {
   mkdir -p "$session_dir"
   chmod 700 "$session_dir"
 
+  if [[ "${CS_PROFILE_MODE:-stock}" == "manifest" ]]; then
+    cs::fn::compose_profile "$CS_PROFILE_MANIFEST" "$session_dir"
+    cs::fn::apply_profile_env "$session_dir/.claude-session-compose.json"
+  else
+    rm -f "$session_dir/settings.json" \
+      "$session_dir/.claude-session-compose.json" \
+      "$session_dir/.claude-session-settings-cache"
+  fi
+
+  local shared_dir=${CLAUDE_SESSION_SHARED_DIR:-$HOME/.claude}
+  mkdir -p "$shared_dir"
+
   cs::fn::sync_files in "$session_dir" "$shared_dir"
   cs::fn::link_files "$session_dir" "$shared_dir"
-  cs::fn::merge_settings "$shared_dir" "${CLAUDE_SESSION_PROFILE:-default}" "$session_dir" "${CLAUDE_SESSION_CONFIG_DIR:-$(cs::helpers::config_dir_default)}"
-  __run_write_meta "$session_dir/session-meta.json" "${CLAUDE_SESSION_PROFILE:-default}" "$terminal_id" "$root" "$root_source" "$PWD"
+  __run_write_meta "$session_dir/session-meta.json" "${CLAUDE_SESSION_PROFILE:-}" "$terminal_id" "$root" "$root_source" "$PWD"
 
   local real_claude
   real_claude=$(cs::fn::real_claude)
@@ -143,11 +153,26 @@ cs::cmd::run() {
 
   export CLAUDE_CONFIG_DIR=$session_dir
   export CLAUDE_SESSION_DIR=$session_dir
-  export CLAUDE_SESSION_PROFILE=${CLAUDE_SESSION_PROFILE:-default}
+  export CLAUDE_SESSION_PROFILE=${CLAUDE_SESSION_PROFILE:-}
 
   if [[ $dry_run -eq 1 ]]; then
+    local mode=${CS_PROFILE_MODE:-stock}
+    local manifest=${CS_PROFILE_MANIFEST:-unset}
+    local settings_path="$session_dir/settings.json"
+    local layers=none
+    local profile=${CLAUDE_SESSION_PROFILE:-stock}
+    if [[ "$mode" == "stock" ]]; then
+      manifest='unset'
+      settings_path='not-written'
+    elif [[ -f "$session_dir/.claude-session-compose.json" ]]; then
+      layers=$(jq -r '.layers | join(":")' "$session_dir/.claude-session-compose.json" 2>/dev/null || printf 'none')
+    fi
+    printf 'mode=%s\n' "$mode"
+    printf 'manifest=%s\n' "$manifest"
+    printf 'profile=%s\n' "$profile"
     printf 'session_dir=%s\n' "$session_dir"
-    printf 'settings=%s\n' "$session_dir/settings.json"
+    printf 'settings=%s\n' "$settings_path"
+    printf 'layers=%s\n' "$layers"
     printf 'oauth_hook=%s\n' "$([[ $bare -eq 1 ]] && printf 'skipped (--bare)' || printf '%s' "${CLAUDE_SESSION_OAUTH_CMD:-unset}")"
     printf 'post_exit_hook=%s\n' "${CLAUDE_SESSION_POST_EXIT_CMD:-unset}"
     printf 'real_claude=%s\n' "$real_claude"

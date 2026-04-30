@@ -23,11 +23,12 @@ claude-session/
 │   │   └── cmd_session.sh           # list | clean
 │   └── functions/                   # one public cs::fn::<n> per file
 │       ├── fn_load_config.sh
-│       ├── fn_resolve_profile.sh
+│       ├── fn_resolve_profile.sh    # manifest-aware resolver, or stock mode
+│       ├── fn_compose_profile.sh    # compose layered settings + sidecar
+│       ├── fn_apply_profile_env.sh  # export merged env from compose sidecar
 │       ├── fn_real_claude.sh        # discover the real claude binary
 │       ├── fn_session_dir.sh        # secure session-dir selection
 │       ├── fn_terminal_id.sh        # tty-based id with PID fallback
-│       ├── fn_merge_settings.sh     # jq -s '.[0] * .[1]' overlay
 │       ├── fn_sync_files.sh         # copy-based sync (atomic temp+rename)
 │       ├── fn_link_files.sh         # symlink files / dirs
 │       ├── fn_run_hook.sh           # run user-supplied hook command
@@ -84,7 +85,8 @@ Every `.sh` file under `lib/` starts with:
      `--verbose`, `--dry-run`, `--help`, `--version`,
    - loads config via `cs::fn::load_config` (precedence: CLI flag >
      env > file),
-   - resolves the active profile via `cs::fn::resolve_profile`,
+   - resolves the active profile via `cs::fn::resolve_profile`
+     (manifest mode or stock mode),
    - dispatches via `cs::loader::dispatch`.
 3. `cs::loader::dispatch` (in `lib/loader.sh`):
    - takes `<subcommand> [args...]`,
@@ -150,20 +152,27 @@ env variables (see [config.md](config.md)).
    `CLAUDE_SESSION_SYNC_FILES`, `CLAUDE_SESSION_LINK_FILES`,
    `CLAUDE_SESSION_LINK_DIRS` (colon-separated).
 
-4. **Settings merge** (`cs::fn::merge_settings`):
-   - If `$SHARED/settings.base.json` exists, build the session's
-     `settings.json`:
-     - If `$SHARED/settings.<profile>.json` exists, merge with
-       `jq -s '.[0] * .[1]' base profile > settings.json`.
-     - Otherwise copy base unchanged.
-   - Cache key: active profile name + base mtime + overlay mtime (if
-     any). Skip the merge if the cached output is still current. The
-     source script's cache logic is preserved verbatim.
-   - Profile overlays may also come from
-     `$XDG_CONFIG_HOME/claude-session/profiles/<name>.settings.json`,
-     in which case `$SHARED/settings.<profile>.json` is not required.
+4. **Profile composition** (`cs::fn::compose_profile`):
+   - If `cs::fn::resolve_profile` found `profiles/<name>.yaml`, read its
+     ordered `settings-layers` list and resolve each layer to
+     `$XDG_CONFIG_HOME/claude-session/settings/<layer>.json`.
+   - Compose the layers in order with `jq -s`; later layers override
+     earlier layers.
+   - Write `<session-dir>/settings.json` and
+     `<session-dir>/.claude-session-compose.json`.
+   - Cache key: manifest path/mtime plus every layer path/mtime.
+     Cache files are session-local.
+   - Read the merged `.env` block from the compose sidecar and export
+     it with `cs::fn::apply_profile_env` before consuming any
+     `CLAUDE_SESSION_*` runtime knobs.
 
-5. **OAuth hook** (`cs::fn::run_hook` with `CLAUDE_SESSION_OAUTH_CMD`):
+5. **Stock mode**:
+   - Trigger: implicit selection and no `profiles/default.yaml`.
+   - No `settings.json` is written.
+   - No profile `env` is applied.
+   - Session isolation, sync/link, metadata, and hooks still run.
+
+6. **OAuth hook** (`cs::fn::run_hook` with `CLAUDE_SESSION_OAUTH_CMD`):
    - Only runs if `CLAUDE_CODE_OAUTH_TOKEN` is not already set in the
      environment.
    - Runs the user-supplied command under a 5-second timeout.
@@ -172,18 +181,18 @@ env variables (see [config.md](config.md)).
    - On failure, logs a warning to stderr (unless `--verbose`, in which
      case it logs the full stderr of the hook) and proceeds.
 
-6. **Session metadata**:
+7. **Session metadata**:
    - Write `<session-dir>/session-meta.json`, schema v1, containing:
      `schema`, `profile`, `terminal_id`, `started_at` (ISO 8601 UTC),
      `cwd`. Used by post-exit hooks.
 
-7. **Export** `CLAUDE_CONFIG_DIR=<session-dir>`.
+8. **Export** `CLAUDE_CONFIG_DIR=<session-dir>`.
 
-8. **Run** the real `claude` binary as a **child process, not via
+9. **Run** the real `claude` binary as a **child process, not via
    `exec`** so that the EXIT trap fires. The child inherits the
    terminal (stdin/stdout/stderr/signals work as expected).
 
-9. **On exit** (trap on `EXIT INT TERM`):
+10. **On exit** (trap on `EXIT INT TERM`):
    - `cs::fn::sync_files` copies each `sync`-classified file back to
      the shared dir under `flock` (atomic temp + rename). Skip if the
      session copy is older than the shared copy (another terminal
@@ -194,49 +203,19 @@ env variables (see [config.md](config.md)).
      only, unless `--verbose`).
    - Exit with the real `claude` binary's status.
 
-10. **Signal mapping** (per bash-CLI convention): SIGINT → exit 130,
+11. **Signal mapping** (per bash-CLI convention): SIGINT → exit 130,
     SIGTERM → exit 143.
 
-## Upstream `--bare` flag: OAuth is bypassed by design
+## Array merge semantics
 
-The upstream `claude --bare` mode (added in v2.1.81 for fast scripted
-`-p` calls) **deliberately disables OAuth and keychain auth**. It also
-skips hooks, LSP, plugin sync, and skill-directory walks. With `--bare`,
-the upstream binary requires an Anthropic API key via
-`ANTHROPIC_API_KEY` or via an `apiKeyHelper` defined in a `--settings`
-overlay; OAuth tokens in `.credentials.json` and the
-`CLAUDE_CODE_OAUTH_TOKEN` env var are intentionally ignored.
+Layer composition uses jq object multiplication. Objects deep-merge; arrays are replaced wholesale. If a later layer redefines `hooks.Stop` or `permissions.deny`, the later array replaces the earlier one.
 
-This means the wrapper's OAuth hook (step 5 above) is effectively a
-no-op for `claude-session --bare …`: the session dir hydrates and the
-post-exit sync still works, but the child process will refuse the
-OAuth credential and report "Not logged in". This is upstream behavior,
-not a wrapper bug.
+## OAuth and `--bare`
 
-Two supported ways to use `--bare` through `claude-session`:
-
-```sh
-# Inline API key via your secret store (gopass / pass / bw / op / …):
-ANTHROPIC_API_KEY="$(<your-key-lookup-cmd>)" \
-  claude-session --bare -p --model haiku "ping"
-
-# Or wire apiKeyHelper into a profile overlay so it is picked up by
-# the settings merge (cs::fn::merge_settings, step 4):
-#   $SHARED/settings.<profile>.json
-#   { "apiKeyHelper": "<your-key-lookup-cmd>" }
-```
-
-If you do **not** need `--bare`'s startup-time savings, drop the flag
-and the wrapper's normal OAuth flow works as documented:
-
-```sh
-claude-session -p --model haiku "ping"
-```
-
-A related upstream gotcha worth mentioning: issue #27900 reports the
-inverse — interactive mode ignoring `ANTHROPIC_API_KEY` and forcing
-`/login`. This is unrelated to `--bare` but sometimes surfaces when
-flipping profiles.
+OAuth-hook setup, the token-precedence chain, secret-store recipes, the
+`--bare` caveat, and per-profile disable patterns are documented in
+[auth.md](auth.md). The hook itself runs at step 6 of the lifecycle
+above (`cs::fn::run_hook` with `CLAUDE_SESSION_OAUTH_CMD`).
 
 References: upstream CLI reference and Authentication pages on
 `code.claude.com`; issue #36852 (`--bare` flag missing from docs);
@@ -356,7 +335,7 @@ trap 'exit 143' TERM
   cs::main             ── dispatches to ──▶ cs::cmd::<sub>
         │
   cs::cmd::run         ── uses ──▶ cs::fn::{terminal_id, session_dir,
-        │                                    merge_settings, sync_files,
+        │                                    compose_profile, apply_profile_env,
         │                                    link_files, real_claude,
         │                                    run_hook}
         │

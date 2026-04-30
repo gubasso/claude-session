@@ -30,6 +30,12 @@ cs::cmd::doctor() {
   local next=""
   local config_file
   config_file=$(cs::helpers::config_path)
+  local config_dir
+  config_dir=$(cs::helpers::config_dir_default)
+  local manifests_exist=0
+  if [[ -d "$config_dir/profiles" ]] && find "$config_dir/profiles" -maxdepth 1 -type f -name '*.yaml' -print -quit | grep -q .; then
+    manifests_exist=1
+  fi
   if [[ -f "$config_file" ]]; then
     local mode
     mode=$(stat -c '%a' "$config_file" 2>/dev/null || printf '000')
@@ -43,6 +49,53 @@ cs::cmd::doctor() {
     __doctor_line "config" "WARN" "no config file found at $config_file"
   fi
 
+  cs::helpers::source_fn resolve_profile
+  cs::helpers::source_fn compose_profile
+  cs::helpers::source_fn apply_profile_env
+  # Run the resolver in a subshell so its die/exit cannot abort doctor.
+  local profile_err
+  profile_err=$(mktemp)
+  if (cs::fn::resolve_profile) 2>"$profile_err"; then
+    cs::fn::resolve_profile
+    if [[ "${CS_PROFILE_MODE:-stock}" == "manifest" ]]; then
+      local compose_dir
+      compose_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-session-doctor.XXXXXX")
+      local compose_err
+      compose_err=$(mktemp)
+      if (cs::fn::compose_profile "$CS_PROFILE_MANIFEST" "$compose_dir") 2>"$compose_err"; then
+        cs::fn::compose_profile "$CS_PROFILE_MANIFEST" "$compose_dir"
+        cs::fn::apply_profile_env "$compose_dir/.claude-session-compose.json"
+        __doctor_line "profile" "OK" "\"${CLAUDE_SESSION_PROFILE:-}\""
+        __doctor_line "mode" "OK" "manifest ($CS_PROFILE_MANIFEST)"
+      else
+        __doctor_line "profile" "FAIL" "$(tr '\n' ' ' <"$compose_err")"
+        fails=$((fails + 1))
+        next="${next}  Fix the manifest and layer files, then run:  claude-session doctor"$'\n'
+      fi
+      rm -f "$compose_err"
+      export __CS_DOCTOR_COMPOSE_DIR="$compose_dir"
+    else
+      __doctor_line "profile" "OK" "stock"
+      __doctor_line "mode" "OK" "stock (no manifest)"
+    fi
+  else
+    local prof=${CS_CLI_PROFILE:-${CLAUDE_SESSION_PROFILE:-}}
+    __doctor_line "profile" "FAIL" "profile \"$prof\" could not be resolved"
+    fails=$((fails + 1))
+    next="${next}  Run:  claude-session profile list"$'\n'
+  fi
+  rm -f "$profile_err"
+
+  if command -v yq >/dev/null 2>&1; then
+    __doctor_line "yq" "OK" "$(command -v yq)"
+  elif [[ $manifests_exist -eq 1 ]]; then
+    __doctor_line "yq" "FAIL" "yq not found"
+    fails=$((fails + 1))
+    next="${next}  Install yq from https://github.com/mikefarah/yq"$'\n'
+  else
+    __doctor_line "yq" "WARN" "yq not found; no manifests discovered"
+  fi
+
   local shared_dir=${CLAUDE_SESSION_SHARED_DIR:-$HOME/.claude}
   if [[ -d "$shared_dir" && -r "$shared_dir" ]]; then
     __doctor_line "shared dir" "OK" "$shared_dir (exists, readable)"
@@ -51,23 +104,6 @@ cs::cmd::doctor() {
     fails=$((fails + 1))
     next="${next}  mkdir -p \"$shared_dir\""$'\n'
   fi
-
-  cs::helpers::source_fn resolve_profile
-  # Run the resolver in a subshell so its die/exit cannot abort doctor.
-  local profile_err
-  profile_err=$(mktemp)
-  if (cs::fn::resolve_profile) 2>"$profile_err"; then
-    __doctor_line "profile" "OK" "\"${CLAUDE_SESSION_PROFILE:-default}\""
-    # Re-run in the current shell now that we know it succeeds, so the
-    # rest of doctor sees the resolved profile env.
-    cs::fn::resolve_profile
-  else
-    local prof=${CS_CLI_PROFILE:-${CLAUDE_SESSION_PROFILE:-default}}
-    __doctor_line "profile" "FAIL" "profile \"$prof\" could not be resolved"
-    fails=$((fails + 1))
-    next="${next}  Run:  claude-session profile list"$'\n'
-  fi
-  rm -f "$profile_err"
 
   cs::helpers::source_fn real_claude
   local real=""
@@ -121,6 +157,12 @@ cs::cmd::doctor() {
     __doctor_line "jq" "FAIL" "jq not found"
     fails=$((fails + 1))
   fi
+  if command -v base64 >/dev/null 2>&1; then
+    __doctor_line "base64" "OK" "$(command -v base64)"
+  else
+    __doctor_line "base64" "FAIL" "base64 not found (needed to decode merged env values)"
+    fails=$((fails + 1))
+  fi
   if command -v flock >/dev/null 2>&1; then
     __doctor_line "flock" "OK" "$(command -v flock)"
   else
@@ -139,49 +181,37 @@ cs::cmd::doctor() {
 
   if [[ $verbose -eq 1 ]]; then
     printf '\nEnvironment\n'
-    printf 'CLAUDE_SESSION_PROFILE=%s\n' "${CLAUDE_SESSION_PROFILE:-default}"
-    printf 'CLAUDE_SESSION_CONFIG_DIR=%s\n' "$(cs::helpers::config_dir_default)"
+    printf 'CLAUDE_SESSION_PROFILE=%s\n' "${CLAUDE_SESSION_PROFILE:-}"
+    printf 'CLAUDE_SESSION_CONFIG_DIR=%s\n' "$config_dir"
     printf 'CLAUDE_SESSION_SHARED_DIR=%s\n' "$shared_dir"
-    # Per docs/commands.md: also surface the env vars the active profile
-    # would set (CLAUDE_CODE_*, ANTHROPIC_*, etc), with redaction unless
-    # --verbose was *also* passed (which it is, here, so values are shown
-    # except for *_TOKEN / *_SECRET / *_KEY / *_PASSWORD / OAUTH_CMD per
-    # the secret-key rule).
-    local config_dir
-    config_dir=$(cs::helpers::config_dir_default)
-    local profile=${CLAUDE_SESSION_PROFILE:-default}
-    local profile_file="$config_dir/profiles/$profile.env"
-    if [[ -f "$profile_file" ]]; then
-      printf '# profile vars from %s\n' "$profile_file"
-      local kv key value
-      # shellcheck disable=SC2016  # script body for inner bash -c; vars expand in child
-      while IFS= read -r kv; do
-        [[ -n "$kv" ]] || continue
-        [[ "$kv" == *=* ]] || continue
-        key=${kv%%=*}
-        value=${kv#*=}
-        case "$key" in
-          HOME | PATH | PWD | SHLVL | _ | OLDPWD | CS_PROFILE_FILE | CS_LIB_DIR) continue ;;
-        esac
-        # In verbose mode we still apply the suffix-based secret redaction
-        # to keep tokens out of triage paste-bins.
-        value=$(cs::helpers::redact "$key" "$value" 0)
-        printf '%s=%s\n' "$key" "$value"
-      done < <(env -i HOME="$HOME" PATH="$PATH" \
-        CS_PROFILE_FILE="$profile_file" CS_LIB_DIR="${LIB_DIR:-}" \
-        bash -c '
-          # shellcheck source=/dev/null
-          . "$CS_LIB_DIR/helpers.sh"
-          # shellcheck source=/dev/null
-          . "$CS_LIB_DIR/functions/fn_load_config.sh"
-          cs::fn::__apply_dotenv "$CS_PROFILE_FILE"
-          env -0 | tr "\0" "\n"
-        ' 2>/dev/null) || true
+    if [[ -n "${__CS_DOCTOR_COMPOSE_DIR:-}" && -f "${__CS_DOCTOR_COMPOSE_DIR}/.claude-session-compose.json" ]]; then
+      printf '# merged env from %s\n' "${__CS_DOCTOR_COMPOSE_DIR}/.claude-session-compose.json"
+      if ! command -v base64 >/dev/null 2>&1; then
+        # The dependency check above already FAILed the run; surface here too
+        # so the verbose dump's omission is explicit, not silent.
+        printf '# merged env not shown: base64 is required to decode the compose sidecar.\n'
+      else
+        local key b64 value
+        while IFS=$'\t' read -r key b64; do
+          [[ -n "$key" ]] || continue
+          # NUL-terminated read preserves trailing newlines through the base64 decode.
+          IFS= read -r -d '' value < <(printf '%s' "$b64" | base64 -d && printf '\0') \
+            || cs::helpers::die 3 "compose sidecar contains an undecodable env value." \
+              "Failed to base64-decode the value for \"$key\" in ${__CS_DOCTOR_COMPOSE_DIR}/.claude-session-compose.json." \
+              "  Re-run claude-session doctor and inspect the merged settings layers."
+          value=$(cs::helpers::redact "$key" "$value" 0)
+          printf '%s=%s\n' "$key" "$value"
+        done < <(jq -r '.env | to_entries[]? | "\(.key)\t\((.value | tostring) | @base64)"' "${__CS_DOCTOR_COMPOSE_DIR}/.claude-session-compose.json")
+      fi
     fi
   fi
 
   if [[ -n "$next" ]]; then
     printf '\nNext:\n%s' "$next"
+  fi
+  if [[ -n "${__CS_DOCTOR_COMPOSE_DIR:-}" ]]; then
+    rm -rf "$__CS_DOCTOR_COMPOSE_DIR"
+    unset __CS_DOCTOR_COMPOSE_DIR
   fi
   [[ $fails -eq 0 ]]
 }

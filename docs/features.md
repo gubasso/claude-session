@@ -25,9 +25,10 @@ step-by-step.
    exit code 5. Strict validation rejects symlinks, non-directories,
    and wrong ownership; mode is forced to 700. Per-terminal sessions
    land under a `sessions/` subdir of that root.
-3. **Profile-based `settings.json` overlay** via `jq -s '.[0] * .[1]'`,
-   with mtime-based cache invalidation so repeat invocations are fast
-   when nothing changed.
+3. **Layered `settings.json` composition** via ordered
+   `profiles/<name>.yaml` manifests and `jq -s` over
+   `settings/<layer>.json`, with mtime-based cache invalidation so
+   repeat invocations are fast when nothing changed.
 4. **File classification** — three modes (`sync` / `link` / `dir-link`)
    for files the wrapper stages into the session directory. The `sync`
    mode's copy + atomic `flock`ed temp-rename pattern is preserved as
@@ -53,9 +54,9 @@ variable so the repo can ship publicly with zero personal data.
 
 | Concept                                           | v1 surface                                                            |
 |---------------------------------------------------|-----------------------------------------------------------------------|
-| Switch backend (e.g. Vertex AI vs default)        | User-defined profiles under `~/.config/claude-session/profiles/`, selected via `--profile` / `CLAUDE_SESSION_PROFILE`. |
-| Cloud project ID                                  | User sets `ANTHROPIC_VERTEX_PROJECT_ID` (or equivalent) in their own `profiles/<name>.env`. |
-| Cloud region                                      | User sets `CLOUD_ML_REGION` (or equivalent) in their own `profiles/<name>.env`. |
+| Switch backend (e.g. Vertex AI vs default)        | User-defined manifests under `~/.config/claude-session/profiles/`, selected via `--profile` / `CLAUDE_SESSION_PROFILE`. |
+| Cloud project ID                                  | User sets `ANTHROPIC_VERTEX_PROJECT_ID` (or equivalent) in their own `settings/<layer>.json` `env` block. |
+| Cloud region                                      | User sets `CLOUD_ML_REGION` (or equivalent) in their own `settings/<layer>.json` `env` block. |
 | Profile naming                                    | Any name; the built-in default is literally `default`. Examples in docs use generic names: `default`, `work`, `experiment`, `vertex`. |
 | Pre-startup OAuth-token lookup                    | Any command, via `CLAUDE_SESSION_OAUTH_CMD`. Unset → step skipped.    |
 | Post-exit cost-sync / analytics / cleanup         | Any command, via `CLAUDE_SESSION_POST_EXIT_CMD`. Unset → step skipped.|
@@ -82,8 +83,11 @@ both humans and LLM coding agents.
   resolve the config-file path (honoring
   `CLAUDE_SESSION_CONFIG_DIR`), or open it in `$EDITOR`.
 - **`profile list | show <name>`**: enumerate profiles or dump one
-  profile's resolved env-var set (secrets redacted unless
-  `--verbose`).
+  profile's manifest, resolved layers, and merged env-var set
+  (secrets redacted unless `--verbose`).
+- **Stock mode**: if no `profiles/default.yaml` exists and no explicit
+  profile is requested, `claude-session` still isolates the session but
+  writes no `settings.json`.
 - **`session list | clean`**: list active / stale session
   directories, clean with `--older-than <duration>` and `--dry-run`
   / `--yes` guards.
@@ -120,3 +124,4 @@ release shippable.
 - Homebrew / AUR / Nix packaging. v1 ships multi-file + `install.sh`
   via `just install` only.
 - `systemd --user` timer for automated stale-session cleanup.
+- Dynamic bash completion of profile names from `profiles/*.yaml`.
