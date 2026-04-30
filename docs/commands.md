@@ -82,17 +82,18 @@ USAGE:
   claude-session [<claude_args>...]                 # bare form; `run` is default
 
 DESCRIPTION:
-  Create (or reuse) a session directory for the current terminal, merge
-  settings overlays for the active profile, symlink shared config, run
-  the optional OAuth hook, and exec the real claude binary as a child
-  process. On exit, sync back copy-classified files and run the
+  Create (or reuse) a session directory for the current terminal,
+  resolve either a manifest-backed profile or stock mode, compose
+  layered settings when a manifest is active, symlink shared config,
+  run the optional OAuth hook, and exec the real claude binary as a
+  child process. On exit, sync back copy-classified files and run the
   optional post-exit hook.
 
 FLAGS:
   --profile <name>   Active profile. Overrides CLAUDE_SESSION_PROFILE.
-  --dry-run          Print the plan (session dir, merged settings path,
-                     hooks to run, final claude invocation) and exit 0
-                     without invoking claude.
+  --dry-run          Print the plan (mode, manifest, session dir,
+                     settings path, layers, hooks, final claude
+                     invocation) and exit 0 without invoking claude.
 
 EXAMPLES:
   claude-session run
@@ -145,10 +146,10 @@ USAGE:
 DESCRIPTION:
   The verbose debug interface for the wrapper. Bundles every
   health check (config presence and permissions, shared dir
-  accessibility, active profile validity, real-binary discovery,
-  hook invocability, session-dir resolution) AND the full session
-  inventory in one call, so a user or agent has a single command
-  to dump for triage.
+  accessibility, active profile validity, manifest composition,
+  real-binary discovery, hook invocability, session-dir resolution)
+  AND the full session inventory in one call, so a user or agent has
+  a single command to dump for triage.
 
   Prints one line per check with an OK / WARN / FAIL status, then
   a "Sessions" block — produced by the shared
@@ -183,12 +184,18 @@ EXIT CODES:
 
 OUTPUT (success, example — sessions on XDG_RUNTIME_DIR):
   config          OK    /home/user/.config/claude-session/config.env (mode 600)
-  shared dir      OK    /home/user/.claude (exists, readable)
   profile         OK    "default"
+  mode            OK    manifest (/home/user/.config/claude-session/profiles/default.yaml)
+  yq              OK    /usr/bin/yq
+  shared dir      OK    /home/user/.claude (exists, readable)
   real claude     OK    /home/user/.local/share/claude/versions/1.2.3
   oauth hook      —     CLAUDE_SESSION_OAUTH_CMD unset (skipped)
   post-exit hook  —     CLAUDE_SESSION_POST_EXIT_CMD unset (skipped)
   session root    OK    /run/user/1000/claude-session/  (XDG_RUNTIME_DIR, mode 700)
+  jq              OK    /usr/bin/jq
+  base64          OK    /usr/bin/base64
+  flock           OK    /usr/bin/flock
+  timeout         OK    /usr/bin/timeout
 
   Sessions under /run/user/1000/claude-session/sessions/  (3 dirs: 1 active, 2 stale)
     terminal_id   status   size      mtime
@@ -366,11 +373,11 @@ USAGE:
 
 DESCRIPTION:
   Enumerate profiles. A profile is any file matching
-  profiles/<name>.env (trailing .env is the marker). An optional
-  overlay profiles/<name>.settings.json may coexist. Output is one
-  profile name per line, sorted alphabetically. The active profile
-  (from --profile / CLAUDE_SESSION_PROFILE / default) is marked with
-  a leading "*" on that line.
+  profiles/<name>.yaml (trailing .yaml is the marker). Output is one
+  profile name per line, sorted alphabetically. The active resolved
+  manifest profile (from --profile / CLAUDE_SESSION_PROFILE /
+  default.yaml) is marked with a leading "*" on that line. Stock mode
+  marks nothing.
 
 FLAGS:
   (none)
@@ -384,8 +391,6 @@ EXIT CODES:
 
 OUTPUT (example):
   * default
-    experiment
-    vertex
     work
 
 SEE ALSO:
@@ -395,17 +400,17 @@ SEE ALSO:
 
 ### `claude-session profile show <name>`
 
-Dump one profile's resolved env vars.
+Dump one profile's manifest, resolved layers, and merged env vars.
 
 ```
 USAGE:
   claude-session profile show <name> [--verbose]
 
 DESCRIPTION:
-  Source profiles/<name>.env in an isolated subshell and print the
-  KEY=VALUE pairs it defines. Secret-like values are redacted unless
-  --verbose. If profiles/<name>.settings.json exists, its path is
-  printed as a trailing comment.
+  Compose the profile manifest in an isolated scratch directory and
+  print the manifest path, ordered layer paths, and merged KEY=VALUE
+  pairs from the composed `.env` block. Secret-like values are
+  redacted unless --verbose.
 
 FLAGS:
   --verbose   Do not redact secret-like variable values.
@@ -416,16 +421,18 @@ EXAMPLES:
 
 EXIT CODES:
   0   success
-  3   profile file exists but is syntactically invalid
+  3   profile manifest or layer is invalid
   6   profile not found
 
 OUTPUT (example):
   # profile: vertex
-  # source: /home/user/.config/claude-session/profiles/vertex.env
+  # manifest: /home/user/.config/claude-session/profiles/vertex.yaml
+  # layers:
+  #   1: /home/user/.config/claude-session/settings/base.json
+  #   2: /home/user/.config/claude-session/settings/vertex.json
   CLAUDE_CODE_USE_VERTEX=1
   CLOUD_ML_REGION=us-central1
   ANTHROPIC_VERTEX_PROJECT_ID=<redacted>
-  # overlay: /home/user/.config/claude-session/profiles/vertex.settings.json
 
 SEE ALSO:
   claude-session profile list

@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-: 'desc: List profiles or show one profile dotenv file.'
+: 'desc: List profiles or show one profile manifest and merged env.'
 
 __profile_help() {
   cat <<'EOF'
@@ -15,18 +15,18 @@ __profile_list() {
   local dir="$config_dir/profiles"
   [[ -e "$dir" ]] || return 0
   [[ -r "$dir" ]] || cs::helpers::die 3 "profiles directory unreadable." "Cannot read $dir." "  chmod u+r \"$dir\""
-  local active=${CLAUDE_SESSION_PROFILE:-default}
+  local active=${CLAUDE_SESSION_PROFILE:-}
   local file=""
   while IFS= read -r file; do
     [[ -n "$file" ]] || continue
     local name
-    name=$(basename "$file" .env)
-    if [[ "$name" == "$active" ]]; then
+    name=$(basename "$file" .yaml)
+    if [[ -n "$active" && "$name" == "$active" ]]; then
       printf '* %s\n' "$name"
     else
       printf '  %s\n' "$name"
     fi
-  done < <(find "$dir" -maxdepth 1 -type f -name '*.env' -print | sort)
+  done < <(find "$dir" -maxdepth 1 -type f -name '*.yaml' -print | sort)
 }
 
 __profile_show() {
@@ -34,46 +34,38 @@ __profile_show() {
   local verbose=$2
   local config_dir
   config_dir=$(cs::helpers::config_dir_default)
-  local file="$config_dir/profiles/$name.env"
-  local overlay="$config_dir/profiles/$name.settings.json"
-  [[ -f "$file" ]] || cs::helpers::die 6 "profile \"$name\" not found." "No file at $file." "  List available profiles:  claude-session profile list" "claude-session profile list"
-  cs::helpers::source_fn load_config
-  cs::fn::validate_dotenv "$file"
+  local manifest="$config_dir/profiles/$name.yaml"
+  [[ -f "$manifest" ]] || cs::helpers::die 6 "profile \"$name\" not found." "No manifest at $manifest." "  List available profiles:  claude-session profile list" "claude-session profile list"
+  cs::helpers::source_fn compose_profile
+  local tmpdir
+  tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/claude-session-profile.XXXXXX")
+  cs::fn::compose_profile "$manifest" "$tmpdir"
+  local sidecar="$tmpdir/.claude-session-compose.json"
   printf '# profile: %s\n' "$name"
-  printf '# source: %s\n' "$file"
-  # Apply the validated dotenv in an isolated subshell so the parent
-  # environment is not polluted, then dump only the keys the profile
-  # actually defined. We use the same line-parser the loader uses so
-  # values like `pass show <secret>` are not executed as commands.
-  local profile_keys
-  # shellcheck disable=SC2016  # script body for inner bash -c; vars expand in child
-  if ! profile_keys=$(env -i HOME="$HOME" PATH="$PATH" \
-      CS_PROFILE_FILE="$file" CS_LIB_DIR="${LIB_DIR:-}" \
-      bash -c '
-        # shellcheck source=/dev/null
-        . "$CS_LIB_DIR/helpers.sh"
-        # shellcheck source=/dev/null
-        . "$CS_LIB_DIR/functions/fn_load_config.sh"
-        cs::fn::__apply_dotenv "$CS_PROFILE_FILE"
-        env -0 | tr "\0" "\n"
-      ' 2>/dev/null); then
-    cs::helpers::die 3 "profile \"$name\" failed to load." "Sourcing $file produced an error." "  Edit the file and re-run claude-session profile show $name."
-  fi
-  local kv key value
-  while IFS= read -r kv; do
-    [[ -n "$kv" ]] || continue
-    [[ "$kv" == *=* ]] || continue
-    key=${kv%%=*}
-    value=${kv#*=}
-    case "$key" in
-      HOME | PATH | PWD | SHLVL | _ | OLDPWD | CS_PROFILE_FILE | CS_LIB_DIR) continue ;;
-    esac
+  printf '# manifest: %s\n' "$manifest"
+  printf '# layers:\n'
+  local idx=1
+  local layer=""
+  while IFS= read -r layer; do
+    [[ -n "$layer" ]] || continue
+    printf '#   %s: %s\n' "$idx" "$layer"
+    idx=$((idx + 1))
+  done < <(jq -r '.layers[]' "$sidecar")
+  command -v base64 >/dev/null 2>&1 || cs::helpers::die 3 "base64 is required." \
+    "claude-session uses base64 to decode merged-env values from the compose sidecar." \
+    "  Install GNU coreutils (or your platform's base64) and re-run claude-session doctor."
+  local key b64 value
+  while IFS=$'\t' read -r key b64; do
+    [[ -n "$key" ]] || continue
+    # NUL-terminated read preserves trailing newlines through the base64 decode.
+    IFS= read -r -d '' value < <(printf '%s' "$b64" | base64 -d && printf '\0') \
+      || cs::helpers::die 3 "compose sidecar contains an undecodable env value." \
+        "Failed to base64-decode the value for \"$key\" in $sidecar." \
+        "  Re-run claude-session doctor and inspect the merged settings layers."
     value=$(cs::helpers::redact "$key" "$value" "$verbose")
     printf '%s=%s\n' "$key" "$value"
-  done <<<"$profile_keys"
-  if [[ -f "$overlay" ]]; then
-    printf '# overlay: %s\n' "$overlay"
-  fi
+  done < <(jq -r '.env | to_entries[]? | "\(.key)\t\((.value | tostring) | @base64)"' "$sidecar")
+  rm -rf "$tmpdir"
 }
 
 cs::cmd::profile() {

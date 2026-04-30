@@ -14,11 +14,14 @@ state (history, projects, todos, plans) stays isolated per terminal.
   (or the XDG-spec `${XDG_STATE_HOME:-$HOME/.local/state}/claude-session/sessions/`
   fallback when no runtime dir is available); no cross-bleed
   of prompts, todos, or project metadata between terminals.
-- **Profile-based settings overlays**: layer a user-named profile's
-  `settings.<profile>.json` atop `settings.base.json` at startup via `jq`.
+- **Layered profile composition**: declare profiles with
+  `profiles/<name>.yaml`, compose ordered `settings/<layer>.json`
+  files at startup via `jq`, and export merged profile env from the
+  composed `env` block.
 - **Configurable OAuth and post-exit hooks**: run any command to supply an
-  OAuth token at startup, run any command after `claude` exits (cost sync,
-  analytics, cleanup). Both optional; nothing personal ships in the repo.
+  OAuth token at startup (gopass, pass, Bitwarden, 1Password, age — see
+  [docs/auth.md](docs/auth.md)), run any command after `claude` exits (cost
+  sync, analytics, cleanup). Both optional; nothing personal ships in the repo.
 - **XDG-aware install**: user install under `~/.local/`, system install under
   `$PREFIX/`, all paths follow the XDG Base Directory spec.
 - **Scriptable / agent-friendly**: per-subcommand `--help`, three-part error
@@ -53,7 +56,7 @@ Create a minimal config:
 ```sh
 mkdir -p ~/.config/claude-session
 cat > ~/.config/claude-session/config.env <<'EOF'
-CLAUDE_SESSION_PROFILE=default
+CLAUDE_SESSION_REAL_CLAUDE=/path/to/claude
 EOF
 ```
 
@@ -90,14 +93,17 @@ Full reference: [docs/commands.md](docs/commands.md).
 ## Configuration
 
 Config precedence is **CLI flags > environment variables > config file**.
-The main config file is a dotenv-style `~/.config/claude-session/config.env`;
-per-profile overrides live under `~/.config/claude-session/profiles/<name>.env`.
-Full reference and env-var table: [docs/config.md](docs/config.md).
+The main config file is a global dotenv-style
+`~/.config/claude-session/config.env`; profile manifests live under
+`~/.config/claude-session/profiles/<name>.yaml` and compose
+`~/.config/claude-session/settings/<layer>.json` files. Full reference
+and env-var table: [docs/config.md](docs/config.md).
 
 ## Requirements
 
 - bash 4.4+
-- `jq` (for settings overlay merge)
+- `jq` (for settings composition)
+- `yq` (mikefarah v4+, for manifest parsing)
 - `just` (optional; `install.sh` works standalone if you'd rather skip it)
 
 ## Documentation
