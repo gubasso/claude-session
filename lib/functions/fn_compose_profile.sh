@@ -138,26 +138,6 @@ cs::fn::compose_profile() {
 
   local settings_file="$target_dir/settings.json"
   local sidecar_file="$target_dir/.claude-session-compose.json"
-  local cache_file="$target_dir/.claude-session-settings-cache"
-
-  # Combine the path|mtime|size key with the runtime cache layer's content,
-  # because sync_files uses `cp -p` to persist Claude's mutated settings.json
-  # and 1s mtime granularity hides same-second, same-size content swaps.
-  local _compose_key_content=""
-  _compose_key_content=$(__cache_key "$manifest" "${all_layer_paths[@]}")
-  if [[ -f "$cache_settings" ]]; then
-    _compose_key_content+=$'\n'
-    _compose_key_content+=$(cat "$cache_settings")
-  fi
-
-  if [[ "$session_dir" != "-" ]]; then
-    local cache_key
-    cache_key=$(printf '%s' "$_compose_key_content" | __cache_hash)
-    if [[ -f "$settings_file" && -f "$sidecar_file" && -f "$cache_file" && "$(cat "$cache_file")" == "$cache_key" ]]; then
-      cs::helpers::debug "settings cache hit for manifest $manifest"
-      return 0
-    fi
-  fi
 
   local filter='.[0]'
   local idx=1
@@ -181,15 +161,4 @@ cs::fn::compose_profile() {
     --argjson env "$env_json" \
     '{manifest: $manifest, layers: $layers, env: $env}' >"$sidecar_file" || cs::helpers::die 3 "compose sidecar write failed." "claude-session could not write $sidecar_file." "  Re-run claude-session doctor."
 
-  if [[ "$session_dir" != "-" ]]; then
-    # Recompute the runtime-cache-content-augmented key after the merge so the
-    # short-circuit check uses the same shape on the next compose call.
-    local final_key_content
-    final_key_content=$(__cache_key "$manifest" "${all_layer_paths[@]}")
-    if [[ -f "$cache_settings" ]]; then
-      final_key_content+=$'\n'
-      final_key_content+=$(cat "$cache_settings")
-    fi
-    printf '%s' "$final_key_content" | __cache_hash >"$cache_file"
-  fi
 }

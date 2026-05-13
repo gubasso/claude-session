@@ -211,37 +211,30 @@ EOF
 }
 
 # bats test_tags=unit
-@test "compose_profile cache invalidates when cache contents change with mtime preserved" {
-  # Regression: sync_files persists the runtime cache layer with `cp -p`,
-  # preserving the source mtime. If Claude mutates settings.json in the same
-  # second as the wrapper composes, the cache file ends up with the same
-  # (path, mtime, size) tuple it had before, and a path|mtime-only key would
-  # short-circuit the next compose. Content folding must catch this.
+@test "compose_profile overwrites picker-mutated session settings on the next launch" {
   write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" base
-  printf '{"effortLevel":"high"}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
-  mkdir -p "$XDG_CACHE_HOME/claude-session"
-  local cache_file="$XDG_CACHE_HOME/claude-session/settings.json"
-  # Same length as the replacement below so path|mtime|size alone is
-  # insufficient and only content hashing catches the change.
-  printf '{"effortLevel":"low"   }\n' >"$cache_file"
-  cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-  local first_key
-  first_key=$(cat "$BATS_TEST_TMPDIR/session/.claude-session-settings-cache")
-  local cache_mtime
-  cache_mtime=$(stat -c '%Y' "$cache_file")
+  printf '{"effortLevel":"high","model":"claude-test"}\n' \
+    >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
 
-  # Rewrite cache with same-size, different content, and restore mtime so
-  # only the bytes changed (size and path|mtime are identical).
-  printf '{"effortLevel":"med"   }\n' >"$cache_file"
-  touch -d "@$cache_mtime" "$cache_file"
-  [[ "$(stat -c '%Y' "$cache_file")" -eq "$cache_mtime" ]]
-  [[ "$(stat -c '%s' "$cache_file")" -eq 25 ]]
+  cs::fn::compose_profile \
+    "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" \
+    "$BATS_TEST_TMPDIR/session"
+  # Simulate Claude Code's /model picker rewriting the session file.
+  printf '{"effortLevel":"low","model":"picker-mutated"}\n' \
+    >"$BATS_TEST_TMPDIR/session/settings.json"
 
-  cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-  local second_key
-  second_key=$(cat "$BATS_TEST_TMPDIR/session/.claude-session-settings-cache")
+  # Touch the layer so mtime-only caches would also re-fire, but the
+  # real invariant we want is "no short-circuit on second compose".
+  sleep 1
+  touch "$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
 
-  [[ "$first_key" != "$second_key" ]]
+  run cs::fn::compose_profile \
+    "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" \
+    "$BATS_TEST_TMPDIR/session"
+
+  assert_success
+  jq -e '.effortLevel == "high" and .model == "claude-test"' \
+    "$BATS_TEST_TMPDIR/session/settings.json"
 }
 
 # bats test_tags=unit

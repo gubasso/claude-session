@@ -46,6 +46,16 @@ step-by-step.
 8. **Child-process execution** of the real `claude` binary (not `exec`)
    so the EXIT trap runs and post-exit hooks fire.
 
+**Effort-level display caveat.** When a profile layer sets
+`"effortLevel": "high"` in its `settings.json`, that value remains the
+durable wrapper-side source of truth and re-applies on every session
+launch. Claude Code's in-app `/effort` picker can still display a
+different *effective* effort for some models — Opus 4.7, for example,
+defaults to `xhigh` regardless of the on-disk value. Users can override
+the live session value with `/effort` (or `/model`), and the wrapper
+intentionally does not freeze effort via environment variables, so
+those pickers continue to work inside a session.
+
 ## Generalized (was hard-coded; now user-settable)
 
 The source script baked in values that are specific to a single user's

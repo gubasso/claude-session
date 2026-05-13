@@ -65,7 +65,10 @@ When a manifest is active, `claude-session` composes its layers in order with `j
 - The merged output is validated with `jq empty`.
 - The merged `.env` block defaults to `{}` when absent.
 - A non-object merged `.env` block is an error.
-- The compose cache is session-local. The key combines `path|mtime|size` for the manifest and every layer, and additionally folds the runtime cache layer's full content into the hash. The size and content components catch same-second, same-mtime content swaps that 1s mtime granularity would otherwise hide.
+The runtime cache file is sanitized on exit: the keys `effortLevel`,
+`model`, and `outputStyle` are stripped before write, so picker-driven
+in-session mutations of those keys never become the next session's
+durable baseline.
 
 ## Env propagation
 
@@ -79,9 +82,16 @@ After composition, `claude-session` exports each merged `env` entry into its own
 - `CLAUDE_SESSION_SHARED_DIR`
 - `CLAUDE_SESSION_SYNC_FILES`
 - `CLAUDE_SESSION_LINK_FILES`
+- `CLAUDE_SESSION_HOME_LINK_FILES`
 - `CLAUDE_SESSION_LINK_DIRS`
 - `CLAUDE_SESSION_OAUTH_CMD`
 - `CLAUDE_SESSION_POST_EXIT_CMD`
+- `CLAUDE_SESSION_AUTO_TRUST_CWD`
+
+A profile can therefore disable the trust-dialog auto-seed
+(`CLAUDE_SESSION_AUTO_TRUST_CWD=0`) or extend the set of files linked
+from `$HOME` (`CLAUDE_SESSION_HOME_LINK_FILES=.claude.json:other.json`)
+without touching `config.env`.
 
 Empty-string overrides are preserved. For example, `CLAUDE_SESSION_OAUTH_CMD=""` disables the OAuth hook for that profile.
 
@@ -117,9 +127,11 @@ If the session dir already contains an old composed `settings.json`, `claude-ses
 | `CLAUDE_SESSION_REAL_CLAUDE` | (auto-discovered) | Absolute path to the real `claude` binary. |
 | `CLAUDE_SESSION_OAUTH_CMD` | (unset) | OAuth lookup command. Usually supplied by a profile layer `env` block. |
 | `CLAUDE_SESSION_POST_EXIT_CMD` | (unset) | Post-exit command. Usually supplied by a profile layer `env` block. |
-| `CLAUDE_SESSION_SYNC_FILES` | `.credentials.json:.claude.json:mcp-needs-auth-cache.json` | Colon-separated files copied in/out of the session dir. |
+| `CLAUDE_SESSION_SYNC_FILES` | `.credentials.json:mcp-needs-auth-cache.json` | Colon-separated files copied in/out of the session dir. |
 | `CLAUDE_SESSION_LINK_FILES` | `settings.local.json:keybindings.json:CLAUDE.md` | Colon-separated files symlinked into the session dir. |
+| `CLAUDE_SESSION_HOME_LINK_FILES` | `.claude.json` | Colon-separated files symlinked from the session dir to `$HOME/<name>`. Each missing target is seeded as `{}` (mode 600) inside a `flock`-protected critical section before Claude Code is exec'd, so concurrent first-launch terminals never race each other's writes and `--dry-run` does not mutate `$HOME`. Used for state vanilla `claude` also reads (trust dialog, project onboarding). |
 | `CLAUDE_SESSION_LINK_DIRS` | `skills:agents:rules:commands:hooks:plugins` | Colon-separated directories symlinked into the session dir. |
+| `CLAUDE_SESSION_AUTO_TRUST_CWD` | `1` | When `1`, the wrapper seeds `projects["$PWD"].hasTrustDialogAccepted=true` and `hasCompletedProjectOnboarding=true` into `$HOME/.claude.json` on each launch, suppressing the "Trust this directory" prompt. Set to `0` to disable. |
 | `CLAUDE_SESSION_VERBOSE` | `0` | `1` enables debug logging. |
 
 ## Authentication

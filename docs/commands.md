@@ -87,7 +87,9 @@ DESCRIPTION:
   layered settings when a manifest is active, symlink shared config,
   run the optional OAuth hook, and exec the real claude binary as a
   child process. On exit, sync back copy-classified files and run the
-  optional post-exit hook.
+  optional post-exit hook. Seed per-project trust into
+  $HOME/.claude.json on launch when CLAUDE_SESSION_AUTO_TRUST_CWD=1
+  (default).
 
 FLAGS:
   --profile <name>   Active profile. Overrides CLAUDE_SESSION_PROFILE.
@@ -288,9 +290,11 @@ OUTPUT (example):
   CLAUDE_SESSION_REAL_CLAUDE=(unset, auto-discover)
   CLAUDE_SESSION_OAUTH_CMD=<redacted>
   CLAUDE_SESSION_POST_EXIT_CMD=my-cost-sync --session-dir "$CLAUDE_SESSION_DIR"
-  CLAUDE_SESSION_SYNC_FILES=.credentials.json
+  CLAUDE_SESSION_SYNC_FILES=.credentials.json:mcp-needs-auth-cache.json
   CLAUDE_SESSION_LINK_FILES=settings.local.json:keybindings.json:CLAUDE.md
-  CLAUDE_SESSION_LINK_DIRS=skills:agents:rules:commands:hooks
+  CLAUDE_SESSION_HOME_LINK_FILES=.claude.json
+  CLAUDE_SESSION_LINK_DIRS=skills:agents:rules:commands:hooks:plugins
+  CLAUDE_SESSION_AUTO_TRUST_CWD=1
   CLAUDE_SESSION_VERBOSE=0
 
 SEE ALSO:
