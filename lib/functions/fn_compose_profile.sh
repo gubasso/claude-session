@@ -14,6 +14,11 @@ __file_mtime() {
   stat -c '%Y' "$file" 2>/dev/null || printf '0'
 }
 
+__file_size() {
+  local file=$1
+  stat -c '%s' "$file" 2>/dev/null || printf '0'
+}
+
 __cache_hash() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum | awk '{print $1}'
@@ -74,10 +79,14 @@ __cache_key() {
   shift
   local manifest_mtime
   manifest_mtime=$(__file_mtime "$manifest")
-  printf '%s|%s' "$manifest" "$manifest_mtime"
+  printf '%s|%s|%s' "$manifest" "$manifest_mtime" "$(__file_size "$manifest")"
   local path=""
   for path in "$@"; do
-    printf '|%s|%s' "$path" "$(__file_mtime "$path")"
+    # Include size alongside mtime so same-second content swaps (the
+    # runtime-cache writeback can preserve a source mtime via `cp -p`,
+    # and 1s mtime granularity hides same-second edits) still invalidate
+    # the per-session compose cache.
+    printf '|%s|%s|%s' "$path" "$(__file_mtime "$path")" "$(__file_size "$path")"
   done
   printf '\n'
 }
@@ -100,12 +109,25 @@ cs::fn::compose_profile() {
   local config_dir=${CLAUDE_SESSION_CONFIG_DIR:-$(cs::helpers::config_dir_default)}
   local -a layer_names=()
   local -a layer_paths=()
+  local -a all_layer_paths=()
   local layer_names_output=""
   local layer_paths_output=""
   layer_names_output=$(__manifest_layer_names "$manifest")
   mapfile -t layer_names <<<"$layer_names_output"
   layer_paths_output=$(__layer_paths "$config_dir" "${layer_names[@]}")
   mapfile -t layer_paths <<<"$layer_paths_output"
+
+  local cache_dir
+  cache_dir=$(cs::helpers::cache_dir_default)
+  local cache_settings="$cache_dir/settings.json"
+  if [[ -f "$cache_settings" ]]; then
+    if jq -e 'type == "object"' "$cache_settings" >/dev/null 2>&1; then
+      all_layer_paths+=("$cache_settings")
+    else
+      cs::helpers::log "warning: ignoring corrupt $cache_settings (not a JSON object)"
+    fi
+  fi
+  all_layer_paths+=("${layer_paths[@]}")
 
   local target_dir=$session_dir
   if [[ "$target_dir" == "-" ]]; then
@@ -118,9 +140,19 @@ cs::fn::compose_profile() {
   local sidecar_file="$target_dir/.claude-session-compose.json"
   local cache_file="$target_dir/.claude-session-settings-cache"
 
+  # Combine the path|mtime|size key with the runtime cache layer's content,
+  # because sync_files uses `cp -p` to persist Claude's mutated settings.json
+  # and 1s mtime granularity hides same-second, same-size content swaps.
+  local _compose_key_content=""
+  _compose_key_content=$(__cache_key "$manifest" "${all_layer_paths[@]}")
+  if [[ -f "$cache_settings" ]]; then
+    _compose_key_content+=$'\n'
+    _compose_key_content+=$(cat "$cache_settings")
+  fi
+
   if [[ "$session_dir" != "-" ]]; then
     local cache_key
-    cache_key=$(__cache_key "$manifest" "${layer_paths[@]}" | __cache_hash)
+    cache_key=$(printf '%s' "$_compose_key_content" | __cache_hash)
     if [[ -f "$settings_file" && -f "$sidecar_file" && -f "$cache_file" && "$(cat "$cache_file")" == "$cache_key" ]]; then
       cs::helpers::debug "settings cache hit for manifest $manifest"
       return 0
@@ -129,13 +161,13 @@ cs::fn::compose_profile() {
 
   local filter='.[0]'
   local idx=1
-  while [[ $idx -lt ${#layer_paths[@]} ]]; do
+  while [[ $idx -lt ${#all_layer_paths[@]} ]]; do
     filter="$filter * .[$idx]"
     idx=$((idx + 1))
   done
 
   local tmp_settings="$target_dir/settings.json.tmp.$$"
-  jq -s "$filter" "${layer_paths[@]}" >"$tmp_settings" || cs::helpers::die 3 "settings merge failed." "jq could not merge the settings layers declared by $manifest." "  Fix invalid JSON in the settings layers and re-run claude-session doctor."
+  jq -s "$filter" "${all_layer_paths[@]}" >"$tmp_settings" || cs::helpers::die 3 "settings merge failed." "jq could not merge the settings layers declared by $manifest." "  Fix invalid JSON in the settings layers and re-run claude-session doctor."
   jq empty "$tmp_settings" >/dev/null || cs::helpers::die 3 "settings JSON is invalid." "Merged settings output failed jq validation." "  Fix the settings layers and re-run claude-session doctor."
   jq -e 'type == "object"' "$tmp_settings" >/dev/null || cs::helpers::die 3 "settings JSON is invalid." "Merged settings root must be a JSON object." "  Each settings layer must contain a JSON object at the top level."
 
@@ -145,11 +177,19 @@ cs::fn::compose_profile() {
   mv -f "$tmp_settings" "$settings_file"
   jq -n \
     --arg manifest "$manifest" \
-    --argjson layers "$(printf '%s\n' "${layer_paths[@]}" | jq -R . | jq -s .)" \
+    --argjson layers "$(printf '%s\n' "${all_layer_paths[@]}" | jq -R . | jq -s .)" \
     --argjson env "$env_json" \
     '{manifest: $manifest, layers: $layers, env: $env}' >"$sidecar_file" || cs::helpers::die 3 "compose sidecar write failed." "claude-session could not write $sidecar_file." "  Re-run claude-session doctor."
 
   if [[ "$session_dir" != "-" ]]; then
-    __cache_key "$manifest" "${layer_paths[@]}" | __cache_hash >"$cache_file"
+    # Recompute the runtime-cache-content-augmented key after the merge so the
+    # short-circuit check uses the same shape on the next compose call.
+    local final_key_content
+    final_key_content=$(__cache_key "$manifest" "${all_layer_paths[@]}")
+    if [[ -f "$cache_settings" ]]; then
+      final_key_content+=$'\n'
+      final_key_content+=$(cat "$cache_settings")
+    fi
+    printf '%s' "$final_key_content" | __cache_hash >"$cache_file"
   fi
 }

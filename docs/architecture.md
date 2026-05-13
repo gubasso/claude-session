@@ -156,12 +156,20 @@ env variables (see [config.md](config.md)).
    - If `cs::fn::resolve_profile` found `profiles/<name>.yaml`, read its
      ordered `settings-layers` list and resolve each layer to
      `$XDG_CONFIG_HOME/claude-session/settings/<layer>.json`.
+   - When `$XDG_CACHE_HOME/claude-session/settings.json` exists and is a
+     JSON object, prepend it as the lowest-precedence layer. Corrupt
+     cache JSON logs a warning and is skipped.
    - Compose the layers in order with `jq -s`; later layers override
      earlier layers.
    - Write `<session-dir>/settings.json` and
      `<session-dir>/.claude-session-compose.json`.
-   - Cache key: manifest path/mtime plus every layer path/mtime.
-     Cache files are session-local.
+   - Cache key: manifest and every layer contribute
+     `path|mtime|size` to the hash, and when the runtime cache layer
+     exists its full content is folded into the hash input as well.
+     The size and content components catch same-second, same-mtime
+     content swaps that 1s mtime granularity would otherwise hide
+     (the runtime cache writeback uses `cp -p`, so the cache file
+     can inherit the source mtime). Cache files are session-local.
    - Read the merged `.env` block from the compose sidecar and export
      it with `cs::fn::apply_profile_env` before consuming any
      `CLAUDE_SESSION_*` runtime knobs.
@@ -196,7 +204,18 @@ env variables (see [config.md](config.md)).
    - `cs::fn::sync_files` copies each `sync`-classified file back to
      the shared dir under `flock` (atomic temp + rename). Skip if the
      session copy is older than the shared copy (another terminal
-     wrote more recently).
+     wrote more recently). Exception: `.claude.json` is **deep-merged**
+     into the shared copy with `jq -s '.[0] * .[1]'` instead of
+     mtime-gated wholesale copy, so per-project trust entries (and
+     other object children) written by parallel terminals union-merge
+     rather than clobber. Top-level monotonic/cosmetic keys remain
+     last-writer-wins via the same `jq *` semantics. If `jq` is
+     missing, `.claude.json` falls back to the mtime-gated copy path.
+   - After the `sync_files` loop and still inside the same `flock`,
+     persist `$session_dir/settings.json` to
+     `$XDG_CACHE_HOME/claude-session/settings.json` with atomic
+     `cp -p` + `mv -f`. Stock mode no-ops because
+     `$session_dir/settings.json` does not exist.
    - Run `CLAUDE_SESSION_POST_EXIT_CMD` if set; the command gets
      `CLAUDE_SESSION_DIR` and `CLAUDE_SESSION_PROFILE` in its env.
      Hook failures do **not** change the wrapper's exit code (logged

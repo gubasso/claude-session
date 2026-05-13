@@ -29,6 +29,7 @@ cs::fn::sync_files() {
         local src=""
         local dst=""
         local tmp=""
+        local cache_session="$session_dir/settings.json"
         local src_m=0
         local dst_m=0
         for item in "${items[@]}"; do
@@ -37,14 +38,36 @@ cs::fn::sync_files() {
           dst="$shared_dir/$item"
           [[ -f "$src" ]] || continue
           mkdir -p "$(dirname "$dst")"
-          src_m=$(stat -c '%Y' "$src" 2>/dev/null || printf '0')
-          dst_m=$(stat -c '%Y' "$dst" 2>/dev/null || printf '0')
-          if [[ ! -f "$dst" || $src_m -gt $dst_m ]]; then
-            tmp="$dst.tmp.$$"
-            cp -p "$src" "$tmp"
-            mv -f "$tmp" "$dst"
+          tmp="$dst.tmp.$$"
+          if command -v jq >/dev/null 2>&1 && [[ "$item" == ".claude.json" && -f "$dst" ]]; then
+            if jq -s '.[0] * .[1]' "$dst" "$src" >"$tmp" 2>/dev/null; then
+              mv -f "$tmp" "$dst"
+            else
+              rm -f "$tmp"
+              cs::helpers::log "warning: .claude.json merge failed; keeping shared copy"
+            fi
+          else
+            src_m=$(stat -c '%Y' "$src" 2>/dev/null || printf '0')
+            dst_m=$(stat -c '%Y' "$dst" 2>/dev/null || printf '0')
+            if [[ ! -f "$dst" || $src_m -gt $dst_m ]]; then
+              cp -p "$src" "$tmp"
+              mv -f "$tmp" "$dst"
+            fi
           fi
         done
+        if [[ -f "$cache_session" ]]; then
+          local cache_dir cache_dst cache_tmp
+          cache_dir=$(cs::helpers::cache_dir_default)
+          mkdir -p "$cache_dir"
+          cache_dst="$cache_dir/settings.json"
+          cache_tmp="$cache_dst.tmp.$$"
+          if cp -p "$cache_session" "$cache_tmp" && mv -f "$cache_tmp" "$cache_dst"; then
+            :
+          else
+            rm -f "$cache_tmp"
+            cs::helpers::log "warning: failed to persist settings cache at $cache_dst"
+          fi
+        fi
       ) 9>"$lock"
       ;;
     *)

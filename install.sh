@@ -19,6 +19,7 @@ if [[ $user_mode -eq 1 ]]; then
   data_dir="${XDG_DATA_HOME:-$HOME/.local/share}"
   completion_dir="$data_dir/bash-completion/completions"
   state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude-session"
+  cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/claude-session"
 else
   prefix=${PREFIX:-/usr/local}
   bin_dir="$prefix/bin"
@@ -94,6 +95,14 @@ elif [[ -f "$manifest" ]]; then
   done <"$manifest"
 fi
 mv -f "$new_manifest" "$manifest"
+
+if [[ $user_mode -eq 1 ]]; then
+  # Pre-create the persistent runtime-settings cache dir on the host so
+  # devcontainer bind-mounts of `~/.cache/claude-session` succeed without
+  # the user running mkdir manually. Kept outside the install manifest;
+  # uninstall.sh removes the cache dir explicitly (regeneratable state).
+  mkdir -p "$cache_dir"
+fi
 
 if [[ $user_mode -eq 1 && ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
   # shellcheck disable=SC2016  # literal $HOME and $PATH for the user to copy/paste

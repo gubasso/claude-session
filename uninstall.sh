@@ -9,8 +9,10 @@ fi
 
 if [[ $user_mode -eq 1 ]]; then
   state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude-session"
+  cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/claude-session"
 else
   state_dir="/var/lib/claude-session"
+  cache_dir=""
 fi
 manifest="$state_dir/install-manifest"
 
@@ -33,3 +35,10 @@ for ((i = ${#paths[@]} - 1; i >= 0; i--)); do
   fi
 done
 rm -f "$manifest"
+
+# Remove the auto-generated runtime-settings cache scaffolded by install.sh.
+# The cache holds only regeneratable runtime state (e.g. last `/effort`),
+# not user-edited config, so wiping it on uninstall is symmetric and safe.
+if [[ -n "$cache_dir" && -d "$cache_dir" ]]; then
+  rm -rf "$cache_dir"
+fi
