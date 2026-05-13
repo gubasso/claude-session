@@ -14,3 +14,17 @@ setup() {
   run "$BATS_TEST_DIRNAME/../uninstall.sh"
   assert_success
 }
+
+# bats test_tags=integration
+@test "install scaffolds the runtime-settings cache dir and uninstall removes it" {
+  run "$BATS_TEST_DIRNAME/../install.sh"
+  assert_success
+  [[ -d "$XDG_CACHE_HOME/claude-session" ]]
+
+  # Simulate runtime state inside the cache so we exercise rm -rf, not rmdir.
+  printf '{"effortLevel":"medium"}\n' >"$XDG_CACHE_HOME/claude-session/settings.json"
+
+  run "$BATS_TEST_DIRNAME/../uninstall.sh"
+  assert_success
+  [[ ! -e "$XDG_CACHE_HOME/claude-session" ]]
+}

@@ -8,6 +8,8 @@ _common_setup() {
   export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/config"
   export XDG_STATE_HOME="$BATS_TEST_TMPDIR/state"
   export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR/runtime"
+  export XDG_CACHE_HOME="$BATS_TEST_TMPDIR/cache"
+  unset CLAUDE_SESSION_CACHE_DIR
   unset CLAUDE_SESSION_CONFIG_DIR
   unset CLAUDE_SESSION_PROFILE
   unset CLAUDE_SESSION_REAL_CLAUDE
@@ -16,7 +18,7 @@ _common_setup() {
   unset CS_PROFILE_MODE
   unset CS_PROFILE_MANIFEST
   unset CS_COMPOSE_SESSION_DIR
-  mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
+  mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR" "$XDG_CACHE_HOME"
 }
 
 write_manifest() {
