@@ -15,7 +15,7 @@ Precedence is flags > env > file.
 | `$XDG_CONFIG_HOME/claude-session/config.env` | Global wrapper config only. Dotenv `KEY=VALUE` lines. No profile-specific settings live here. |
 | `$XDG_CONFIG_HOME/claude-session/profiles/<name>.yaml` | Profile manifest. YAML with one top-level `settings-layers` array. |
 | `$XDG_CONFIG_HOME/claude-session/settings/<name>.json` | JSON settings layer file. Layer names come from manifest entries. |
-| `${XDG_CACHE_HOME:-$HOME/.cache}/claude-session/settings.json` | Auto-generated persistent runtime layer. Lowest-precedence input to profile composition. Written back from `$session_dir/settings.json` on exit. Do not hand-edit. |
+| `${XDG_CACHE_HOME:-$HOME/.cache}/claude-session/settings.json` | Auto-generated persistent runtime layer. Lowest-precedence input to profile composition. Written back from `$session_dir/settings.json` on exit. Separate persistence channel from `$HOME/.claude.json`. Do not hand-edit. |
 | `<session_dir>/settings.json` | Session-local composed Claude settings file, written only in manifest mode. |
 | `<session_dir>/.claude-session-compose.json` | Session-local sidecar with the resolved manifest path, ordered layer paths, and merged `.env` block. |
 
@@ -68,7 +68,9 @@ When a manifest is active, `claude-session` composes its layers in order with `j
 The runtime cache file is sanitized on exit: the keys `effortLevel`,
 `model`, and `outputStyle` are stripped before write, so picker-driven
 in-session mutations of those keys never become the next session's
-durable baseline.
+durable baseline. This cache is distinct from `$HOME/.claude.json`:
+versioned `effortLevel` lives in `settings/<layer>.json` and
+re-overrides the cache on every startup.
 
 ## Env propagation
 
@@ -122,14 +124,14 @@ If the session dir already contains an old composed `settings.json`, `claude-ses
 |----------|---------|---------|
 | `CLAUDE_SESSION_CONFIG_DIR` | `$XDG_CONFIG_HOME/claude-session` | Root of `config.env`, `profiles/`, and `settings/`. |
 | `CLAUDE_SESSION_CACHE_DIR` | `$XDG_CACHE_HOME/claude-session` (or `$HOME/.cache/claude-session`) | Root for the auto-generated runtime settings cache. |
-| `CLAUDE_SESSION_SHARED_DIR` | `$HOME/.claude` | Shared Claude config dir staged into the session dir. |
+| `CLAUDE_SESSION_SHARED_DIR` | `$HOME/.claude` | Shared Claude config dir staged into the session dir. The lock at `$CLAUDE_SESSION_SHARED_DIR/.claude-session.lock` must resolve to the same host inode across every PTS and container that shares `$HOME/.claude.json`. The dctl default (bind-mounting `~/.claude/` as a directory) satisfies this automatically. Overriding this var to a per-container path breaks cross-container serialization of auto-trust writes. |
 | `CLAUDE_SESSION_PROFILE` | empty unless explicit/default manifest resolves | Requested profile name. Explicit values require `profiles/<name>.yaml`. |
 | `CLAUDE_SESSION_REAL_CLAUDE` | (auto-discovered) | Absolute path to the real `claude` binary. |
 | `CLAUDE_SESSION_OAUTH_CMD` | (unset) | OAuth lookup command. Usually supplied by a profile layer `env` block. |
 | `CLAUDE_SESSION_POST_EXIT_CMD` | (unset) | Post-exit command. Usually supplied by a profile layer `env` block. |
 | `CLAUDE_SESSION_SYNC_FILES` | `.credentials.json:mcp-needs-auth-cache.json` | Colon-separated files copied in/out of the session dir. |
 | `CLAUDE_SESSION_LINK_FILES` | `settings.local.json:keybindings.json:CLAUDE.md` | Colon-separated files symlinked into the session dir. |
-| `CLAUDE_SESSION_HOME_LINK_FILES` | `.claude.json` | Colon-separated files symlinked from the session dir to `$HOME/<name>`. Each missing target is seeded as `{}` (mode 600) inside a `flock`-protected critical section before Claude Code is exec'd, so concurrent first-launch terminals never race each other's writes and `--dry-run` does not mutate `$HOME`. Used for state vanilla `claude` also reads (trust dialog, project onboarding). |
+| `CLAUDE_SESSION_HOME_LINK_FILES` | `.claude.json` | Colon-separated files symlinked from the session dir to `$HOME/<name>`. Each missing target is seeded as `{}` (mode 600) inside a `flock`-protected critical section before Claude Code is exec'd, so concurrent first-launch terminals never race each other's writes and `--dry-run` does not mutate `$HOME`. Used for state vanilla `claude` also reads (trust dialog, project onboarding). Writes to each home-link target use `cs::fn::write_home_link_file`, which atomically renames on regular files and falls back to a locked in-place rewrite when the target is a bind-mount leaf. |
 | `CLAUDE_SESSION_LINK_DIRS` | `skills:agents:rules:commands:hooks:plugins` | Colon-separated directories symlinked into the session dir. |
 | `CLAUDE_SESSION_AUTO_TRUST_CWD` | `1` | When `1`, the wrapper seeds `projects["$PWD"].hasTrustDialogAccepted=true` and `hasCompletedProjectOnboarding=true` into `$HOME/.claude.json` on each launch, suppressing the "Trust this directory" prompt. Set to `0` to disable. |
 | `CLAUDE_SESSION_VERBOSE` | `0` | `1` enables debug logging. |

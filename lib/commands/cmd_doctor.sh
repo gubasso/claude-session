@@ -105,6 +105,21 @@ cs::cmd::doctor() {
     next="${next}  mkdir -p \"$shared_dir\""$'\n'
   fi
 
+  local home_trust="$HOME/.claude.json"
+  if [[ -e "$home_trust" ]]; then
+    local mode
+    mode=$(stat -c '%a' "$home_trust" 2>/dev/null || printf '000')
+    local mount_note="regular file (rename fast path)"
+    if command -v findmnt >/dev/null 2>&1 \
+      && findmnt -T "$home_trust" --target "$home_trust" >/dev/null 2>&1 \
+      && [[ "$(findmnt -no TARGET -T "$home_trust" 2>/dev/null)" == "$home_trust" ]]; then
+      mount_note="bind-mounted leaf (in-place rewrite path active)"
+    fi
+    __doctor_line "home trust" "OK" "$home_trust (mode $mode; $mount_note)"
+  else
+    __doctor_line "home trust" "WARN" "$home_trust missing (will be seeded on next run)"
+  fi
+
   cs::helpers::source_fn real_claude
   local real=""
   local err
@@ -169,6 +184,14 @@ cs::cmd::doctor() {
     __doctor_line "flock" "FAIL" "flock not found"
     fails=$((fails + 1))
   fi
+  local lock_file="$shared_dir/.claude-session.lock"
+  if [[ -e "$lock_file" ]]; then
+    local lock_inode
+    lock_inode=$(stat -c '%i' "$lock_file" 2>/dev/null || printf 'unknown')
+    __doctor_line "shared lock" "OK" "$lock_file (inode $lock_inode)"
+  else
+    __doctor_line "shared lock" "—" "$lock_file (will be created on next run)"
+  fi
   if command -v timeout >/dev/null 2>&1; then
     __doctor_line "timeout" "OK" "$(command -v timeout)"
   else
@@ -183,7 +206,9 @@ cs::cmd::doctor() {
     printf '\nEnvironment\n'
     printf 'CLAUDE_SESSION_PROFILE=%s\n' "${CLAUDE_SESSION_PROFILE:-}"
     printf 'CLAUDE_SESSION_CONFIG_DIR=%s\n' "$config_dir"
+    printf 'CLAUDE_SESSION_CACHE_DIR=%s\n' "$(cs::helpers::cache_dir_default)"
     printf 'CLAUDE_SESSION_SHARED_DIR=%s\n' "$shared_dir"
+    printf 'HOME_TRUST_FILE=%s\n' "$HOME/.claude.json"
     if [[ -n "${__CS_DOCTOR_COMPOSE_DIR:-}" && -f "${__CS_DOCTOR_COMPOSE_DIR}/.claude-session-compose.json" ]]; then
       printf '# merged env from %s\n' "${__CS_DOCTOR_COMPOSE_DIR}/.claude-session-compose.json"
       if ! command -v base64 >/dev/null 2>&1; then

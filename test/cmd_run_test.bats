@@ -16,6 +16,70 @@ EOF
   export CLAUDE_SESSION_REAL_CLAUDE="$BATS_TEST_TMPDIR/fakebin/claude"
 }
 
+__write_run_userns_script() {
+  local script=$1
+  cat >"$script" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${SCENARIO:-}" in
+  auto_trust)
+    mkdir -p "$HOME/.claude" "$HOME/project" "$TEST_ROOT"
+    src="$TEST_ROOT/src.json"
+    dst="$HOME/.claude.json"
+    printf '{}\n' >"$src"
+    chmod 600 "$src"
+    printf '{}\n' >"$dst"
+    chmod 600 "$dst"
+    mount --bind "$src" "$dst"
+    before_inode=$(stat -c '%i' "$dst")
+    cd "$HOME/project"
+    claude-session run -- chat hi >/dev/null
+    after_inode=$(stat -c '%i' "$dst")
+    printf 'before_inode=%s\n' "$before_inode"
+    printf 'after_inode=%s\n' "$after_inode"
+    printf 'mode=%s\n' "$(stat -c '%a' "$dst")"
+    jq -e --arg cwd "$PWD" '
+      .projects[$cwd].hasTrustDialogAccepted == true
+      and .projects[$cwd].hasCompletedProjectOnboarding == true
+    ' "$dst" >/dev/null
+    ;;
+  concurrent)
+    mkdir -p "$HOME/.claude" "$HOME/project-a" "$HOME/project-b" "$TEST_ROOT"
+    src="$TEST_ROOT/src.json"
+    dst="$HOME/.claude.json"
+    printf '{}\n' >"$src"
+    chmod 600 "$src"
+    printf '{}\n' >"$dst"
+    chmod 600 "$dst"
+    mount --bind "$src" "$dst"
+    (
+      cd "$HOME/project-a"
+      claude-session run -- chat one >/dev/null
+    ) &
+    pid_a=$!
+    (
+      cd "$HOME/project-b"
+      claude-session run -- chat two >/dev/null
+    ) &
+    pid_b=$!
+    wait "$pid_a"
+    wait "$pid_b"
+    jq empty "$dst" >/dev/null
+    jq -e '
+      .projects[env.HOME + "/project-a"].hasTrustDialogAccepted == true
+      and .projects[env.HOME + "/project-b"].hasTrustDialogAccepted == true
+    ' "$dst" >/dev/null
+    ;;
+  *)
+    printf 'unknown scenario\n' >&2
+    exit 1
+    ;;
+esac
+EOF
+  chmod +x "$script"
+}
+
 # bats test_tags=integration
 @test "run dry-run prints plan without spawning child" {
   run claude-session run --dry-run -- chat hi
@@ -217,4 +281,62 @@ EOF
   run claude-session run -- chat hi
   assert_success
   [[ "$output" != *"auto-trusted current directory"* ]]
+}
+
+# bats test_tags=integration
+@test "run auto-trusts bind-mounted home trust file in place" {
+  skip_if_missing_unshare_rm
+  local script="$BATS_TEST_TMPDIR/run-userns.sh"
+  __write_run_userns_script "$script"
+
+  run env PATH="$PATH" HOME="$HOME" XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
+    XDG_STATE_HOME="$XDG_STATE_HOME" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+    XDG_CACHE_HOME="$XDG_CACHE_HOME" \
+    CLAUDE_SESSION_REAL_CLAUDE="$CLAUDE_SESSION_REAL_CLAUDE" \
+    TEST_ROOT="$BATS_TEST_TMPDIR/run-userns" SCENARIO=auto_trust \
+    unshare -rm -- bash "$script"
+
+  assert_success
+  local before_inode after_inode
+  before_inode=$(awk -F= '/^before_inode=/{print $2}' <<<"$output")
+  after_inode=$(awk -F= '/^after_inode=/{print $2}' <<<"$output")
+  [[ "$before_inode" == "$after_inode" ]]
+  assert_output_contains "mode=600"
+}
+
+# bats test_tags=integration
+@test "parallel runs serialize bind-mounted auto-trust writes" {
+  skip_if_missing_unshare_rm
+  local script="$BATS_TEST_TMPDIR/run-userns-concurrent.sh"
+  __write_run_userns_script "$script"
+
+  run env PATH="$PATH" HOME="$HOME" XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
+    XDG_STATE_HOME="$XDG_STATE_HOME" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+    XDG_CACHE_HOME="$XDG_CACHE_HOME" \
+    CLAUDE_SESSION_REAL_CLAUDE="$CLAUDE_SESSION_REAL_CLAUDE" \
+    TEST_ROOT="$BATS_TEST_TMPDIR/run-userns-concurrent" SCENARIO=concurrent \
+    unshare -rm -- bash "$script"
+
+  assert_success
+}
+
+# bats test_tags=integration
+@test "run dry-run composes versioned effortLevel over stale cache" {
+  skip_if_missing_yq
+  mkdir -p "$XDG_CONFIG_HOME/claude-session/settings" "$XDG_CONFIG_HOME/claude-session/profiles"
+  write_manifest "$XDG_CONFIG_HOME/claude-session/profiles/default.yaml" base
+  printf '{"effortLevel":"high"}\n' >"$XDG_CONFIG_HOME/claude-session/settings/base.json"
+  mkdir -p "$XDG_CACHE_HOME/claude-session"
+  printf '{"effortLevel":"low"}\n' >"$XDG_CACHE_HOME/claude-session/settings.json"
+
+  run claude-session run --dry-run --profile default -- chat hi
+
+  assert_success
+  local session_dir
+  session_dir=$(awk -F= '/^session_dir=/{print $2}' <<<"$output")
+  [[ "$(jq -r '.effortLevel' "$session_dir/settings.json")" == "high" ]]
+  jq -e --arg cache "$XDG_CACHE_HOME/claude-session/settings.json" \
+    --arg base "$XDG_CONFIG_HOME/claude-session/settings/base.json" '
+      .layers[0] == $cache and .layers[1] == $base
+    ' "$session_dir/.claude-session-compose.json"
 }
