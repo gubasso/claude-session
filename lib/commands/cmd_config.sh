@@ -21,7 +21,9 @@ __config_show() {
     CLAUDE_SESSION_POST_EXIT_CMD
     CLAUDE_SESSION_SYNC_FILES
     CLAUDE_SESSION_LINK_FILES
+    CLAUDE_SESSION_HOME_LINK_FILES
     CLAUDE_SESSION_LINK_DIRS
+    CLAUDE_SESSION_AUTO_TRUST_CWD
     CLAUDE_SESSION_VERBOSE
   )
   local key=""
@@ -32,9 +34,11 @@ __config_show() {
       CLAUDE_SESSION_SHARED_DIR) value=${CLAUDE_SESSION_SHARED_DIR:-$HOME/.claude} ;;
       CLAUDE_SESSION_PROFILE) value=${CLAUDE_SESSION_PROFILE:-default} ;;
       CLAUDE_SESSION_REAL_CLAUDE) value=${CLAUDE_SESSION_REAL_CLAUDE:-"(unset, auto-discover)"} ;;
-      CLAUDE_SESSION_SYNC_FILES) value=${CLAUDE_SESSION_SYNC_FILES:-.credentials.json} ;;
+      CLAUDE_SESSION_SYNC_FILES) value=${CLAUDE_SESSION_SYNC_FILES:-.credentials.json:mcp-needs-auth-cache.json} ;;
       CLAUDE_SESSION_LINK_FILES) value=${CLAUDE_SESSION_LINK_FILES:-settings.local.json:keybindings.json:CLAUDE.md} ;;
-      CLAUDE_SESSION_LINK_DIRS) value=${CLAUDE_SESSION_LINK_DIRS:-skills:agents:rules:commands:hooks} ;;
+      CLAUDE_SESSION_HOME_LINK_FILES) value=${CLAUDE_SESSION_HOME_LINK_FILES:-.claude.json} ;;
+      CLAUDE_SESSION_LINK_DIRS) value=${CLAUDE_SESSION_LINK_DIRS:-skills:agents:rules:commands:hooks:plugins} ;;
+      CLAUDE_SESSION_AUTO_TRUST_CWD) value=${CLAUDE_SESSION_AUTO_TRUST_CWD:-1} ;;
       CLAUDE_SESSION_VERBOSE) value=${CLAUDE_SESSION_VERBOSE:-0} ;;
       *) value=${!key:-"(unset)"} ;;
     esac

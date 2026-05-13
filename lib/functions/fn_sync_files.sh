@@ -5,7 +5,7 @@ cs::fn::sync_files() {
   local mode=$1
   local session_dir=$2
   local shared_dir=$3
-  local sync_files=${CLAUDE_SESSION_SYNC_FILES:-.credentials.json:.claude.json:mcp-needs-auth-cache.json}
+  local sync_files=${CLAUDE_SESSION_SYNC_FILES:-.credentials.json:mcp-needs-auth-cache.json}
   local -a items=()
   local item=""
   cs::helpers::split_colon "$sync_files" items
@@ -39,20 +39,11 @@ cs::fn::sync_files() {
           [[ -f "$src" ]] || continue
           mkdir -p "$(dirname "$dst")"
           tmp="$dst.tmp.$$"
-          if command -v jq >/dev/null 2>&1 && [[ "$item" == ".claude.json" && -f "$dst" ]]; then
-            if jq -s '.[0] * .[1]' "$dst" "$src" >"$tmp" 2>/dev/null; then
-              mv -f "$tmp" "$dst"
-            else
-              rm -f "$tmp"
-              cs::helpers::log "warning: .claude.json merge failed; keeping shared copy"
-            fi
-          else
-            src_m=$(stat -c '%Y' "$src" 2>/dev/null || printf '0')
-            dst_m=$(stat -c '%Y' "$dst" 2>/dev/null || printf '0')
-            if [[ ! -f "$dst" || $src_m -gt $dst_m ]]; then
-              cp -p "$src" "$tmp"
-              mv -f "$tmp" "$dst"
-            fi
+          src_m=$(stat -c '%Y' "$src" 2>/dev/null || printf '0')
+          dst_m=$(stat -c '%Y' "$dst" 2>/dev/null || printf '0')
+          if [[ ! -f "$dst" || $src_m -gt $dst_m ]]; then
+            cp -p "$src" "$tmp"
+            mv -f "$tmp" "$dst"
           fi
         done
         if [[ -f "$cache_session" ]]; then
@@ -61,11 +52,13 @@ cs::fn::sync_files() {
           mkdir -p "$cache_dir"
           cache_dst="$cache_dir/settings.json"
           cache_tmp="$cache_dst.tmp.$$"
-          if cp -p "$cache_session" "$cache_tmp" && mv -f "$cache_tmp" "$cache_dst"; then
+          if jq 'del(.effortLevel, .model, .outputStyle)' \
+              "$cache_session" >"$cache_tmp" \
+            && mv -f "$cache_tmp" "$cache_dst"; then
             :
           else
             rm -f "$cache_tmp"
-            cs::helpers::log "warning: failed to persist settings cache at $cache_dst"
+            cs::helpers::log "warning: failed to persist sanitized settings cache at $cache_dst"
           fi
         fi
       ) 9>"$lock"
