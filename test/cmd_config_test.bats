@@ -17,7 +17,9 @@ setup() {
   run claude-session config show
   assert_success
   assert_output_contains "CLAUDE_SESSION_PROFILE=default"
-  assert_output_contains "CLAUDE_SESSION_SYNC_FILES=.credentials.json"
+  assert_output_contains "CLAUDE_SESSION_SYNC_FILES=.credentials.json:mcp-needs-auth-cache.json"
+  assert_output_contains "CLAUDE_SESSION_HOME_LINK_FILES=.claude.json"
+  assert_output_contains "CLAUDE_SESSION_AUTO_TRUST_CWD=1"
 }
 
 # bats test_tags=integration

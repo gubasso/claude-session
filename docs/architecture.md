@@ -138,19 +138,21 @@ env variables (see [config.md](config.md)).
      `state`) are recorded in `session-meta.json` and surfaced by
      `claude-session doctor` so a fallback is never silent.
 
-3. **File classification**. Three handling modes for files/dirs the
+3. **File classification**. Four handling modes for files/dirs the
    upstream `~/.claude/` tree contains:
 
-   | Mode       | Example                                            | Why                                                                             |
-   |------------|----------------------------------------------------|---------------------------------------------------------------------------------|
-   | `sync`     | `.credentials.json`, `.claude.json`, `mcp-needs-auth-cache.json` | Upstream rewrites atomically (temp + rename), which would break a symlink. Copy in at start, copy back on exit under `flock`. |
-   | `link`     | `settings.local.json`, `keybindings.json`, `CLAUDE.md` | Read-only or edited in place. Safe to symlink into the session dir.             |
-   | `dir-link` | `skills/`, `agents/`, `rules/`, `commands/`, `hooks/`, `plugins/`  | Shared directories. Symlink the dir; rebuild the symlink if a previous run replaced it with a real dir. |
+   | Mode        | Example                                            | Why                                                                             |
+   |-------------|----------------------------------------------------|---------------------------------------------------------------------------------|
+   | `sync`      | `.credentials.json`, `mcp-needs-auth-cache.json`   | Upstream rewrites atomically (temp + rename), which would break a symlink. Copy in at start, copy back on exit under `flock`. |
+   | `link`      | `settings.local.json`, `keybindings.json`, `CLAUDE.md` | Read-only or edited in place. Safe to symlink into the session dir.             |
+   | `home-link` | `.claude.json`                                     | Trust/onboarding state that vanilla `claude` also reads. Symlink to `$HOME/<file>` so wrapped and vanilla invocations share one truth. Seeded as `{}` (mode 600) when absent. |
+   | `dir-link`  | `skills/`, `agents/`, `rules/`, `commands/`, `hooks/`, `plugins/`  | Shared directories. Symlink the dir; rebuild the symlink if a previous run replaced it with a real dir. |
 
-   All three lists are overridable via env vars documented in
+   All four lists are overridable via env vars documented in
    `docs/config.md`:
    `CLAUDE_SESSION_SYNC_FILES`, `CLAUDE_SESSION_LINK_FILES`,
-   `CLAUDE_SESSION_LINK_DIRS` (colon-separated).
+   `CLAUDE_SESSION_HOME_LINK_FILES`, `CLAUDE_SESSION_LINK_DIRS`
+   (colon-separated).
 
 4. **Profile composition** (`cs::fn::compose_profile`):
    - If `cs::fn::resolve_profile` found `profiles/<name>.yaml`, read its
@@ -163,13 +165,6 @@ env variables (see [config.md](config.md)).
      earlier layers.
    - Write `<session-dir>/settings.json` and
      `<session-dir>/.claude-session-compose.json`.
-   - Cache key: manifest and every layer contribute
-     `path|mtime|size` to the hash, and when the runtime cache layer
-     exists its full content is folded into the hash input as well.
-     The size and content components catch same-second, same-mtime
-     content swaps that 1s mtime granularity would otherwise hide
-     (the runtime cache writeback uses `cp -p`, so the cache file
-     can inherit the source mtime). Cache files are session-local.
    - Read the merged `.env` block from the compose sidecar and export
      it with `cs::fn::apply_profile_env` before consuming any
      `CLAUDE_SESSION_*` runtime knobs.
@@ -196,6 +191,14 @@ env variables (see [config.md](config.md)).
 
 8. **Export** `CLAUDE_CONFIG_DIR=<session-dir>`.
 
+8b. **Auto-trust the current working directory.** When
+    `CLAUDE_SESSION_AUTO_TRUST_CWD=1` (default), set
+    `projects["$PWD"].hasTrustDialogAccepted=true` and
+    `projects["$PWD"].hasCompletedProjectOnboarding=true` in
+    `$HOME/.claude.json` (atomic temp + rename, under the
+    `$shared_dir/.claude-session.lock`). Skipped when `--dry-run` is set.
+    Disable per-session with `CLAUDE_SESSION_AUTO_TRUST_CWD=0`.
+
 9. **Run** the real `claude` binary as a **child process, not via
    `exec`** so that the EXIT trap fires. The child inherits the
    terminal (stdin/stdout/stderr/signals work as expected).
@@ -204,17 +207,18 @@ env variables (see [config.md](config.md)).
    - `cs::fn::sync_files` copies each `sync`-classified file back to
      the shared dir under `flock` (atomic temp + rename). Skip if the
      session copy is older than the shared copy (another terminal
-     wrote more recently). Exception: `.claude.json` is **deep-merged**
-     into the shared copy with `jq -s '.[0] * .[1]'` instead of
-     mtime-gated wholesale copy, so per-project trust entries (and
-     other object children) written by parallel terminals union-merge
-     rather than clobber. Top-level monotonic/cosmetic keys remain
-     last-writer-wins via the same `jq *` semantics. If `jq` is
-     missing, `.claude.json` falls back to the mtime-gated copy path.
+     wrote more recently).
+   - `.claude.json` is **not** in the sync set: it lives as a live symlink
+     to `$HOME/.claude.json` (see "File classification"), so trust and
+     onboarding state are visible to both wrapped and vanilla `claude` in
+     real time without an EXIT-trap merge. The `flock` over
+     `$shared_dir/.claude-session.lock` continues to serialize the
+     wrapper's own writes to that file (sync-out for credentials, and the
+     auto-trust seed in step 8b).
    - After the `sync_files` loop and still inside the same `flock`,
      persist `$session_dir/settings.json` to
      `$XDG_CACHE_HOME/claude-session/settings.json` with atomic
-     `cp -p` + `mv -f`. Stock mode no-ops because
+     `jq 'del(.effortLevel, .model, .outputStyle)'` + `mv -f`. Stock mode no-ops because
      `$session_dir/settings.json` does not exist.
    - Run `CLAUDE_SESSION_POST_EXIT_CMD` if set; the command gets
      `CLAUDE_SESSION_DIR` and `CLAUDE_SESSION_PROFILE` in its env.

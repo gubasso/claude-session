@@ -17,54 +17,15 @@ setup() {
 }
 
 # bats test_tags=unit
-@test "sync files deep-merges shared and session trust entries in .claude.json" {
+@test "sync files does not persist .claude.json by default" {
   mkdir -p "$BATS_TEST_TMPDIR/shared" "$BATS_TEST_TMPDIR/session"
-  cat >"$BATS_TEST_TMPDIR/shared/.claude.json" <<'EOF'
-{"projects":{"/path/a":{"hasTrustDialogAccepted":true}}}
-EOF
-  cat >"$BATS_TEST_TMPDIR/session/.claude.json" <<'EOF'
-{"projects":{"/path/b":{"hasTrustDialogAccepted":true}}}
-EOF
-
-  run cs::fn::sync_files out "$BATS_TEST_TMPDIR/session" "$BATS_TEST_TMPDIR/shared"
-
-  assert_success
-  jq -e '.projects["/path/a"].hasTrustDialogAccepted == true and .projects["/path/b"].hasTrustDialogAccepted == true' \
-    "$BATS_TEST_TMPDIR/shared/.claude.json"
-}
-
-# bats test_tags=unit
-@test "sync files deep-merge preserves session-side keys when shared has different ones" {
-  mkdir -p "$BATS_TEST_TMPDIR/shared" "$BATS_TEST_TMPDIR/session"
-  cat >"$BATS_TEST_TMPDIR/shared/.claude.json" <<'EOF'
-{"projects":{"/path/a":{"hasTrustDialogAccepted":true}},"seenNotifications":{"welcome":true}}
-EOF
-  cat >"$BATS_TEST_TMPDIR/session/.claude.json" <<'EOF'
-{"projects":{"/path/b":{"hasTrustDialogAccepted":true}},"oauthAccount":{"email":"session@example.test"}}
-EOF
-
-  run cs::fn::sync_files out "$BATS_TEST_TMPDIR/session" "$BATS_TEST_TMPDIR/shared"
-
-  assert_success
-  jq -e '.projects["/path/a"].hasTrustDialogAccepted == true
-    and .projects["/path/b"].hasTrustDialogAccepted == true
-    and .seenNotifications.welcome == true
-    and .oauthAccount.email == "session@example.test"' \
-    "$BATS_TEST_TMPDIR/shared/.claude.json"
-}
-
-# bats test_tags=unit
-@test "sync files warns and keeps shared .claude.json when merge input is malformed" {
-  mkdir -p "$BATS_TEST_TMPDIR/shared" "$BATS_TEST_TMPDIR/session"
-  printf '{bad json\n' >"$BATS_TEST_TMPDIR/shared/.claude.json"
-  printf '{"projects":{"/path/b":{"hasTrustDialogAccepted":true}}}\n' \
+  printf '{"projects":{"/path/a":{"hasTrustDialogAccepted":true}}}\n' \
     >"$BATS_TEST_TMPDIR/session/.claude.json"
 
   run cs::fn::sync_files out "$BATS_TEST_TMPDIR/session" "$BATS_TEST_TMPDIR/shared"
 
   assert_success
-  assert_output_contains "warning: .claude.json merge failed; keeping shared copy"
-  [[ "$(cat "$BATS_TEST_TMPDIR/shared/.claude.json")" == '{bad json' ]]
+  [[ ! -e "$BATS_TEST_TMPDIR/shared/.claude.json" ]]
 }
 
 # bats test_tags=unit
@@ -82,15 +43,21 @@ EOF
 }
 
 # bats test_tags=unit
-@test "sync files writes session settings to the default cache path on sync out" {
+@test "sync files cache writeback strips effortLevel, model, and outputStyle" {
   mkdir -p "$BATS_TEST_TMPDIR/shared" "$BATS_TEST_TMPDIR/session"
-  printf '{"effortLevel":"medium"}\n' >"$BATS_TEST_TMPDIR/session/settings.json"
+  printf '{"effortLevel":"high","model":"claude-test","outputStyle":"x","permissions":{"allow":["Bash"]}}\n' \
+    >"$BATS_TEST_TMPDIR/session/settings.json"
 
   run cs::fn::sync_files out "$BATS_TEST_TMPDIR/session" "$BATS_TEST_TMPDIR/shared"
 
   assert_success
   [[ -f "$XDG_CACHE_HOME/claude-session/settings.json" ]]
-  [[ "$(cat "$XDG_CACHE_HOME/claude-session/settings.json")" == "$(cat "$BATS_TEST_TMPDIR/session/settings.json")" ]]
+  jq -e '
+    has("effortLevel") == false
+    and has("model") == false
+    and has("outputStyle") == false
+    and .permissions.allow == ["Bash"]
+  ' "$XDG_CACHE_HOME/claude-session/settings.json"
 }
 
 # bats test_tags=unit
@@ -104,14 +71,20 @@ EOF
 }
 
 # bats test_tags=unit
-@test "sync files respects CLAUDE_SESSION_CACHE_DIR override for cache writeback" {
+@test "sync files cache writeback honors CLAUDE_SESSION_CACHE_DIR and still sanitizes" {
   mkdir -p "$BATS_TEST_TMPDIR/shared" "$BATS_TEST_TMPDIR/session"
   export CLAUDE_SESSION_CACHE_DIR="$BATS_TEST_TMPDIR/custom-cache"
-  printf '{"effortLevel":"medium"}\n' >"$BATS_TEST_TMPDIR/session/settings.json"
+  printf '{"effortLevel":"medium","model":"x","outputStyle":"y","env":{"FOO":"bar"}}\n' \
+    >"$BATS_TEST_TMPDIR/session/settings.json"
 
   run cs::fn::sync_files out "$BATS_TEST_TMPDIR/session" "$BATS_TEST_TMPDIR/shared"
 
   assert_success
   [[ -f "$BATS_TEST_TMPDIR/custom-cache/settings.json" ]]
-  [[ "$(cat "$BATS_TEST_TMPDIR/custom-cache/settings.json")" == "$(cat "$BATS_TEST_TMPDIR/session/settings.json")" ]]
+  jq -e '
+    has("effortLevel") == false
+    and has("model") == false
+    and has("outputStyle") == false
+    and .env.FOO == "bar"
+  ' "$BATS_TEST_TMPDIR/custom-cache/settings.json"
 }
