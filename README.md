@@ -115,7 +115,7 @@ and env-var table: [docs/config.md](docs/config.md).
 | `<session>/.claude-session-settings-cache` | sha256 cache key for composer short-circuit | per-pts, generated |
 | `<session>/session-meta.json` | schema-v1 metadata (profile, terminal_id, started_at, cwd, session_root, source) | per-pts, generated |
 | `<session>/.credentials.json` | OAuth credentials (sync'd in/out under `flock`) | sync |
-| `<session>/.claude.json` | Claude Code project/global state (sync'd, deep-merged) | sync |
+| `<session>/.claude.json` | symlink → `$HOME/.claude.json` (trust / onboarding / projects map) | home-link |
 | `<session>/mcp-needs-auth-cache.json` | MCP auth cache (sync'd) | sync |
 | `<session>/{settings.local.json,keybindings.json,CLAUDE.md}` | symlinks → `${CLAUDE_SESSION_SHARED_DIR:-~/.claude}/...` | link |
 | `<session>/{skills,agents,rules,commands,hooks,plugins}/` | symlinks → `${CLAUDE_SESSION_SHARED_DIR:-~/.claude}/<dir>` | dir-link |

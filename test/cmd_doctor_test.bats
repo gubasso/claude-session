@@ -15,6 +15,9 @@ setup() {
   mkdir -p "$XDG_CONFIG_HOME/claude-session/settings" "$XDG_CONFIG_HOME/claude-session/profiles"
   write_manifest "$XDG_CONFIG_HOME/claude-session/profiles/default.yaml" base
   printf '{"env":{"FOO":"bar"}}\n' >"$XDG_CONFIG_HOME/claude-session/settings/base.json"
+  printf '{}\n' >"$HOME/.claude.json"
+  chmod 600 "$HOME/.claude.json"
+  : >"$HOME/.claude/.claude-session.lock"
 
   run claude-session doctor
 
@@ -22,6 +25,8 @@ setup() {
   assert_output_contains "yq"
   assert_output_contains "mode"
   assert_output_contains "manifest"
+  assert_output_contains "home trust"
+  assert_output_contains "shared lock"
 }
 
 # bats test_tags=integration
@@ -30,7 +35,6 @@ setup() {
 
   assert_success
   assert_output_contains "yq"
-  assert_output_contains "no manifests discovered"
   assert_output_contains "stock (no manifest)"
 }
 
@@ -120,4 +124,19 @@ _assert_yq_hidden() {
   assert_output_contains "mode"
   assert_output_contains "stock (no manifest)"
   assert_output_contains "Sessions"
+  assert_output_contains "home trust"
+}
+
+# bats test_tags=integration
+@test "doctor --verbose prints cache and home trust paths" {
+  mkdir -p "$XDG_CONFIG_HOME/claude-session/settings" "$XDG_CONFIG_HOME/claude-session/profiles"
+  write_manifest "$XDG_CONFIG_HOME/claude-session/profiles/default.yaml" base
+  printf '{"effortLevel":"high"}\n' >"$XDG_CONFIG_HOME/claude-session/settings/base.json"
+  printf '{}\n' >"$HOME/.claude.json"
+
+  run claude-session doctor --verbose
+
+  assert_success
+  assert_output_contains "CLAUDE_SESSION_CACHE_DIR="
+  assert_output_contains "HOME_TRUST_FILE=$HOME/.claude.json"
 }
