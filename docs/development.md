@@ -194,6 +194,9 @@ Bats supports inline tags:
   via `jq`, exercise the full dispatch path. Use a mocked `claude`
   stub via `$CLAUDE_SESSION_REAL_CLAUDE` pointing at a test-local
   fake binary.
+- Tests that simulate single-file bind mounts use `unshare -rm`; on
+  runners where user namespaces are unavailable those cases skip
+  explicitly rather than fail the whole suite.
 
 Run via `just test-unit`, `just test-integration`, or `just test` for
 both.

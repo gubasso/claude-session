@@ -145,7 +145,7 @@ env variables (see [config.md](config.md)).
    |-------------|----------------------------------------------------|---------------------------------------------------------------------------------|
    | `sync`      | `.credentials.json`, `mcp-needs-auth-cache.json`   | Upstream rewrites atomically (temp + rename), which would break a symlink. Copy in at start, copy back on exit under `flock`. |
    | `link`      | `settings.local.json`, `keybindings.json`, `CLAUDE.md` | Read-only or edited in place. Safe to symlink into the session dir.             |
-   | `home-link` | `.claude.json`                                     | Trust/onboarding state that vanilla `claude` also reads. Symlink to `$HOME/<file>` so wrapped and vanilla invocations share one truth. Seeded as `{}` (mode 600) when absent. |
+   | `home-link` | `.claude.json`                                     | Trust/onboarding state that vanilla `claude` also reads. Symlink to `$HOME/<file>` so wrapped and vanilla invocations share one truth. Seeded as `{}` (mode 600) when absent. Writes use `cs::fn::write_home_link_file` — `mv -f` rename on the host, and an in-place `dd conv=notrunc,fsync` + `truncate` fallback under `flock` when the destination is a bind-mount leaf (see `docs/plans/home-link-bind-mount-write.md`). |
    | `dir-link`  | `skills/`, `agents/`, `rules/`, `commands/`, `hooks/`, `plugins/`  | Shared directories. Symlink the dir; rebuild the symlink if a previous run replaced it with a real dir. |
 
    All four lists are overridable via env vars documented in
@@ -195,8 +195,13 @@ env variables (see [config.md](config.md)).
     `CLAUDE_SESSION_AUTO_TRUST_CWD=1` (default), set
     `projects["$PWD"].hasTrustDialogAccepted=true` and
     `projects["$PWD"].hasCompletedProjectOnboarding=true` in
-    `$HOME/.claude.json` (atomic temp + rename, under the
-    `$shared_dir/.claude-session.lock`). Skipped when `--dry-run` is set.
+    `$HOME/.claude.json` via `cs::fn::write_home_link_file`, under the
+    `$shared_dir/.claude-session.lock`. The helper performs an atomic
+    temp-file + `mv -f` rename on the host fast path, and falls back to
+    an in-place `dd conv=notrunc,fsync` + `truncate` rewrite that
+    preserves the inode (and the bind mount) when `$HOME/.claude.json`
+    is a single-file bind-mount leaf — e.g. inside a `dctl`-provisioned
+    container. Skipped when `--dry-run` is set.
     Disable per-session with `CLAUDE_SESSION_AUTO_TRUST_CWD=0`.
 
 9. **Run** the real `claude` binary as a **child process, not via

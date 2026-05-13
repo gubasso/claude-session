@@ -190,6 +190,7 @@ OUTPUT (success, example — sessions on XDG_RUNTIME_DIR):
   mode            OK    manifest (/home/user/.config/claude-session/profiles/default.yaml)
   yq              OK    /usr/bin/yq
   shared dir      OK    /home/user/.claude (exists, readable)
+  home trust      OK    /home/user/.claude.json (mode 600; regular file (rename fast path))
   real claude     OK    /home/user/.local/share/claude/versions/1.2.3
   oauth hook      —     CLAUDE_SESSION_OAUTH_CMD unset (skipped)
   post-exit hook  —     CLAUDE_SESSION_POST_EXIT_CMD unset (skipped)
@@ -197,6 +198,7 @@ OUTPUT (success, example — sessions on XDG_RUNTIME_DIR):
   jq              OK    /usr/bin/jq
   base64          OK    /usr/bin/base64
   flock           OK    /usr/bin/flock
+  shared lock     OK    /home/user/.claude/.claude-session.lock (inode 12345)
   timeout         OK    /usr/bin/timeout
 
   Sessions under /run/user/1000/claude-session/sessions/  (3 dirs: 1 active, 2 stale)
@@ -215,6 +217,11 @@ OUTPUT (fallback example — XDG_STATE_HOME):
 
   Next:
     Restore the runtime dir:  loginctl enable-linger $USER  (or set XDG_RUNTIME_DIR)
+
+  `doctor --verbose` additionally prints the resolved config, cache, shared,
+  and home-trust paths (`CLAUDE_SESSION_CONFIG_DIR`,
+  `CLAUDE_SESSION_CACHE_DIR`, `CLAUDE_SESSION_SHARED_DIR`,
+  `HOME_TRUST_FILE`) plus any merged profile env.
 
 SEE ALSO:
   claude-session config show

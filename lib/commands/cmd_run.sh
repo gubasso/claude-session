@@ -110,8 +110,9 @@ __run_auto_trust_cwd() {
           hasTrustDialogAccepted: true,
           hasCompletedProjectOnboarding: true
         })
-    ' "$trust_file" >"$tmp"; then
-      mv -f "$tmp" "$trust_file"
+    ' "$trust_file" >"$tmp" \
+      && cs::fn::write_home_link_file "$trust_file" "$tmp"; then
+      chmod 600 "$trust_file" || true
       : >"$wrote_marker"
     else
       rm -f "$tmp"
@@ -195,6 +196,7 @@ cs::cmd::run() {
   cs::helpers::source_fn session_dir
   cs::helpers::source_fn sync_files
   cs::helpers::source_fn link_files
+  cs::helpers::source_fn write_home_link_file
   cs::helpers::source_fn real_claude
   cs::helpers::source_fn run_hook
 

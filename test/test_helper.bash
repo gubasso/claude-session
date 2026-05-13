@@ -61,6 +61,11 @@ skip_if_missing_yq() {
   yq --version 2>&1 | grep -q 'mikefarah\|github.com/mikefarah' || skip "yq is not the mikefarah variant"
 }
 
+skip_if_missing_unshare_rm() {
+  command -v unshare >/dev/null 2>&1 || skip "unshare not installed"
+  unshare -rm true >/dev/null 2>&1 || skip "unshare -rm unavailable"
+}
+
 assert_success() {
   if [[ "$status" -ne 0 ]]; then
     printf 'expected success, got %s\n%s\n' "$status" "$output"
