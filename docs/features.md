@@ -68,7 +68,6 @@ variable so the repo can ship publicly with zero personal data.
 | Cloud project ID                                  | User sets `ANTHROPIC_VERTEX_PROJECT_ID` (or equivalent) in their own `settings/<layer>.json` `env` block. |
 | Cloud region                                      | User sets `CLOUD_ML_REGION` (or equivalent) in their own `settings/<layer>.json` `env` block. |
 | Profile naming                                    | Any name; the built-in default is literally `default`. Examples in docs use generic names: `default`, `work`, `experiment`, `vertex`. |
-| Pre-startup OAuth-token lookup                    | Any command, via `CLAUDE_SESSION_OAUTH_CMD`. Unset → step skipped.    |
 | Post-exit cost-sync / analytics / cleanup         | Any command, via `CLAUDE_SESSION_POST_EXIT_CMD`. Unset → step skipped.|
 | Set of files to copy-sync vs symlink              | Overridable via `CLAUDE_SESSION_SYNC_FILES`, `CLAUDE_SESSION_LINK_FILES`, `CLAUDE_SESSION_LINK_DIRS`. |
 

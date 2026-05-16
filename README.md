@@ -18,10 +18,14 @@ state (history, projects, todos, plans) stays isolated per terminal.
   `profiles/<name>.yaml`, compose ordered `settings/<layer>.json`
   files at startup via `jq`, and export merged profile env from the
   composed `env` block.
-- **Configurable OAuth and post-exit hooks**: run any command to supply an
-  OAuth token at startup (gopass, pass, Bitwarden, 1Password, age — see
-  [docs/auth.md](docs/auth.md)), run any command after `claude` exits (cost
-  sync, analytics, cleanup). Both optional; nothing personal ships in the repo.
+- **Pluggable auth**: supply `CLAUDE_CODE_OAUTH_TOKEN` from any secret
+  store (gopass, pass, Bitwarden, 1Password, age — see
+  [docs/auth.md](docs/auth.md)) by exporting it in your shell rc; the
+  wrapper picks it up automatically and forwards into the child
+  `claude` process. Nothing personal ships in the repo.
+- **Configurable post-exit hook**: run any command after `claude` exits
+  (cost sync, analytics, cleanup) via `CLAUDE_SESSION_POST_EXIT_CMD`.
+  Optional.
 - **XDG-aware install**: user install under `~/.local/`, system install under
   `$PREFIX/`, all paths follow the XDG Base Directory spec.
 - **Scriptable / agent-friendly**: per-subcommand `--help`, three-part error
