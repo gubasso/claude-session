@@ -133,15 +133,6 @@ cs::cmd::doctor() {
   fi
   rm -f "$err"
 
-  if [[ -n "${CLAUDE_SESSION_OAUTH_CMD:-}" ]]; then
-    if command -v timeout >/dev/null 2>&1; then
-      __doctor_line "oauth hook" "OK" "configured"
-    else
-      __doctor_line "oauth hook" "WARN" "configured, but timeout not found"
-    fi
-  else
-    __doctor_line "oauth hook" "—" "CLAUDE_SESSION_OAUTH_CMD unset (skipped)"
-  fi
   if [[ -n "${CLAUDE_SESSION_POST_EXIT_CMD:-}" ]]; then
     __doctor_line "post-exit hook" "OK" "configured"
   else
@@ -192,12 +183,6 @@ cs::cmd::doctor() {
   else
     __doctor_line "shared lock" "—" "$lock_file (will be created on next run)"
   fi
-  if command -v timeout >/dev/null 2>&1; then
-    __doctor_line "timeout" "OK" "$(command -v timeout)"
-  else
-    __doctor_line "timeout" "WARN" "timeout not found; OAuth hook timeout disabled"
-  fi
-
   printf '\nSessions\n'
   cs::helpers::source_fn session_inventory
   cs::fn::session_inventory || true

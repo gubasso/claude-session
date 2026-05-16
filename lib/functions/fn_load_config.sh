@@ -64,7 +64,6 @@ cs::fn::load_config() {
     CLAUDE_SESSION_SHARED_DIR
     CLAUDE_SESSION_PROFILE
     CLAUDE_SESSION_REAL_CLAUDE
-    CLAUDE_SESSION_OAUTH_CMD
     CLAUDE_SESSION_POST_EXIT_CMD
     CLAUDE_SESSION_SYNC_FILES
     CLAUDE_SESSION_LINK_FILES
@@ -95,8 +94,8 @@ cs::fn::load_config() {
 
 # Parse an already-validated dotenv file line-by-line and export each
 # assignment. Avoids `source`-ing the file so values that contain spaces
-# (e.g. CLAUDE_SESSION_OAUTH_CMD=pass show ...) are treated as plain
-# string values rather than as KEY=word command-prefix assignments.
+# (e.g. CLAUDE_SESSION_POST_EXIT_CMD=cost-sync.sh --json) are treated as
+# plain string values rather than as KEY=word command-prefix assignments.
 cs::fn::__apply_dotenv() {
   local file=$1
   local line=""

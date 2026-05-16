@@ -175,23 +175,14 @@ env variables (see [config.md](config.md)).
    - No profile `env` is applied.
    - Session isolation, sync/link, metadata, and hooks still run.
 
-6. **OAuth hook** (`cs::fn::run_hook` with `CLAUDE_SESSION_OAUTH_CMD`):
-   - Only runs if `CLAUDE_CODE_OAUTH_TOKEN` is not already set in the
-     environment.
-   - Runs the user-supplied command under a 5-second timeout.
-   - On success (non-empty stdout, non-whitespace), exports
-     `CLAUDE_CODE_OAUTH_TOKEN=<stdout>`.
-   - On failure, logs a warning to stderr (unless `--verbose`, in which
-     case it logs the full stderr of the hook) and proceeds.
-
-7. **Session metadata**:
+6. **Session metadata**:
    - Write `<session-dir>/session-meta.json`, schema v1, containing:
      `schema`, `profile`, `terminal_id`, `started_at` (ISO 8601 UTC),
      `cwd`. Used by post-exit hooks.
 
-8. **Export** `CLAUDE_CONFIG_DIR=<session-dir>`.
+7. **Export** `CLAUDE_CONFIG_DIR=<session-dir>`.
 
-8b. **Auto-trust the current working directory.** When
+7b. **Auto-trust the current working directory.** When
     `CLAUDE_SESSION_AUTO_TRUST_CWD=1` (default), set
     `projects["$PWD"].hasTrustDialogAccepted=true` and
     `projects["$PWD"].hasCompletedProjectOnboarding=true` in
@@ -204,11 +195,11 @@ env variables (see [config.md](config.md)).
     container. Skipped when `--dry-run` is set.
     Disable per-session with `CLAUDE_SESSION_AUTO_TRUST_CWD=0`.
 
-9. **Run** the real `claude` binary as a **child process, not via
+8. **Run** the real `claude` binary as a **child process, not via
    `exec`** so that the EXIT trap fires. The child inherits the
    terminal (stdin/stdout/stderr/signals work as expected).
 
-10. **On exit** (trap on `EXIT INT TERM`):
+9. **On exit** (trap on `EXIT INT TERM`):
    - `cs::fn::sync_files` copies each `sync`-classified file back to
      the shared dir under `flock` (atomic temp + rename). Skip if the
      session copy is older than the shared copy (another terminal
@@ -219,7 +210,7 @@ env variables (see [config.md](config.md)).
      real time without an EXIT-trap merge. The `flock` over
      `$shared_dir/.claude-session.lock` continues to serialize the
      wrapper's own writes to that file (sync-out for credentials, and the
-     auto-trust seed in step 8b).
+     auto-trust seed in step 7b).
    - After the `sync_files` loop and still inside the same `flock`,
      persist `$session_dir/settings.json` to
      `$XDG_CACHE_HOME/claude-session/settings.json` with atomic
@@ -231,23 +222,21 @@ env variables (see [config.md](config.md)).
      only, unless `--verbose`).
    - Exit with the real `claude` binary's status.
 
-11. **Signal mapping** (per bash-CLI convention): SIGINT → exit 130,
+10. **Signal mapping** (per bash-CLI convention): SIGINT → exit 130,
     SIGTERM → exit 143.
 
 ## Array merge semantics
 
 Layer composition uses jq object multiplication. Objects deep-merge; arrays are replaced wholesale. If a later layer redefines `hooks.Stop` or `permissions.deny`, the later array replaces the earlier one.
 
-## OAuth and `--bare`
+## Authentication
 
-OAuth-hook setup, the token-precedence chain, secret-store recipes, the
-`--bare` caveat, and per-profile disable patterns are documented in
-[auth.md](auth.md). The hook itself runs at step 6 of the lifecycle
-above (`cs::fn::run_hook` with `CLAUDE_SESSION_OAUTH_CMD`).
-
-References: upstream CLI reference and Authentication pages on
-`code.claude.com`; issue #36852 (`--bare` flag missing from docs);
-issue #27900 (interactive mode ignores `ANTHROPIC_API_KEY`).
+OAuth-token resolution, secret-store recipes, the `--bare` caveat, and
+the devcontainer host-passthrough pattern are documented in
+[auth.md](auth.md). The wrapper itself does not run an auth hook: when
+`CLAUDE_CODE_OAUTH_TOKEN` is set in its environment, it is inherited
+into the child `claude` process unchanged; otherwise the upstream
+binary handles auth natively.
 
 ## Shared session-inventory rendering (`cs::fn::session_inventory`)
 
@@ -364,8 +353,7 @@ trap 'exit 143' TERM
         │
   cs::cmd::run         ── uses ──▶ cs::fn::{terminal_id, session_dir,
         │                                    compose_profile, apply_profile_env,
-        │                                    link_files, real_claude,
-        │                                    run_hook}
+        │                                    link_files, real_claude}
         │
   exec child: real claude
         │

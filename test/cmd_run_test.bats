@@ -8,7 +8,10 @@ setup() {
   mkdir -p "$BATS_TEST_TMPDIR/fakebin" "$HOME/.claude"
   cat >"$BATS_TEST_TMPDIR/fakebin/claude" <<'EOF'
 #!/usr/bin/env bash
-printf 'CLAUDE_CONFIG_DIR=%s\n' "$CLAUDE_CONFIG_DIR" >"$BATS_TEST_TMPDIR/child-env"
+{
+  printf 'CLAUDE_CONFIG_DIR=%s\n' "$CLAUDE_CONFIG_DIR"
+  printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "${CLAUDE_CODE_OAUTH_TOKEN-__UNSET__}"
+} >"$BATS_TEST_TMPDIR/child-env"
 printf '%s\n' "$*" >"$BATS_TEST_TMPDIR/child-args"
 exit "${FAKE_CLAUDE_STATUS:-0}"
 EOF
@@ -146,27 +149,31 @@ EOF
 }
 
 # bats test_tags=integration
-@test "merged env is applied before oauth hook resolution" {
+@test "run passes CLAUDE_CODE_OAUTH_TOKEN through to the child unchanged" {
   mkdir -p "$XDG_CONFIG_HOME/claude-session/settings" "$XDG_CONFIG_HOME/claude-session/profiles"
   write_manifest "$XDG_CONFIG_HOME/claude-session/profiles/default.yaml" base
-  printf '{"env":{"CLAUDE_SESSION_OAUTH_CMD":"false"}}\n' >"$XDG_CONFIG_HOME/claude-session/settings/base.json"
+  printf '{"env":{"FOO":"bar"}}\n' >"$XDG_CONFIG_HOME/claude-session/settings/base.json"
+  export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-from-parent-shell"
 
-  run claude-session run --dry-run -- chat hi
+  run claude-session run -- chat hi
 
   assert_success
-  assert_output_contains "oauth_hook=false"
+  [[ -f "$BATS_TEST_TMPDIR/child-env" ]]
+  grep -q '^CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-from-parent-shell$' "$BATS_TEST_TMPDIR/child-env"
 }
 
 # bats test_tags=integration
-@test "empty CLAUDE_SESSION_OAUTH_CMD from env block disables oauth" {
+@test "run leaves CLAUDE_CODE_OAUTH_TOKEN unset in the child when unset in the parent" {
   mkdir -p "$XDG_CONFIG_HOME/claude-session/settings" "$XDG_CONFIG_HOME/claude-session/profiles"
   write_manifest "$XDG_CONFIG_HOME/claude-session/profiles/default.yaml" base
-  printf '{"env":{"CLAUDE_SESSION_OAUTH_CMD":""}}\n' >"$XDG_CONFIG_HOME/claude-session/settings/base.json"
+  printf '{"env":{"FOO":"bar"}}\n' >"$XDG_CONFIG_HOME/claude-session/settings/base.json"
+  unset CLAUDE_CODE_OAUTH_TOKEN
 
-  run claude-session run --dry-run -- chat hi
+  run claude-session run -- chat hi
 
   assert_success
-  assert_output_contains "oauth_hook=unset"
+  [[ -f "$BATS_TEST_TMPDIR/child-env" ]]
+  grep -q '^CLAUDE_CODE_OAUTH_TOKEN=__UNSET__$' "$BATS_TEST_TMPDIR/child-env"
 }
 
 # bats test_tags=integration

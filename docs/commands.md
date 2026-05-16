@@ -60,7 +60,7 @@ Stable contract. Agents and scripts may depend on these.
 | `4`  | Real `claude` binary not found (or discovery resolved back to this wrapper).             |
 | `5`  | Secure session-dir validation failed: neither `XDG_RUNTIME_DIR` nor the `XDG_STATE_HOME` fallback resolved a usable, owner-correct, non-symlink directory. |
 | `6`  | Profile not found — name passed via `--profile` / `CLAUDE_SESSION_PROFILE` has no file.  |
-| `7`  | Reserved for fatal hook failures. No current command exits 7 (OAuth and post-exit hook failures are warn-only and fall through to native auth / normal exit). |
+| `7`  | Reserved for fatal hook failures. No current command exits 7 (post-exit hook failures are warn-only and never change the wrapper's exit code). |
 | `130`| Interrupted by SIGINT (128 + 2).                                                         |
 | `143`| Terminated by SIGTERM (128 + 15).                                                        |
 
@@ -85,17 +85,17 @@ DESCRIPTION:
   Create (or reuse) a session directory for the current terminal,
   resolve either a manifest-backed profile or stock mode, compose
   layered settings when a manifest is active, symlink shared config,
-  run the optional OAuth hook, and exec the real claude binary as a
-  child process. On exit, sync back copy-classified files and run the
-  optional post-exit hook. Seed per-project trust into
+  and exec the real claude binary as a child process. On exit, sync
+  back copy-classified files and run the optional post-exit hook.
+  Seed per-project trust into
   $HOME/.claude.json on launch when CLAUDE_SESSION_AUTO_TRUST_CWD=1
   (default).
 
 FLAGS:
   --profile <name>   Active profile. Overrides CLAUDE_SESSION_PROFILE.
   --dry-run          Print the plan (mode, manifest, session dir,
-                     settings path, layers, hooks, final claude
-                     invocation) and exit 0 without invoking claude.
+                     settings path, layers, post-exit hook, final
+                     claude invocation) and exit 0 without invoking claude.
 
 EXAMPLES:
   claude-session run
@@ -149,7 +149,7 @@ DESCRIPTION:
   The verbose debug interface for the wrapper. Bundles every
   health check (config presence and permissions, shared dir
   accessibility, active profile validity, manifest composition,
-  real-binary discovery, hook invocability, session-dir resolution)
+  real-binary discovery, post-exit hook configuration, session-dir resolution)
   AND the full session inventory in one call, so a user or agent has
   a single command to dump for triage.
 
@@ -192,14 +192,12 @@ OUTPUT (success, example — sessions on XDG_RUNTIME_DIR):
   shared dir      OK    /home/user/.claude (exists, readable)
   home trust      OK    /home/user/.claude.json (mode 600; regular file (rename fast path))
   real claude     OK    /home/user/.local/share/claude/versions/1.2.3
-  oauth hook      —     CLAUDE_SESSION_OAUTH_CMD unset (skipped)
   post-exit hook  —     CLAUDE_SESSION_POST_EXIT_CMD unset (skipped)
   session root    OK    /run/user/1000/claude-session/  (XDG_RUNTIME_DIR, mode 700)
   jq              OK    /usr/bin/jq
   base64          OK    /usr/bin/base64
   flock           OK    /usr/bin/flock
   shared lock     OK    /home/user/.claude/.claude-session.lock (inode 12345)
-  timeout         OK    /usr/bin/timeout
 
   Sessions under /run/user/1000/claude-session/sessions/  (3 dirs: 1 active, 2 stale)
     terminal_id   status   size      mtime
@@ -295,7 +293,6 @@ OUTPUT (example):
   CLAUDE_SESSION_SHARED_DIR=/home/user/.claude
   CLAUDE_SESSION_PROFILE=work
   CLAUDE_SESSION_REAL_CLAUDE=(unset, auto-discover)
-  CLAUDE_SESSION_OAUTH_CMD=<redacted>
   CLAUDE_SESSION_POST_EXIT_CMD=my-cost-sync --session-dir "$CLAUDE_SESSION_DIR"
   CLAUDE_SESSION_SYNC_FILES=.credentials.json:mcp-needs-auth-cache.json
   CLAUDE_SESSION_LINK_FILES=settings.local.json:keybindings.json:CLAUDE.md

@@ -183,11 +183,7 @@ cs::cmd::run() {
     esac
   done
 
-  local bare=0
   local arg=""
-  for arg in "${pass_args[@]}"; do
-    [[ "$arg" == "--bare" ]] && bare=1
-  done
 
   cs::helpers::source_fn resolve_profile
   cs::helpers::source_fn compose_profile
@@ -198,7 +194,6 @@ cs::cmd::run() {
   cs::helpers::source_fn link_files
   cs::helpers::source_fn write_home_link_file
   cs::helpers::source_fn real_claude
-  cs::helpers::source_fn run_hook
 
   local root
   root=$(cs::fn::session_dir)
@@ -232,21 +227,6 @@ cs::cmd::run() {
   local real_claude
   real_claude=$(cs::fn::real_claude)
 
-  if [[ $bare -eq 0 && -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" && -n "${CLAUDE_SESSION_OAUTH_CMD:-}" ]]; then
-    local token=""
-    if token=$(cs::fn::run_hook "$CLAUDE_SESSION_OAUTH_CMD" --timeout 5); then
-      token=${token//$'\n'/}
-      token=${token//$'\r'/}
-      if [[ -n "${token//[[:space:]]/}" ]]; then
-        CLAUDE_CODE_OAUTH_TOKEN=$token
-        export CLAUDE_CODE_OAUTH_TOKEN
-      fi
-    fi
-    # Hook failure or empty output: fall through and let the real claude
-    # binary handle native auth (~/.claude/.credentials.json, keychain,
-    # interactive /login, ANTHROPIC_API_KEY, apiKeyHelper).
-  fi
-
   export CLAUDE_CONFIG_DIR=$session_dir
   export CLAUDE_SESSION_DIR=$session_dir
   export CLAUDE_SESSION_PROFILE=${CLAUDE_SESSION_PROFILE:-}
@@ -269,7 +249,6 @@ cs::cmd::run() {
     printf 'session_dir=%s\n' "$session_dir"
     printf 'settings=%s\n' "$settings_path"
     printf 'layers=%s\n' "$layers"
-    printf 'oauth_hook=%s\n' "$([[ $bare -eq 1 ]] && printf 'skipped (--bare)' || printf '%s' "${CLAUDE_SESSION_OAUTH_CMD:-unset}")"
     printf 'post_exit_hook=%s\n' "${CLAUDE_SESSION_POST_EXIT_CMD:-unset}"
     printf 'real_claude=%s\n' "$real_claude"
     printf 'argv=%s' "$real_claude"
