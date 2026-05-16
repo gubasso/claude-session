@@ -39,12 +39,8 @@ cs::helpers::require() {
 cs::helpers::is_secret_key() {
   local key=$1
   # Suffix-based secret detection per docs/config.md §"Secrets discipline".
-  # docs/commands.md additionally shows CLAUDE_SESSION_OAUTH_CMD redacted by
-  # default in `config show` example output, since OAuth-lookup commands
-  # commonly embed secret-store paths.
   case "$key" in
     *_TOKEN | *_SECRET | *_KEY | *_PASSWORD) return 0 ;;
-    CLAUDE_SESSION_OAUTH_CMD) return 0 ;;
   esac
   return 1
 }

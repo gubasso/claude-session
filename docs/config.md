@@ -31,7 +31,7 @@ Minimal example:
 CLAUDE_SESSION_REAL_CLAUDE=/path/to/claude
 ```
 
-Profile-specific wrapper vars such as `CLAUDE_SESSION_OAUTH_CMD` and Claude-side vars such as `CLAUDE_CODE_USE_VERTEX` now live in layer JSON `env` blocks, not in `config.env`.
+Profile-specific Claude-side vars (e.g. `CLAUDE_CODE_USE_VERTEX`, `ANTHROPIC_VERTEX_PROJECT_ID`) live in layer JSON `env` blocks, not in `config.env`.
 
 ## Manifest and layer model
 
@@ -77,7 +77,7 @@ re-overrides the cache on every startup.
 All profile env now lives in JSON layer `env` blocks:
 
 - Claude Code env such as `CLAUDE_CODE_*` and `ANTHROPIC_*`
-- Wrapper env such as `CLAUDE_SESSION_OAUTH_CMD` and `CLAUDE_SESSION_POST_EXIT_CMD`
+- Wrapper env such as `CLAUDE_SESSION_POST_EXIT_CMD`
 
 After composition, `claude-session` exports each merged `env` entry into its own process before it reads any `CLAUDE_SESSION_*` runtime knobs. That lets a profile override:
 
@@ -86,7 +86,6 @@ After composition, `claude-session` exports each merged `env` entry into its own
 - `CLAUDE_SESSION_LINK_FILES`
 - `CLAUDE_SESSION_HOME_LINK_FILES`
 - `CLAUDE_SESSION_LINK_DIRS`
-- `CLAUDE_SESSION_OAUTH_CMD`
 - `CLAUDE_SESSION_POST_EXIT_CMD`
 - `CLAUDE_SESSION_AUTO_TRUST_CWD`
 
@@ -95,7 +94,7 @@ A profile can therefore disable the trust-dialog auto-seed
 from `$HOME` (`CLAUDE_SESSION_HOME_LINK_FILES=.claude.json:other.json`)
 without touching `config.env`.
 
-Empty-string overrides are preserved. For example, `CLAUDE_SESSION_OAUTH_CMD=""` disables the OAuth hook for that profile.
+Empty-string overrides are preserved. For example, `CLAUDE_SESSION_POST_EXIT_CMD=""` disables the post-exit hook for that profile.
 
 Tabs and newlines inside merged `env` values are preserved end-to-end (the
 compose sidecar is JSON, and the `apply_profile_env` / `profile show` /
@@ -127,7 +126,6 @@ If the session dir already contains an old composed `settings.json`, `claude-ses
 | `CLAUDE_SESSION_SHARED_DIR` | `$HOME/.claude` | Shared Claude config dir staged into the session dir. The lock at `$CLAUDE_SESSION_SHARED_DIR/.claude-session.lock` must resolve to the same host inode across every PTS and container that shares `$HOME/.claude.json`. The dctl default (bind-mounting `~/.claude/` as a directory) satisfies this automatically. Overriding this var to a per-container path breaks cross-container serialization of auto-trust writes. |
 | `CLAUDE_SESSION_PROFILE` | empty unless explicit/default manifest resolves | Requested profile name. Explicit values require `profiles/<name>.yaml`. |
 | `CLAUDE_SESSION_REAL_CLAUDE` | (auto-discovered) | Absolute path to the real `claude` binary. |
-| `CLAUDE_SESSION_OAUTH_CMD` | (unset) | OAuth lookup command. Usually supplied by a profile layer `env` block. |
 | `CLAUDE_SESSION_POST_EXIT_CMD` | (unset) | Post-exit command. Usually supplied by a profile layer `env` block. |
 | `CLAUDE_SESSION_SYNC_FILES` | `.credentials.json:mcp-needs-auth-cache.json` | Colon-separated files copied in/out of the session dir. |
 | `CLAUDE_SESSION_LINK_FILES` | `settings.local.json:keybindings.json:CLAUDE.md` | Colon-separated files symlinked into the session dir. |
@@ -138,13 +136,13 @@ If the session dir already contains an old composed `settings.json`, `claude-ses
 
 ## Authentication
 
-OAuth-token lookup, the `CLAUDE_SESSION_OAUTH_CMD` hook contract, secret-store recipes (gopass, pass, Bitwarden, 1Password, age), the `--bare` caveat, and the per-profile disable pattern are documented in [auth.md](auth.md).
+OAuth-token resolution, secret-store recipes (gopass, pass, Bitwarden, 1Password, age), the `--bare` caveat, and the devcontainer host-passthrough pattern are documented in [auth.md](auth.md). The wrapper itself does not run an auth hook — `CLAUDE_CODE_OAUTH_TOKEN` flows through from the parent environment unchanged.
 
 ## Secrets discipline
 
 - Never pass secrets as flags.
 - Keep `config.env` and any sensitive layer JSON readable only by the user.
-- `profile show` and `doctor --verbose` redact `*_TOKEN`, `*_SECRET`, `*_KEY`, `*_PASSWORD`, and `CLAUDE_SESSION_OAUTH_CMD` unless explicitly requested to reveal them.
+- `profile show` and `doctor --verbose` redact values of `*_TOKEN`, `*_SECRET`, `*_KEY`, `*_PASSWORD` unless explicitly requested to reveal them.
 
 ## Missing-config behavior
 
@@ -152,7 +150,7 @@ OAuth-token lookup, the `CLAUDE_SESSION_OAUTH_CMD` hook contract, secret-store r
 - Missing explicit `profiles/<name>.yaml`: exit `6` with a three-part error.
 - Invalid manifest YAML or invalid layer JSON: exit `3`.
 - Missing `yq` with manifests present: exit `3` in runtime paths; `doctor` reports the dependency status explicitly.
-- OAuth or post-exit hooks exiting non-zero: warn-only, never fatal.
+- Post-exit hook exiting non-zero: warn-only, never fatal.
 
 ## `yq` dependency
 

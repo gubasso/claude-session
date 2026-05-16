@@ -1,17 +1,19 @@
 # Recipe: OAuth via `gopass`
 
-End-to-end walkthrough for wiring [gopass](https://www.gopass.pw/) into
-`CLAUDE_SESSION_OAUTH_CMD`. See [`auth.md`](../auth.md) for the canonical
-contract; this page is the practical setup path.
+Resolve the long-lived Claude OAuth token from
+[gopass](https://www.gopass.pw/) on the host and hand it to
+`claude-session` as `CLAUDE_CODE_OAUTH_TOKEN`. The wrapper's
+token-precedence step 1 ([`auth.md`](../auth.md) §"Token precedence")
+picks up the pre-set env var directly.
+
+See [`auth.md`](../auth.md) for precedence rules and alternative
+secret-store backends.
 
 ## Prerequisites
 
 - `gopass` and `gnupg` installed via your distro's package manager
   (`apt install gopass gnupg`, `dnf install gopass gnupg2`,
-  `pacman -S gopass gnupg`, `brew install gopass gnupg`, etc.).
-- `timeout(1)` on `PATH` (GNU coreutils). The wrapper caps the hook at
-  5 seconds; without `timeout(1)`, `doctor` warns and the cap is
-  disabled ([`auth.md`](../auth.md) §"OAuth hook contract").
+  `pacman -S gopass gnupg`, `brew install gopass gnupg`).
 - A working GPG key. If you do not have one:
   ```sh
   gpg --full-generate-key
@@ -22,151 +24,144 @@ contract; this page is the practical setup path.
 ### 1. Initialise the gopass store
 
 ```sh
-gopass setup                 # interactive: pick the GPG key to encrypt with
-gopass ls                    # confirm the store is healthy
+gopass setup       # interactive: pick the GPG key to encrypt with
+gopass ls          # confirm the store is healthy
 ```
 
-For a remote-synced store, use `gopass setup --remote <git-url>` instead.
+For a remote-synced store, use `gopass setup --remote <git-url>`.
 
-### 2. Store the OAuth token
+### 2. Generate and store the OAuth token
 
-Grab the raw token (no `Bearer ` prefix, no JSON wrapping, no trailing
-whitespace — see [`auth.md`](../auth.md) §"Pick a secret store"). If you
-have already logged in once with `claude /login`, the token lives in
-`~/.claude/.credentials.json`.
+Mint a long-lived (~1 year) OAuth token with the upstream `claude`
+binary:
+
+```sh
+claude setup-token
+```
+
+The command walks you through OAuth authorization in the browser and
+prints the token to the terminal. It saves nothing — copy the value
+before closing the terminal. The token is subscription-bound
+(Pro/Max/Team/Enterprise) and bills the same way interactive `/login`
+does; it is not an API key (see [`auth.md`](../auth.md) §"What kind
+of token to store").
+
+Insert it into gopass:
 
 ```sh
 gopass insert claude/oauth-token
 # paste the token, press Enter
 ```
 
+> **Do not** paste the `accessToken` field from
+> `~/.claude/.credentials.json`. That value is a short-lived access
+> token (hours), not the long-lived setup-token. Tokens passed via
+> env are not refreshed, so you would have to re-insert daily.
+
 Pick any path you like; `claude/oauth-token` is the convention used
 throughout the docs.
 
-### 3. Wire the hook into a profile layer
-
-Edit your `base.json` layer (or whichever layer should carry the
-default credential lookup):
-
-```json
-// $XDG_CONFIG_HOME/claude-session/settings/base.json
-{
-  "env": {
-    "CLAUDE_SESSION_OAUTH_CMD": "gopass show -o claude/oauth-token"
-  }
-}
-```
-
-**Always use `gopass show -o`** (the `-o` flag prints only the secret's
-first line and strips the password-store metadata footer). Plain
-`gopass show <path>` adds bytes the wrapper will not trim — only `\r`
-and `\n` are stripped from the tail ([`auth.md`](../auth.md) §"OAuth
-hook contract", row "Success").
-
-Tighten permissions on layers that reference your store:
-
-```sh
-chmod 600 "$XDG_CONFIG_HOME/claude-session/settings/base.json"
-```
-
-### 4. Disable the hook on profiles that use a different auth path
-
-For profiles using e.g. Vertex AI service-account auth, override the
-hook to the empty string in that layer so the wrapper skips the lookup
-([`auth.md`](../auth.md) §"Per-profile disable"):
-
-```json
-// settings/vertex.json
-{
-  "env": {
-    "CLAUDE_SESSION_OAUTH_CMD": ""
-  }
-}
-```
-
-### 5. Export `GPG_TTY` in your shell rc
-
-This is the single most common cause of "hook works interactively, fails
-under the wrapper". `gpg-agent` needs a TTY to prompt for the
-passphrase, and the wrapper's child process will not inherit one unless
-your shell exports it ([`auth.md`](../auth.md) §"Security checklist",
-last bullet).
+### 3. Export the token from your shell rc
 
 ```sh
 # ~/.bashrc, ~/.zshrc, or equivalent
 export GPG_TTY=$(tty)
+export CLAUDE_CODE_OAUTH_TOKEN="$(gopass show -o claude/oauth-token)"
 ```
 
-If you launch `claude-session` from a non-TTY context (cron, systemd
-unit, editor hook), also configure a graphical pinentry in
-`~/.gnupg/gpg-agent.conf` (`pinentry-gnome3`, `pinentry-qt`, etc.) and
-reload the agent:
+That's the entire integration. New shells get the token; `claude-session`
+sees `CLAUDE_CODE_OAUTH_TOKEN` already set and inherits it into the
+child `claude` process unchanged.
 
-```sh
-gpgconf --reload gpg-agent
+Notes:
+
+- **`gopass show -o`** prints only the secret's first line — no
+  password-store metadata footer. Always use the `-o` flag.
+- **`GPG_TTY=$(tty)`** lets `gpg-agent` find a pinentry on first
+  unlock. Without it, the export above may hang or fail.
+- For non-TTY launch contexts (cron, systemd unit, editor hook),
+  configure a graphical pinentry in `~/.gnupg/gpg-agent.conf`
+  (`pinentry-gnome3`, `pinentry-qt`, etc.) and reload the agent:
+  ```sh
+  gpgconf --reload gpg-agent
+  ```
+
+### 4. (Containers) Forward the token into a devcontainer
+
+When `claude-session` runs inside a container, resolve the token on
+the host and forward it through devcontainer-CLI's `${localEnv:…}`
+substitution — keep gopass, GPG, and your password store on the host
+where they belong.
+
+```jsonc
+// .devcontainer/devcontainer.json
+{
+  "containerEnv": {
+    "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"
+  }
+}
 ```
 
-### 6. Verify
+Devcontainer-CLI resolves `${localEnv:…}` on the host at
+container-create time. Inside the container, `claude-session` sees
+the env var already set and uses it directly. No gopass, no GPG, no
+`~/.password-store` need exist inside the container.
 
-Run these in order ([`auth.md`](../auth.md) §"Verify"):
+The substitution runs once at create time, so a rotated token on the
+host does not reach an already-running container — recreate
+(`devcontainer up --remove-existing-container`, `dctl ws recreate`,
+or your tool's equivalent) to pick up a new value.
+
+Trade-off: `containerEnv` makes the token readable by every process
+in the container for its lifetime. For YOLO-mode agent setups this
+matches how other forwarded secrets typically work, but a hostile or
+prompt-injected agent inside the container can read and exfiltrate
+it. Mitigations: rotate proactively (every 30–90 days, not the 1-year
+expiry), consider a dedicated Claude.ai account for agent workloads,
+and restrict container egress where possible.
+
+### 5. Verify
 
 ```sh
-# Hook is bound to the active profile:
-claude-session --dry-run run | grep oauth_hook
-# → oauth_hook=gopass show -o claude/oauth-token
+# Token is set in the current shell:
+[[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]] && echo OK
 
-# Redaction works:
-claude-session profile show default
-# → CLAUDE_SESSION_OAUTH_CMD=<redacted>
-claude-session profile show default --verbose
-# → CLAUDE_SESSION_OAUTH_CMD=gopass show -o claude/oauth-token
+# Wrapper dry-run runs cleanly with the token in env:
+claude-session --dry-run run
 
-# Dependencies look healthy:
-claude-session doctor | grep -E 'oauth|timeout'
-# oauth hook  OK  configured
-# timeout     OK  /usr/bin/timeout
-
-# Smoke-test the hook itself outside the wrapper:
+# Smoke-test gopass independently:
 gopass show -o claude/oauth-token | wc -c     # > 0, no stray bytes
-
-# Run for real with verbose stderr if the hook misbehaves:
-CLAUDE_SESSION_VERBOSE=1 claude-session
 ```
 
-For any profile that disables the hook (step 4):
+Inside a devcontainer, the same `[[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]]`
+check confirms `${localEnv:…}` forwarding resolved correctly.
+
+### 6. Rotate
+
+Re-mint the token every 30–90 days (don't ride the 1-year expiry —
+upstream has no self-service revocation today) and immediately on any
+suspicion of compromise:
 
 ```sh
-claude-session --profile vertex --dry-run run | grep oauth_hook
-# → oauth_hook=          (empty — skipped)
+claude setup-token                       # new token to terminal
+gopass insert -f claude/oauth-token      # overwrite stored value
+# new shells / new devcontainer instances pick up the rotated token
 ```
-
-### 7. (Optional) Drop the local credential file
-
-Once the hook resolves the token, you can delete the upstream-managed
-credential cache so the next launch re-seeds it from `gopass`:
-
-```sh
-rm ~/.claude/.credentials.json
-```
-
-The next `claude-session` invocation will export
-`CLAUDE_CODE_OAUTH_TOKEN` from the hook output and pass it to the child
-`claude` process ([`auth.md`](../auth.md) §"Where the token lives at
-runtime").
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `warning: hook command failed: gopass show -o …` | `gpg-agent` is locked, `GPG_TTY` is unset, or the entry does not exist. | `CLAUDE_SESSION_VERBOSE=1 claude-session` to see the hook's stderr. Confirm `gopass show -o <path>` works in a fresh shell. Export `GPG_TTY=$(tty)`. |
-| Token has stray bytes / upstream auth fails | Used `gopass show` instead of `gopass show -o`. | Switch to `-o`, or pipe through `tr -d '\r\n'` in the hook command. |
-| `doctor` reports `timeout not found` | GNU coreutils not installed. | Install coreutils, or accept the missing-cap risk. |
-| Works as your user, fails as another user / in cron | `gpg-agent` socket is not reachable. | Either start an agent in the cron environment or use a non-interactive pinentry; see GnuPG docs. |
-| `--bare` mode reports "Not logged in" | Upstream `--bare` ignores OAuth tokens. | Store an API key in gopass too and use `ANTHROPIC_API_KEY="$(gopass show -o claude/api-key)" claude-session --bare …` ([`auth.md`](../auth.md) §"`--bare` caveat"). |
+| `gopass show` prompts for a passphrase on every new shell | `gpg-agent` cache TTL expired, or `GPG_TTY` is unset. | Confirm `export GPG_TTY=$(tty)` runs before the token export. Tune `default-cache-ttl` / `max-cache-ttl` in `~/.gnupg/gpg-agent.conf` for a longer cache window. |
+| Token has stray bytes / upstream auth fails | Used `gopass show` instead of `gopass show -o`. | Switch to `-o`, or pipe through `tr -d '\r\n'`. |
+| Works as your user, fails in cron / under another user | `gpg-agent` socket not reachable in that context. | Start an agent in the cron environment or use a non-interactive pinentry; see GnuPG docs. |
+| `claude-session --bare` reports "Not logged in" | Upstream `--bare` ignores OAuth tokens. | Store an API key alongside the OAuth token and use `ANTHROPIC_API_KEY="$(gopass show -o claude/api-key)" claude-session --bare …` ([`auth.md`](../auth.md) §"`--bare` caveat"). |
+| Auth fails after months | Token expired or was revoked. | Re-run step 6 (rotate). |
+| Container starts but token is unset inside | Host shell rc did not export `CLAUDE_CODE_OAUTH_TOKEN` before the container was launched, so `${localEnv:…}` resolved to empty. | Start a new shell that sources the rc, or `export` the token manually before `dctl ws up` / `devcontainer up`. |
 
 ## See also
 
-- [`../auth.md`](../auth.md) — canonical OAuth hook contract and
+- [`../auth.md`](../auth.md) — canonical token precedence and
   cross-backend reference.
 - [`../config.md`](../config.md) — layer composition rules and env
   precedence.

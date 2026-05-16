@@ -240,12 +240,12 @@ EOF
 # bats test_tags=unit
 @test "compose_profile preserves empty-string env value" {
   write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" base
-  printf '{"env":{"CLAUDE_SESSION_OAUTH_CMD":""}}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
+  printf '{"env":{"CLAUDE_SESSION_POST_EXIT_CMD":""}}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
 
   run cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
 
   assert_success
-  jq -e '.env.CLAUDE_SESSION_OAUTH_CMD == ""' "$BATS_TEST_TMPDIR/session/.claude-session-compose.json"
+  jq -e '.env.CLAUDE_SESSION_POST_EXIT_CMD == ""' "$BATS_TEST_TMPDIR/session/.claude-session-compose.json"
 }
 
 # bats test_tags=unit
@@ -281,12 +281,12 @@ EOF
 # bats test_tags=unit
 @test "apply_profile_env exports merged env in current shell" {
   write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" base
-  printf '{"env":{"CLAUDE_SESSION_OAUTH_CMD":"","FOO":"bar"}}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
+  printf '{"env":{"CLAUDE_SESSION_POST_EXIT_CMD":"","FOO":"bar"}}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
 
   cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
   cs::fn::apply_profile_env "$BATS_TEST_TMPDIR/session/.claude-session-compose.json"
 
   [[ "${FOO:-}" == "bar" ]]
-  [[ "${CLAUDE_SESSION_OAUTH_CMD+x}" == "x" ]]
-  [[ "$CLAUDE_SESSION_OAUTH_CMD" == "" ]]
+  [[ "${CLAUDE_SESSION_POST_EXIT_CMD+x}" == "x" ]]
+  [[ "$CLAUDE_SESSION_POST_EXIT_CMD" == "" ]]
 }
