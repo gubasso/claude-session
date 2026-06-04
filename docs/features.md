@@ -27,8 +27,9 @@ step-by-step.
    land under a `sessions/` subdir of that root.
 3. **Layered `settings.json` composition** via ordered
    `profiles/<name>.yaml` manifests and `jq -s` over
-   `settings/<layer>.json`, with mtime-based cache invalidation so
-   repeat invocations are fast when nothing changed.
+   `settings/<layer>.json`. The versioned layers are the sole
+   composition input, so each profile is fully isolated from every
+   other.
 4. **File classification** — three modes (`sync` / `link` / `dir-link`)
    for files the wrapper stages into the session directory. The `sync`
    mode's copy + atomic `flock`ed temp-rename pattern is preserved as

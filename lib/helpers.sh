@@ -77,19 +77,6 @@ cs::helpers::config_dir_default() {
   fi
 }
 
-cs::helpers::cache_dir_default() {
-  if [[ -n "${CLAUDE_SESSION_CACHE_DIR:-}" ]]; then
-    printf '%s\n' "$CLAUDE_SESSION_CACHE_DIR"
-  else
-    if [[ -z "${HOME:-}" ]]; then
-      cs::helpers::die 3 "HOME is unset." \
-        "Cannot resolve the default XDG cache directory." \
-        "  Set CLAUDE_SESSION_CACHE_DIR=/path/to/cache"
-    fi
-    printf '%s/claude-session\n' "${XDG_CACHE_HOME:-$HOME/.cache}"
-  fi
-}
-
 cs::helpers::config_path() {
   if [[ -n "${CS_CLI_CONFIG:-}" ]]; then
     printf '%s\n' "$CS_CLI_CONFIG"

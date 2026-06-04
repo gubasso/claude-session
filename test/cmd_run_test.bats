@@ -328,13 +328,11 @@ EOF
 }
 
 # bats test_tags=integration
-@test "run dry-run composes versioned effortLevel over stale cache" {
+@test "run dry-run composes only the versioned layers (no cache layer)" {
   skip_if_missing_yq
   mkdir -p "$XDG_CONFIG_HOME/claude-session/settings" "$XDG_CONFIG_HOME/claude-session/profiles"
   write_manifest "$XDG_CONFIG_HOME/claude-session/profiles/default.yaml" base
   printf '{"effortLevel":"high"}\n' >"$XDG_CONFIG_HOME/claude-session/settings/base.json"
-  mkdir -p "$XDG_CACHE_HOME/claude-session"
-  printf '{"effortLevel":"low"}\n' >"$XDG_CACHE_HOME/claude-session/settings.json"
 
   run claude-session run --dry-run --profile default -- chat hi
 
@@ -342,8 +340,7 @@ EOF
   local session_dir
   session_dir=$(awk -F= '/^session_dir=/{print $2}' <<<"$output")
   [[ "$(jq -r '.effortLevel' "$session_dir/settings.json")" == "high" ]]
-  jq -e --arg cache "$XDG_CACHE_HOME/claude-session/settings.json" \
-    --arg base "$XDG_CONFIG_HOME/claude-session/settings/base.json" '
-      .layers[0] == $cache and .layers[1] == $base
+  jq -e --arg base "$XDG_CONFIG_HOME/claude-session/settings/base.json" '
+      (.layers | length) == 1 and .layers[0] == $base
     ' "$session_dir/.claude-session-compose.json"
 }
