@@ -9,24 +9,6 @@ __require_jq() {
   command -v jq >/dev/null 2>&1 || cs::helpers::die 3 "jq is required." "Profile settings layers exist, so claude-session must merge JSON with jq." "  Install jq."
 }
 
-__file_mtime() {
-  local file=$1
-  stat -c '%Y' "$file" 2>/dev/null || printf '0'
-}
-
-__file_size() {
-  local file=$1
-  stat -c '%s' "$file" 2>/dev/null || printf '0'
-}
-
-__cache_hash() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum | awk '{print $1}'
-  else
-    cksum | awk '{print $1}'
-  fi
-}
-
 __validate_manifest() {
   local manifest=$1
   [[ -f "$manifest" ]] || cs::helpers::die 3 "profile manifest not found." "Cannot read $manifest." "  Create the manifest and re-run claude-session profile list."
@@ -74,23 +56,6 @@ __layer_paths() {
   done
 }
 
-__cache_key() {
-  local manifest=$1
-  shift
-  local manifest_mtime
-  manifest_mtime=$(__file_mtime "$manifest")
-  printf '%s|%s|%s' "$manifest" "$manifest_mtime" "$(__file_size "$manifest")"
-  local path=""
-  for path in "$@"; do
-    # Include size alongside mtime so same-second content swaps (the
-    # runtime-cache writeback can preserve a source mtime via `cp -p`,
-    # and 1s mtime granularity hides same-second edits) still invalidate
-    # the per-session compose cache.
-    printf '|%s|%s|%s' "$path" "$(__file_mtime "$path")" "$(__file_size "$path")"
-  done
-  printf '\n'
-}
-
 __extract_env_json() {
   local settings_file=$1
   local env_json
@@ -109,25 +74,12 @@ cs::fn::compose_profile() {
   local config_dir=${CLAUDE_SESSION_CONFIG_DIR:-$(cs::helpers::config_dir_default)}
   local -a layer_names=()
   local -a layer_paths=()
-  local -a all_layer_paths=()
   local layer_names_output=""
   local layer_paths_output=""
   layer_names_output=$(__manifest_layer_names "$manifest")
   mapfile -t layer_names <<<"$layer_names_output"
   layer_paths_output=$(__layer_paths "$config_dir" "${layer_names[@]}")
   mapfile -t layer_paths <<<"$layer_paths_output"
-
-  local cache_dir
-  cache_dir=$(cs::helpers::cache_dir_default)
-  local cache_settings="$cache_dir/settings.json"
-  if [[ -f "$cache_settings" ]]; then
-    if jq -e 'type == "object"' "$cache_settings" >/dev/null 2>&1; then
-      all_layer_paths+=("$cache_settings")
-    else
-      cs::helpers::log "warning: ignoring corrupt $cache_settings (not a JSON object)"
-    fi
-  fi
-  all_layer_paths+=("${layer_paths[@]}")
 
   local target_dir=$session_dir
   if [[ "$target_dir" == "-" ]]; then
@@ -141,13 +93,13 @@ cs::fn::compose_profile() {
 
   local filter='.[0]'
   local idx=1
-  while [[ $idx -lt ${#all_layer_paths[@]} ]]; do
+  while [[ $idx -lt ${#layer_paths[@]} ]]; do
     filter="$filter * .[$idx]"
     idx=$((idx + 1))
   done
 
   local tmp_settings="$target_dir/settings.json.tmp.$$"
-  jq -s "$filter" "${all_layer_paths[@]}" >"$tmp_settings" || cs::helpers::die 3 "settings merge failed." "jq could not merge the settings layers declared by $manifest." "  Fix invalid JSON in the settings layers and re-run claude-session doctor."
+  jq -s "$filter" "${layer_paths[@]}" >"$tmp_settings" || cs::helpers::die 3 "settings merge failed." "jq could not merge the settings layers declared by $manifest." "  Fix invalid JSON in the settings layers and re-run claude-session doctor."
   jq empty "$tmp_settings" >/dev/null || cs::helpers::die 3 "settings JSON is invalid." "Merged settings output failed jq validation." "  Fix the settings layers and re-run claude-session doctor."
   jq -e 'type == "object"' "$tmp_settings" >/dev/null || cs::helpers::die 3 "settings JSON is invalid." "Merged settings root must be a JSON object." "  Each settings layer must contain a JSON object at the top level."
 
@@ -157,7 +109,7 @@ cs::fn::compose_profile() {
   mv -f "$tmp_settings" "$settings_file"
   jq -n \
     --arg manifest "$manifest" \
-    --argjson layers "$(printf '%s\n' "${all_layer_paths[@]}" | jq -R . | jq -s .)" \
+    --argjson layers "$(printf '%s\n' "${layer_paths[@]}" | jq -R . | jq -s .)" \
     --argjson env "$env_json" \
     '{manifest: $manifest, layers: $layers, env: $env}' >"$sidecar_file" || cs::helpers::die 3 "compose sidecar write failed." "claude-session could not write $sidecar_file." "  Re-run claude-session doctor."
 

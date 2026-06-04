@@ -1,6 +1,30 @@
 # shellcheck shell=bash
 : 'desc: Copy sync-classified Claude files in and back out atomically.'
 
+# Reserved compose artifacts must never round-trip through the shared dir:
+# settings.json and its sidecar are recomposed per-profile from versioned
+# layers on every launch. Syncing them out then back in would replay one
+# profile's composed settings/env over another profile's fresh composition,
+# reintroducing the cross-profile leak. Guard regardless of how the caller
+# configures CLAUDE_SESSION_SYNC_FILES.
+#
+# Items are interpolated as "$dir/$item", so path-decorated aliases like
+# "./settings.json" or "foo/../settings.json" resolve to the same reserved
+# file. Reject by basename, and reject any "../" traversal outright (it would
+# also let an item escape the session/shared dirs entirely).
+__sync_is_reserved() {
+  local item=$1
+  # Wrapping in slashes makes a ".." segment always appear as "/../",
+  # so a single pattern catches leading, embedded, and trailing traversal.
+  case "/$item/" in
+    */../*) return 0 ;;
+  esac
+  case "${item##*/}" in
+    settings.json | .claude-session-compose.json) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 cs::fn::sync_files() {
   local mode=$1
   local session_dir=$2
@@ -14,6 +38,7 @@ cs::fn::sync_files() {
     in)
       for item in "${items[@]}"; do
         [[ -n "$item" ]] || continue
+        __sync_is_reserved "$item" && continue
         if [[ -f "$shared_dir/$item" ]]; then
           mkdir -p "$(dirname "$session_dir/$item")"
           cp -p "$shared_dir/$item" "$session_dir/$item"
@@ -29,11 +54,11 @@ cs::fn::sync_files() {
         local src=""
         local dst=""
         local tmp=""
-        local cache_session="$session_dir/settings.json"
         local src_m=0
         local dst_m=0
         for item in "${items[@]}"; do
           [[ -n "$item" ]] || continue
+          __sync_is_reserved "$item" && continue
           src="$session_dir/$item"
           dst="$shared_dir/$item"
           [[ -f "$src" ]] || continue
@@ -46,21 +71,6 @@ cs::fn::sync_files() {
             mv -f "$tmp" "$dst"
           fi
         done
-        if [[ -f "$cache_session" ]]; then
-          local cache_dir cache_dst cache_tmp
-          cache_dir=$(cs::helpers::cache_dir_default)
-          mkdir -p "$cache_dir"
-          cache_dst="$cache_dir/settings.json"
-          cache_tmp="$cache_dst.tmp.$$"
-          if jq 'del(.effortLevel, .model, .outputStyle)' \
-              "$cache_session" >"$cache_tmp" \
-            && mv -f "$cache_tmp" "$cache_dst"; then
-            :
-          else
-            rm -f "$cache_tmp"
-            cs::helpers::log "warning: failed to persist sanitized settings cache at $cache_dst"
-          fi
-        fi
       ) 9>"$lock"
       ;;
     *)

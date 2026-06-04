@@ -191,7 +191,6 @@ cs::cmd::doctor() {
     printf '\nEnvironment\n'
     printf 'CLAUDE_SESSION_PROFILE=%s\n' "${CLAUDE_SESSION_PROFILE:-}"
     printf 'CLAUDE_SESSION_CONFIG_DIR=%s\n' "$config_dir"
-    printf 'CLAUDE_SESSION_CACHE_DIR=%s\n' "$(cs::helpers::cache_dir_default)"
     printf 'CLAUDE_SESSION_SHARED_DIR=%s\n' "$shared_dir"
     printf 'HOME_TRUST_FILE=%s\n' "$HOME/.claude.json"
     if [[ -n "${__CS_DOCTOR_COMPOSE_DIR:-}" && -f "${__CS_DOCTOR_COMPOSE_DIR}/.claude-session-compose.json" ]]; then

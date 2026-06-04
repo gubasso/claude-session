@@ -110,13 +110,11 @@ and env-var table: [docs/config.md](docs/config.md).
 | `${XDG_CONFIG_HOME:-~/.config}/claude-session/config.env` | wrapper global config (`KEY=VALUE`) | user, hand-edited |
 | `${XDG_CONFIG_HOME:-~/.config}/claude-session/profiles/<name>.yaml` | profile manifest (ordered `settings-layers`) | user, hand-edited |
 | `${XDG_CONFIG_HOME:-~/.config}/claude-session/settings/<layer>.json` | settings layer JSON (composeable) | user, hand-edited |
-| `${XDG_CACHE_HOME:-~/.cache}/claude-session/settings.json` | auto-generated persistent runtime layer (lowest-precedence input to compose, written back on exit) | generated, do not hand-edit |
 | `$XDG_RUNTIME_DIR/claude-session/` (preferred) | per-machine session root | shared, volatile on logout |
 | `${XDG_STATE_HOME:-~/.local/state}/claude-session/` (fallback) | per-machine session root when XDG_RUNTIME_DIR unset | shared, persistent |
 | `<root>/sessions/<terminal-id>/` | per-pts session dir (`CLAUDE_CONFIG_DIR`) | per-pts, mode 700 |
 | `<session>/settings.json` | composed Claude settings (recomposed each `run`) | per-pts, generated |
 | `<session>/.claude-session-compose.json` | sidecar: manifest, layer paths, merged `env` | per-pts, generated |
-| `<session>/.claude-session-settings-cache` | sha256 cache key for composer short-circuit | per-pts, generated |
 | `<session>/session-meta.json` | schema-v1 metadata (profile, terminal_id, started_at, cwd, session_root, source) | per-pts, generated |
 | `<session>/.credentials.json` | OAuth credentials (sync'd in/out under `flock`) | sync |
 | `<session>/.claude.json` | symlink → `$HOME/.claude.json` (trust / onboarding / projects map) | home-link |
@@ -128,9 +126,7 @@ and env-var table: [docs/config.md](docs/config.md).
 | `${CLAUDE_SESSION_SHARED_DIR:-~/.claude}/.claude-session.lock` | flock file serializing `sync_files out` across pts | shared, persistent (zero-byte) |
 
 - User edits the versioned inputs under `~/.config/claude-session/`.
-- The auto-generated `~/.cache/claude-session/settings.json` is the persistent runtime layer: `/effort` and other in-session mutations land in `$session_dir/settings.json`, then get copied back here on exit.
-- On each `run`, the composer merges `cache_settings * base.json * <profile layers...>` and writes to `$session_dir/settings.json`. Versioned layers re-override on every startup, so `effortLevel: "high"` in `base.json` is always the boot-time value, while `/effort medium` in-session still works because Claude Code mutates `$session_dir/settings.json` directly.
-- `~/.cache/claude-session/` is scaffolded automatically: `install.sh` (`just install`) pre-creates it on the host so devcontainer bind-mounts succeed on first start, and `uninstall.sh` (`just uninstall`) wipes it. The wrapper also `mkdir -p`s it on every exit before writing the cache, so it self-heals if removed mid-life.
+- On each `run`, the composer merges the manifest's ordered `settings/<layer>.json` files (later layers win) into `$session_dir/settings.json`. The versioned layers are the sole composition input, so each profile is fully isolated from every other. A value pinned in a layer — an `effortLevel`, say — therefore re-applies on every launch, while an in-session `/effort` change mutates only the ephemeral `$session_dir/settings.json` and is discarded when the session ends, never leaking into the next session or another profile.
 
 ## Requirements
 

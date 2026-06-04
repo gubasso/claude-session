@@ -15,7 +15,6 @@ Precedence is flags > env > file.
 | `$XDG_CONFIG_HOME/claude-session/config.env` | Global wrapper config only. Dotenv `KEY=VALUE` lines. No profile-specific settings live here. |
 | `$XDG_CONFIG_HOME/claude-session/profiles/<name>.yaml` | Profile manifest. YAML with one top-level `settings-layers` array. |
 | `$XDG_CONFIG_HOME/claude-session/settings/<name>.json` | JSON settings layer file. Layer names come from manifest entries. |
-| `${XDG_CACHE_HOME:-$HOME/.cache}/claude-session/settings.json` | Auto-generated persistent runtime layer. Lowest-precedence input to profile composition. Written back from `$session_dir/settings.json` on exit. Separate persistence channel from `$HOME/.claude.json`. Do not hand-edit. |
 | `<session_dir>/settings.json` | Session-local composed Claude settings file, written only in manifest mode. |
 | `<session_dir>/.claude-session-compose.json` | Session-local sidecar with the resolved manifest path, ordered layer paths, and merged `.env` block. |
 
@@ -60,17 +59,22 @@ Layer names must match `^[A-Za-z0-9._-]+$`. They resolve only against `$CLAUDE_S
 
 ## Composition
 
-When a manifest is active, `claude-session` composes its layers in order with `jq -s`, later layers winning over earlier layers. When `${XDG_CACHE_HOME:-$HOME/.cache}/claude-session/settings.json` exists and is a JSON object, it is prepended as the lowest-precedence layer, so the effective order is `cache_settings * <ordered manifest layers>` and the versioned manifest layers always re-override the cache on startup.
+When a manifest is active, `claude-session` composes its layers in order
+with `jq -s`, later layers winning over earlier layers. The versioned
+`settings/<layer>.json` files are the sole composition input, so each
+profile is fully isolated — no profile can see another's composed
+settings.
 
 - The merged output is validated with `jq empty`.
 - The merged `.env` block defaults to `{}` when absent.
 - A non-object merged `.env` block is an error.
-The runtime cache file is sanitized on exit: the keys `effortLevel`,
-`model`, and `outputStyle` are stripped before write, so picker-driven
-in-session mutations of those keys never become the next session's
-durable baseline. This cache is distinct from `$HOME/.claude.json`:
-versioned `effortLevel` lives in `settings/<layer>.json` and
-re-overrides the cache on every startup.
+
+The versioned `settings/<layer>.json` files are the durable source of
+truth. Keys such as `effortLevel` re-apply on every launch from their
+layer. Claude Code's in-session pickers (`/effort`, `/model`,
+`/output-style`) mutate the ephemeral `$session_dir/settings.json` for
+the live session only; those writes are discarded when the session dir
+is torn down and never leak into the next session.
 
 ## Env propagation
 
@@ -122,7 +126,6 @@ If the session dir already contains an old composed `settings.json`, `claude-ses
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `CLAUDE_SESSION_CONFIG_DIR` | `$XDG_CONFIG_HOME/claude-session` | Root of `config.env`, `profiles/`, and `settings/`. |
-| `CLAUDE_SESSION_CACHE_DIR` | `$XDG_CACHE_HOME/claude-session` (or `$HOME/.cache/claude-session`) | Root for the auto-generated runtime settings cache. |
 | `CLAUDE_SESSION_SHARED_DIR` | `$HOME/.claude` | Shared Claude config dir staged into the session dir. The lock at `$CLAUDE_SESSION_SHARED_DIR/.claude-session.lock` must resolve to the same host inode across every PTS and container that shares `$HOME/.claude.json`. The dctl default (bind-mounting `~/.claude/` as a directory) satisfies this automatically. Overriding this var to a per-container path breaks cross-container serialization of auto-trust writes. |
 | `CLAUDE_SESSION_PROFILE` | empty unless explicit/default manifest resolves | Requested profile name. Explicit values require `profiles/<name>.yaml`. |
 | `CLAUDE_SESSION_REAL_CLAUDE` | (auto-discovered) | Absolute path to the real `claude` binary. |

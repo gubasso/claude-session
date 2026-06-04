@@ -119,95 +119,43 @@ EOF
 }
 
 # bats test_tags=unit
-@test "compose_profile cache invalidates when manifest mtime changes" {
+@test "compose_profile recomposes from current layer content on every call" {
   write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" base
   printf '{"env":{"FOO":"bar"}}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
   cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-  local before
-  before=$(stat -c '%Y' "$BATS_TEST_TMPDIR/session/settings.json")
-  sleep 1
-  touch "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml"
+  jq -e '.env.FOO == "bar"' "$BATS_TEST_TMPDIR/session/settings.json"
 
-  cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-  local after
-  after=$(stat -c '%Y' "$BATS_TEST_TMPDIR/session/settings.json")
-
-  [[ "$after" -gt "$before" ]]
-}
-
-# bats test_tags=unit
-@test "compose_profile cache invalidates when layer mtime changes" {
-  write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" base
-  printf '{"env":{"FOO":"bar"}}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
-  cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-  local before
-  before=$(stat -c '%Y' "$BATS_TEST_TMPDIR/session/settings.json")
-  sleep 1
   printf '{"env":{"FOO":"baz"}}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
 
-  cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-  local after
-  after=$(stat -c '%Y' "$BATS_TEST_TMPDIR/session/settings.json")
+  run cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
 
-  [[ "$after" -gt "$before" ]]
+  assert_success
   jq -e '.env.FOO == "baz"' "$BATS_TEST_TMPDIR/session/settings.json"
 }
 
 # bats test_tags=unit
-@test "compose_profile uses versioned layers over stale cache effortLevel" {
+@test "compose_profile isolates profiles: one profile's env never leaks into another" {
+  # Regression: a Vertex env block defined only in profile A must not appear
+  # when composing profile B, even after A has run and synced out.
+  write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/vertex.yaml" vertex
   write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" base
-  printf '{"effortLevel":"high"}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
-  mkdir -p "$XDG_CACHE_HOME/claude-session"
-  printf '{"effortLevel":"medium"}\n' >"$XDG_CACHE_HOME/claude-session/settings.json"
+  printf '{"env":{"CLAUDE_CODE_USE_VERTEX":"1","ANTHROPIC_VERTEX_PROJECT_ID":"proj"}}\n' \
+    >"$CLAUDE_SESSION_CONFIG_DIR/settings/vertex.json"
+  printf '{"env":{"FOO":"bar"}}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
 
-  run cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
+  # Compose + sync-out profile A (vertex), then compose profile B (default).
+  cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/vertex.yaml" "$BATS_TEST_TMPDIR/session-a"
+  cs::helpers::source_fn sync_files
+  cs::fn::sync_files out "$BATS_TEST_TMPDIR/session-a" "$BATS_TEST_TMPDIR/shared"
+
+  run cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session-b"
 
   assert_success
-  jq -e '.effortLevel == "high"' "$BATS_TEST_TMPDIR/session/settings.json"
-}
-
-# bats test_tags=unit
-@test "compose_profile succeeds when cache settings.json is absent" {
-  write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" base
-  printf '{"model":"claude-test"}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
-
-  run cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-
-  assert_success
-  jq -e '.model == "claude-test"' "$BATS_TEST_TMPDIR/session/settings.json"
-}
-
-# bats test_tags=unit
-@test "compose_profile ignores malformed cache settings.json with a warning" {
-  write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" base
-  printf '{"effortLevel":"high"}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
-  mkdir -p "$XDG_CACHE_HOME/claude-session"
-  printf '[]\n' >"$XDG_CACHE_HOME/claude-session/settings.json"
-
-  run cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-
-  assert_success
-  assert_output_contains "warning: ignoring corrupt $XDG_CACHE_HOME/claude-session/settings.json (not a JSON object)"
-  jq -e '.effortLevel == "high"' "$BATS_TEST_TMPDIR/session/settings.json"
-}
-
-# bats test_tags=unit
-@test "compose_profile cache invalidates when cache settings mtime changes" {
-  write_manifest "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" base
-  printf '{"effortLevel":"high"}\n' >"$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
-  mkdir -p "$XDG_CACHE_HOME/claude-session"
-  printf '{"effortLevel":"medium"}\n' >"$XDG_CACHE_HOME/claude-session/settings.json"
-  cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-  local before
-  before=$(stat -c '%Y' "$BATS_TEST_TMPDIR/session/settings.json")
-  sleep 1
-  touch "$XDG_CACHE_HOME/claude-session/settings.json"
-
-  cs::fn::compose_profile "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" "$BATS_TEST_TMPDIR/session"
-  local after
-  after=$(stat -c '%Y' "$BATS_TEST_TMPDIR/session/settings.json")
-
-  [[ "$after" -gt "$before" ]]
+  jq -e '
+    .env.FOO == "bar"
+    and (.env | has("CLAUDE_CODE_USE_VERTEX") | not)
+    and (.env | has("ANTHROPIC_VERTEX_PROJECT_ID") | not)
+  ' "$BATS_TEST_TMPDIR/session-b/settings.json"
 }
 
 # bats test_tags=unit
@@ -223,11 +171,8 @@ EOF
   printf '{"effortLevel":"low","model":"picker-mutated"}\n' \
     >"$BATS_TEST_TMPDIR/session/settings.json"
 
-  # Touch the layer so mtime-only caches would also re-fire, but the
-  # real invariant we want is "no short-circuit on second compose".
-  sleep 1
-  touch "$CLAUDE_SESSION_CONFIG_DIR/settings/base.json"
-
+  # The versioned layers are recomposed unconditionally, so the picker
+  # mutation must not survive into the next launch.
   run cs::fn::compose_profile \
     "$CLAUDE_SESSION_CONFIG_DIR/profiles/default.yaml" \
     "$BATS_TEST_TMPDIR/session"

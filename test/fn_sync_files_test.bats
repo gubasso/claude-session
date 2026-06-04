@@ -43,48 +43,51 @@ setup() {
 }
 
 # bats test_tags=unit
-@test "sync files cache writeback strips effortLevel, model, and outputStyle" {
+@test "sync files out never writes a settings cache" {
+  # The composed session settings.json must not be persisted anywhere:
+  # versioned layers are the sole compose input, so there is no cross-session
+  # (or cross-profile) settings cache to leak through.
   mkdir -p "$BATS_TEST_TMPDIR/shared" "$BATS_TEST_TMPDIR/session"
-  printf '{"effortLevel":"high","model":"claude-test","outputStyle":"x","permissions":{"allow":["Bash"]}}\n' \
+  printf '{"effortLevel":"high","env":{"CLAUDE_CODE_USE_VERTEX":"1"}}\n' \
     >"$BATS_TEST_TMPDIR/session/settings.json"
-
-  run cs::fn::sync_files out "$BATS_TEST_TMPDIR/session" "$BATS_TEST_TMPDIR/shared"
-
-  assert_success
-  [[ -f "$XDG_CACHE_HOME/claude-session/settings.json" ]]
-  jq -e '
-    has("effortLevel") == false
-    and has("model") == false
-    and has("outputStyle") == false
-    and .permissions.allow == ["Bash"]
-  ' "$XDG_CACHE_HOME/claude-session/settings.json"
-}
-
-# bats test_tags=unit
-@test "sync files skips cache writeback when session settings.json is absent" {
-  mkdir -p "$BATS_TEST_TMPDIR/shared" "$BATS_TEST_TMPDIR/session"
 
   run cs::fn::sync_files out "$BATS_TEST_TMPDIR/session" "$BATS_TEST_TMPDIR/shared"
 
   assert_success
   [[ ! -e "$XDG_CACHE_HOME/claude-session/settings.json" ]]
+  [[ ! -e "$BATS_TEST_TMPDIR/shared/settings.json" ]]
 }
 
 # bats test_tags=unit
-@test "sync files cache writeback honors CLAUDE_SESSION_CACHE_DIR and still sanitizes" {
+@test "sync files refuses to round-trip compose artifacts even when overridden" {
+  # Regression: CLAUDE_SESSION_SYNC_FILES must not be able to opt the composed
+  # settings.json (or its sidecar) into the shared dir. Otherwise profile A's
+  # composed settings would be synced out, then synced back in over profile B's
+  # fresh composition on the next launch — the exact cross-profile leak this
+  # change removes.
+  # Include path-decorated aliases that resolve to the same reserved files
+  # (./settings.json, foo/../.claude-session-compose.json) to prove the guard
+  # is not a naive exact-string match that can be bypassed.
+  export CLAUDE_SESSION_SYNC_FILES='settings.json:.claude-session-compose.json:./settings.json:foo/../.claude-session-compose.json'
   mkdir -p "$BATS_TEST_TMPDIR/shared" "$BATS_TEST_TMPDIR/session"
-  export CLAUDE_SESSION_CACHE_DIR="$BATS_TEST_TMPDIR/custom-cache"
-  printf '{"effortLevel":"medium","model":"x","outputStyle":"y","env":{"FOO":"bar"}}\n' \
+  printf '{"env":{"CLAUDE_CODE_USE_VERTEX":"1"}}\n' \
     >"$BATS_TEST_TMPDIR/session/settings.json"
+  printf '{"manifest":"a","layers":[],"env":{}}\n' \
+    >"$BATS_TEST_TMPDIR/session/.claude-session-compose.json"
 
+  # out: must not persist either compose artifact to the shared dir.
   run cs::fn::sync_files out "$BATS_TEST_TMPDIR/session" "$BATS_TEST_TMPDIR/shared"
-
   assert_success
-  [[ -f "$BATS_TEST_TMPDIR/custom-cache/settings.json" ]]
-  jq -e '
-    has("effortLevel") == false
-    and has("model") == false
-    and has("outputStyle") == false
-    and .env.FOO == "bar"
-  ' "$BATS_TEST_TMPDIR/custom-cache/settings.json"
+  [[ ! -e "$BATS_TEST_TMPDIR/shared/settings.json" ]]
+  [[ ! -e "$BATS_TEST_TMPDIR/shared/.claude-session-compose.json" ]]
+
+  # in: even if a stale artifact somehow exists in the shared dir, it must not
+  # be copied over a freshly composed session settings file.
+  printf '{"env":{"CLAUDE_CODE_USE_VERTEX":"1"}}\n' \
+    >"$BATS_TEST_TMPDIR/shared/settings.json"
+  printf '{"env":{"FOO":"bar"}}\n' >"$BATS_TEST_TMPDIR/session/settings.json"
+  run cs::fn::sync_files in "$BATS_TEST_TMPDIR/session" "$BATS_TEST_TMPDIR/shared"
+  assert_success
+  jq -e '.env.FOO == "bar" and (.env | has("CLAUDE_CODE_USE_VERTEX") | not)' \
+    "$BATS_TEST_TMPDIR/session/settings.json"
 }

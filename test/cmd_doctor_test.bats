@@ -128,7 +128,7 @@ _assert_yq_hidden() {
 }
 
 # bats test_tags=integration
-@test "doctor --verbose prints cache and home trust paths" {
+@test "doctor --verbose prints config and home trust paths" {
   mkdir -p "$XDG_CONFIG_HOME/claude-session/settings" "$XDG_CONFIG_HOME/claude-session/profiles"
   write_manifest "$XDG_CONFIG_HOME/claude-session/profiles/default.yaml" base
   printf '{"effortLevel":"high"}\n' >"$XDG_CONFIG_HOME/claude-session/settings/base.json"
@@ -137,6 +137,6 @@ _assert_yq_hidden() {
   run claude-session doctor --verbose
 
   assert_success
-  assert_output_contains "CLAUDE_SESSION_CACHE_DIR="
+  assert_output_contains "CLAUDE_SESSION_CONFIG_DIR="
   assert_output_contains "HOME_TRUST_FILE=$HOME/.claude.json"
 }

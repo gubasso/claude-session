@@ -158,11 +158,9 @@ env variables (see [config.md](config.md)).
    - If `cs::fn::resolve_profile` found `profiles/<name>.yaml`, read its
      ordered `settings-layers` list and resolve each layer to
      `$XDG_CONFIG_HOME/claude-session/settings/<layer>.json`.
-   - When `$XDG_CACHE_HOME/claude-session/settings.json` exists and is a
-     JSON object, prepend it as the lowest-precedence layer. Corrupt
-     cache JSON logs a warning and is skipped.
    - Compose the layers in order with `jq -s`; later layers override
-     earlier layers.
+     earlier layers. The versioned layers are the sole composition input,
+     so profiles stay fully isolated from one another.
    - Write `<session-dir>/settings.json` and
      `<session-dir>/.claude-session-compose.json`.
    - Read the merged `.env` block from the compose sidecar and export
@@ -211,11 +209,6 @@ env variables (see [config.md](config.md)).
      `$shared_dir/.claude-session.lock` continues to serialize the
      wrapper's own writes to that file (sync-out for credentials, and the
      auto-trust seed in step 7b).
-   - After the `sync_files` loop and still inside the same `flock`,
-     persist `$session_dir/settings.json` to
-     `$XDG_CACHE_HOME/claude-session/settings.json` with atomic
-     `jq 'del(.effortLevel, .model, .outputStyle)'` + `mv -f`. Stock mode no-ops because
-     `$session_dir/settings.json` does not exist.
    - Run `CLAUDE_SESSION_POST_EXIT_CMD` if set; the command gets
      `CLAUDE_SESSION_DIR` and `CLAUDE_SESSION_PROFILE` in its env.
      Hook failures do **not** change the wrapper's exit code (logged

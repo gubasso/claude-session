@@ -216,10 +216,10 @@ OUTPUT (fallback example — XDG_STATE_HOME):
   Next:
     Restore the runtime dir:  loginctl enable-linger $USER  (or set XDG_RUNTIME_DIR)
 
-  `doctor --verbose` additionally prints the resolved config, cache, shared,
+  `doctor --verbose` additionally prints the resolved config, shared,
   and home-trust paths (`CLAUDE_SESSION_CONFIG_DIR`,
-  `CLAUDE_SESSION_CACHE_DIR`, `CLAUDE_SESSION_SHARED_DIR`,
-  `HOME_TRUST_FILE`) plus any merged profile env.
+  `CLAUDE_SESSION_SHARED_DIR`, `HOME_TRUST_FILE`) plus any merged
+  profile env.
 
 SEE ALSO:
   claude-session config show
