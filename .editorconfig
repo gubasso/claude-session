@@ -1,0 +1,32 @@
+# EditorConfig — https://editorconfig.org
+# Enforced in pre-commit by the editorconfig-checker hook.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Rust — matches rustfmt defaults (4-space indent, 100-col max width).
+[*.rs]
+indent_size = 4
+max_line_length = 100
+
+# TOML — matches taplo defaults (Cargo.toml, *.toml).
+[*.toml]
+indent_size = 2
+
+# YAML, JSON, JSON5 — 2-space is the ecosystem norm.
+[*.{yml,yaml,json,json5}]
+indent_size = 2
+
+# Markdown — owned by other tooling; the ec hook excludes *.md.
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefiles require literal tabs.
+[Makefile]
+indent_style = tab
