@@ -1,0 +1,25 @@
+# Rounds for this plan, in execution order. status: backlog | todo | doing | done
+rounds:
+  - item: account-registry
+    status: todo
+    depends_on: []
+    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/account-registry.md
+    notes: Filesystem-backed account registry, account dirs, seed paths, last-account.
+  - item: managed-login
+    status: todo
+    depends_on:
+      - account-registry
+    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/managed-login.md
+    notes: Managed claude login per account (subscription OAuth) + hardened seed write.
+  - item: auth-gate-and-resolver
+    status: todo
+    depends_on:
+      - managed-login
+    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/auth-gate-and-resolver.md
+    notes: Resolver, auth gate, seed->session copy, API-key fallback, trust sync-back.
+  - item: account-commands
+    status: todo
+    depends_on:
+      - auth-gate-and-resolver
+    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/account-commands.md
+    notes: account add|list|current|remove|refresh verbs, --json, redaction, doctor.

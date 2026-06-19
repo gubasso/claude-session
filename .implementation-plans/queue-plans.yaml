@@ -1,0 +1,40 @@
+# Source of truth for the .implementation-plans/ queue. Status & order live HERE, not in paths.
+# status: backlog | todo | doing | done
+plans:
+  - item: cs-foundation
+    status: todo
+    depends_on: []
+    prompt: /prex -ar @.implementation-plans/plans/cs-foundation/
+    notes: Crate skeleton, plumbing (err/log/ui/ctx/cfg), clap passthrough + minimal spawn, docs/ADR, quality gates.
+  - item: cs-isolation
+    status: todo
+    depends_on:
+      - cs-foundation
+    prompt: /prex -ar @.implementation-plans/plans/cs-isolation/
+    notes: Secure dirs, pty-keyed multiplexer-agnostic group identity, session context+meta+cleanup.
+  - item: cs-wrapper-runtime
+    status: todo
+    depends_on:
+      - cs-isolation
+    prompt: /prex -ar @.implementation-plans/plans/cs-wrapper-runtime/
+    notes: Spawner port, child resolution+recursion guard, spawn+signals+exit codes, CLAUDE_CONFIG_DIR env injection + headroom seam.
+  - item: cs-accounts-auth
+    status: todo
+    depends_on:
+      - cs-wrapper-runtime
+    prompt: /prex -ar @.implementation-plans/plans/cs-accounts-auth/
+    notes: Account registry, managed claude login (subscription), seed->session, API-key fallback, account commands.
+  - item: cs-config-composition
+    status: todo
+    depends_on:
+      - cs-isolation
+    prompt: /prex -ar @.implementation-plans/plans/cs-config-composition/
+    notes: JSON pieces + YAML manifest -> serde_json merge (provenance) -> native settings.json; config/profile verbs.
+  - item: cs-docs-hardening
+    status: todo
+    depends_on:
+      - cs-wrapper-runtime
+      - cs-accounts-auth
+      - cs-config-composition
+    prompt: /prex -ar @.implementation-plans/plans/cs-docs-hardening/
+    notes: Prior-art/headroom docs, doctor hardening, completions/man pages, ADR closeout + release.

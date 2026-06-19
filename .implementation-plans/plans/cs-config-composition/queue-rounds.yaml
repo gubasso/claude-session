@@ -1,0 +1,25 @@
+# Rounds for this plan, in execution order. status: backlog | todo | doing | done
+rounds:
+  - item: config-layout-and-models
+    status: todo
+    depends_on: []
+    prompt: /prex -ar .implementation-plans/plans/cs-config-composition/config-layout-and-models.md
+    notes: XDG config tree, manifest/piece models, loader validation.
+  - item: merge-engine
+    status: todo
+    depends_on:
+      - config-layout-and-models
+    prompt: /prex -ar .implementation-plans/plans/cs-config-composition/merge-engine.md
+    notes: serde_json deep merge, per-key strategies, per-key provenance.
+  - item: generate-settings
+    status: todo
+    depends_on:
+      - merge-engine
+    prompt: /prex -ar .implementation-plans/plans/cs-config-composition/generate-settings.md
+    notes: Atomic native settings.json output, schema validation, freshness, provenance sidecar, .claude.json trust state.
+  - item: config-commands
+    status: todo
+    depends_on:
+      - generate-settings
+    prompt: /prex -ar .implementation-plans/plans/cs-config-composition/config-commands.md
+    notes: config/profile verbs (show|path|compose|validate|status, list|show), --json, provenance.
