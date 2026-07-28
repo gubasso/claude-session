@@ -1,0 +1,76 @@
+# release-plz — version bump, changelog, tag, and crates.io publish.
+#
+# The filename MUST stay `release-plz.yml`: the crates.io Trusted Publisher for
+# this crate is configured against this exact workflow file. Renaming it breaks
+# publishing.
+#
+# Auth is Trusted Publishing (OIDC). There is deliberately NO
+# CARGO_REGISTRY_TOKEN secret and NO rust-lang/crates-io-auth-action step —
+# release-plz mints the short-lived crates.io token itself from the job's
+# `id-token: write` permission.
+#
+# The FIRST publish of a new crate is manual (see PUBLISHING.md); Trusted
+# Publishing can only be configured against an already-existing crate.
+#
+# Two jobs, in order:
+#   release-plz-release — publish any version on main that is not yet on
+#                         crates.io, and push its git tag.
+#   release-plz-pr      — open/refresh the release PR (version bump + changelog).
+#
+# Behaviour is configured by release-plz.toml at the repo root
+# (semver_check = false — bin-only crate; see PUBLISHING.md).
+name: release-plz
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-plz-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-plz-release:
+    name: release-plz release
+    runs-on: ubuntu-latest
+    permissions:
+      # Required by crates.io Trusted Publishing: release-plz exchanges this
+      # OIDC token for a short-lived registry token.
+      id-token: write
+      # Push the release commit and tag.
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # No Nix devShell here: release-plz/action brings its own pinned cargo
+      # and runs release-plz as a self-contained binary. Toolchain parity is
+      # enforced by ci.yml, which gates main before anything reaches this job.
+      - name: Run release-plz release
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-plz-pr:
+    name: release-plz PR
+    runs-on: ubuntu-latest
+    needs: [release-plz-release]
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Run release-plz release-pr
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

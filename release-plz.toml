@@ -1,0 +1,12 @@
+# release-plz configuration. See https://release-plz.dev/docs/config for all options.
+# Conservative defaults; a workspace maintainer can override per package with a
+# [[package]] table (e.g. to opt a member out of publishing).
+[workspace]
+changelog_update = true
+release_always = false
+publish = true
+# `claude-session` is a bin-only crate with no public API surface, so
+# cargo-semver-checks has nothing to compare. SemVer policy is documented in
+# PUBLISHING.md and applies to the CLI contract instead. Flip to `true` if a
+# library target is ever added.
+semver_check = false

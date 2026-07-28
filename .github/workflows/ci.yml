@@ -1,0 +1,95 @@
+# CI for claude-session.
+#
+# Every job reuses the pinned Nix devShell from flake.nix (devShells.default),
+# so CI, the pre-commit hooks, and local `just` runs all share one toolchain —
+# the rust-overlay toolchain read from rust-toolchain.toml plus cargo-nextest,
+# cargo-deny, cargo-audit and taplo.
+#
+# The justfile prefixes every recipe with `nix develop --command` (its `dev`
+# variable). CI enters the devShell ONCE per step and overrides that prefix with
+# `dev=""`, so recipes run directly instead of nesting a second `nix develop`.
+#
+#     nix develop --command just dev="" fmt-check lint
+#
+# Requires flake.lock to be committed — Nix flakes only see git-tracked files,
+# and an uncommitted/absent lock makes every job fail on evaluation.
+#
+# Publishing lives in a separate workflow (.github/workflows/release-plz.yml);
+# never add a publish step here.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: lint (fmt + clippy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+      - name: Nix cache
+        uses: DeterminateSystems/flakehub-cache-action@v3.21.5
+      - name: Format check and clippy
+        run: nix develop --command just dev="" fmt-check lint
+
+  test:
+    name: test (nextest, ci profile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+      - name: Nix cache
+        uses: DeterminateSystems/flakehub-cache-action@v3.21.5
+      - name: Test
+        run: nix develop --command just dev="" test-ci
+
+  build:
+    name: build (release) + docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+      - name: Nix cache
+        uses: DeterminateSystems/flakehub-cache-action@v3.21.5
+      - name: Build release binary and docs
+        run: nix develop --command just dev="" build-release doc
+
+  supply-chain:
+    name: supply chain (audit + deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+      - name: Nix cache
+        uses: DeterminateSystems/flakehub-cache-action@v3.21.5
+      - name: Audit and deny
+        run: nix develop --command just dev="" audit deny
+
+  flake:
+    name: nix flake check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+      - name: Nix cache
+        uses: DeterminateSystems/flakehub-cache-action@v3.21.5
+      - name: Flake check
+        run: nix flake check

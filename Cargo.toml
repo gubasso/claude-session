@@ -2,5 +2,40 @@
 name = "claude-session"
 version = "0.1.0"
 edition = "2024"
+authors = ["Gustavo Basso <gu@gubasso.xyz>"]
+description = "A CLI wrapper around the `claude` command that adds isolated, XDG-compliant sessions and multi-account switching."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/gubasso/claude-session"
+readme = "README.md"
+keywords = ["claude", "cli", "session", "wrapper", "anthropic"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = [
+  "/AGENTS.md",
+  "/CLAUDE.md",
+  "/.claude",
+  "/.config",
+  "/.editorconfig",
+  "/.envrc",
+  "/.github",
+  "/.implementation-plans",
+  "/.pre-commit-config.yaml",
+  "/committed.toml",
+  "/deny.toml",
+  "/dist-workspace.toml",
+  "/docs",
+  "/flake.lock",
+  "/flake.nix",
+  "/install-common.sh",
+  "/install.sh",
+  "/justfile",
+  "/.markdownlint-cli2.jsonc",
+  "/dprint.json",
+  "/dprint.markdown.json",
+  "/statix.toml",
+  "/PUBLISHING.md",
+  "/release-plz.toml",
+  "/scripts",
+  "/uninstall.sh",
+]
 
 [dependencies]

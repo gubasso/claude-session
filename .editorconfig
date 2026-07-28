@@ -19,14 +19,35 @@ max_line_length = 100
 [*.toml]
 indent_size = 2
 
-# YAML, JSON, JSON5 — 2-space is the ecosystem norm.
-[*.{yml,yaml,json,json5}]
+# YAML, JSON, JSON5, JSONC — 2-space is the ecosystem norm (and what dprint emits).
+[*.{yml,yaml,json,json5,jsonc}]
+indent_size = 2
+
+# Nix — matches nixfmt-rfc-style (2-space indent).
+[*.nix]
+indent_size = 2
+
+# flake.lock is nix-generated JSON (2-space); the tool owns its formatting.
+[flake.lock]
+indent_size = 2
+
+# Shell — matches the shfmt hook, pinned to `-i 2` in .pre-commit-config.yaml.
+[*.sh]
+indent_size = 2
+
+# Extension-less bash helpers shipped under scripts/ (same shfmt `-i 2` rule).
+[scripts/*]
 indent_size = 2
 
 # Markdown — owned by other tooling; the ec hook excludes *.md.
 [*.md]
 trim_trailing_whitespace = false
+max_line_length = off
 
 # Makefiles require literal tabs.
 [Makefile]
+indent_style = tab
+
+# just recipe bodies use literal tabs (like make recipes).
+[justfile]
 indent_style = tab

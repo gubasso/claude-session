@@ -1,1 +1,16 @@
 /target
+
+# --- cog gitignore (rust) ---
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+rustc-ice-*.txt
+**/mutants.out*/
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/
+# Nix devshell
+.direnv/
+/result
