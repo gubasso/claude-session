@@ -47,6 +47,8 @@ A topic directory, when volume ever demands one, goes **inside** a zone. It is n
 
 - [Development workflow](./guides/development-workflow.md) — pick up queued work, add a command, add a dependency, write a test, run the gate.
 
+The zone holds one guide by design, not by omission. A guide promises verification, and nothing user-facing is verifiable before the first release; installing, troubleshooting, and a first-session walkthrough are written when [ADR-0022](./decisions/0022-cut-the-first-release-when-passthrough-works.md) is satisfied, never as placeholders ([ADR-0012](./decisions/0012-docs-architecture.md)).
+
 ## Decisions
 
 Architecture decision records live in [`decisions/`](./decisions/), numbered and never deleted. A decision that stops being true is superseded by a new record; one that is partly changed keeps its status and gains an `Amended by` pointer. Start a new one from [the template](./decisions/template.md).
