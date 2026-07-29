@@ -19,6 +19,8 @@ Four rounds. R1 builds the XDG config layout and the manifest/piece models with 
 
 ## Execution Commands
 
+Any executor following [the contract](../../README.md#the-executor-contract) can run these rounds. `/prex` is the one used to generate them, shown here as a worked example:
+
 ```bash
 # Execute the next todo round (executor reads queue-rounds.yaml, runs the first todo round, then stops):
 /prex -ar @.implementation-plans/plans/cs-config-composition/
@@ -29,18 +31,13 @@ Four rounds. R1 builds the XDG config layout and the manifest/piece models with 
 
 ## Execution Discipline
 
-**Rounds must be executed one at a time.** Each round is a self-contained unit of work designed for a single `/prex` session. Do not implement multiple rounds in one session.
+Execution follows the executor contract in [`../../README.md`](../../README.md#the-executor-contract), which owns the rule: one round per session, first `todo` round only, status transitions in `queue-rounds.yaml`, stop.
 
-When `/prex` is pointed at this directory or this `README.md`, it MUST:
-
-1. Read this plan's `queue-rounds.yaml`.
-2. Find the first round with status `todo`.
-3. Set that round's `status` to `doing`, execute ONLY that round, then set it to `done` and stop.
-4. End the session — a fresh `/prex` session is launched for any subsequent round.
+This plan adds no exceptions to it.
 
 ## Decisions & Constraints
 
-- `Executor: prex (EF 1.5)`.
+- **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
 - **JSON pieces + YAML manifest → generated native `settings.json`.** Source pieces are partial `settings.json` JSON files; a YAML manifest IS the profile and declares an ordered `layers: [...]` list (last-wins). NOT TOML source.
 - **Manifest schema**: one YAML file per profile whose sole required field is an ordered, non-empty `layers` list. Unknown fields rejected, empty list rejected. Specified in `docs/reference/configuration.md`.
 - **Merge rules**: a recursive `serde_json::Value` merge — objects by key, scalars last-wins, arrays **replace by default** with `concat` and `merge-by-key` opt-in **per key**. The merge is deterministic (identical inputs, byte-identical output) or freshness and diffs are both useless. Record **per-key provenance**. Specified in `docs/reference/configuration.md`.

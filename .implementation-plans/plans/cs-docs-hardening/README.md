@@ -19,6 +19,8 @@ Four rounds. R1 writes the prior-art/research docs + the headroom integration gu
 
 ## Execution Commands
 
+Any executor following [the contract](../../README.md#the-executor-contract) can run these rounds. `/prex` is the one used to generate them, shown here as a worked example:
+
 ```bash
 # Execute the next todo round (executor reads queue-rounds.yaml, runs the first todo round, then stops):
 /prex -ar @.implementation-plans/plans/cs-docs-hardening/
@@ -29,18 +31,13 @@ Four rounds. R1 writes the prior-art/research docs + the headroom integration gu
 
 ## Execution Discipline
 
-**Rounds must be executed one at a time.** Each round is a self-contained unit of work designed for a single `/prex` session. Do not implement multiple rounds in one session.
+Execution follows the executor contract in [`../../README.md`](../../README.md#the-executor-contract), which owns the rule: one round per session, first `todo` round only, status transitions in `queue-rounds.yaml`, stop.
 
-When `/prex` is pointed at this directory or this `README.md`, it MUST:
-
-1. Read this plan's `queue-rounds.yaml`.
-2. Find the first round with status `todo`.
-3. Set that round's `status` to `doing`, execute ONLY that round, then set it to `done` and stop.
-4. End the session — a fresh `/prex` session is launched for any subsequent round.
+This plan adds no exceptions to it.
 
 ## Decisions & Constraints
 
-- `Executor: prex (EF 1.5)`.
+- **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
 - **Docs are organized by reader need**, per `AGENTS.md` (Documentation Maintenance) and `docs/decisions/0012-docs-architecture.md`: prior art is reference and **already exists** at `docs/reference/prior-art.md`; the proxy integration walkthrough is a guide; decisions are lean ADRs, at or under 350 words, five sections, never deleted.
 - **Revalidate and extend the existing prior art** rather than writing a second page. `docs/reference/prior-art.md` already classifies the switcher landscape, wrapper and shim design, configuration layering, process supervision, and sandboxing, and records the perishable native-child facts. `docs/reference/research-tracking.yaml` drives what to re-check and when.
 - **headroom is integration-by-seam, not internal**: document `ANTHROPIC_BASE_URL` → `headroom proxy` as the supported pattern; claude-session implements no compression.

@@ -147,6 +147,39 @@ Commits follow Conventional Commits, checked by a hook:
 docs: add wrapper model and process runtime specs
 ```
 
+## Branch, review, and release
+
+Two long-lived branches, plus short-lived feature branches.
+
+| Branch                       | Role                                                                                           |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `develop`                    | The integration branch and the **release trigger**. Release automation watches it.             |
+| `master`                     | The release branch — a mirror of the latest published version. **No human ever writes to it.** |
+| `feat/…`, `fix/…`, `chore/…` | Short-lived, branched off `develop`, merged back through a reviewed PR.                        |
+
+The flow is one-way:
+
+```text
+feat/*  ──PR──▶  develop  ──release──▶  (tag vX.Y.Z)  ──CI promote──▶  master
+```
+
+Keep a feature branch **linear by rebasing** onto `develop` rather than merging `develop` into it; a branch full of back-merges is unreviewable as a diff. Merge only through a reviewed PR with green CI.
+
+`master` is written by CI, which fast-forwards it after a successful release. A human pushing to `master` breaks the invariant that it mirrors exactly what was published — which is the only reason it is worth having a second branch at all. Protect it at the forge rather than relying on discipline.
+
+Releases are cut by automation from `develop`; the publishing procedure and its credentials are in `PUBLISHING.md`.
+
+## Dependency and security baseline
+
+Local scanning runs in the gate — secret scans, advisories, and licence checks all sit in `pre-commit`. All of it is **detection**: nothing in the gate proposes an upgrade, and nothing in it inspects the actions the workflows pin, which drift silently behind a tag.
+
+Two things therefore have to live at the forge, and neither is configured yet:
+
+- **Automated dependency updates**, for crates and for workflow actions both.
+- **Branch protection.** The `master` invariant above is a forge setting, not a convention. Configure it so CI is the only writer.
+
+When either is set up, a dependency-update PR is treated like any other change: it targets `develop`, and the gate decides whether it lands.
+
 ## Before proposing a change
 
 ```bash

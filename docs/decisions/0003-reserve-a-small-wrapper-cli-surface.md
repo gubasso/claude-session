@@ -28,3 +28,5 @@ Three rules make the surface safe. Wrapper flags are **long-form** except where 
 ## Status
 
 Accepted
+
+Amended by [ADR-0015](./0015-retire-the-init-verb.md) — `init` leaves the claimed verb set — and by [ADR-0016](./0016-ship-man-pages.md) — `man` joins it.

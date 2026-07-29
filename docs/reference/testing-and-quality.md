@@ -72,24 +72,27 @@ The stub is what makes passthrough assertions mechanical: not "the command looke
 
 Each of these locks down a contract that is otherwise decorative:
 
-| Test                       | Locks                                                                           | Owning document                         |
-| -------------------------- | ------------------------------------------------------------------------------- | --------------------------------------- |
-| Golden argv table          | Byte- and order-preserving passthrough, including empty and non-UTF-8 arguments | [CLI surface](./cli-surface.md)         |
-| Exit-code matrix           | Every error variant maps to its documented code, no catch-all                   | [Exit codes](./exit-codes.md)           |
-| Child exit fidelity        | A stub exiting with N produces N                                                | [Exit codes](./exit-codes.md)           |
-| Child signal fidelity      | A signal-killed stub produces signal death, or the documented fallback          | [Exit codes](./exit-codes.md)           |
-| `--` sentinel              | A wrapper flag after `--` reaches the child uninterpreted                       | [CLI surface](./cli-surface.md)         |
-| Recursion guard, marker    | The marker variable stops re-entry                                              | [Process runtime](./process-runtime.md) |
-| Recursion guard, self-path | The canonical self-check stops re-entry                                         | [Process runtime](./process-runtime.md) |
-| Environment isolation      | The stub sees the injected config directory and no internal variables           | [Process runtime](./process-runtime.md) |
-| Symlink rejection          | A session path that is a symlink is refused                                     | [XDG storage](./xdg-storage.md)         |
-| Mode enforcement           | An over-permissive directory is corrected or refused                            | [XDG storage](./xdg-storage.md)         |
-| Unknown configuration key  | A typo is rejected, naming the key and file                                     | [Configuration](./configuration.md)     |
-| Merge determinism          | The same pieces produce byte-identical output                                   | [Configuration](./configuration.md)     |
-| Freshness on piece change  | Editing a piece without the manifest triggers regeneration                      | [Configuration](./configuration.md)     |
-| Help snapshot              | Generated help does not change unnoticed                                        | [CLI surface](./cli-surface.md)         |
+| Test                       | Locks                                                                           | Owning document                               |
+| -------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------- |
+| Golden argv table          | Byte- and order-preserving passthrough, including empty and non-UTF-8 arguments | [CLI surface](./cli-surface.md)               |
+| Exit-code matrix           | Every error variant maps to its documented code, no catch-all                   | [Exit codes](./exit-codes.md)                 |
+| Child exit fidelity        | A stub exiting with N produces N                                                | [Exit codes](./exit-codes.md)                 |
+| Child signal fidelity      | A signal-killed stub produces signal death, or the documented fallback          | [Exit codes](./exit-codes.md)                 |
+| `--` sentinel              | A wrapper flag after `--` reaches the child uninterpreted                       | [CLI surface](./cli-surface.md)               |
+| Recursion guard, marker    | The marker variable stops re-entry                                              | [Process runtime](./process-runtime.md)       |
+| Recursion guard, self-path | The canonical self-check stops re-entry                                         | [Process runtime](./process-runtime.md)       |
+| Environment isolation      | The stub sees the injected config directory and no internal variables           | [Process runtime](./process-runtime.md)       |
+| Symlink rejection          | A session path that is a symlink is refused                                     | [XDG storage](./xdg-storage.md)               |
+| Mode enforcement           | An over-permissive directory is corrected or refused                            | [XDG storage](./xdg-storage.md)               |
+| Unknown configuration key  | A typo is rejected, naming the key and file                                     | [Configuration](./configuration.md)           |
+| Merge determinism          | The same pieces produce byte-identical output                                   | [Configuration](./configuration.md)           |
+| Freshness on piece change  | Editing a piece without the manifest triggers regeneration                      | [Configuration](./configuration.md)           |
+| Example round-trip         | Every generated example parses through the real loader                          | [Configuration](./configuration.md)           |
+| Undocumented field         | A public config field without a description fails generation                    | [Configuration](./configuration.md)           |
+| Check-id coverage          | Every catalog id maps to an `err.kind` that exists                              | [Logging and output](./logging-and-output.md) |
+| Help snapshot              | Generated help does not change unnoticed                                        | [CLI surface](./cli-surface.md)               |
 
-The exit-code matrix test is the one with teeth beyond its own assertion: written exhaustively over a closed enum, it means adding an error variant without a code **fails the build**.
+Three of these have teeth beyond their own assertion. The exit-code matrix, written exhaustively over a closed enum, means adding an error variant without a code **fails the build**. The example round-trip is what stops a generated example from being a plausible-looking file the program itself would reject — an example that does not parse is worse than none, because the user trusts it. The undocumented-field test enforces the hard failure [ADR-0013](../decisions/0013-generate-config-examples-from-types.md) rests on: without it, the generator degrades quietly into emitting bare keys.
 
 ## The gate
 
@@ -109,6 +112,7 @@ The exit-code matrix test is the one with teeth beyond its own assertion: writte
 | `cargo audit`                          | push         | Advisories                                     |
 | `cargo deny`                           | push         | Advisories, bans, sources, licences            |
 | `cargo machete`                        | push         | Unused dependencies                            |
+| `cargo xtask gen-config`               | commit       | Generated examples match the config types      |
 | `dprint`                               | commit       | Markdown and JSON formatting                   |
 | `markdownlint-cli2`                    | commit       | Markdown structure and link integrity          |
 | `shellcheck`, `shfmt`                  | commit       | Shell scripts                                  |
@@ -125,7 +129,9 @@ Two architectural rules are structural and are enforced by grep rather than by t
 
 **Output ownership.** No print macro appears in `src/` outside the output module and the entry point. See [logging and output](./logging-and-output.md).
 
-Scope both to `src/`, and be aware that doc comments and test code produce false positives — the output-ownership check must not fire on an example inside a `///` block.
+**Tooling isolation.** Nothing under `src/` imports from `xtask`, and the wrapper's own manifest does not list a development-tooling crate. The dependency runs one way, and the whole reason `xtask` exists is that its dependencies stay out of the shipped binary; see [dependencies](./dependencies.md).
+
+Scope the first two to `src/`, and be aware that doc comments and test code produce false positives — the output-ownership check must not fire on an example inside a `///` block.
 
 ## Markdown
 

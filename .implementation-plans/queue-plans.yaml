@@ -29,7 +29,7 @@ plans:
     depends_on:
       - cs-isolation
     prompt: /prex -ar @.implementation-plans/plans/cs-config-composition/
-    notes: JSON pieces + YAML manifest -> serde_json merge (provenance) -> native settings.json; config/profile verbs.
+    notes: JSON pieces + YAML manifest -> serde_json merge (provenance) -> native settings.json; config/profile verbs. Also the xtask workspace member + generated config examples/schema (ADR-0013/0014) and their pre-commit freshness gate.
   - item: cs-docs-hardening
     status: todo
     depends_on:
@@ -37,4 +37,4 @@ plans:
       - cs-accounts-auth
       - cs-config-composition
     prompt: /prex -ar @.implementation-plans/plans/cs-docs-hardening/
-    notes: Prior-art/headroom docs, doctor hardening, completions/man pages, ADR closeout + release.
+    notes: Prior-art/headroom docs, doctor hardening (one probe set + stable check ids, ADR-0018), completions/man verb (ADR-0016), ADR closeout + release.

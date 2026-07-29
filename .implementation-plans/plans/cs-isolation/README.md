@@ -18,6 +18,8 @@ Three rounds, bottom-up. R1 builds the secure filesystem primitives and XDG sess
 
 ## Execution Commands
 
+Any executor following [the contract](../../README.md#the-executor-contract) can run these rounds. `/prex` is the one used to generate them, shown here as a worked example:
+
 ```bash
 # Execute the next todo round (executor reads queue-rounds.yaml, runs the first todo round, then stops):
 /prex -ar @.implementation-plans/plans/cs-isolation/
@@ -28,18 +30,13 @@ Three rounds, bottom-up. R1 builds the secure filesystem primitives and XDG sess
 
 ## Execution Discipline
 
-**Rounds must be executed one at a time.** Each round is a self-contained unit of work designed for a single `/prex` session. Do not implement multiple rounds in one session.
+Execution follows the executor contract in [`../../README.md`](../../README.md#the-executor-contract), which owns the rule: one round per session, first `todo` round only, status transitions in `queue-rounds.yaml`, stop.
 
-When `/prex` is pointed at this directory or this `README.md`, it MUST:
-
-1. Read this plan's `queue-rounds.yaml`.
-2. Find the first round with status `todo`.
-3. Set that round's `status` to `doing`, execute ONLY that round, then set it to `done` and stop.
-4. End the session — a fresh `/prex` session is launched for any subsequent round.
+This plan adds no exceptions to it.
 
 ## Decisions & Constraints
 
-- `Executor: prex (EF 1.5)`.
+- **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
 - **Isolation is pty-keyed and multiplexer-AGNOSTIC.** Do NOT add `$TMUX_PANE`/`$KITTY_WINDOW_ID`/`$WEZTERM_PANE`/`$STY`/`$ZELLIJ_*` sniffing. The controlling terminal is the key — every interactive pane owns a distinct pty regardless of multiplexer.
 - **GroupId derivation chain**: `--session` flag → `CLAUDE_SESSION_GROUP` env → tty (`/dev/pts/3` → `pts-3`) → `ppid+starttime` (non-tty parents, `/proc/<ppid>/stat` field 22) → `pid-<PID>` with a visible warning. `GroupId` validation: ≤32 bytes, starts lowercase-ascii/digit, charset `[a-z0-9_-]`.
 - **Cross-container collision edge**: only if a state dir is bind-mounted/shared across containers, namespace the key with ONE neutral host/container discriminator (`/etc/machine-id`, hostname, or a `/proc/self/cgroup`-derived id) — still general, still not multiplexer-aware.

@@ -41,6 +41,7 @@ A topic directory, when volume ever demands one, goes **inside** a zone. It is n
 - [Testing and quality](./reference/testing-and-quality.md) — test tools, lanes, gates, and which contract each test locks down.
 - [Prior art](./reference/prior-art.md) — comparable projects, what was inspected, and what was borrowed or rejected.
 - [Research tracking](./reference/research-tracking.yaml) — the perishable facts these documents rest on, and when to re-check each.
+- [Examples](./reference/examples/) — the configuration files a user copies. Most are generated from the config types and must not be hand-edited; [configuration](./reference/configuration.md#generated-examples-and-schema) says which, and why.
 
 ## Guides
 

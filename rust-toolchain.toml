@@ -1,2 +1,9 @@
+# Pinned exactly, not `stable`: a floating channel changes the compiler and the
+# clippy lint set without a commit, so a green tree turns red for reasons no diff
+# explains. Components are listed because flake.nix reads them from this file --
+# without them, rustfmt and clippy would arrive from the overlay's default profile
+# by luck. Bumping this is a reviewable, bisectable, revertable commit.
+# See docs/decisions/0019-pin-the-toolchain-and-declare-an-msrv.md.
 [toolchain]
-channel = "stable"
+channel = "1.97.1"
+components = ["rustfmt", "clippy"]

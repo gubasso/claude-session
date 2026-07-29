@@ -21,6 +21,8 @@ Bottom-up, foundations first. R1 lays the manifest, lints, the first dependencie
 
 ## Execution Commands
 
+Any executor following [the contract](../../README.md#the-executor-contract) can run these rounds. `/prex` is the one used to generate them, shown here as a worked example:
+
 ```bash
 # Execute the next todo round (executor reads queue-rounds.yaml, runs the first todo round, then stops):
 /prex -ar @.implementation-plans/plans/cs-foundation/
@@ -31,18 +33,13 @@ Bottom-up, foundations first. R1 lays the manifest, lints, the first dependencie
 
 ## Execution Discipline
 
-**Rounds must be executed one at a time.** Each round is a self-contained unit of work designed for a single `/prex` session. Do not implement multiple rounds in one session.
+Execution follows the executor contract in [`../../README.md`](../../README.md#the-executor-contract), which owns the rule: one round per session, first `todo` round only, status transitions in `queue-rounds.yaml`, stop.
 
-When `/prex` is pointed at this directory or this `README.md`, it MUST:
-
-1. Read this plan's `queue-rounds.yaml`.
-2. Find the first round with status `todo`.
-3. Set that round's `status` to `doing`, execute ONLY that round, then set it to `done` and stop.
-4. End the session — a fresh `/prex` session is launched for any subsequent round.
+This plan adds no exceptions to it.
 
 ## Decisions & Constraints
 
-- `Executor: prex (EF 1.5)`.
+- **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
 - **Canonical crate tree is mandatory** — the module tree, roles, and per-directory prohibitions are specified in `docs/explanation/architecture.md`, which this round implements: single bin; `src/main.rs` ≤120 LOC (`parse → init logging → AppContext → dispatch → exit-code map`); `cli/` (clap derive only), `commands/` (one free `run(ctx, args) -> Result<(), AppError>` per verb), `domain/`, `services/`, `adapters/` (trait + impl), `config/`, `context.rs`, `error.rs`, `logging.rs`, `ui/`, `util/`. Post-2018 module form and the `pub(crate)` default are specified in `docs/reference/coding-conventions.md`.
 - **Start single-crate**; the workspace triggers are listed in `docs/explanation/architecture.md` and recorded in `docs/decisions/0007-layered-single-crate-architecture.md`. Do not migrate proactively.
 - **thiserror-per-layer + mandatory exit-code matrix test** — the layer stack is specified in `docs/reference/coding-conventions.md` and the matrix in `docs/reference/exit-codes.md`: `DomainError`, `<Sys>AdapterError`, `ServiceError`, `AppError`; the boundary error type only in `main`; `AppError::exit_code()` maps every variant explicitly — NO catch-all `_ => 1`.

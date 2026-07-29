@@ -32,3 +32,5 @@ Workspace migration waits for a trigger: a second binary, a publishable subsyste
 ## Status
 
 Accepted
+
+Amended by [ADR-0014](./0014-xtask-workspace-for-dev-tooling.md) — the second-binary trigger has fired, so the crate gains a library target and an `xtask` workspace member. The layer rules above are unchanged.

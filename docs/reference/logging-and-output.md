@@ -55,14 +55,19 @@ The stderr mirror is opt-in, driven by verbosity.
 
 Each record is one line, with a stable field set:
 
-| Field    | Content                                                             |
-| -------- | ------------------------------------------------------------------- |
-| `ts`     | ISO 8601 timestamp, UTC, millisecond precision                      |
-| `level`  | Lower-case                                                          |
-| `target` | The emitting module path                                            |
-| `op`     | A short stable operation name — `resolve_child`, `compose_settings` |
-| `msg`    | The message                                                         |
-| …        | Structured fields, flat key-value                                   |
+| Field      | Content                                                             |
+| ---------- | ------------------------------------------------------------------- |
+| `ts`       | ISO 8601 timestamp, UTC, millisecond precision                      |
+| `level`    | Lower-case                                                          |
+| `target`   | The emitting module path                                            |
+| `op`       | A short stable operation name — `resolve_child`, `compose_settings` |
+| `msg`      | The message                                                         |
+| `status`   | How the operation ended — `ok`, `err`, `skipped`                    |
+| `dur_ms`   | Elapsed milliseconds, on records that close an `op`                 |
+| `err.kind` | On a failure, the stable kind from [exit codes](./exit-codes.md)    |
+| …          | Structured fields, flat key-value                                   |
+
+`status`, `dur_ms`, and `err.kind` appear only where they mean something — a record that opens an operation has no duration yet — but where they appear, they carry these names. `err.kind` matters most: it is already the identifier scripts match on, and a log that spells it differently from the diagnostic forces a reader to learn two vocabularies for one failure.
 
 One line per record, with structured fields rather than interpolated prose, because both a human with `grep` and a program with a parser can then use it.
 
@@ -88,26 +93,50 @@ Colour never carries meaning by itself. Anything colour indicates is also stated
 
 **Every check runs independently, and one failure never aborts the rest.** A `doctor` that stops at the first problem is useless precisely when it is needed, because the first problem is often a consequence of the third.
 
-| Check                        | Class | Passes when                                                     |
-| ---------------------------- | ----- | --------------------------------------------------------------- |
-| Base directories resolve     | Hard  | Config and state resolve to absolute, usable paths              |
-| Runtime directory            | Soft  | Present; absent is reported, not failed                         |
-| Wrapper configuration        | Hard  | Parses, with no unknown keys                                    |
-| Child binary resolves        | Hard  | Found via the ladder in [process runtime](./process-runtime.md) |
-| Child is executable          | Hard  | Executable by the current user                                  |
-| Child version floor          | Soft  | At or above the documented minimum                              |
-| Session root security        | Hard  | Not a symlink, owned by the user, mode `0700`                   |
-| Session identity derives     | Soft  | Derives above the process-id fallback rung                      |
-| Account registry             | Soft  | Readable; accounts have valid seeds                             |
-| Credentials                  | Soft  | The current account has a usable seed or a configured token     |
-| Settings composition         | Soft  | The active profile resolves and every piece exists              |
-| Generated settings freshness | Soft  | Not stale                                                       |
+### One probe set, three call sites
+
+There is exactly **one** catalog of probes, and everything that needs a health answer reads it ([ADR-0018](../decisions/0018-one-probe-set-with-stable-check-ids.md)):
+
+1. **`doctor`** runs the whole catalog and reports.
+2. **A command guard** runs the subset that command requires, before doing work.
+3. **Any future setup path** runs the subset it needs.
+
+A guard that fails emits its check's remediation **verbatim** — not a paraphrase — so the user reads one wording whether they hit the guard or ran `doctor`. Adding a prerequisite means adding a catalog entry, never bolting a private check onto one call site. Two probe sets drift, and the drift shows up as `doctor` reporting healthy while a command refuses to run.
+
+### The catalog
+
+Each check has a stable kebab-case **id**, a **scope**, a **severity**, and the `err.kind` a failure of it exits with.
+
+| Id                          | Scope   | Severity | `err.kind`           | Passes when                                                     |
+| --------------------------- | ------- | -------- | -------------------- | --------------------------------------------------------------- |
+| `base-dirs-resolve`         | Host    | Hard     | `Unavailable`        | Config and state resolve to absolute, usable paths              |
+| `runtime-dir-present`       | Host    | Soft     | `Unavailable`        | Present; absent is reported, not failed                         |
+| `wrapper-config-parses`     | Host    | Hard     | `Config`             | Parses, with no unknown keys                                    |
+| `child-binary-resolves`     | Host    | Hard     | `ChildNotFound`      | Found via the ladder in [process runtime](./process-runtime.md) |
+| `child-is-executable`       | Host    | Hard     | `ChildNotExecutable` | Executable by the current user                                  |
+| `child-version-floor`       | Host    | Soft     | `Unavailable`        | At or above the documented minimum                              |
+| `session-root-security`     | Session | Hard     | `Permission`         | Not a symlink, owned by the user, mode `0700`                   |
+| `session-identity-derives`  | Session | Soft     | `Unavailable`        | Derives above the process-id fallback rung                      |
+| `account-registry-readable` | Session | Soft     | `Io`                 | Readable; accounts have valid seeds                             |
+| `credentials-usable`        | Session | Soft     | `Auth`               | The current account has a usable seed or a configured token     |
+| `settings-compose`          | Session | Soft     | `DataFormat`         | The active profile resolves and every piece exists              |
+| `settings-fresh`            | Session | Soft     | `DataFormat`         | The generated settings are not stale                            |
 
 **Hard** means the wrapper cannot function. **Soft** means a feature is degraded.
 
-A soft check that is inert — a feature the user does not use — reports as not-applicable and **never gates**. Failing `doctor` because the user has not configured accounts they do not want punishes them for not using a feature.
+Ids are **public API**. Scripts match them and messages cite them, so renaming one is a breaking change and the table grows by appending — the same contract `err.kind` carries in [exit codes](./exit-codes.md). Severity is the only waiver lever: a check that could legitimately be ignored is soft _by definition_, which is why there is no per-invocation ignore flag and a hard check stays an unconditional guarantee.
 
-Output is a human-readable report on standard output plus an overall verdict; `--format json` emits every check with its class, status, and message. Exit code is 0 when everything passes or only inert checks are skipped, and non-zero when a hard check fails. Each failing check carries the four-part error shape from [exit codes](./exit-codes.md).
+### Results and exit
+
+A check reports `pass`, `warn`, `fail`, or `skipped`.
+
+A soft check that is inert — a feature the user does not use — reports `skipped` with a reason and **never gates**. Failing `doctor` because the user has not configured accounts they do not want punishes them for not using a feature. Session-scope checks are skipped when no session context applies. **Skips never affect the exit code.**
+
+Exit is `0` when no hard check fails, and otherwise the `err.kind` code of the first failing hard check in catalog order — which is why the table's order is itself contractual.
+
+`doctor --list` prints the catalog — every id, scope, and severity — without running anything, so a script can discover what it may match on.
+
+Output is a human-readable report on standard output plus an overall verdict; `--format json` emits every check with its id, scope, severity, status, and message. Each failing check carries the four-part error shape from [exit codes](./exit-codes.md).
 
 The child version floor is a **perishable fact**: the child is externally owned and changes on its own schedule. It is registered in [research tracking](./research-tracking.yaml), and the check is defensive — an unparsable version string is reported, not fatal.
 

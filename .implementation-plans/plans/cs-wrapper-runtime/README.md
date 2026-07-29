@@ -18,6 +18,8 @@ Three rounds. R1 builds child resolution (the lookup ladder + both recursion gua
 
 ## Execution Commands
 
+Any executor following [the contract](../../README.md#the-executor-contract) can run these rounds. `/prex` is the one used to generate them, shown here as a worked example:
+
 ```bash
 # Execute the next todo round (executor reads queue-rounds.yaml, runs the first todo round, then stops):
 /prex -ar @.implementation-plans/plans/cs-wrapper-runtime/
@@ -28,18 +30,13 @@ Three rounds. R1 builds child resolution (the lookup ladder + both recursion gua
 
 ## Execution Discipline
 
-**Rounds must be executed one at a time.** Each round is a self-contained unit of work designed for a single `/prex` session. Do not implement multiple rounds in one session.
+Execution follows the executor contract in [`../../README.md`](../../README.md#the-executor-contract), which owns the rule: one round per session, first `todo` round only, status transitions in `queue-rounds.yaml`, stop.
 
-When `/prex` is pointed at this directory or this `README.md`, it MUST:
-
-1. Read this plan's `queue-rounds.yaml`.
-2. Find the first round with status `todo`.
-3. Set that round's `status` to `doing`, execute ONLY that round, then set it to `done` and stop.
-4. End the session — a fresh `/prex` session is launched for any subsequent round.
+This plan adds no exceptions to it.
 
 ## Decisions & Constraints
 
-- `Executor: prex (EF 1.5)`.
+- **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
 - **Spawn-and-wait, not `exec`** — post-exit work (credential sync-back, trust sync in `cs-accounts-auth`) requires control to return after the child exits.
 - **Child-binary resolution** (highest first): `$CLAUDE_SESSION_CHILD_BIN` → config entry (`child_bin`) → `PATH` search → optional bundled vendor path.
 - **Recursion guard**: marker env `CLAUDE_SESSION_REENTRY=1` + `current_exe().canonicalize()` self-check so the wrapper never re-invokes itself as the child.

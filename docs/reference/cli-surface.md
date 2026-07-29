@@ -59,11 +59,13 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 | `profile`    | Inspect settings profiles: list, show                                                         |
 | `doctor`     | Diagnose every subsystem and report health; see [logging and output](./logging-and-output.md) |
 | `completion` | Emit shell completions for the wrapper's grammar                                              |
+| `man`        | Emit man pages generated from the wrapper's grammar                                           |
 | `version`    | Print the wrapper's version and the resolved child's path and version                         |
-| `init`       | Create the wrapper's configuration scaffold                                                   |
 | `help`       | Print help                                                                                    |
 
 A verb name collides with a child subcommand only if the child grows one with the same name. Should that happen, `--` remains the escape hatch, and the collision is recorded in this table rather than silently resolved.
+
+There is no `init`. Configuration is optional — every key has a compiled-in default — and the wrapper never writes the user's configuration, so there is no scaffold to create. Users copy a [generated example](./configuration.md#generated-examples-and-schema) instead. See [ADR-0015](../decisions/0015-retire-the-init-verb.md).
 
 ## Passthrough contract
 
@@ -107,6 +109,8 @@ Authored prose the parser cannot generate — worked passthrough examples, the `
 Help describes the **wrapper's** grammar only. It does not reproduce, summarize, or link into the child's flag list, because that list is not the wrapper's to track. It should say, once and plainly, that unrecognized arguments are forwarded.
 
 Shell completions cover the wrapper's grammar for the same reason. Completions never attempt to complete child arguments.
+
+**Man pages are generated from the same parser tree.** `man` writes roff to standard output, or to a directory named by an argument so a packager can render pages at build time. Because help, completions, and man pages all read one `Command` tree, the flag list has a single source and no surface can drift from another. The authored prose file included into long help is included into the man page too. See [ADR-0016](../decisions/0016-ship-man-pages.md).
 
 ## Version output
 

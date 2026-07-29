@@ -4,6 +4,14 @@ This page gives the mental model of the `claude-session` crate: the shape of the
 
 It does **not** carry exact values. Naming rules, visibility defaults, and the error type stack are in [coding conventions](../reference/coding-conventions.md); the crate list is in [dependencies](../reference/dependencies.md); the wrapper's own grammar is in [the CLI surface](../reference/cli-surface.md). Nothing here describes shipped behaviour — the crate is pre-implementation.
 
+## A human-facing tool
+
+Before the shapes, the premise everything else rests on: `claude-session` is **human-facing**. Its primary consumer is a developer at a terminal, and its main mode is handing that terminal to a child which is itself interactive ([ADR-0017](../decisions/0017-declare-a-human-facing-cli.md)).
+
+That single choice settles three things you would otherwise have to guess at. Machine-readable output is opt-in through `--format json` rather than the default. The terminal-output module is `ui/` — shaped for human rendering, not a protocol boundary. Diagnostics mirror to standard error by default, because a person should not have to enable seeing them.
+
+It is a **design-time** category, not a runtime `isatty()` check. Terminal detection changes colour and progress rendering and nothing else; it never changes which format a command emits. A program whose output reshapes itself when piped cannot be scripted against.
+
 ## The two shapes
 
 The single most useful distinction in this codebase is between **parse-shape** and **runtime-shape**.
@@ -30,7 +38,7 @@ Step 5 is why this program spawns and waits rather than `exec`-ing; see [the wra
 
 ## Module roles
 
-The crate is a single binary with a flat module tree. Each module has one job and one explicit prohibition.
+The shipped crate has a flat module tree. Each module has one job and one explicit prohibition. (The `xtask` member is development tooling and is not part of this map; see [below](#one-shipped-crate-plus-xtask).)
 
 **`cli/`** holds `clap` derive structs and nothing else — the root parser, the shared global arguments, and one file per wrapper verb. It does **not** contain logic, I/O, or any decision about what a flag means. A `cli/` file that calls a function outside `clap` is misplaced.
 
@@ -73,18 +81,22 @@ The symmetry is deliberate: one file per verb on the parse side, one file per ve
 
 Authored prose that the parser cannot generate — worked examples, the passthrough explanation, a pointer at the docs — lives in a separate text file under `ui/` and is included into the parser's long-help at compile time. That way the prose is version-controlled next to the code, and the flag list stays generated.
 
-## One crate, until it is not
+## One shipped crate, plus `xtask`
 
-This is a single binary crate. There is no library target and no workspace, and adding either now would buy nothing: a `lib.rs` that exists only to re-export private modules is dead weight, and a workspace multiplies build configuration for one consumer.
-
-Migrate only when a concrete trigger fires:
+The design intent was one binary crate and no workspace, with migration deferred until a concrete trigger fired:
 
 - A second binary genuinely needs to share code with the first.
 - A subsystem becomes worth publishing on its own.
 - `cargo check` gets slow enough to hurt the inner loop.
 - The crate approaches roughly eight thousand lines.
 
-Until then, the answer to "should this be a workspace?" is no, and the answer does not need re-litigating each time the question comes up. Splitting later is mechanical; splitting early is a permanent tax.
+**The first trigger has fired**, for exactly the reason it was written down. The configuration-example generator ([configuration](../reference/configuration.md)) has to reflect over the wrapper's own configuration types, and a binary-only crate cannot export them. So the repository is a two-member workspace: the crate gains a library target exposing what the tooling needs, and `xtask/` is a second binary depending on it by path ([ADR-0014](../decisions/0014-xtask-workspace-for-dev-tooling.md)).
+
+`xtask` is **development tooling and never shipped surface**. It is invoked as `cargo xtask <chore>`, it is not installed, and it is not on the CLI grammar in [the CLI surface](../reference/cli-surface.md). Its dependencies — the schema and rendering crates — live in its own manifest and never enter the binary a user installs. Nothing in `xtask/` may be imported by the wrapper; the dependency runs one way, as everywhere else here.
+
+The library target exists to serve that tooling, not to become a public API. Only what `xtask` needs is exported; a `lib.rs` that grows into a re-export of every private module is the dead weight this section was originally guarding against.
+
+The three remaining triggers still gate any further split. Splitting later is mechanical; splitting early is a permanent tax.
 
 ## Further reading
 

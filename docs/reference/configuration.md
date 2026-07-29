@@ -44,9 +44,54 @@ Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` ke
 - Unknown keys are **rejected**, not ignored. A typo in a configuration file is the single most common configuration bug, and silently ignoring it produces a program that does not do what its configuration says.
 - The rejection names the offending key, its file, and, where the distance is small, the key it was probably meant to be.
 - The resolved value is **immutable**. It is built once and passed by shared reference. Nothing mutates configuration mid-run.
-- Every key has a documented default, a type, and a one-line meaning.
+- Every key has a documented default, a type, and a one-line meaning. That description lives on the field itself, in the type, and is the source the artifacts below are rendered from — never a parallel doc that can rot.
 
 `claude-session config show` prints the resolved value; `--format json` makes it machine-readable. `claude-session config path` prints which files were consulted and which existed.
+
+### Generated examples and schema
+
+The wrapper never writes the user's configuration ([ADR-0006](../decisions/0006-place-files-by-xdg-ownership.md)), so it cannot scaffold a starter file. It ships one to **copy** instead, generated from the config types so it cannot drift ([ADR-0013](../decisions/0013-generate-config-examples-from-types.md)).
+
+Four artifacts live under `examples/`, and which are generated follows from whether a type describes them:
+
+| Artifact                         | Rendered from                                       | Kind                |
+| -------------------------------- | --------------------------------------------------- | ------------------- |
+| `examples/config.example.toml`   | the wrapper's configuration type                    | Generated           |
+| `examples/config.schema.json`    | the wrapper's configuration type                    | Generated           |
+| `examples/manifest.example.yaml` | the manifest type — `layers` and the strategy table | Generated           |
+| `examples/piece.example.json`    | nothing — a piece is the child's own format         | **Hand-maintained** |
+
+A piece has no type to reflect over, because its shape is the child's and evolves on the child's schedule. It therefore ships as an authored file under the _same_ discipline as the generated ones: a header, fake values, and copied rather than scaffolded. The only difference is what keeps it correct.
+
+#### What a generated example contains
+
+- **Required keys active, optional keys commented out.** The uncommented file is a minimal valid configuration; uncommenting adds optional surface.
+- **Every key annotated with its own description**, taken from the field in the type.
+- **Placeholders that are obviously fake** — `REPLACE_ME`, `/path/to/thing`, the first enum variant. A placeholder that happens to be a valid live value invites accidental use.
+- **A header** naming the copy destination and stating that the wrapper never writes configuration.
+
+Generation **fails** when a public field carries no description. That hard failure is the whole mechanism: it is what keeps the example self-documenting instead of a wall of bare keys, and it means adding a field without documenting it cannot pass review.
+
+The generated example **must round-trip through the real loader** in a test. An example the program itself would reject is worse than none; see [testing and quality](./testing-and-quality.md).
+
+#### Freshness
+
+Generated files rot silently unless something proves they still match the types. The generator renders every artifact in memory and **compares it byte for byte with what is on disk**; a file whose contents differ is stale, and a missing file is stale.
+
+This is deliberately **not a cache**. There is no hash file, no timestamp, and nothing to invalidate — rendering is deterministic, so identical types produce identical bytes, and a commit that changes no field is a natural no-op. A cache keyed on the model would add an artifact to commit, an invalidation rule to get wrong, and a failure mode where the cache says fresh and the file is not.
+
+Two modes, one command:
+
+| Mode                             | Behaviour                                                   |
+| -------------------------------- | ----------------------------------------------------------- |
+| `cargo xtask gen-config`         | Rewrites stale artifacts and stages exactly those paths     |
+| `cargo xtask gen-config --check` | Reports stale artifacts and exits non-zero, writing nothing |
+
+The default mode runs as a pre-commit hook, so a type change and its regenerated example land in the same commit; `--check` runs in CI. The hook passes no filenames and always runs, because an example's relationship is to the whole model rather than to any one changed file.
+
+One consequence is worth knowing before it bites: **generated files must be staged whole.** Partially staging one — `git commit -p` on a generated example — commits something the generator did not produce, and the gate cannot tell that apart from a stale file.
+
+The generator lives in an `xtask` workspace member rather than in the shipped binary, so schema machinery never reaches a user's install ([ADR-0014](../decisions/0014-xtask-workspace-for-dev-tooling.md)).
 
 ### Provenance
 
@@ -122,6 +167,7 @@ The child keeps project-trust and onboarding state in a separate file from its s
 | ----------------- | ------------------------------------------------------------------------- |
 | `config show`     | The resolved wrapper configuration with per-key provenance                |
 | `config path`     | Which files were consulted, and which existed                             |
+| `config schema`   | The JSON Schema for the wrapper's configuration                           |
 | `config compose`  | The merged settings and its provenance, without writing                   |
 | `config validate` | Structural problems, type conflicts, missing pieces, unknown-key warnings |
 | `config status`   | Active profile, resolved pieces, and whether the generated file is fresh  |
@@ -129,6 +175,8 @@ The child keeps project-trust and onboarding state in a separate file from its s
 | `profile show`    | One manifest's ordered layers and their resolved paths                    |
 
 All accept `--format json`. All write data to standard output and diagnostics to standard error; see [logging and output](./logging-and-output.md).
+
+`config schema` is the runtime companion to the committed artifacts: the same type reaches the user as a committed schema, a committed example, and a live command, with no second source of truth among them.
 
 ## Further reading
 

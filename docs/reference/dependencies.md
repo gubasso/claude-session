@@ -14,11 +14,11 @@ These crates have been assessed as appropriate for this project. **Being on this
 
 ### Command line
 
-| Crate                           | Why                                                           | Skip if                            |
-| ------------------------------- | ------------------------------------------------------------- | ---------------------------------- |
-| `clap` (derive, env, wrap_help) | The ecosystem standard. Derive keeps parse-shape declarative. | Never — the wrapper needs a parser |
-| `clap_complete`                 | Shell completions generated from the same grammar as help     | Completions are dropped            |
-| `clap_mangen`                   | Man pages from the same grammar                               | Man pages are dropped              |
+| Crate                           | Why                                                           | Skip if                                                                      |
+| ------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `clap` (derive, env, wrap_help) | The ecosystem standard. Derive keeps parse-shape declarative. | Never — the wrapper needs a parser                                           |
+| `clap_complete`                 | Shell completions generated from the same grammar as help     | Completions are dropped                                                      |
+| `clap_mangen`                   | Man pages from the same grammar                               | Never — [ADR-0016](../decisions/0016-ship-man-pages.md) commits to man pages |
 
 Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI surface](./cli-surface.md) for the pre-split contract.
 
@@ -81,6 +81,16 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 | `tempfile`   | Hermetic per-test directories                            |
 | `proptest`   | Property tests, notably argv round-tripping              |
 
+### Development tooling — `xtask` only
+
+These are dependencies of the `xtask` workspace member ([ADR-0014](../decisions/0014-xtask-workspace-for-dev-tooling.md)) and **never enter the shipped binary's dependency graph**. That separation is the reason the generator lives in `xtask` at all, so adding one of these to the wrapper's own manifest defeats the point.
+
+| Crate                   | Why                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `schemars`              | JSON Schema derived from the configuration types; field docs become descriptions |
+| `toml_edit`             | Renders the annotated example with comments, which a plain serializer cannot     |
+| `claude-session` (path) | The library target, for the configuration types the generator reflects over      |
+
 ## Deferred
 
 Reviewed, not needed yet. Named here so the decision is not re-made from scratch:
@@ -92,6 +102,7 @@ Reviewed, not needed yet. Named here so the decision is not re-made from scratch
 | `which`                                    | The child resolution ladder                 |
 | `tempfile`                                 | The first atomic write or hermetic test     |
 | `clap_complete`, `clap_mangen`             | The completions and man-page work           |
+| `schemars`, `toml_edit`                    | The `xtask` example generator               |
 | `proptest`, `cargo-mutants`, `cargo-bloat` | The advanced test tier                      |
 
 ## Ruled out
