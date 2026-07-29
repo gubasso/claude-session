@@ -122,6 +122,35 @@ Shell completions cover the wrapper's grammar for the same reason. Completions n
 
 Reporting both is the point: a user debugging wrapper behaviour needs to know which child was actually found, and path resolution is the most common source of surprise. When the child cannot be resolved, the wrapper's version still prints and the child line reports the resolution failure rather than aborting.
 
+## Confirmation and non-interactive use
+
+Two verbs need a person present. No others do.
+
+| Verb             | Why a person is needed                       | Escape when there is no terminal                      |
+| ---------------- | -------------------------------------------- | ----------------------------------------------------- |
+| `account remove` | It destroys a credential seed, irrecoverably | `--yes`                                               |
+| `account add`    | Subscription login opens a browser           | The API-token path; no flag substitutes for a browser |
+
+Every other verb — `config`, `profile`, `doctor`, `completion`, `man`, `version`, `help` — is read-only or inert. There is nothing to agree to, so none of them prompts and none of them gates.
+
+**Without a terminal, a confirming verb fails rather than prompting or proceeding.** When standard input is not a terminal and no escape was given, the verb stops **before any side effect** and exits `Unavailable` (69) — the kind whose definition already covers a missing controlling terminal, so nothing is added to [the exit-code matrix](./exit-codes.md). The diagnostic's hint names the escape from the table above; for `account add` that is the API-token path in [ADR-0011](../decisions/0011-isolate-credentials-by-seed-and-session.md).
+
+Reading the absence of a terminal as consent is the alternative, and it makes `account remove` silent under a pipe. Prompting anyway is worse: the process hangs on a stream nobody is reading. See [ADR-0021](../decisions/0021-fail-closed-without-a-terminal.md).
+
+### Why `--yes` is not in the flag table
+
+`--yes` is a **verb-level** flag, accepted after the verb:
+
+```text
+claude-session account remove work --yes
+```
+
+Its absence from the wrapper-owned flag table above is the design, not an oversight. A top-level flag is intercepted before the passthrough split and is therefore subtracted from the child's reachable surface for good; a flag appearing after a wrapper verb is parsed inside an invocation the child never sees, so it costs the child nothing. `doctor --list` is verb-level for the same reason.
+
+There is no `--non-interactive`. Detecting the missing terminal already produces exactly that behaviour, so a flag requesting it would be surface bought for nothing.
+
+**Passthrough is untouched.** The wrapper does not inspect standard input on a passthrough invocation, and the child's own prompting is the child's business.
+
 ## Exit behaviour
 
 Wrapper verbs exit with codes from the wrapper's matrix. A passthrough invocation exits with the child's status. The two regimes and the boundary between them are in [exit codes](./exit-codes.md).

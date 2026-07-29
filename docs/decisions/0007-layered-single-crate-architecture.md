@@ -14,9 +14,9 @@
 
 Chosen option: **one crate with explicit layers** — a workspace multiplies build configuration for one consumer, and flat modules leave the program untestable.
 
-Four roles, one prohibition each. `cli/` holds parser declarations and no logic. `commands/` orchestrates, one handler per verb. `domain/` is pure — no I/O, no clock, no network. `adapters/` is the **only** place touching the outside world, each defining a trait plus a real implementation. `services/` holds orchestration once it has a second caller.
+Four roles, one prohibition each: `cli/` declares the parser and holds no logic, `commands/` orchestrates one handler per verb, `domain/` is pure, and `adapters/` is the **only** place touching the outside world, through a trait plus a real implementation. `services/` waits for a second caller.
 
-The adapter boundary is load-bearing: making the process spawner a trait is what lets the wrapper be tested without spawning real processes. Dependencies run one way, enforced by a lint. Adding a verb touches exactly four files. See [the architecture](../explanation/architecture.md).
+The adapter boundary is load-bearing: a trait for the process spawner is what makes the wrapper testable without real processes. Dependencies run one way, enforced by a lint. Adding a verb touches exactly four files. See [the architecture](../explanation/architecture.md).
 
 Workspace migration waits for a trigger: a second binary, a publishable subsystem, a slow `cargo check`, or roughly eight thousand lines.
 

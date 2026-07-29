@@ -37,6 +37,7 @@ jobs:
   lint:
     name: lint (fmt + clippy)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Install Nix
@@ -49,6 +50,7 @@ jobs:
   test:
     name: test (nextest, ci profile)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Install Nix
@@ -61,6 +63,7 @@ jobs:
   build:
     name: build (release) + docs
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Install Nix
@@ -73,6 +76,7 @@ jobs:
   supply-chain:
     name: supply chain (audit + deny)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Install Nix
@@ -85,6 +89,7 @@ jobs:
   flake:
     name: nix flake check
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Install Nix

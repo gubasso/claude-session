@@ -10,14 +10,14 @@ This describes normative design. The crate is pre-implementation.
 
 The test is whether a user could pipe the command into another program. If a byte would corrupt that pipe, it does not belong on standard output.
 
-| Class                     | Stream                                  | Notes                                              |
-| ------------------------- | --------------------------------------- | -------------------------------------------------- |
-| A wrapper verb's result   | stdout                                  | Text or JSON per `--format`                        |
-| Progress, status, prompts | stderr                                  | Never stdout, even when interactive                |
-| Warnings                  | stderr                                  |                                                    |
-| Errors                    | stderr                                  | Four-part shape; see [exit codes](./exit-codes.md) |
-| Log records               | Log file, optionally mirrored to stderr | See below                                          |
-| The child's output        | Inherited                               | The wrapper never intercepts it                    |
+| Class                     | Stream                                  | Notes                                                                                                                                                                              |
+| ------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A wrapper verb's result   | stdout                                  | Text or JSON per `--format`                                                                                                                                                        |
+| Progress, status, prompts | stderr                                  | Never stdout, even when interactive. Which verbs prompt at all, and what happens with no terminal, is in [the CLI surface](./cli-surface.md#confirmation-and-non-interactive-use). |
+| Warnings                  | stderr                                  |                                                                                                                                                                                    |
+| Errors                    | stderr                                  | Four-part shape; see [exit codes](./exit-codes.md)                                                                                                                                 |
+| Log records               | Log file, optionally mirrored to stderr | See below                                                                                                                                                                          |
+| The child's output        | Inherited                               | The wrapper never intercepts it                                                                                                                                                    |
 
 **During a passthrough invocation the wrapper writes nothing to standard output.** Not a banner, not a progress line, not a "launching claude" notice. The child's standard output is the user's data stream and the wrapper is not entitled to a byte of it. Wrapper diagnostics during a passthrough go to standard error, where they are already interleaved with the child's.
 

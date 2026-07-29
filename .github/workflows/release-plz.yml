@@ -36,6 +36,7 @@ jobs:
   release-plz-release:
     name: release-plz release
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       # Required by crates.io Trusted Publishing: release-plz exchanges this
       # OIDC token for a short-lived registry token.
@@ -60,6 +61,7 @@ jobs:
   release-plz-pr:
     name: release-plz PR
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [release-plz-release]
     permissions:
       contents: write

@@ -67,9 +67,9 @@ test-ci:
 audit:
 	{{dev}} cargo audit
 
-# Run cargo-deny checks (advisories, bans, sources).
+# Run cargo-deny checks (advisories, bans, sources, licenses).
 deny:
-	{{dev}} cargo deny check advisories bans sources
+	{{dev}} cargo deny check advisories bans sources licenses
 
 # Build the crate documentation.
 doc:

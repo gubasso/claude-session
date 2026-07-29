@@ -180,6 +180,11 @@ Two things therefore have to live at the forge, and neither is configured yet:
 
 When either is set up, a dependency-update PR is treated like any other change: it targets `develop`, and the gate decides whether it lands.
 
+Two things bite whoever wires the update bot up, and both were found the hard way:
+
+- **Targeting `develop` requires `develop` to exist on the remote.** A `target-branch` naming a branch that is only local is not an error the bot reports usefully; it simply opens its pull requests against the default branch.
+- **Generated subjects overrun the commit-message limit.** `committed.toml` caps every line at 72 characters, and a bot configured to include a scope produces subjects longer than that for ordinary crate bumps. Either leave the scope out or raise the cap deliberately — do not exempt the bot from the hook.
+
 ## Before proposing a change
 
 ```bash

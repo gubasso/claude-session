@@ -30,6 +30,8 @@ Each candidate is validated in order:
 
 The distinction between not-found and not-executable is preserved all the way to the exit code, because the two have completely different fixes.
 
+**The resolved path is logged on every invocation**, passthrough included, at `info` under `op = resolve_child`, with the absolute path and the rung that produced it. Path resolution is the most common source of surprise in a wrapper installed under several names, and "which binary did it actually run" is the first question of every such report. This costs the child nothing: it is a log record, and the log file's level is independent of the stderr mirror's ([logging and output](./logging-and-output.md)), so the line is present at default verbosity without a byte reaching the terminal.
+
 ## Recursion guard
 
 A wrapper installed under the same name as its child, or earlier on `PATH`, will otherwise invoke itself until something breaks. Two independent guards, both required:
