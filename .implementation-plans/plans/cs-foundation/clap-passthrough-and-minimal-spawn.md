@@ -1,6 +1,6 @@
 # Foundation R3: Clap Passthrough Skeleton & Minimal Spawn
 
-> Plan: cs-foundation | Round: 3 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-foundation | Round: 3 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -12,21 +12,24 @@ Round 1: canonical module tree + manifest. Round 2: `AppError` + exit-code matri
 
 ## Scope of This Round
 
-- IN scope: `cli/mod.rs` root `Cli` parser (`allow_external_subcommands = true`, `subcommand_negates_reqs = true`, `disable_version_flag` so `-V` is wrapper-owned) with a `GlobalArgs` flatten (wrapper-owned, distinctively named: `-v/--verbose` count, `-q/--quiet`, `--format text|json`, `--config <path>`, `--dry-run`, plus reserved STUB flags `--account`, `--session`/`--group`, `--profile` for later plans) and a `Commands` enum whose `External(Vec<OsString>)` variant (`#[command(external_subcommand)]`) forwards everything else; `cli/argv.rs` argv normalization; intrinsic wrapper-verb STUBS (`version`, `completion`, `config`, `doctor`, `init` — each a free `pub fn run(ctx, args) -> Result<(), AppError>` printing "not yet implemented" via `Ui` except `version`, which prints our version + resolved child path/version); a minimal `commands/pass_through.rs` that spawns the real `claude` with **inherited env** (no isolation) via `std::process::Command`, waits, and propagates the child exit code; `commands/dispatch.rs`; `main.rs` (`parse → init logging → AppContext → dispatch → exit-code map`, ≤120 LOC).
+- IN scope: `cli/argv.rs`, the pure argv pre-split described below; `cli.rs` root `Cli` parser (`disable_version_flag` so `-V` is wrapper-owned) with a `GlobalArgs` flatten carrying the wrapper-owned flags specified in `docs/reference/cli-surface.md` (`-v/--verbose` count, `-q/--quiet`, `--format text|json`, `--config <path>`, `--dry-run`, plus `--account`, `--session`, `--profile` reserved as stubs for later plans) and a `Commands` enum covering the wrapper verbs only; intrinsic wrapper-verb STUBS (`version`, `completion`, `config`, `doctor`, `init` — each a free `pub fn run(ctx, args) -> Result<(), AppError>` reporting "not yet implemented" via `Ui`, except `version`, which prints our version plus the resolved child path and version); a minimal `commands/pass_through.rs` that spawns the real `claude` with **inherited env** (no isolation) via `std::process::Command`, waits, and propagates the child exit code; `commands/dispatch.rs`; `main.rs` (`parse → init logging → AppContext → dispatch → exit-code map`, ≤120 LOC).
 - OUT of scope: the hexagonal `Spawner` trait, signal forwarding, recursion guard, isolated `CLAUDE_CONFIG_DIR` injection (all in `cs-wrapper-runtime`); session dirs (`cs-isolation`); accounts (`cs-accounts-auth`); config composition (`cs-config-composition`).
 
 ## Current State
 
 ### Key Files
 
-- `/workspaces/claude-session/src/cli.rs` (+ `src/cli/`) — placeholder; becomes the root parser.
-- `/workspaces/claude-session/src/commands.rs` (+ `src/commands/`) — placeholder; becomes dispatch + pass_through + verb handlers.
-- `/workspaces/claude-session/src/main.rs` — minimal; becomes the real entrypoint.
+- `src/cli.rs` (+ `src/cli/`) — placeholder; becomes the root parser.
+- `src/commands.rs` (+ `src/commands/`) — placeholder; becomes dispatch + pass_through + verb handlers.
+- `src/main.rs` — minimal; becomes the real entrypoint.
 
 ### Existing Patterns
 
-Reference root-parser shape (codex-session, inspiration only): `#[command(name = "...", allow_external_subcommands = true, subcommand_negates_reqs = true)]` with `#[command(flatten)] global: GlobalArgs` and `command: Option<Commands>`; the `Commands` enum ends in `#[command(external_subcommand)] External(Vec<OsString>)` forwarding all non-clap args. argv forwarded **verbatim preserving `OsString`** (non-UTF-8 safe). Wrapper-design rules (`cli-design/06-cli-wrapper-design`): keep the wrapper grammar small and explicit; default to verbatim pass-through, denylist the flags you claim; argv layout `mywrap [WRAPPER-OPTS] <verb> [--]
-[CHILD-ARGS...]`; `--` is the end-of-options sentinel. Intrinsic top-level verbs: `version` (our version + resolved child path+version), `help`, `completion`, `config`, `doctor`, `init`.
+The wrapper grammar, the claimed-flag denylist, the verb list, and the parser shape are specified in `docs/reference/cli-surface.md`; the reasoning is in `docs/explanation/wrapper-model.md`.
+
+**The parser cannot do this alone.** External-subcommand handling captures an unexpected _positional_ token; a leading unknown **flag** — which is the most common passthrough invocation, `claude-session --print "hi"` — is rejected as an unexpected argument before that handling applies, and relaxed hyphen settings do not rescue it because they apply to a declared value rather than to the top-level parse. Argv is therefore **pre-split before it reaches the parser**: a pure function consumes only tokens the denylist claims, stops at the first token that is not one or at `--`, and hands the parser a grammar in which every token is one it defines. When the remainder does not begin with a wrapper verb it is child argv and never touches the parser.
+
+Argv layout is `claude-session [WRAPPER FLAGS] <verb> [--] [CHILD ARGS...]`, `--` is a hard sentinel, and forwarding preserves order, bytes, count, and empty arguments as `OsString`.
 
 ### Process model note
 
@@ -40,11 +43,15 @@ In this plan's `queue-rounds.yaml`, set this round's (`item: clap-passthrough-an
 
 ### Step 1: Root parser + GlobalArgs + Commands enum
 
-Build `cli/mod.rs` with the `Cli` struct, `GlobalArgs` (wrapper-owned, `global = true`), and the `Commands` enum ending in `External(Vec<OsString>)`. Claim `-V` via `disable_version_flag`. Reserve (but stub) `--account`, `--session`/`--group`, `--profile`.
+Build `cli.rs` with the `Cli` struct, `GlobalArgs` (wrapper-owned, `global = true`), and the `Commands` enum covering the wrapper verbs. Claim `-V` via `disable_version_flag`, so `--version` can report both the wrapper and the resolved child. Reserve (but stub) `--account`, `--session`, `--profile`. The parser never sees child argv — the pre-split in step 2 keeps it away.
 
-### Step 2: argv normalization
+### Step 2: argv pre-split
 
-Add `cli/argv.rs` to pre-parse/normalize argv (strip stray empties, support `--`) before clap parse, preserving `OsString`.
+Add `cli/argv.rs` with a **pure, total** pre-split over `Vec<OsString>`: consume leading tokens the wrapper's denylist claims and their values, stop at the first token that is not one or at `--`, and classify the remainder as either a wrapper verb (hand to the parser) or child argv (never hand to the parser).
+
+**Normalize nothing.** Do not strip empty arguments — an empty string is a real argument and filtering it silently changes the user's command line. Do not reorder, deduplicate, or re-quote. Preserve `OsString` throughout. See `docs/decisions/0002-verbatim-argv-passthrough.md`.
+
+Unit-test the pre-split directly against the golden-argv table in `docs/reference/testing-and-quality.md`: it is the single point where the passthrough contract can silently break.
 
 ### Step 3: Minimal pass-through spawn
 
@@ -69,4 +76,4 @@ Add `commands/dispatch.rs` (routes wrapper verbs vs. `External` passthrough) and
 
 ## Next Round
 
-Round 4 (`docs-adr-and-quality-gates`) establishes the Diátaxis `docs/` tree, the first ADRs, the `justfile`→pre-commit quality gates, `deny.toml`, and the `CLAUDE.md`→`AGENTS.md` SoT — closing out the foundation.
+Round 4 (`docs-adr-and-quality-gates`) adds the output-ownership and dependency-direction lints and runs the conformance pass against the specifications — closing out the foundation.

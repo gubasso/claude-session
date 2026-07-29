@@ -1,23 +1,23 @@
 # claude-session — Foundation: Crate Skeleton, Plumbing & Quality Gates
 
-> Complexity: L | Rounds: 4 | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Complexity: L | Rounds: 4 | Generated: 2026-06-19 | Repo: repository root
 
 ## Problem Statement
 
-`claude-session` is a from-scratch Rust CLI that wraps the `claude` command (baseline v2.1.183 at `/home/gbasso/.local/bin/claude`). It enhances `claude` while NEVER breaking native passthrough: any unknown arg/flag/subcommand forwards verbatim (`OsString`-preserving) to the real `claude`, exactly as if the user ran stock `claude`. The repo today is a bare scaffold: a stub `src/main.rs` (`println!("Hello, world!")`), an `edition = "2024"` `Cargo.toml` with no dependencies, `rust-toolchain.toml` (`channel = "stable"`), and pre-commit tooling (`.pre-commit-config.yaml`, `committed.toml`, `.config/nextest.toml`, `.editorconfig`, `Cargo.lock`). There is no `src/` module tree, no `docs/`, no `CLAUDE.md`/`AGENTS.md`, no `justfile`, no `deny.toml`.
+`claude-session` is a from-scratch Rust CLI that wraps the `claude` command (baseline v2.1.183, resolved from `PATH`). It enhances `claude` while NEVER breaking native passthrough: any unknown arg/flag/subcommand forwards verbatim (`OsString`-preserving) to the real `claude`, exactly as if the user ran stock `claude`. The crate itself is still a stub — `src/main.rs` prints "Hello, world!" and `Cargo.toml` has an empty `[dependencies]` — but the surrounding project is fully bootstrapped: `rust-toolchain.toml`, `flake.nix`, `justfile`, `deny.toml`, `.config/nextest.toml`, `committed.toml`, `release-plz.toml`, install and publish scripts, CI workflows, dual licensing, `CLAUDE.md`, `AGENTS.md`, and a populated `docs/` tree carrying the specifications this plan implements against. There is still no `src/` module tree.
 
-This directory builds the foundation every feature plan depends on: the canonical Rust cli-spec crate tree; the load-bearing plumbing (`error.rs` with `AppError::exit_code()`, `logging.rs`, single-writer `ui/`, immutable `AppContext`, figment `config/`); a clap passthrough skeleton with a _minimal_ working child spawn (so passthrough is demonstrable and testable now — the robust Spawner, signal forwarding, and recursion guard belong to `cs-wrapper-runtime`); and the Diátaxis `docs/`/ADR system plus the `justfile`/`deny.toml`/`CLAUDE.md`→`AGENTS.md` quality gates.
+This directory builds the foundation every feature plan depends on: the canonical crate tree specified in `docs/explanation/architecture.md`; the load-bearing plumbing (`error.rs` with `AppError::exit_code()`, `logging.rs`, single-writer `ui/`, immutable `AppContext`, layered `config/`); and a passthrough skeleton with a _minimal_ working child spawn, so passthrough is demonstrable and testable now — the robust Spawner, signal forwarding, and recursion guard belong to `cs-wrapper-runtime`. The docs tree, the ADRs, the `justfile`, `deny.toml`, and the `CLAUDE.md`→`AGENTS.md` chain already exist; R4 closes out what remains rather than creating them.
 
 ## Strategy
 
-Bottom-up, foundations first. R1 lays the manifest, lints, blessed deps, and the canonical empty module tree so `cargo check` passes. R2 makes the cross-cutting plumbing real (error layers + the mandatory exit-code matrix test, tracing logging to XDG state, single-writer UI, `AppContext`, figment config). R3 builds the clap passthrough skeleton, wrapper-verb stubs, and a minimal inherited-env child spawn so `claude-session <native args>` actually runs `claude`. R4 establishes the docs/ADR system and quality gates. Each round leaves a compiling, test-covered base the next consumes.
+Bottom-up, foundations first. R1 lays the manifest, lints, the first dependencies, and the canonical empty module tree so `cargo check` passes. R2 makes the cross-cutting plumbing real (error layers + the mandatory exit-code matrix test, tracing logging to XDG state, single-writer UI, `AppContext`, layered config). R3 builds the argv pre-split and clap skeleton, wrapper-verb stubs, and a minimal inherited-env child spawn so `claude-session <native args>` actually runs `claude`. R4 closes out the remaining gate work and verifies the code against the specifications. Each round leaves a compiling, test-covered base the next consumes.
 
 ## Rounds
 
 1. `crate-manifest-and-module-tree.md` — Cargo.toml (blessed deps, strict lints, release profile, concrete rust-version), toolchain components, canonical empty module tree compiling.
 2. `errors-logging-context-config.md` — thiserror layers + exit-code matrix test, tracing→XDG state, single-writer ui, immutable AppContext, figment Config.
-3. `clap-passthrough-and-minimal-spawn.md` — root parser with verbatim external-subcommand passthrough, wrapper-verb stubs, argv normalization, minimal inherited-env child spawn, dispatch + main.rs.
-4. `docs-adr-and-quality-gates.md` — Diátaxis docs/ skeleton, first ADRs, justfile→pre-commit, deny.toml, CLAUDE.md→AGENTS.md SoT.
+3. `clap-passthrough-and-minimal-spawn.md` — argv pre-split, root parser, wrapper-verb stubs, minimal inherited-env child spawn, dispatch + main.rs.
+4. `docs-adr-and-quality-gates.md` — output-ownership lint hook, spec-versus-code conformance pass, queue closeout.
 
 ## Execution Commands
 
@@ -43,30 +43,31 @@ When `/prex` is pointed at this directory or this `README.md`, it MUST:
 ## Decisions & Constraints
 
 - `Executor: prex (EF 1.5)`.
-- **Canonical crate tree is mandatory** (`rust/cli-spec/00-directory-tree.md`): single bin; `src/main.rs` ≤120 LOC (`parse → init logging → AppContext → dispatch → exit-code map`); `cli/` (clap derive only), `commands/` (one free `run(ctx, args) -> Result<(), AppError>` per verb), `domain/`, `services/`, `adapters/` (trait + impl), `config/` (figment), `context.rs`, `error.rs`, `logging.rs`, `ui/`, `util/`. Post-2018 module form (`foo.rs` + `foo/`, avoid `mod.rs`). Default visibility `pub(crate)`.
-- **Start single-crate** (`01-crate-layout.md`); no workspace until explicit triggers (2nd binary, publishable subsystem, slow `cargo check`, ~8k LOC).
-- **thiserror-per-layer + mandatory exit-code matrix test** (`03-error-handling.md`): `DomainError`, `<Sys>AdapterError`, `ServiceError`, `AppError`; `anyhow` only in `main`; `AppError::exit_code()` maps every variant explicitly to a BSD sysexits code — NO catch-all `_ => 1`.
-- **Blessed deps only** (`07-dependencies.md`); avoid `dirs`/`chrono`/`lazy_static`/`serde_yaml`/ `env_logger`/`structopt`/`failure`. Commit `Cargo.lock`; enforce with `cargo deny`.
+- **Canonical crate tree is mandatory** — the module tree, roles, and per-directory prohibitions are specified in `docs/explanation/architecture.md`, which this round implements: single bin; `src/main.rs` ≤120 LOC (`parse → init logging → AppContext → dispatch → exit-code map`); `cli/` (clap derive only), `commands/` (one free `run(ctx, args) -> Result<(), AppError>` per verb), `domain/`, `services/`, `adapters/` (trait + impl), `config/`, `context.rs`, `error.rs`, `logging.rs`, `ui/`, `util/`. Post-2018 module form and the `pub(crate)` default are specified in `docs/reference/coding-conventions.md`.
+- **Start single-crate**; the workspace triggers are listed in `docs/explanation/architecture.md` and recorded in `docs/decisions/0007-layered-single-crate-architecture.md`. Do not migrate proactively.
+- **thiserror-per-layer + mandatory exit-code matrix test** — the layer stack is specified in `docs/reference/coding-conventions.md` and the matrix in `docs/reference/exit-codes.md`: `DomainError`, `<Sys>AdapterError`, `ServiceError`, `AppError`; the boundary error type only in `main`; `AppError::exit_code()` maps every variant explicitly — NO catch-all `_ => 1`.
+- **Reviewed dependency set only** — the candidate, deferred, and ruled-out sets are in `docs/reference/dependencies.md`; a crate enters the manifest only when a round actually uses it. Commit `Cargo.lock`; enforce with `cargo deny`.
 - **Dependencies are ALWAYS added with `cargo add`** (project-wide, every plan/round). A coding agent adds a dependency via `cargo add <crate> [--features ...]` — NEVER by hand-editing the `[dependencies]` table or hand-writing a version string — so cargo resolves the dependency graph, fetches the latest compatible version, and updates `Cargo.lock`. Deviate only with a **documented exception** (a known-broken latest, or a deliberately required exact pin), recorded in an ADR or a code/manifest comment.
-- **Output discipline** (`cli-design/01-logging-and-output.md`): stdout = result only; stderr = everything else; all terminal output flows through the single `ui` writer; CI-linted via `rg` for stray `println!`/`eprintln!` outside `src/ui/` + `main.rs`.
-- **Config precedence** `cli > env > project > user > defaults`; env prefix `CLAUDE_SESSION_` (nested `__`); `#[serde(deny_unknown_fields)]`; user config at `~/.config/claude-session/`.
-- **pre-commit hooks are the SoT for quality gates**; `justfile` gate recipes delegate to `pre-commit run …`; inner-loop recipes (`build`/`run`/`fmt`/`watch`) stay raw cargo.
-- **CLAUDE.md calls AGENTS.md; AGENTS.md is the lean SoT** (model: `/home/gbasso/Projects/_gubasso/cog/CLAUDE.md`).
-- **Docs follow Diátaxis** (`docs-design/01-diataxis-zones.md`): `docs/decisions/`, `docs/guides/`, `docs/reference/`, `docs/explanation/`; lean ADRs ≤350 words, 5 sections, 5 statuses, never deleted.
+- **Output discipline** — specified in `docs/reference/logging-and-output.md`: stdout = result only; stderr = everything else; all terminal output flows through the single `ui` writer; lint-enforced against stray `println!`/`eprintln!` outside `src/ui/` + `main.rs`.
+- **Config precedence** `defaults < user < project < env < cli`, with the env prefix, nesting, and schema rules specified in `docs/reference/configuration.md`. Paths come from `docs/reference/xdg-storage.md`.
+- **pre-commit hooks are the SoT for quality gates**; the gate map is in `docs/reference/testing-and-quality.md`. `justfile` gate recipes delegate to `pre-commit run …`; inner-loop recipes stay raw cargo.
+- **`CLAUDE.md` calls `AGENTS.md`; `AGENTS.md` is the lean SoT.** Already in place — this round does not recreate it.
+- **Docs are organized by reader need** — the zones, the ADR rules, and the placement policy are in `AGENTS.md` (Documentation Maintenance) and `docs/decisions/0012-docs-architecture.md`. The tree already exists; this round does not recreate it.
 - **Minimal spawn only here.** The robust `Spawner` trait, signal forwarding, exit-code mapping, and recursion guard live in `cs-wrapper-runtime`. Foundation ships just enough spawn to prove passthrough.
 
 ## Rejected Alternatives
 
-- **Cargo workspace from day one** — rejected; cli-spec says start single-crate, migrate only on explicit triggers.
-- **`anyhow` everywhere** — rejected; `anyhow` only in `main`; library boundaries return typed `thiserror` errors so `exit_code()` stays exhaustive.
+- **Cargo workspace from day one** — rejected; start single-crate and migrate only on the documented triggers. See `docs/decisions/0007-layered-single-crate-architecture.md`.
+- **A single opaque error type everywhere** — rejected; typed per-layer errors converge on a closed `AppError` so `exit_code()` stays exhaustive. See `docs/decisions/0008-layered-error-architecture.md`.
 - **Building the full Spawner/signal/recursion-guard here** — rejected; that is a coherent subsystem owned by `cs-wrapper-runtime`. Foundation keeps a minimal inherited-env spawn.
-- **Importing code from the reference projects** — rejected (inspiration only, zero imports).
+- **Argv normalization before parsing** — rejected. Order, bytes, count, and empty arguments are all preserved; the pre-split consumes only wrapper-owned tokens and never rewrites what it forwards. See `docs/decisions/0002-verbatim-argv-passthrough.md`.
 
 ## Risks & Edge Cases
 
 - `edition = "2024"` needs a recent stable toolchain; pin a concrete `rust-version` and verify `cargo check` before adding deps. (handled R1)
 - The exit-code matrix is user-facing API; the mandatory test must enumerate every `AppError` variant so a future variant without a code fails the build. (handled R2)
-- Output-discipline lint false positives on doc comments; scope `rg` to `src/`, exclude `src/ui/` + `main.rs`. (handled R4)
+- Output-discipline lint false positives on doc comments; scope the grep to `src/`, exclude `src/ui/` + `main.rs`. (handled R4)
+- A derive parser alone cannot accept a leading unknown flag — that case is rejected before external-subcommand handling applies — so argv must be pre-split before parsing. See `docs/reference/cli-surface.md`. (handled R3)
 
 ## Completion
 

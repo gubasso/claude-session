@@ -1,6 +1,6 @@
 # claude-session — Accounts & Subscription Auth
 
-> Complexity: L | Rounds: 4 | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Complexity: L | Rounds: 4 | Generated: 2026-06-19 | Repo: repository root
 
 ## Problem Statement
 
@@ -8,14 +8,14 @@
 
 ## Strategy
 
-Four rounds. R1 builds the filesystem-backed account registry (`accounts/<name>/`, seed paths, `last-account`). R2 implements managed `claude login` per account into an isolated dir + hardened credential copy to the seed. R3 builds the resolver (flag > env > last/default) + the auth gate (seed→session copy) + API-key fallback + trust sync-back. R4 exposes the `account` CLI verbs with `--json` and redaction, and wires `doctor`.
+Four rounds. R1 builds the filesystem-backed account registry (`accounts/<name>/`, seed paths, `last-account`). R2 implements managed `claude login` per account into an isolated dir + hardened credential copy to the seed. R3 builds the resolver (flag > env > last/default) + the auth gate (seed→session copy) + API-key fallback + trust sync-back. R4 exposes the `account` CLI verbs with `--format json` and redaction, and wires `doctor`.
 
 ## Rounds
 
 1. `account-registry.md` — filesystem-backed registry, account dirs, seed paths, last-account.
 2. `managed-login.md` — managed `claude login` per account (subscription OAuth) + hardened seed write.
 3. `auth-gate-and-resolver.md` — resolver, auth gate, seed→session copy, API-key fallback, trust sync-back.
-4. `account-commands.md` — `account add|list|current|remove|refresh` verbs, `--json`, redaction, doctor.
+4. `account-commands.md` — `account add|list|current|remove|refresh` verbs, `--format json`, redaction, doctor.
 
 ## Execution Commands
 
@@ -53,7 +53,7 @@ When `/prex` is pointed at this directory or this `README.md`, it MUST:
 - **API-key-only auth** — rejected; subscription must be primary and always available.
 - **Mixing `apiKeyHelper` with subscription tokens** — rejected (the shell tool flags this as fragile and surprising); pick one path per invocation.
 - **Storing tokens in user config** — rejected; credentials live only in secured seed/session dirs.
-- **Quota-aware auto-rotation/failover** (codex-session's WHAM-specific machinery) — out of scope for v1; the resolver supports explicit + last/default selection, leaving room for a future `auto`.
+- **Quota-aware auto-rotation and failover** — out of scope for v1. It requires modelling quota state the wrapper cannot observe reliably, and it is orthogonal to isolation. The resolver supports explicit and last/default selection, leaving room for a future `auto`. See the switcher survey in `docs/reference/prior-art.md`.
 
 ## Risks & Edge Cases
 

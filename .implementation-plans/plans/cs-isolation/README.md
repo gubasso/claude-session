@@ -1,6 +1,6 @@
 # claude-session — Session Isolation (pty-keyed, multiplexer-agnostic)
 
-> Complexity: L | Rounds: 3 | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Complexity: L | Rounds: 3 | Generated: 2026-06-19 | Repo: repository root
 
 ## Problem Statement
 
@@ -41,17 +41,17 @@ When `/prex` is pointed at this directory or this `README.md`, it MUST:
 
 - `Executor: prex (EF 1.5)`.
 - **Isolation is pty-keyed and multiplexer-AGNOSTIC.** Do NOT add `$TMUX_PANE`/`$KITTY_WINDOW_ID`/`$WEZTERM_PANE`/`$STY`/`$ZELLIJ_*` sniffing. The controlling terminal is the key — every interactive pane owns a distinct pty regardless of multiplexer.
-- **GroupId derivation chain**: `--session`/`--group` flag → `CLAUDE_SESSION_GROUP` env → tty (`/dev/pts/3` → `pts-3`) → `ppid+starttime` (non-tty parents, `/proc/<ppid>/stat` field 22) → `pid-<PID>` with a visible warning. `GroupId` validation: ≤32 bytes, starts lowercase-ascii/digit, charset `[a-z0-9_-]`.
+- **GroupId derivation chain**: `--session` flag → `CLAUDE_SESSION_GROUP` env → tty (`/dev/pts/3` → `pts-3`) → `ppid+starttime` (non-tty parents, `/proc/<ppid>/stat` field 22) → `pid-<PID>` with a visible warning. `GroupId` validation: ≤32 bytes, starts lowercase-ascii/digit, charset `[a-z0-9_-]`.
 - **Cross-container collision edge**: only if a state dir is bind-mounted/shared across containers, namespace the key with ONE neutral host/container discriminator (`/etc/machine-id`, hostname, or a `/proc/self/cgroup`-derived id) — still general, still not multiplexer-aware.
-- **`CLAUDE_CONFIG_DIR`** is the redirect var (analog of codex's `CODEX_HOME`); it is undocumented and leaky (bug #3833 can still create project-local `.claude/`). This plan resolves the dir; injection and leak handling land in `cs-wrapper-runtime`.
-- **Session-root resolution**: prefer durable `$XDG_STATE_HOME` then `$XDG_RUNTIME_DIR`; document the choice in an ADR stub (codex prefers state→runtime; the shell tool runtime→state). Secure every dir: not a symlink, real dir, owned by current uid, chmod `0700`.
+- **`CLAUDE_CONFIG_DIR`** is the redirect variable the whole isolation design rests on. It is externally owned and carries no documented stability guarantee, so it is tracked as a perishable fact in `docs/reference/research-tracking.yaml` and consumed defensively — the child can still create project-local state the variable does not cover. This plan resolves the directory; injection and leak handling land in `cs-wrapper-runtime`.
+- **Session roots live in the state base, with no runtime fallback.** Durable state never relocates into a directory cleared at logout or into a shared temporary directory — a fallback that can lose credentials is worse than a clear error. Decided in `docs/decisions/0006-place-files-by-xdg-ownership.md`; the artifact table is in `docs/reference/xdg-storage.md`. Secure every directory per component: not a symlink, real directory, owned by the current user, mode `0700` enforced on every run.
 - Use a constant default account name (`default`) until `cs-accounts-auth` provides the registry.
 
 ## Rejected Alternatives
 
 - **Multiplexer env-var sniffing** ($TMUX_PANE etc.) — rejected; not general, fails for plain ttys and unknown multiplexers.
 - **Live symlinks into a shared `~/.claude`** (the shell tool's sync/link/home-link scheme) — rejected as intricate and bind-mount-fragile; the Rust rebuild uses self-contained per-account/per-group dirs.
-- **`/tmp` fallback** — rejected (insecure); fall back to `pid-<id>` within the secure XDG root.
+- **A temporary-directory fallback** — rejected. A world-writable directory is the wrong home for a credential under any circumstances; the last rung of the identity chain is a process-id-keyed group **inside** the secure state root, not a different root.
 - **`bwrap`/`firejail` namespace sandbox** — deferred to a possible future "hardened synthetic-HOME mode"; out of this vision's scope.
 
 ## Risks & Edge Cases

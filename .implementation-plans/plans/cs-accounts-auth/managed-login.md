@@ -1,6 +1,6 @@
 # Accounts & Auth R2: Managed `claude login` & Hardened Seed Write
 
-> Plan: cs-accounts-auth | Round: 2 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-accounts-auth | Round: 2 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -19,14 +19,20 @@ This plan round 1: `Registry`, account dirs, seed paths, `last-account`. `cs-wra
 
 ### Key Files
 
-- `/workspaces/claude-session/src/services/account/login.rs` — new.
-- `/workspaces/claude-session/src/services/auth.rs` — new (hardened credential I/O).
-- `/workspaces/claude-session/src/adapters/spawner.rs` — reuse to run `claude login`.
-- `/workspaces/claude-session/src/services/account/registry.rs` — write to the seed path.
+- `src/services/account/login.rs` — new.
+- `src/services/auth.rs` — new (hardened credential I/O).
+- `src/adapters/spawner.rs` — reuse to run `claude login`.
+- `src/services/account/registry.rs` — write to the seed path.
 
 ### Existing Patterns
 
-Reference (codex-session `gate.rs`/`auth.rs`, inspiration only): `run_login` spawns the child in an isolated temp config dir, runs the native `login`, then copies the resulting credentials into the account seed; `auth.rs` provides `ensure_owned_dir_0700` and `secure_file_read` (rejects symlinks/ hardlinks/wrong-owner). Native `claude` writes `.credentials.json` under `CLAUDE_CONFIG_DIR` (or macOS Keychain). Brief constraint: never mix `apiKeyHelper` with subscription tokens; never write tokens to user-editable config or a cleanable cache path.
+The credential model — a per-account seed, copied per session, with subscription login primary and token injection secondary — is recorded in `docs/decisions/0011-isolate-credentials-by-seed-and-session.md`. File modes, ownership checks, and atomic-write rules are in `docs/reference/xdg-storage.md`.
+
+Run the login through the `Spawner` port with the configuration-directory variable pointed at a fresh scratch directory, so the flow cannot touch another account or the user's own configuration. On success, copy the produced credential file into the account seed at mode `0600`.
+
+**Where the child stores credentials is a perishable, externally-owned fact** — a file inside its configuration directory on Linux, a system keychain elsewhere — tracked in `docs/reference/research-tracking.yaml`. Consume it defensively: a missing or unexpected credential file is a reported failure with a hint, never a panic and never a silent success.
+
+Never mix a token helper with subscription credentials in one invocation, and never write a token to user-editable configuration or to any path a cache-clearing tool may remove.
 
 ## Implementation Steps
 

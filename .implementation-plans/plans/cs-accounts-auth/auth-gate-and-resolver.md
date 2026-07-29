@@ -1,6 +1,6 @@
 # Accounts & Auth R3: Resolver, Auth Gate, Session Copy & Fallback
 
-> Plan: cs-accounts-auth | Round: 3 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-accounts-auth | Round: 3 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -19,14 +19,20 @@ This plan R1: `Registry`. R2: managed login + `services/auth.rs`. `cs-isolation`
 
 ### Key Files
 
-- `/workspaces/claude-session/src/services/account/resolver.rs` — new.
-- `/workspaces/claude-session/src/services/account/gate.rs` — new.
-- `/workspaces/claude-session/src/services/trust_sync.rs` — new.
-- `/workspaces/claude-session/src/commands/pass_through.rs` — call the gate before spawn, sync after.
+- `src/services/account/resolver.rs` — new.
+- `src/services/account/gate.rs` — new.
+- `src/services/trust_sync.rs` — new.
+- `src/commands/pass_through.rs` — call the gate before spawn, sync after.
 
 ### Existing Patterns
 
-Reference (codex-session, inspiration only): `resolver.rs` priority flag > env > auto; `gate.rs` `ensure` returns resolved/deferred; pinned → check seed, login if missing; session copy materialized into the group dir; `trust_sync.rs` syncs `[projects]` back to the seed. Native auth env fallbacks (brief §4): `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`. Copy + sync must be atomic and lock-guarded.
+Account selection follows the same shape as every other precedence chain in this project — an explicit flag, then the environment, then the persisted default — and the resolved **source** is recorded so `doctor` can explain the choice. The flag and environment names are in `docs/reference/cli-surface.md` and `docs/reference/configuration.md`.
+
+The seed-to-session copy is the mechanism recorded in `docs/decisions/0011-isolate-credentials-by-seed-and-session.md`: each session gets an independent copy the child may rewrite freely, so a concurrent session cannot observe a half-written state or lose a refresh. The copy is atomic and idempotent.
+
+Token injection (`ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN`) is a **first-class secondary path**, not an afterthought — the login flow needs a browser, so containers and continuous integration depend on it. The two paths are never mixed within one invocation.
+
+Trust sync-back runs **post-flight**, after the child exits, under a lock, merging conservatively: a concurrent session's newer state is not this session's to discard. A sync failure is reported and **must not change the child's exit status** — see `docs/reference/process-runtime.md`.
 
 ## Implementation Steps
 
@@ -65,4 +71,4 @@ In `services/trust_sync.rs`, conservatively sync `.claude.json` `[projects]` sta
 
 ## Next Round
 
-Round 4 (`account-commands`) exposes `account add|list|current|remove|refresh` with `--json` and secret redaction, and wires account state into `doctor`.
+Round 4 (`account-commands`) exposes `account add|list|current|remove|refresh` with `--format json` and secret redaction, and wires account state into `doctor`.

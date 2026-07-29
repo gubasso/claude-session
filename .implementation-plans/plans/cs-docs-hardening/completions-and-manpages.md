@@ -1,6 +1,6 @@
 # Docs & Hardening R3: Completions, Version & Man Pages
 
-> Plan: cs-docs-hardening | Round: 3 of 4 | Complexity: M | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-docs-hardening | Round: 3 of 4 | Complexity: M | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -19,13 +19,15 @@ With the full flag/verb surface settled, `claude-session` finalizes its shell co
 
 ### Key Files
 
-- `/workspaces/claude-session/src/commands/completion.rs` — finalize.
-- `/workspaces/claude-session/src/commands/version.rs` — confirm child path/version.
-- `/workspaces/claude-session/Cargo.toml` — ensure `clap_complete`, `clap_mangen` present (add via `cargo add` if missing; never hand-edit `[dependencies]`).
+- `src/commands/completion.rs` — finalize.
+- `src/commands/version.rs` — confirm child path/version.
+- `Cargo.toml` — ensure `clap_complete`, `clap_mangen` present (add via `cargo add` if missing; never hand-edit `[dependencies]`).
 
 ### Existing Patterns
 
-Blessed deps (`rust/cli-spec/07-dependencies.md`): `clap_complete` (completions via a subcommand), `clap_mangen` (man pages via a subcommand). Wrapper rule: completion is for YOUR flags; passthrough child args stay opaque. codex-session exposes `completion` as a wrapper verb.
+`clap_complete` and `clap_mangen` are on the reviewed list in `docs/reference/dependencies.md` as deferred crates unlocked by exactly this round; add them with `cargo add`.
+
+The rule that decides the scope of both artifacts is in `docs/reference/cli-surface.md`: **completions and man pages cover the wrapper's grammar only.** Child arguments stay opaque, because tracking the child's flag list is precisely the coupling the passthrough contract exists to avoid. Both are generated from the same parser definition as `--help`; a hand-maintained flag table is forbidden.
 
 ## Implementation Steps
 

@@ -96,8 +96,8 @@ repos:
   # output (suppresses stdout/stderr from passing tests by default) and
   # supports per-profile `default-filter` for clean test-kind layering.
   #
-  # Test classification (per docs-n-notes/programming/cli-design/
-  # 08-testing-strategy.md — see also rust/cli-spec/06-testing.md):
+  # Test classification (per docs/explanation/testing-strategy.md and
+  # docs/reference/testing-and-quality.md):
   #   - Unit:        `src/` inline `#[cfg(test)] mod tests`. One function
   #                  or module in isolation. kind(lib) for library crates;
   #                  kind(bin) when unit tests live inside a [[bin]] target
@@ -116,7 +116,7 @@ repos:
   #                  nextest — covered by the separate `cargo test --doc`
   #                  hook below.
   #
-  # Tier-to-hook mapping (matches 08-testing-strategy.md § CI essentials):
+  # Tier-to-hook mapping (per docs/reference/testing-and-quality.md § Lanes):
   #   - pre-commit: unit only            (sub-second budget)
   #   - pre-push:   unit + integration   (single-digit-seconds budget)
   #   - CI:         everything + E2E     (live in .github/workflows)

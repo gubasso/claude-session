@@ -1,6 +1,6 @@
 # Isolation R1: Secure Filesystem Primitives & Session-Root Resolution
 
-> Plan: cs-isolation | Round: 1 of 3 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-isolation | Round: 1 of 3 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -12,20 +12,24 @@ The `cs-foundation` plan (a depended-on sibling) produced: the canonical crate t
 
 ## Scope of This Round
 
-- IN scope: `adapters/fs.rs` (a filesystem adapter trait + default std/`rustix`/`tempfile` impl: `symlink_metadata`, secure `create_dir_all`, `chmod`, atomic write via tempfile+persist, rename); `services/session/dir.rs` secure-dir helpers (`ensure_owned_dir_0700`, `inspect_secure_dir`, step-by-step path creation) and `resolve_session_root(runtime_dir, state_dir)` (prefer durable `$XDG_STATE_HOME` then `$XDG_RUNTIME_DIR`, validate not-a-symlink/real-dir/owner-uid/0700) plus a non-mutating `inspect_session_root`; typed adapter/service errors (symlink, wrong-owner, non-directory, permission, io) mapping to `AppError` config/io/noperm sysexits.
+- IN scope: `adapters/fs.rs` (a filesystem adapter trait + default std/`rustix`/`tempfile` impl: no-follow metadata, secure directory creation, mode enforcement, atomic write via temporary-file-then-rename **in the same directory**, rename); `services/session/dir.rs` secure-dir helpers (`ensure_owned_dir_0700`, `inspect_secure_dir`, step-by-step per-component path creation) and `resolve_session_root(state_dir)` (the state base; validate not-a-symlink, real directory, owner, mode `0700`) plus a non-mutating `inspect_session_root`; typed adapter/service errors (symlink, wrong-owner, non-directory, permission, io) mapping to the codes in `docs/reference/exit-codes.md`.
 - OUT of scope: deriving group ids (round 2), session dir/metadata (round 3), spawning or env injection (`cs-wrapper-runtime`), accounts (`cs-accounts-auth`).
 
 ## Current State
 
 ### Key Files
 
-- `/workspaces/claude-session/src/adapters.rs` (+ `src/adapters/`) — add `fs.rs`.
-- `/workspaces/claude-session/src/services.rs` (+ `src/services/`) — add `session/` submodule with `dir.rs`.
-- `/workspaces/claude-session/src/error.rs` — extend with `#[from]` for the new adapter/service errors.
+- `src/adapters.rs` (+ `src/adapters/`) — add `fs.rs`.
+- `src/services.rs` (+ `src/services/`) — add `session/` submodule with `dir.rs`.
+- `src/error.rs` — extend with `#[from]` for the new adapter/service errors.
 
 ### Existing Patterns
 
-Reference secure-dir logic (codex-session `services/session/dir.rs`, inspiration only): `secure_dir()` calls `std::fs::symlink_metadata` and rejects symlinks; `create_dir_all`; rejects non-dir; checks `metadata.uid() == current_uid()` (`rustix::process::getuid()`); forces `Permissions::from_mode(0o700)`. Root preference: state then runtime. Add any blessed deps not yet present (`rustix` with `process`,`fs`; `tempfile`) with **`cargo add`** (e.g. `cargo add rustix --features process,fs`), never by hand-editing `[dependencies]`. Target disk layout (later rounds): `$XDG_STATE_HOME/claude-session/accounts/<account>/groups/<group-id>/`.
+The security posture is specified in `docs/reference/xdg-storage.md` and must be implemented as written: a metadata call that does **not** follow symbolic links, applied to **each path component in turn** rather than only to the leaf; ownership checked against the current user; non-directories rejected; mode enforced at `0700` on **every** invocation rather than assumed from creation. Creation is idempotent, since two invocations from the same pane can race.
+
+**Session roots resolve to the state base, and there is no fallback into runtime.** The runtime base has no portable default and is genuinely absent in containers and under `cron`; a fallback that relocates durable state there can lose credentials and would present as a mysterious logout. When runtime is unavailable the wrapper degrades explicitly and durable state stays put. See `docs/decisions/0006-place-files-by-xdg-ownership.md`. Runtime is used only for locks, and a missing runtime base disables locking rather than moving it.
+
+Add any crates not yet present (`rustix` with `process` and `fs`; `tempfile`) with **`cargo add`** — never by hand-editing `[dependencies]`. Target disk layout for later rounds is the artifact table in `docs/reference/xdg-storage.md`.
 
 ## Implementation Steps
 
@@ -39,7 +43,7 @@ In `adapters/fs.rs`, define a `Filesystem` trait (metadata, secure dir creation,
 
 ### Step 2: Secure-dir service + session-root resolution
 
-In `services/session/dir.rs`, implement `ensure_owned_dir_0700`, `inspect_secure_dir`, and `resolve_session_root` (prefer `$XDG_STATE_HOME` then `$XDG_RUNTIME_DIR`; validate symlink/owner/mode) plus non-mutating `inspect_session_root` for `doctor`. Add a `ServiceError`/`ConfigError` variant for unresolvable roots.
+In `services/session/dir.rs`, implement `ensure_owned_dir_0700`, `inspect_secure_dir`, and `resolve_session_root` (the state base; validate symlink, owner, and mode per component) plus a non-mutating `inspect_session_root` for `doctor`. Add an error variant for an unresolvable root. Do **not** implement a runtime fallback for durable state; an unusable state base is a clear error, not a reason to relocate credentials.
 
 ### Step 3: Wire errors + tests
 
@@ -52,7 +56,7 @@ Wire the new errors into `AppError` with explicit `exit_code()` mappings (config
 ## Acceptance Criteria
 
 - [ ] Secure dir creation rejects symlinks and wrong ownership (where detectable) and forces mode 0700.
-- [ ] `resolve_session_root` prefers `$XDG_STATE_HOME`, falls back to `$XDG_RUNTIME_DIR`, and errors cleanly when neither is usable.
+- [ ] `resolve_session_root` resolves the state base and errors cleanly when it is unusable; it never relocates durable state into the runtime base or a temporary directory.
 - [ ] New errors map to config/io/noperm sysexits; the exit-code matrix test still passes.
 - [ ] Tests cover the happy path and symlink/wrong-owner rejection with `tempfile`.
 - [ ] This plan's `queue-rounds.yaml` shows round `secure-session-dirs` as `done`.

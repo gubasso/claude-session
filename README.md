@@ -10,6 +10,18 @@ A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 - **XDG-compliant.** Configuration, state, and cache live under the standard XDG base directories.
 - **Self-contained.** The tool depends on nothing outside the repository and the `claude` binary itself.
 
+These three bullets are a summary. The normative sources are [AGENTS.md](./AGENTS.md) for the contracts themselves and [docs/decisions/](./docs/decisions/) for the recorded decisions behind them.
+
+## Documentation
+
+The engineering specifications live under [docs/](./docs/README.md), organized by what a reader needs: decisions, explanation, reference, and guides. They describe design for code that has not been written yet.
+
+Common starting points:
+
+- What is this and how is it built? → [architecture](./docs/explanation/architecture.md)
+- What does it mean to wrap `claude`? → [the wrapper model](./docs/explanation/wrapper-model.md)
+- How do I work on it? → [the development workflow](./docs/guides/development-workflow.md)
+
 ## Install
 
 ```bash

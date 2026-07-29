@@ -1,10 +1,10 @@
 # claude-session — Config Composition (JSON pieces + YAML manifest → settings.json)
 
-> Complexity: L | Rounds: 4 | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Complexity: L | Rounds: 4 | Generated: 2026-06-19 | Repo: repository root
 
 ## Problem Statement
 
-`claude-session` is the configuration source of truth; native `claude` config is BLIND to the user. Users edit only `~/.config/claude-session/**` (dotfile-managed/stowed). They compose **partial native `settings.json` JSON pieces** through a **YAML manifest** — the manifest IS the user-facing "profile" — and `claude-session` generates the final native `settings.json` (and manages `.claude.json` trust/state) that the real `claude` reads inside the isolated session. The model follows `devcontainerctl` (JSON pieces ordered by a YAML manifest, last-wins) but is reimplemented idiomatically in Rust (`serde_json`), improving on it with **per-key provenance**, **configurable per-key array strategies**, and **schema validation**. Depends on `cs-foundation` (figment config, error/ui) and `cs-isolation` (the session dir the generated `settings.json` lands in); runs in parallel with `cs-wrapper-runtime`/`cs-accounts-auth`.
+`claude-session` is the configuration source of truth; the user never edits the child's files directly. Users author **partial JSON settings pieces** and an ordered **YAML manifest** — the manifest is the user-facing "profile" — and `claude-session` generates the final settings file, plus the child's trust state, inside the isolated session. The model is base-and-overlay composition, reimplemented in Rust over `serde_json` and extended with **per-key provenance**, **configurable per-key array strategies**, and pragmatic validation. It is specified in `docs/reference/configuration.md` and recorded in `docs/decisions/0010-compose-native-settings-from-declared-layers.md`. Depends on `cs-foundation` (config, error, ui) and `cs-isolation` (the session dir the generated file lands in); runs in parallel with `cs-wrapper-runtime` and `cs-accounts-auth`.
 
 ## Strategy
 
@@ -42,16 +42,16 @@ When `/prex` is pointed at this directory or this `README.md`, it MUST:
 
 - `Executor: prex (EF 1.5)`.
 - **JSON pieces + YAML manifest → generated native `settings.json`.** Source pieces are partial `settings.json` JSON files; a YAML manifest IS the profile and declares an ordered `layers: [...]` list (last-wins). NOT TOML source.
-- **Manifest schema** (devcontainerctl model): one YAML file per profile, field `layers: [string,...]` (ordered, `minItems:1`, `additionalProperties:false`), validated.
-- **Merge rules** (improve on devcontainerctl's jq): idiomatic Rust `serde_json::Value` recursive merge; scalars last-wins; arrays **configurable per-key** (default `replace`; opt-in `concat` / `merge-by-key`); objects merge-by-key. Record **per-key provenance** (which piece set each key) and schema-validate the merged `settings.json`.
+- **Manifest schema**: one YAML file per profile whose sole required field is an ordered, non-empty `layers` list. Unknown fields rejected, empty list rejected. Specified in `docs/reference/configuration.md`.
+- **Merge rules**: a recursive `serde_json::Value` merge — objects by key, scalars last-wins, arrays **replace by default** with `concat` and `merge-by-key` opt-in **per key**. The merge is deterministic (identical inputs, byte-identical output) or freshness and diffs are both useless. Record **per-key provenance**. Specified in `docs/reference/configuration.md`.
 - **Atomic output** (tempfile → rename) into the resolved account/session dir; **freshness** check must inspect every referenced piece's mtime (not just the manifest); a provenance sidecar (`.claude-session-compose.json`).
 - User config at `~/.config/claude-session/` (manifests + pieces), dotfile-managed; native `claude` config stays blind to the user.
 
 ## Rejected Alternatives
 
-- **TOML source pieces** (codex flavor) — rejected by Decision 4; claude natively reads JSON `settings.json`, so pieces are JSON.
-- **jq/shell merge** (devcontainerctl's engine) — rejected; reimplement in Rust `serde_json` for type-safety, provenance, and schema validation.
-- **No provenance / no schema validation** (devcontainerctl) — rejected; the brief asks to improve on the model.
+- **TOML source pieces** — rejected; the child reads JSON, so pieces are JSON and no format translation sits in the middle.
+- **A shell-and-`jq` merge pipeline** — rejected; implemented in Rust over `serde_json` for type safety, provenance, and validation.
+- **Composition without provenance** — rejected; without it, "this setting is wrong" cannot be turned into "this piece overrode that one" short of bisecting files.
 
 ## Risks & Edge Cases
 

@@ -1,0 +1,193 @@
+# Perishable facts registry.
+#
+# The documents under docs/ rest on some facts this project does not control:
+# the behaviour of the wrapped `claude` binary, the API surface of third-party
+# crates, and the state of comparable open-source projects. Those facts expire.
+#
+# This file records each one, which document depends on it, how to re-check it,
+# and when it was last verified. It is NOT a second home for the facts
+# themselves — the owning document states the fact, and this file only tracks
+# its freshness. If you find yourself explaining a rule here, it belongs in the
+# owning document instead.
+#
+# Fields:
+#   id          stable identifier, referenced from a review or an issue
+#   fact        one line: what is being tracked, not the full statement
+#   owner       the document that states the fact normatively
+#   dependents  what breaks or needs revisiting if the fact changes
+#   cadence     how often to re-check
+#   last_checked  ISO date of the last verification
+#   revalidate  concretely how to re-check it
+#
+# Stable rationale (an ADR's reasoning, a design principle) is NOT tracked here.
+# It does not expire on a schedule; it is superseded by a decision.
+
+version: 1
+
+facts:
+  - id: child-config-dir-var
+    fact: >-
+      CLAUDE_CONFIG_DIR redirects the child's configuration directory, and is
+      the mechanism the whole isolation design rests on.
+    owner: docs/reference/process-runtime.md
+    dependents:
+      - docs/explanation/session-isolation.md
+      - docs/decisions/0006-place-files-by-xdg-ownership.md
+      - docs/decisions/0011-isolate-credentials-by-seed-and-session.md
+    cadence: quarterly
+    last_checked: 2026-07-28
+    revalidate: >-
+      Run the child with the variable pointed at an empty directory and confirm
+      it reads and writes there rather than in the default location. Check the
+      upstream changelog for any statement about the variable's status.
+
+  - id: child-credential-file-layout
+    fact: >-
+      The child stores credentials in a file inside its configuration
+      directory on Linux; other platforms may use a system keychain.
+    owner: docs/reference/prior-art.md
+    dependents:
+      - docs/reference/xdg-storage.md
+      - docs/decisions/0011-isolate-credentials-by-seed-and-session.md
+    cadence: quarterly
+    last_checked: 2026-07-28
+    revalidate: >-
+      Authenticate into a scratch configuration directory and inspect what
+      appears. Confirm the seed-and-copy model still transfers an
+      authenticated state.
+
+  - id: child-trust-state-file
+    fact: >-
+      Project-trust and onboarding state live in a file separate from the
+      settings file, which is why they are synced back independently.
+    owner: docs/reference/configuration.md
+    dependents:
+      - docs/reference/process-runtime.md
+    cadence: quarterly
+    last_checked: 2026-07-28
+    revalidate: >-
+      Inspect a scratch configuration directory after a session in a new
+      project and confirm which file records the trust decision.
+
+  - id: child-settings-schema
+    fact: >-
+      The child's settings schema evolves independently, which is why
+      composition validates structure but does not reject unknown keys.
+    owner: docs/reference/configuration.md
+    dependents:
+      - docs/decisions/0010-compose-native-settings-from-declared-layers.md
+    cadence: quarterly
+    last_checked: 2026-07-28
+    revalidate: >-
+      Compare the documented settings keys against the last recorded set. A
+      maintained published schema would let validation tighten; check whether
+      one now exists.
+
+  - id: child-version-floor
+    fact: >-
+      The minimum child version this wrapper is designed against; baseline
+      2.1.183.
+    owner: docs/reference/prior-art.md
+    dependents:
+      - docs/reference/process-runtime.md
+    cadence: monthly
+    last_checked: 2026-07-28
+    revalidate: >-
+      Compare the floor against the current release. Raise it only with a
+      reason — a floor that tracks the latest release for no purpose breaks
+      users on stable distributions.
+
+  - id: proxy-base-url-var
+    fact: >-
+      ANTHROPIC_BASE_URL redirects the child's API endpoint; it is the basis
+      of the proxy seam.
+    owner: docs/reference/process-runtime.md
+    dependents:
+      - docs/explanation/wrapper-model.md
+    cadence: quarterly
+    last_checked: 2026-07-28
+    revalidate: >-
+      Confirm against the current upstream documentation, and confirm no
+      additional variable is now required alongside it.
+
+  - id: clap-external-subcommand-limits
+    fact: >-
+      External-subcommand handling captures an unexpected positional, not a
+      leading unknown flag — which is why argv is pre-split before parsing.
+    owner: docs/reference/cli-surface.md
+    dependents:
+      - docs/explanation/wrapper-model.md
+      - docs/decisions/0002-verbatim-argv-passthrough.md
+    cadence: on-major-upgrade
+    last_checked: 2026-07-28
+    revalidate: >-
+      On a major parser upgrade, retry the leading-unknown-flag invocation
+      without the pre-split. If the parser handles it, the pre-split may be
+      simplifiable — but the golden-argv tests stay either way.
+
+  - id: signal-forwarding-model
+    fact: >-
+      In a shared foreground process group the terminal delivers signals to
+      every member, so forwarding those signals double-delivers.
+    owner: docs/reference/process-runtime.md
+    dependents:
+      - docs/explanation/wrapper-model.md
+      - docs/decisions/0004-spawn-and-wait-child-supervision.md
+    cadence: on-implementation
+    last_checked: 2026-07-28
+    revalidate: >-
+      Verify empirically once the spawn path exists: send an interrupt to the
+      group and confirm the child observes exactly one. This is design-derived
+      until measured.
+
+  - id: xdg-runtime-absence
+    fact: >-
+      XDG_RUNTIME_DIR has no portable default and is genuinely absent in
+      containers, under cron, and over some remote logins.
+    owner: docs/reference/xdg-storage.md
+    dependents:
+      - docs/explanation/session-isolation.md
+      - docs/decisions/0006-place-files-by-xdg-ownership.md
+    cadence: annual
+    last_checked: 2026-07-28
+    revalidate: >-
+      Re-read the base directory specification for any change, and confirm the
+      degrade-explicitly path still holds in a container.
+
+  - id: switcher-landscape
+    fact: >-
+      The comparable account-switcher projects and what each was inspected
+      for.
+    owner: docs/reference/prior-art.md
+    dependents: []
+    cadence: semiannual
+    last_checked: 2026-07-28
+    revalidate: >-
+      Re-survey. Confirm each project is still maintained, and check whether
+      any has solved a problem this project has open.
+
+  - id: upstream-native-multi-account
+    fact: >-
+      Whether the wrapped tool has gained native multi-account support, which
+      would make the isolation layer redundant.
+    owner: docs/reference/prior-art.md
+    dependents:
+      - docs/explanation/session-isolation.md
+    cadence: quarterly
+    last_checked: 2026-07-28
+    revalidate: >-
+      Check the upstream feature request and the changelog. If it ships,
+      re-evaluate the isolation layer; the composition and supervision layers
+      are unaffected.
+
+  - id: dependency-currency
+    fact: >-
+      The reviewed crate set in the dependencies reference is still the right
+      set, and nothing on it has been deprecated or superseded.
+    owner: docs/reference/dependencies.md
+    dependents: []
+    cadence: semiannual
+    last_checked: 2026-07-28
+    revalidate: >-
+      Check each named crate for maintenance status and for a successor. The
+      page carries no version numbers, so only names and rulings need review.

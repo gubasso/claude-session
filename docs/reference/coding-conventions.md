@@ -1,0 +1,126 @@
+# Coding conventions
+
+Lookup rules for code shape: naming, visibility, module form, the error type stack, and the panic policy. The reasoning behind the module layout is in [the architecture](../explanation/architecture.md).
+
+This describes normative design. The crate is pre-implementation.
+
+## Naming
+
+| Kind                         | Pattern                 | Example                          |
+| ---------------------------- | ----------------------- | -------------------------------- |
+| Parse-shape argument struct  | `<Verb>Args`            | `AccountArgs`                    |
+| Runtime-shape request        | `<Verb>Request`         | `ComposeRequest`                 |
+| Per-layer error enum         | `<Layer>Error`          | `DomainError`, `FsAdapterError`  |
+| Validated newtype            | The concept, singular   | `AccountId`, `GroupId`           |
+| Adapter trait                | The role it plays       | `Spawner`, `Filesystem`, `Clock` |
+| Command handler              | `run`                   | One per `commands/<verb>.rs`     |
+| Constructor returning `Self` | `new`                   |                                  |
+| Fallible constructor         | `try_new`, or `FromStr` |                                  |
+| Conversion, borrowed, cheap  | `as_*`                  | `as_str`                         |
+| Conversion, owned, cheap     | `into_*`                | `into_inner`                     |
+| Conversion, expensive        | `to_*`                  | `to_args`                        |
+
+Banned suffixes: `Manager`, `Helper`, `Util`, `Handler`, `Data`, `Info`, `Impl`. Each names a shape rather than a job, and a type that cannot be named after its job usually has more than one.
+
+Modules are singular when they hold one concept, plural when they hold a collection of siblings: `context.rs`, but `commands/`.
+
+Booleans read as assertions: `is_executable`, `has_credentials`. Never a negation in the name — `is_not_ready` produces `!is_not_ready` at the call site.
+
+## Visibility
+
+`pub(crate)` is the default for everything. There is no library target, so `pub` on an item that nothing outside the crate can reach is noise that implies a stability promise the crate does not make.
+
+`pub` is reserved for the day a library target exists. Until then a lint warns on unreachable `pub`.
+
+Fields are private by default, with accessors where reading is genuinely needed. A newtype whose invariant is enforced in its constructor and whose field is public has no invariant.
+
+## Module form
+
+Post-2018 form: a module lives in `foo.rs`, and its children in a sibling `foo/` directory. `mod.rs` is not used.
+
+The reason is mechanical: a tree of `mod.rs` files gives every open editor tab the same name.
+
+## Error stack
+
+Errors are typed per layer and converge on one application error:
+
+| Layer       | Type                    | Purpose                                                                               |
+| ----------- | ----------------------- | ------------------------------------------------------------------------------------- |
+| Domain      | `DomainError`           | Invariant violations in pure code — an invalid identifier, a malformed path component |
+| Adapter     | `<Sys>AdapterError`     | One per adapter. Wraps the underlying failure and records what was being attempted    |
+| Service     | `ServiceError`          | Orchestration failures, and adapter failures with the operation's context attached    |
+| Application | `AppError`              | The closed enum every layer converges on. Owns the exit-code mapping.                 |
+| Boundary    | The boundary error type | The entry point only, for the final report                                            |
+
+Rules:
+
+- Every error carries the **concrete value** involved — the path, the key, the account. An error that says a file could not be read without saying which file has failed at its one job.
+- Conversions between layers are derived where the mapping is total, and written by hand where context must be added. A conversion that discards context is worse than none.
+- `AppError` is a **closed enum** with no catch-all variant. This is what makes the exit-code mapping exhaustive; see [exit codes](./exit-codes.md).
+- **A boxed trait-object error is never a return type** in this crate. It erases exactly the type information the exit-code mapping needs.
+- The boundary error type is used **only** in the entry point. It is the right tool for one place — assembling the final report — and the wrong tool everywhere else, because a function returning it tells the caller nothing about what can go wrong.
+
+## Panics
+
+`unwrap` and `expect` are lint-warned. Every use needs a comment saying why the case is impossible.
+
+The sanctioned exceptions:
+
+| Case                                                                    | Why                                                   |
+| ----------------------------------------------------------------------- | ----------------------------------------------------- |
+| A regular expression or other constant parsed from a literal at startup | The input is compiled in; failure is a build-time bug |
+| A lock poisoned by another thread's panic                               | The program is already failing                        |
+| A slice index proved in range by an immediately preceding check         | The proof is local and visible                        |
+| Test code                                                               | A panic is how a test fails                           |
+
+Everything else returns a typed error. In particular, a missing file, a malformed configuration, a failed system call, and absent input are all **ordinary** conditions, and panicking on any of them turns a diagnosable error into a stack trace.
+
+`panic!` appears nowhere outside test code. `unsafe` is forbidden crate-wide.
+
+## Types
+
+**Parse, don't validate.** Convert unvalidated input into a type that cannot be invalid, once, at the boundary. Downstream code then takes the validated type and needs no defensive checks. A function taking `&str` where it means an account identifier has pushed validation onto every caller.
+
+**Newtypes for identifiers.** Account and group identifiers, paths with meaning, and anything else where passing the wrong string type-checks but misbehaves. Validation lives in the constructor.
+
+**`FromStr` for anything parsed from a flag or a file**, so the parser and the configuration loader share one implementation.
+
+**Prefer borrowed parameters.** Take `&str` and `&Path` rather than `String` and `PathBuf` unless ownership is genuinely needed.
+
+**OS strings at the boundary.** Anything that came from or is going to the operating system — arguments, environment values, paths — stays an OS string until something genuinely needs text. Converting to UTF-8 for convenience is how the passthrough contract breaks; see [the CLI surface](./cli-surface.md).
+
+**Enums over boolean pairs.** Two related booleans admit a state that cannot happen. An enum does not.
+
+**Prefer `LazyLock` to a runtime-initialized global**, and prefer passing the value to either.
+
+## Documentation comments
+
+Every module begins with a `//!` header stating what it is for **and what it is not for**. The second half is the useful one: it is what stops a module from accumulating everything adjacent to its topic.
+
+Every `pub(crate)` item has a doc comment. A function's comment says what it does and what it returns on failure; it does not restate the signature.
+
+Comments inside a function are for **rationale**: why a surprising boundary exists, which invariant must hold, which external constraint forced the shape. A comment narrating what the next line does should be deleted, or replaced by a better name. The test is whether deleting the comment would leave a future maintainer confused; if not, it is noise.
+
+Where a decision record governs the code, the comment names it. That is the link that keeps rationale findable from the code.
+
+## Lints
+
+| Setting                             | Level  | Why                                                   |
+| ----------------------------------- | ------ | ----------------------------------------------------- |
+| `unsafe_code`                       | forbid | Nothing here needs it                                 |
+| `unused_must_use`                   | deny   | A discarded result is a swallowed error               |
+| `unreachable_pub`                   | warn   | Keeps the `pub(crate)` default honest                 |
+| Clippy `all`, `pedantic`, `nursery` | warn   | Broad by default; suppress individually with a reason |
+| Clippy `unwrap_used`, `expect_used` | warn   | Enforces the panic policy                             |
+
+Suppressing a lint requires a scoped attribute with a comment. A crate-wide suppression needs a decision record.
+
+Formatting and lint enforcement are in [testing and quality](./testing-and-quality.md).
+
+## Further reading
+
+- [Rust API Guidelines: naming](https://rust-lang.github.io/api-guidelines/naming.html)
+- [Parse, don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
+- [The newtype pattern](https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html)
+- [Error handling in Rust](https://burntsushi.net/rust-error-handling/)
+- [Visibility and privacy](https://doc.rust-lang.org/reference/visibility-and-privacy.html)

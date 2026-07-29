@@ -1,32 +1,36 @@
-# Foundation R4: Docs/ADR System & Quality Gates
+# Foundation R4: Conformance & Gate Closeout
 
-> Plan: cs-foundation | Round: 4 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-foundation | Round: 4 of 4 | Complexity: M | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
-`claude-session`'s rules, principles, and docs must be self-contained in the repo, following the docs-design reference (Diátaxis zones, lean ADRs, ARID single-SoT). `CLAUDE.md` must call `AGENTS.md`, and `AGENTS.md` must be the lean SoT. Quality gates: pre-commit hooks are the source of truth; a `justfile` delegates to them. Rounds 1–3 produced the compiling crate, the plumbing, and the clap passthrough skeleton with a minimal spawn. This round documents the foundation and locks in the gates so feature plans build on a documented, enforced base.
+This round was originally scoped to create the docs tree, the first ADRs, `CLAUDE.md`, `AGENTS.md`, the `justfile`, and `deny.toml`. **All of that already exists.** A dedicated documentation build-out landed the specifications, twelve ADRs, and the governance chain, and the project bootstrap landed the task runner and supply-chain policy. Recreating any of it would produce a second, conflicting source of truth — the exact drift the documentation model exists to prevent.
+
+What remains is the part that genuinely depends on rounds 1–3 having produced code: the output-ownership lint that could not be written before there was a `src/` tree, and a conformance pass verifying that the code those rounds produced actually matches the specifications it was written against. Rounds 1–3 produced the compiling crate, the plumbing, and the passthrough skeleton with a minimal spawn.
 
 ## Previous Rounds
 
-Round 1: crate tree + manifest. Round 2: error/logging/context/config plumbing. Round 3: clap passthrough skeleton, wrapper-verb stubs, minimal spawn, dispatch + main. Expect a working wrapper that passes native args through and stubs its own verbs.
+Round 1: crate tree + manifest. Round 2: error/logging/context/config plumbing. Round 3: argv pre-split, clap skeleton, wrapper-verb stubs, minimal spawn, dispatch + main. Expect a working wrapper that passes native args through and stubs its own verbs.
 
 ## Scope of This Round
 
-- IN scope: `docs/` Diátaxis skeleton (`docs/README.md` index, `docs/decisions/`, `docs/guides/`, `docs/reference/`, `docs/explanation/`); a gitignored `.draft/`; the first ADRs (lean template, ≤350 words, 5 sections, 5 statuses) recording the decided architecture — non-breaking passthrough contract; thiserror-per-layer + sysexits exit-code policy; pty-keyed multiplexer-agnostic isolation approach; JSON-pieces + YAML-manifest config-composition model; managed-`claude login` seed→session auth model; status `Accepted` for these binding decisions; `justfile` (gate recipes delegate to `pre-commit run …`; inner-loop recipes raw cargo); `deny.toml` (license allowlist, ban wildcards/unknown sources); the stdout/stderr-ownership `rg` lint as a pre-commit hook + `just` recipe; `CLAUDE.md` (calls `@AGENTS.md` + a few non-negotiables); `AGENTS.md` (lean SoT: scope, module conventions, four-edit subcommand rule, error/logging/output rules, quality-gate principle, docs ownership).
-- OUT of scope: feature ADRs requiring implemented behavior; the prior-art competitive-analysis note (deferred to `cs-docs-hardening` where the research is finalized).
+- IN scope: the stdout/stderr-ownership lint as a pre-commit hook plus a `just` recipe; the dependency-direction boundary lint (`domain/` imports nothing from `adapters/` or `services/`); a **conformance pass** comparing the code produced by rounds 1–3 against `docs/explanation/architecture.md`, `docs/reference/coding-conventions.md`, `docs/reference/exit-codes.md`, `docs/reference/logging-and-output.md`, `docs/reference/configuration.md`, and `docs/reference/cli-surface.md`, correcting whichever side is wrong; confirming the mandatory tests for this stage exist per `docs/reference/testing-and-quality.md` (exit-code matrix, golden argv, `--` sentinel, help snapshot).
+- OUT of scope: creating any docs zone, ADR, `CLAUDE.md`, `AGENTS.md`, `justfile`, or `deny.toml` — all already exist. Transitioning ADR statuses from `Accepted` to `Implemented` (owned by `cs-docs-hardening` R4). Feature behaviour of any kind.
 
 ## Current State
 
 ### Key Files
 
-- `/workspaces/claude-session/.pre-commit-config.yaml` — already wired (7.5KB); reuse/extend its hooks.
-- `/workspaces/claude-session/committed.toml` — Conventional Commits, 72-col.
-- `/workspaces/claude-session/.config/nextest.toml` — nextest profiles already present.
-- No `docs/`, `CLAUDE.md`, `AGENTS.md`, `justfile`, or `deny.toml` yet.
+- `.pre-commit-config.yaml` — fully wired; extend it, do not rewrite it.
+- `justfile` — gate recipes already delegate to `pre-commit run …`; add the lint recipe alongside them.
+- `deny.toml` — present with a filled allow-list.
+- `docs/` — populated: an index, four zones, twelve ADRs. The specifications this round checks the code against.
+- `AGENTS.md`, `CLAUDE.md` — present. `CLAUDE.md` is a one-line `@AGENTS.md` import and stays that way.
+- `.config/nextest.toml` — profiles present; see the `--profile` foot-gun in `docs/reference/testing-and-quality.md`.
 
 ### Existing Patterns
 
-CLAUDE.md→AGENTS.md model: `/home/gbasso/Projects/_gubasso/cog/CLAUDE.md` is essentially `@AGENTS.md` plus a few "Non-negotiable:" lines; `AGENTS.md` is the SoT. codex-session's `CLAUDE.md` states "pre-commit hooks are the Source of Truth for quality gates" and its `justfile` gate recipes call `pre-commit run …` while inner-loop recipes (`build`/`run`/`fmt`/`watch`) stay raw cargo. Lean ADR template at `/home/gbasso/Projects/docs-n-notes/tech/programming/docs-design/template-adr.md`: five sections (Context and Problem Statement, Considered Options, Decision Outcome, Consequences, Status), ≤350 words, filename `ADR-<number>-<decision>.md`, one Status of {Proposed, Accepted, Implemented, Superseded, Rejected}. Diátaxis zones: zone-first, topic-second; topic dirs live inside a zone; root `docs/README.md` is an index only.
+Quality-gate ownership is settled and documented in `docs/reference/testing-and-quality.md`: pre-commit hooks are the source of truth, `justfile` gate recipes delegate to `pre-commit run …`, and inner-loop recipes (`build`, `run`, `fmt`, `watch`) stay raw cargo. The boundary lints are defined in the same page. The ADR rules — five sections, at or under 350 words, one status from a closed vocabulary, never deleted — are in `AGENTS.md` under Documentation Maintenance, with the template at `docs/decisions/template.md`.
 
 ## Implementation Steps
 
@@ -34,21 +38,23 @@ CLAUDE.md→AGENTS.md model: `/home/gbasso/Projects/_gubasso/cog/CLAUDE.md` is e
 
 In this plan's `queue-rounds.yaml`, set this round's (`item: docs-adr-and-quality-gates`) `status` to `doing`.
 
-### Step 1: Diátaxis docs skeleton
+### Step 1: Output-ownership lint
 
-Create `docs/README.md` (index only) and the four zone dirs (`docs/decisions/`, `docs/guides/`, `docs/reference/`, `docs/explanation/`) each with a brief index/`.gitkeep`. Add a gitignored `.draft/`.
+Add a pre-commit hook that fails on a print macro in `src/` outside `src/ui/` and `src/main.rs`, plus a matching `just` recipe. Scope the grep to `src/`, and make sure it does not fire on an example inside a `///` doc comment — that false positive is why this lint waited for real code.
 
-### Step 2: First ADRs
+### Step 2: Dependency-direction lint
 
-Write `ADR-0001…` (lean template) for the decided architecture (passthrough contract; exit-code policy; isolation approach; config-composition model; auth model). Status `Accepted`.
+Add a hook asserting that `src/domain/` imports nothing from `adapters/` or `services/`. The type system does not enforce this; without a lint it erodes silently.
 
-### Step 3: Quality gates
+### Step 3: Conformance pass
 
-Write `deny.toml` (license allowlist incl. `MIT`/`Apache-2.0`, ban wildcard versions + unknown sources). Write `justfile`: gate recipes (`test`, `lint`, `audit`, `deny`, `check`) delegate to `pre-commit run <hook> --all-files`; inner-loop recipes (`build`, `run`, `fmt`, `fix`, `watch`, `clean`, `install`) raw cargo. Add the stdout/stderr-ownership `rg` lint hook + recipe. Ensure `cargo deny`/`fmt`/`clippy`/`nextest` hooks exist in `.pre-commit-config.yaml`.
+Read the specifications listed in scope and compare them against what rounds 1–3 actually built. Check specifically: the module tree and its prohibitions; `main.rs` at or under 120 lines doing the five steps; the exit-code matrix implemented exactly, with no catch-all arm; the stream contract and single output writer; the config precedence direction (`defaults < user < project < env < cli`); the argv pre-split preserving order, bytes, count, and **empty arguments**.
 
-### Step 4: CLAUDE.md → AGENTS.md
+Where code and specification disagree: **the specification wins by default** and the code is corrected. If the code is actually right, update the specification _and_ the ADR carrying that decision. If it is a genuinely open question, add a new ADR with status `Proposed`. Do not leave two live claims in the repository.
 
-Write `CLAUDE.md` as `@AGENTS.md` plus a short "Non-negotiable:" list (passthrough contract, exit-code matrix, output discipline, quality-gate SoT). Write `AGENTS.md` as the lean SoT — including the **dependency rule: every dependency is added with `cargo add`, never by hand-editing `[dependencies]` or writing version strings** (cargo resolves the latest compatible version and updates `Cargo.lock`).
+### Step 4: Mandatory tests present
+
+Confirm the tests that lock down this stage's contracts exist and pass: the exit-code matrix (exhaustive, no catch-all), the golden-argv table, the `--` sentinel, and the help snapshot. Add any that are missing.
 
 ### Final Step: Update the queue
 
@@ -57,10 +63,12 @@ Write `CLAUDE.md` as `@AGENTS.md` plus a short "Non-negotiable:" list (passthrou
 
 ## Acceptance Criteria
 
-- [ ] `docs/` has the four Diátaxis zones and an index-only `docs/README.md`; topic dirs (if any) are inside a zone.
-- [ ] At least five lean ADRs exist (each ≤350 words, 5 sections, one valid Status).
-- [ ] `CLAUDE.md` calls `@AGENTS.md`; `AGENTS.md` is the lean SoT.
-- [ ] `just lint` / `just test` delegate to `pre-commit run …`; `deny.toml` exists and `cargo deny check` passes.
+- [ ] A print macro outside `src/ui/` and `src/main.rs` fails the hook; a doc-comment example does not.
+- [ ] An import from `adapters/` or `services/` into `domain/` fails the hook.
+- [ ] Every discrepancy found in the conformance pass is resolved, with the resolution recorded — code corrected, or specification plus ADR updated, or a `Proposed` ADR added.
+- [ ] The exit-code matrix test is exhaustive with no catch-all; adding a variant without a code fails the build.
+- [ ] The golden-argv table passes, including the empty-argument and non-UTF-8 cases.
+- [ ] No docs zone, ADR, `CLAUDE.md`, `AGENTS.md`, `justfile`, or `deny.toml` was created or rewritten by this round.
 - [ ] `pre-commit run --all-files` passes.
 - [ ] This plan's `queue-rounds.yaml` shows round `docs-adr-and-quality-gates` as `done` and the top-level `queue-plans.yaml` shows `cs-foundation` as `done`.
 

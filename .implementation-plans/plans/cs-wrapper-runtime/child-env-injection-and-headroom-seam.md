@@ -1,6 +1,6 @@
 # Wrapper Runtime R3: Isolated Child Env & headroom/proxy Seam
 
-> Plan: cs-wrapper-runtime | Round: 3 of 3 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-wrapper-runtime | Round: 3 of 3 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -19,14 +19,18 @@ This plan round 1: `Spawner` trait, child resolution, recursion guard. Round 2: 
 
 ### Key Files
 
-- `/workspaces/claude-session/src/domain.rs` (+ `src/domain/`) — add `child_invocation.rs`.
-- `/workspaces/claude-session/src/commands/pass_through.rs` — build the isolated `ChildInvocation`.
-- `/workspaces/claude-session/src/adapters/spawner.rs` — `spawn_and_wait` consumes `ChildInvocation`.
-- `/workspaces/claude-session/src/context.rs` — provides the resolved session dir.
+- `src/domain.rs` (+ `src/domain/`) — add `child_invocation.rs`.
+- `src/commands/pass_through.rs` — build the isolated `ChildInvocation`.
+- `src/adapters/spawner.rs` — `spawn_and_wait` consumes `ChildInvocation`.
+- `src/context.rs` — provides the resolved session dir.
 
 ### Existing Patterns
 
-Reference `child_invocation.rs` (codex-session, inspiration only): `ChildEnv::scrubbed_default()` inherits parent env, removes all internal `CODEX_SESSION_*` keys, sets `CODEX_HOME=<session dir>` + `CODEX_SESSION_REENTRY=1`. Analog: remove `CLAUDE_SESSION_*`, set `CLAUDE_CONFIG_DIR=<session dir>` + `CLAUDE_SESSION_REENTRY=1`. headroom integration facts (brief §9): headroom is a token-compression proxy; the clean seam is `ANTHROPIC_BASE_URL=http://localhost:<port>` pointing at `headroom proxy` injected into the isolated child env — claude-session implements NO compression, only the env seam. Confirmed native auth/proxy env vars: `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`.
+The child-environment contract is specified in `docs/reference/process-runtime.md`: inherit the parent environment, **remove every internal `CLAUDE_SESSION_*` key**, set `CLAUDE_CONFIG_DIR` to the resolved session directory, and set `CLAUDE_SESSION_REENTRY=1` — the one internal variable deliberately left in place, because it is half of the recursion guard. Scrubbing matters for two reasons: the wrapper's internal state is not the child's business, and a nested invocation must not inherit stale values.
+
+**The proxy seam is a general mechanism, not a proxy feature.** Composed injections are arbitrary key-value pairs drawn from configuration or the command line; `ANTHROPIC_BASE_URL` is simply the one an external proxy needs. Implement the composition, not the proxy: `claude-session` performs no compression, no request rewriting, and no routing of its own. See `docs/explanation/wrapper-model.md` for why that boundary erodes if it is not stated. `ANTHROPIC_BASE_URL` is tracked as a perishable fact in `docs/reference/research-tracking.yaml`.
+
+Argv is forwarded verbatim as `OsString`, preserving order, bytes, count, and empty arguments; see `docs/reference/cli-surface.md`.
 
 ## Implementation Steps
 
@@ -44,7 +48,7 @@ In `commands/pass_through.rs`, build the `ChildInvocation` from the resolved ses
 
 ### Step 3: Proxy/headroom seam
 
-Allow composing `ANTHROPIC_BASE_URL` (and arbitrary additional child env) from config/CLI/env so an external proxy can front `claude`. No internal compression. Document the seam in code comments (referencing the `cs-docs-hardening` guide).
+Implement composition of arbitrary child environment keys from configuration and the command line; `ANTHROPIC_BASE_URL` is one instance of that mechanism, not a special case in the code. No internal compression, rewriting, or routing. Note the boundary in a code comment citing `docs/explanation/wrapper-model.md`, since it is the kind of boundary that erodes silently.
 
 ### Step 4: End-to-end tests
 

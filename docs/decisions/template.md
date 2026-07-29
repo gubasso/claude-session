@@ -25,6 +25,6 @@ Chosen option: **{Option 1}** — {one sentence: why}.
 
 ## Status
 
-{Proposed | Accepted | Implemented | Superseded | Rejected}
+{Proposed | Accepted | Implemented | Superseded | Deprecated | Rejected}
 
-{If Implemented: link to the code that enacts it. If Superseded: link to the successor.}
+{If Implemented: link to the code that enacts it. If Superseded: link to the successor. If Deprecated: say what made the context evaporate.}

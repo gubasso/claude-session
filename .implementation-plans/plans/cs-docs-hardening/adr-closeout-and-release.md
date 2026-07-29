@@ -1,6 +1,6 @@
 # Docs & Hardening R4: ADR Closeout & Release Hardening
 
-> Plan: cs-docs-hardening | Round: 4 of 4 | Complexity: M | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-docs-hardening | Round: 4 of 4 | Complexity: M | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -20,14 +20,18 @@ All `cs-` feature plans + this plan R1 (docs), R2 (doctor), R3 (completions/man)
 
 ### Key Files
 
-- `/workspaces/claude-session/docs/decisions/` — ADRs to transition to `Implemented`.
-- `/workspaces/claude-session/README.md` — write the user-facing intro (currently none).
-- `/workspaces/claude-session/deny.toml`, `.pre-commit-config.yaml` — supply-chain gates.
-- `/workspaces/claude-session/tests/` — final cross-subsystem integration test.
+- `docs/decisions/` — ADRs to transition to `Implemented`.
+- `README.md` — write the user-facing intro (currently none).
+- `deny.toml`, `.pre-commit-config.yaml` — supply-chain gates.
+- `tests/` — final cross-subsystem integration test.
 
 ### Existing Patterns
 
-Lean ADR statuses (`docs-design/02-lean-adrs.md`): {Proposed, Accepted, Implemented, Superseded, Rejected}; never delete. Reference user-README structure (codex-session `README.md`, inspiration only): quick start, command tree, configuration precedence, paths table, requirements, docs links, exit-code contract. Release gates: `cargo deny`/`cargo audit` clean; commit `Cargo.lock`.
+The ADR lifecycle is specified in `AGENTS.md` under Documentation Maintenance: statuses are `Proposed`, `Accepted`, `Implemented`, `Superseded`, and `Rejected`; a record is **never deleted**; a changed decision is superseded with a forward link; a partly-changed one keeps its status and gains an `Amended by ADR-NNNN` line.
+
+`README.md` already exists and carries the install, development-shell, task, licence, and contribution sections, plus a design-contract summary explicitly marked as a summary of the normative sources. This round **updates** it for shipped behaviour rather than writing it: replace the pre-implementation warning, add the quick start and the account/profile/isolation model, and link the docs index. Do not duplicate the paths table or the exit-code matrix — link `docs/reference/xdg-storage.md` and `docs/reference/exit-codes.md`, or the two copies will drift.
+
+Release gates are already wired; see `docs/reference/testing-and-quality.md`. Confirm they are clean rather than re-adding them.
 
 ## Implementation Steps
 

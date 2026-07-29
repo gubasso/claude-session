@@ -14,3 +14,6 @@ rustc-ice-*.txt
 # Nix devshell
 .direnv/
 /result
+# Drafts: a workshop, never shipped. Promotion out of .draft/ is a rewrite into
+# the owning doc, not a move. See docs/decisions/0012-docs-architecture.md.
+.draft/

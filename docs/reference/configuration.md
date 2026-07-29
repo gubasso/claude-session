@@ -1,0 +1,137 @@
+# Configuration
+
+Two distinct things share the word "configuration" in this project, and keeping them apart is the first thing to understand.
+
+**The wrapper's own configuration** controls `claude-session`: which child to run, which account to use, how verbose to be. It is a layered value resolved at startup.
+
+**The child's settings** are what `claude` reads inside its isolated session directory. `claude-session` _generates_ them by composing user-authored pieces. The wrapper never edits the child's files in place.
+
+Paths for both are in [XDG storage](./xdg-storage.md).
+
+This describes normative design. The crate is pre-implementation.
+
+## The wrapper's configuration
+
+### Precedence
+
+Later layers override earlier ones:
+
+1. **Built-in defaults** — compiled in. Every key has one, so a missing configuration file is never an error.
+2. **User configuration file** — under the config base directory.
+3. **Project configuration file** — discovered by walking up from the working directory, for per-repository overrides.
+4. **Environment variables** — see below.
+5. **Command-line flags** — highest. The user typed it just now.
+
+A missing file at any layer is **not an error**. An unreadable or malformed file _is_ an error, reported with the path — the distinction is between "you did not configure this" and "you tried to and it did not work".
+
+`--config <path>` replaces the user layer with an explicit file. Because it must be honoured before configuration exists, it is read from the raw argument vector rather than from the resolved value.
+
+### Environment variables
+
+| Property     | Rule                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------- |
+| Prefix       | `CLAUDE_SESSION_`                                                                     |
+| Nesting      | Double underscore separates levels: `CLAUDE_SESSION_OUTER__INNER` sets `outer.inner`. |
+| Case         | Upper-case in the environment, lower-case snake in the file                           |
+| Empty values | Treated as set-to-empty, not as unset. Unsetting means removing the variable.         |
+
+A **single** underscore is part of a key name, not a level separator. `CLAUDE_SESSION_CHILD_BIN` therefore sets the flat key `child_bin` — the child-binary override in [process runtime](./process-runtime.md) — and not a nested `child.bin`.
+
+Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are **not** configuration keys, and are scrubbed from the child's environment. See [process runtime](./process-runtime.md).
+
+### Schema
+
+- Unknown keys are **rejected**, not ignored. A typo in a configuration file is the single most common configuration bug, and silently ignoring it produces a program that does not do what its configuration says.
+- The rejection names the offending key, its file, and, where the distance is small, the key it was probably meant to be.
+- The resolved value is **immutable**. It is built once and passed by shared reference. Nothing mutates configuration mid-run.
+- Every key has a documented default, a type, and a one-line meaning.
+
+`claude-session config show` prints the resolved value; `--format json` makes it machine-readable. `claude-session config path` prints which files were consulted and which existed.
+
+### Provenance
+
+For each key, the wrapper tracks which layer supplied the winning value. This is what makes "why is it doing that?" answerable in one command rather than by bisecting files. `config show` reports it.
+
+## Composing the child's settings
+
+The user does not edit the child's settings file. They author **pieces** and a **manifest**, and the wrapper composes them into the generated file inside the isolated session directory.
+
+### Inputs
+
+**Pieces** are partial settings documents in the child's own format, JSON, under `settings/` in the config base. Each is a fragment: a piece that only sets one key contains only that key. Pieces are read-only to the wrapper.
+
+**Manifests** are profiles. One YAML file per profile under `manifests/`, whose sole required field is an ordered, non-empty list of piece names:
+
+```yaml
+# manifests/work.yaml
+layers:
+  - base
+  - work-permissions
+  - verbose-logging
+```
+
+Order is significant and later wins. Unknown fields in a manifest are rejected. An empty list is rejected. A referenced piece that does not exist is an error naming both the manifest and the resolved path it looked for.
+
+The active profile comes from `--profile`, then the environment, then the wrapper's configuration, then a default.
+
+### Merge semantics
+
+Pieces are folded left to right into one document:
+
+| Node type             | Rule                                                                      |
+| --------------------- | ------------------------------------------------------------------------- |
+| Object                | Merged key by key, recursively                                            |
+| Scalar                | Last writer wins                                                          |
+| Array                 | **Replace** by default                                                    |
+| Array, `concat`       | Elements appended in layer order                                          |
+| Array, `merge-by-key` | Elements matched on a named field and merged; unmatched elements appended |
+
+Array strategy is the one genuinely contested decision. Replace is the default because it is predictable: what the last piece says is what you get. Concatenation is what you want for additive lists — extra permitted paths, extra tools — and it is opt-in **per key** through a strategy table in the manifest, because a global concat setting is wrong for roughly half of any real settings file.
+
+A **type conflict** — one piece making a key an object and another a string — is an error, not a silent overwrite. It names the key path, both pieces, and both types.
+
+Merging is **deterministic**: the same inputs produce byte-identical output, with object keys in a stable order. A generated file that reshuffles on every run defeats the freshness check and makes diffs useless.
+
+### Provenance sidecar
+
+Alongside the generated settings, the wrapper writes a sidecar recording the manifest used, the ordered pieces with their resolved paths, and, for every leaf key, which piece set it.
+
+This is the difference between "the setting is wrong" and "the setting is wrong _because_ this piece overrode that one". `config compose` and `config validate` surface it.
+
+### Generation and freshness
+
+Generation resolves the profile, loads the pieces, merges, validates, and writes atomically into the session directory.
+
+The freshness check compares the modification time of the generated file against **the manifest and every referenced piece**. Checking only the manifest is a real bug: editing a piece without touching the manifest leaves stale settings in place, and the symptom — an edit that appears to do nothing — is genuinely hard to diagnose.
+
+### Validation
+
+Validation is deliberately **pragmatic**. The wrapper validates the structure it owns and the well-formedness of the whole. It does not reject unknown keys in the child's settings, because the child's schema evolves on its own schedule and a wrapper that rejects a valid new setting is worse than one that passes it through.
+
+That is the opposite of the rule for the wrapper's own configuration, and the asymmetry is the point: strict about what we own, permissive about what we forward. It is the passthrough contract applied to configuration.
+
+Unknown _piece_ keys are surfaced as warnings with provenance rather than errors.
+
+### Project trust state
+
+The child keeps project-trust and onboarding state in a separate file from its settings. The wrapper seeds it into a new session and syncs it back afterwards, under a lock, merging conservatively — a concurrent session's newer state is not this session's to discard. See [process runtime](./process-runtime.md).
+
+## Commands
+
+| Command           | Reports                                                                   |
+| ----------------- | ------------------------------------------------------------------------- |
+| `config show`     | The resolved wrapper configuration with per-key provenance                |
+| `config path`     | Which files were consulted, and which existed                             |
+| `config compose`  | The merged settings and its provenance, without writing                   |
+| `config validate` | Structural problems, type conflicts, missing pieces, unknown-key warnings |
+| `config status`   | Active profile, resolved pieces, and whether the generated file is fresh  |
+| `profile list`    | Available manifests                                                       |
+| `profile show`    | One manifest's ordered layers and their resolved paths                    |
+
+All accept `--format json`. All write data to standard output and diagnostics to standard error; see [logging and output](./logging-and-output.md).
+
+## Further reading
+
+- [`figment`](https://docs.rs/figment/)
+- [`serde_json`](https://docs.rs/serde_json/)
+- [RFC 7396: JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7396.html)

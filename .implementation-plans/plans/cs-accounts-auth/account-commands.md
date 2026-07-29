@@ -1,32 +1,36 @@
 # Accounts & Auth R4: `account` CLI Verbs
 
-> Plan: cs-accounts-auth | Round: 4 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-accounts-auth | Round: 4 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
-With the registry, managed login, resolver, and auth gate in place, `claude-session` exposes the user-facing `account` command surface to add, list, inspect, remove, and refresh accounts — following the four-edit subcommand rule, with `--json` machine output and secret redaction. This is the final round of the accounts/auth plan. Rounds 1–3 built the machinery; this round wires it to the CLI and to `doctor`.
+With the registry, managed login, resolver, and auth gate in place, `claude-session` exposes the user-facing `account` command surface to add, list, inspect, remove, and refresh accounts — following the four-edit subcommand rule, with `--format json` machine output and secret redaction. This is the final round of the accounts/auth plan. Rounds 1–3 built the machinery; this round wires it to the CLI and to `doctor`.
 
 ## Previous Rounds
 
-This plan R1: `Registry`. R2: managed login + hardened I/O. R3: resolver, gate, session copy, fallback, trust sync-back. `cs-foundation`: clap skeleton + `doctor` stub + `Ui` (stdout/stderr + `--json`). Expect all to exist.
+This plan R1: `Registry`. R2: managed login + hardened I/O. R3: resolver, gate, session copy, fallback, trust sync-back. `cs-foundation`: clap skeleton + `doctor` stub + `Ui` (stdout/stderr + `--format json`). Expect all to exist.
 
 ## Scope of This Round
 
-- IN scope: the `account` subcommand tree per the four-edit rule — `cli/account.rs` (clap `<Verb>Args`), `cli/mod.rs` (register the `Account` variant — replacing the reserved stub), `commands/account.rs` (free `run` handlers for `add|list|current|remove|refresh`), `main.rs` dispatch arm; `--json` output via `Ui` with **secret redaction** (never print tokens; show `has_auth`/`last_used_at` instead); wiring account health into `doctor` (accounts present, seeds valid, current account). Tests via `assert_cmd`.
+- IN scope: the `account` subcommand tree per the four-edit rule — `cli/account.rs` (clap `<Verb>Args`), `cli.rs` (register the `Account` variant — replacing the reserved stub), `commands/account.rs` (free `run` handlers for `add|list|current|remove|refresh`), the `commands/dispatch.rs` match arm; `--format json` output via `Ui` with **secret redaction** (never print tokens; show `has_auth`/`last_used_at` instead); wiring account health into `doctor` (accounts present, seeds valid, current account). Tests via `assert_cmd`.
 - OUT of scope: new auth machinery (done in R1–R3); config composition (`cs-config-composition`); completions/version (`cs-docs-hardening`).
 
 ## Current State
 
 ### Key Files
 
-- `/workspaces/claude-session/src/cli/account.rs` — new (clap shapes; replaces the reserved `--account` stub semantics with the full subcommand tree).
-- `/workspaces/claude-session/src/cli/mod.rs` — register the `Account` `Commands` variant.
-- `/workspaces/claude-session/src/commands/account.rs` — handlers.
-- `/workspaces/claude-session/src/commands/doctor.rs` — add account checks.
+- `src/cli/account.rs` — new (clap shapes; replaces the reserved `--account` stub semantics with the full subcommand tree).
+- `src/cli.rs` — register the `Account` `Commands` variant.
+- `src/commands/account.rs` — handlers.
+- `src/commands/doctor.rs` — add account checks.
 
 ### Existing Patterns
 
-Reference (codex-session `cli/account.rs` + `commands/account/*`, inspiration only): subcommand tree `add/list/current/remove/refresh`; redaction of secrets in `show`/`list` unless explicitly verbose; `--json` machine output. Four-edit rule (`rust/cli-spec/02-subcommand-pattern.md`): `cli/<verb>.rs`, `cli/mod.rs` enum, `commands/<verb>.rs` free `run`, `main.rs` arm. Output discipline: data → stdout (JSON via `Ui`), diagnostics → stderr; never print credentials.
+The four-edit rule — `cli/<verb>.rs`, the `cli.rs` enum variant, `commands/<verb>.rs` with a free `run`, and the dispatch arm — is specified in `docs/explanation/architecture.md`. The `account` verb and its place in the wrapper's grammar are in `docs/reference/cli-surface.md`.
+
+Output discipline is specified in `docs/reference/logging-and-output.md`: results to stdout through the single writer, diagnostics to stderr, and `--format json` is a **mode** — in JSON mode no human-oriented text appears on stdout at all.
+
+**Credentials, tokens, and API keys are never printed and never logged**, at any verbosity, with no verbose escape hatch. Report presence and last-used instead of contents; that is all a user needs to answer "is this account usable?".
 
 ## Implementation Steps
 
@@ -36,11 +40,11 @@ In this plan's `queue-rounds.yaml`, set this round's (`item: account-commands`) 
 
 ### Step 1: clap shapes
 
-Add `cli/account.rs` with the `account add|list|current|remove|refresh` arg structs; register the `Account` variant in `cli/mod.rs`.
+Add `cli/account.rs` with the `account add|list|current|remove|refresh` arg structs; register the `Account` variant in `cli.rs`.
 
 ### Step 2: Handlers
 
-In `commands/account.rs`, implement the free `run` handlers calling the registry/login/resolver; emit `--json` via `Ui` with secret redaction.
+In `commands/account.rs`, implement the free `run` handlers calling the registry/login/resolver; emit `--format json` via `Ui` with secret redaction.
 
 ### Step 3: doctor integration
 
@@ -48,7 +52,7 @@ Extend `commands/doctor.rs` to report accounts present, seed validity, and the c
 
 ### Step 4: Dispatch + tests
 
-Add the `main.rs` dispatch arm; `assert_cmd`-test `account list`/`current` JSON output and redaction.
+Add the `commands/dispatch.rs` match arm; `assert_cmd`-test `account list`/`current` JSON output and redaction.
 
 ### Final Step: Update the queue
 
@@ -57,7 +61,7 @@ Add the `main.rs` dispatch arm; `assert_cmd`-test `account list`/`current` JSON 
 
 ## Acceptance Criteria
 
-- [ ] `account add|list|current|remove|refresh` work via the four-edit rule; `--json` output is machine-parseable and redacts secrets.
+- [ ] `account add|list|current|remove|refresh` work via the four-edit rule; `--format json` output is machine-parseable and redacts secrets.
 - [ ] `doctor` reports account/seed/current-account health without aborting on a bad account.
 - [ ] Output discipline holds (data → stdout, diagnostics → stderr; no credentials printed).
 - [ ] `assert_cmd` tests pass.

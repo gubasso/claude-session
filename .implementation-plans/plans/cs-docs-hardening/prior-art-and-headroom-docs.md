@@ -1,31 +1,38 @@
-# Docs & Hardening R1: Prior-Art Research & headroom Integration Docs
+# Docs & Hardening R1: Revalidate Prior Art & Proxy-Integration Guide
 
-> Plan: cs-docs-hardening | Round: 1 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-docs-hardening | Round: 1 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
-The project brief requires the web prior-art research to be captured, classified, and saved into the repo docs as INSPIRATION, and the headroom integration to be documented. This round writes the competitive-analysis/prior-art note and the headroom integration guide into the Diátaxis zones established by `cs-foundation`. The headroom seam (`ANTHROPIC_BASE_URL` injection) was built in `cs-wrapper-runtime`; this round documents how to use it.
+Prior art has already been surveyed and written up: `docs/reference/prior-art.md` classifies the account-switcher landscape, wrapper and shim design, Rust CLI structure, configuration layering, process supervision, and sandboxing, and records the perishable native-child facts the design rests on. Those facts expire, and the survey has a date. This round **revalidates and extends** that page rather than writing a competing one, and adds the guide that shows the proxy seam in use. The seam itself (environment injection into the child) was built in `cs-wrapper-runtime`; this round documents how to use it.
 
 ## Previous Rounds
 
-`cs-foundation`: `docs/` Diátaxis skeleton (`decisions/`, `guides/`, `reference/`, `explanation/`). `cs-wrapper-runtime`: the injectable `ANTHROPIC_BASE_URL` child-env seam. Expect both to exist.
+The docs tree, `docs/reference/prior-art.md`, and `docs/reference/research-tracking.yaml` already exist — they predate this plan and are not this round's to create. `cs-wrapper-runtime` built the child-environment injection seam. Expect all of these to exist.
 
 ## Scope of This Round
 
-- IN scope: a prior-art / competitive-analysis note in `docs/explanation/` (or `docs/reference/`) classifying the landscape — `aisw` (closest Rust prior art), the cc-account-switchers, `claude-swap` (session mode), `claude-wrapper`, `claude-code-env`, `kustomize` (config layering inspiration), `bubblewrap`/`firejail` (future hardened isolation), and the native `CLAUDE_CONFIG_DIR`/`.claude.json` /`ANTHROPIC_*` facts — with sources cited and a short "what we borrow as inspiration" per tool; a headroom integration guide in `docs/guides/` documenting `headroom proxy --port` + `ANTHROPIC_BASE_URL=http://localhost:<port>` injected via claude-session's child-env seam, with the exact commands and the "no internal compression" boundary.
-- OUT of scope: doctor hardening (round 2), completions/man pages (round 3), ADR closeout/release (round 4).
+- IN scope: **revalidating and extending the existing** `docs/reference/prior-art.md` — walk every entry in `docs/reference/research-tracking.yaml` whose cadence is due, re-verify it, update `last_checked`, and record what changed; then extend the page with the product landscape the engineering survey did not cover (further account-switching and session-wrapping tools, config-layering and sandboxing inspirations) and with any project that has since solved a problem this one still has open. Each addition keeps the page's existing shape: public URL, area inspected, pattern, what was borrowed or why it was rejected, access date, and facts distinguished from inference. Plus a proxy-integration guide in `docs/guides/` showing a concrete fronting proxy end to end — the exact commands, the environment key injected, and the "no compression, rewriting, or routing inside the wrapper" boundary.
+- OUT of scope: **creating a second prior-art document.** One page, one home; a competing note in another zone would drift. Also out: restating the seam's contract in the guide (it belongs to `docs/explanation/wrapper-model.md` and `docs/reference/process-runtime.md` — the guide exercises it, it does not redefine it); doctor hardening (round 2); completions and man pages (round 3); ADR closeout and release (round 4).
 
 ## Current State
 
 ### Key Files
 
-- `/workspaces/claude-session/docs/explanation/` — add the prior-art note (zone for understanding).
-- `/workspaces/claude-session/docs/guides/` — add the headroom integration guide (task zone).
-- `/workspaces/claude-session/docs/README.md` — index already exists; ensure new docs are linked.
+- `docs/reference/prior-art.md` — extend and revalidate; do not create a sibling.
+- `docs/reference/research-tracking.yaml` — drives what to re-check; update `last_checked`.
+- `docs/guides/` — already exists (it holds the development workflow); add the proxy-integration guide here.
+- `docs/README.md` — index; add the new guide, and only the new guide.
 
 ### Existing Patterns
 
-Source material (brief §9–§10, INSPIRATION only — cite sources): headroom is a token-compression proxy; the clean seam is `ANTHROPIC_BASE_URL` → `headroom proxy`. Prior art: `aisw` (Rust, native-env-var per profile dir), cc-account-switcher (encrypted creds), claude-swap (session mode + quota auto-pick), kustomize (base+overlay), bubblewrap/firejail (namespace sandbox). Native facts: `CLAUDE_CONFIG_DIR` (undocumented, leaky, comma-separated), `.claude.json`, settings precedence, `ANTHROPIC_*`. Diátaxis: zone-first; explanation = understanding, guides = task. ARID: write each fact once, link.
+**`docs/reference/prior-art.md` already exists** and carries the engineering prior art — the account and session switchers, wrapper and shim design, Rust CLI structure, configuration layering, process supervision, and sandboxing — each entry naming what was inspected and what was borrowed or rejected. It also records the perishable native-child facts. This round **extends and revalidates that one page**; it does not create a second prior-art document, because two would drift.
+
+Revalidation is driven by `docs/reference/research-tracking.yaml`: re-check each tracked fact, update `last_checked`, and record what changed. Extension means the product landscape the engineering survey did not cover, and any project that has since solved a problem this one still has open.
+
+The proxy seam is documented as a **general environment-injection mechanism** in `docs/explanation/wrapper-model.md` and `docs/reference/process-runtime.md`. The guide this round adds shows a concrete fronting proxy end to end; it must not restate the seam's contract, only exercise it — and it must state the boundary that the wrapper implements no compression, rewriting, or routing.
+
+Zone placement follows `AGENTS.md` (Documentation Maintenance): the guide goes in `docs/guides/`, which already exists and holds the development workflow.
 
 ## Implementation Steps
 
@@ -33,17 +40,21 @@ Source material (brief §9–§10, INSPIRATION only — cite sources): headroom 
 
 In this plan's `queue-rounds.yaml`, set this round's (`item: prior-art-and-headroom-docs`) `status` to `doing`.
 
-### Step 1: Prior-art note
+### Step 1: Revalidate the tracked facts
 
-Write `docs/explanation/prior-art.md` (or `reference/`) classifying the landscape with a table (name, URL, language, what it does, overlap, what we borrow) and the native-`claude` config/session facts, with sources cited.
+Work through `docs/reference/research-tracking.yaml`. For each entry whose cadence is due, follow its `revalidate` instruction, update `last_checked`, and correct the owning document if the fact changed. Pay particular attention to the native-child entries — the configuration-directory variable, the credential file layout, the trust-state file, the settings schema, and the version floor — since the whole isolation design rests on them and none carries a stability guarantee.
 
-### Step 2: headroom guide
+### Step 2: Extend the prior art
 
-Write `docs/guides/headroom-integration.md`: how to run `headroom proxy` and inject `ANTHROPIC_BASE_URL` via claude-session, with exact commands and the "no internal compression" boundary.
+Extend `docs/reference/prior-art.md` with the product landscape and anything new since the last survey. Follow the page's existing column shape and its rules: only projects actually inspected, public URLs only, facts marked apart from inference, and no entry that says merely that something is popular.
 
-### Step 3: Link + lint
+### Step 3: Proxy-integration guide
 
-Link both from `docs/README.md`; ensure markdownlint/lychee (if wired) pass.
+Write a guide in `docs/guides/` showing a concrete fronting proxy end to end: start it, point the child at it through the wrapper's environment-injection seam, verify it is in the path. Give exact commands. State the boundary — the wrapper composes environment keys and implements no compression, rewriting, or routing — and **link** the seam's contract rather than restating it.
+
+### Step 4: Link + lint
+
+Add the new guide to the `docs/README.md` index. `docs/reference/prior-art.md` is already indexed, so do not add a second entry. Run `pre-commit run --all-files`.
 
 ### Final Step: Update the queue
 
@@ -51,9 +62,10 @@ Link both from `docs/README.md`; ensure markdownlint/lychee (if wired) pass.
 
 ## Acceptance Criteria
 
-- [ ] A prior-art/competitive-analysis note exists in a Diátaxis zone, classifying the landscape with sources cited and a per-tool "borrow as inspiration" line.
-- [ ] A headroom integration guide documents the `ANTHROPIC_BASE_URL` → `headroom proxy` seam with exact commands and the no-internal-compression boundary.
-- [ ] Both are linked from `docs/README.md`; doc lints pass.
+- [ ] Every due entry in `docs/reference/research-tracking.yaml` has been revalidated, with `last_checked` updated and any owning document corrected.
+- [ ] `docs/reference/prior-art.md` is extended in its existing shape; **no second prior-art document was created**.
+- [ ] A proxy-integration guide gives exact commands, states the no-compression boundary, and links the seam's contract rather than restating it.
+- [ ] The new guide is linked from `docs/README.md`; `pre-commit run --all-files` passes.
 - [ ] This plan's `queue-rounds.yaml` shows round `prior-art-and-headroom-docs` as `done`.
 
 ## Next Round

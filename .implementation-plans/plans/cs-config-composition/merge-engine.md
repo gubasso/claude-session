@@ -1,6 +1,6 @@
 # Config Composition R2: serde_json Merge Engine, Strategies & Provenance
 
-> Plan: cs-config-composition | Round: 2 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-config-composition | Round: 2 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -12,20 +12,20 @@ This plan round 1: `manifest.rs`, `piece.rs`, profile→ordered-pieces resolutio
 
 ## Scope of This Round
 
-- IN scope: `services/config_compose/merge.rs` — a recursive `serde_json::Value` deep merge folding the ordered pieces left-to-right; **scalars last-wins**; **objects merge-by-key**; **arrays configurable per-key** (default `replace`; opt-in `concat` and `merge-by-key`), with the strategy table sourced from an optional policy in the manifest/config; **per-key provenance** (track which piece set each leaf key, e.g. a parallel provenance map keyed by JSON path); typed `MergeError` (e.g. type-conflict at a path) naming the offending piece + path.
+- IN scope: `services/config_compose/merge.rs` — a recursive `serde_json::Value` deep merge folding the ordered pieces left-to-right; **scalars last-wins**; **objects merge-by-key**; **arrays configurable per-key** (default `replace`; opt-in `concat` and `merge-by-key`), with the strategy table sourced from an optional policy in the manifest; **per-key provenance** (track which piece set each leaf key, e.g. a parallel provenance map keyed by JSON path); typed `MergeError` (e.g. type-conflict at a path) naming the offending piece + path.
 - OUT of scope: writing the output file / schema validation / freshness (round 3); CLI verbs (round 4).
 
 ## Current State
 
 ### Key Files
 
-- `/workspaces/claude-session/src/services/config_compose/merge.rs` — new.
-- `/workspaces/claude-session/src/services/config_compose/manifest.rs` — may carry an optional per-key array-strategy policy.
-- `/workspaces/claude-session/src/error.rs` — add `MergeError` mapping.
+- `src/services/config_compose/merge.rs` — new.
+- `src/services/config_compose/manifest.rs` — may carry an optional per-key array-strategy policy.
+- `src/error.rs` — add `MergeError` mapping.
 
 ### Existing Patterns
 
-Reference merge semantics (devcontainerctl, inspiration only) — quoted jq, to be reimplemented in Rust:
+The merge semantics are specified in `docs/reference/configuration.md` and recorded in `docs/decisions/0010-compose-native-settings-from-declared-layers.md`. Implement that table exactly. For orientation, the shape being replaced is a shell-and-`jq` pipeline of roughly this form:
 
 ```text
 $base * $tmpl                                   # scalars: last-wins (recursive object merge)

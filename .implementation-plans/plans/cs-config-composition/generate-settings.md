@@ -1,6 +1,6 @@
 # Config Composition R3: Generate native settings.json + Trust State
 
-> Plan: cs-config-composition | Round: 3 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-config-composition | Round: 3 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -19,13 +19,19 @@ This plan R1: manifest/piece models + resolution. R2: deep-merge engine + proven
 
 ### Key Files
 
-- `/workspaces/claude-session/src/services/config_compose/generate.rs` — new.
-- `/workspaces/claude-session/src/services/session/dir.rs` — provides the session dir to write into.
-- `/workspaces/claude-session/src/commands/pass_through.rs` — invoke compose before spawn (alongside the auth gate from `cs-accounts-auth` when present).
+- `src/services/config_compose/generate.rs` — new.
+- `src/services/session/dir.rs` — provides the session dir to write into.
+- `src/commands/pass_through.rs` — invoke compose before spawn (alongside the auth gate from `cs-accounts-auth` when present).
 
 ### Existing Patterns
 
-Reference (devcontainerctl, inspiration only): atomic write (tempfile → `mv`); mtime freshness (regenerate only if the manifest or any layer is newer); provenance was NOT recorded there — we add it. codex-session's `composition.rs` shows `write_session_artifacts` (atomic config write + purge stale sidecars + write a compose-metadata JSON). Native settings precedence (brief §4): claude-session generates the **user-layer** `settings.json`; `.claude.json` carries trust/onboarding + MCP state.
+Generation, freshness, the provenance sidecar, and the validation posture are specified in `docs/reference/configuration.md`; the output paths and modes are in `docs/reference/xdg-storage.md`.
+
+Three rules carry the weight. The write is **atomic** — a temporary file in the same directory, then rename — so a reader never sees a truncated settings file. The merge is **deterministic**, producing byte-identical output from identical inputs, or the freshness check and diffs are both useless. And **freshness compares against the manifest and every referenced piece**, not just the manifest: editing a piece without touching the manifest otherwise leaves stale settings in place, and the symptom — an edit that appears to do nothing — is genuinely hard to diagnose.
+
+Validation is pragmatic: validate the structure the wrapper owns and the well-formedness of the whole, but do **not** reject unknown keys in the child's schema. That schema is externally owned and evolves; it is tracked in `docs/reference/research-tracking.yaml`.
+
+Project-trust state lives in a file separate from the settings file — itself a perishable fact — and is seeded in and synced back under a lock, merging conservatively.
 
 ## Implementation Steps
 

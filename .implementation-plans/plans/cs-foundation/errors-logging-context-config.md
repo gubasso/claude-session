@@ -1,10 +1,10 @@
 # Foundation R2: Errors, Logging, Context, Config
 
-> Plan: cs-foundation | Round: 2 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-foundation | Round: 2 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
-`claude-session` wraps `claude` and must follow the Rust cli-spec: typed errors per layer, a mandatory exit-code matrix, tracing logging to XDG state, output discipline through a single writer, an immutable resolved config, and an `AppContext` carrying process state. Round 1 produced a compiling canonical module tree (`error.rs`, `logging.rs`, `ui.rs`, `context.rs`, `config.rs` exist as placeholders) with blessed deps and strict lints. This round makes those modules real. They are cross-cutting contracts every feature plan consumes, so they must be correct and tested now.
+`claude-session` wraps `claude` and must implement the cross-cutting contracts the specifications define: typed errors per layer with a mandatory exit-code matrix, tracing logging to XDG state, output discipline through a single writer, an immutable resolved config, and an `AppContext` carrying process state. Round 1 produced a compiling canonical module tree (`error.rs`, `logging.rs`, `ui.rs`, `context.rs`, `config.rs` exist as placeholders) with the first dependencies and strict lints. This round makes those modules real. They are cross-cutting contracts every feature plan consumes, so they must be correct and tested now.
 
 ## Previous Rounds
 
@@ -19,15 +19,19 @@ Round 1 created `Cargo.toml` (blessed deps, strict lints, release profile, `rust
 
 ### Key Files
 
-- `/workspaces/claude-session/src/error.rs` — placeholder; becomes the `AppError` home.
-- `/workspaces/claude-session/src/logging.rs` — placeholder; becomes the subscriber installer.
-- `/workspaces/claude-session/src/ui.rs` (+ `src/ui/`) — placeholder; becomes the single output writer.
-- `/workspaces/claude-session/src/context.rs` — placeholder; becomes `AppContext`.
-- `/workspaces/claude-session/src/config.rs` (+ `src/config/`) — placeholder; becomes figment loader.
+- `src/error.rs` — placeholder; becomes the `AppError` home.
+- `src/logging.rs` — placeholder; becomes the subscriber installer.
+- `src/ui.rs` (+ `src/ui/`) — placeholder; becomes the single output writer.
+- `src/context.rs` — placeholder; becomes `AppContext`.
+- `src/config.rs` (+ `src/config/`) — placeholder; becomes figment loader.
 
 ### Existing Patterns
 
-Sysexits map (`cli-design/02-error-messages.md`): `0` ok, `64` usage, `65` dataerr, `66` noinput, `69` unavail, `70` software, `74` ioerr, `75` auth/tempfail, `77` noperm, `78` config, `126` not-executable, `127` child-not-found; signal deaths `128+N` (SIGINT→130, SIGTERM→143). Error messages are four-part (What/Where/Why/Hint) with a stable machine-matchable `err.kind=<CamelCase>`. Logging: each record is one structured line (`ts` ISO-8601 UTC ms, `level` lowercase, `target`, `op`/`msg`); verbosity none=warn, `-v`=info, `-vv`=debug, `-vvv`=trace, `-q`=error-only; reuse `RUST_LOG` (do not invent `CLAUDE_SESSION_LOG`). Resolve the log path in `main` BEFORE installing the subscriber, via `directories::ProjectDirs::state_dir()`.
+The exit-code matrix is specified in `docs/reference/exit-codes.md` — implement that table exactly, including the stable `err.kind` per variant, the four-part error shape (What/Where/Why/Hint), and the no-catch-all rule. The layer stack (`DomainError`, `<Sys>AdapterError`, `ServiceError`, `AppError`, boundary type only in `main`) is in `docs/reference/coding-conventions.md` and recorded in `docs/decisions/0008-layered-error-architecture.md`.
+
+The stream contract, verbosity ladder, colour precedence, and log record schema are specified in `docs/reference/logging-and-output.md`: stdout carries the result only, `RUST_LOG` overrides the flag-derived level, and one record is one structured line. Credentials are never logged. Resolve the log path in `main` BEFORE installing the subscriber; the path itself comes from `docs/reference/xdg-storage.md`.
+
+Config precedence, the env prefix and nesting, unknown-key rejection, and provenance are specified in `docs/reference/configuration.md`. Note the direction: `defaults < user < project < env < cli`, so the flag wins.
 
 ## Implementation Steps
 
@@ -45,11 +49,11 @@ In `logging.rs`, install exactly one tracing-subscriber from a function called b
 
 ### Step 3: Single-writer UI
 
-In `ui/`, define a `Ui` writer that owns ALL terminal output: stdout for the result (text or `--json`), stderr for prompts/progress/status/warnings/errors. Respect `NO_COLOR`/`FORCE_COLOR`.
+In `ui/`, define a `Ui` writer that owns ALL terminal output: stdout for the result (text or `--format json`), stderr for prompts/progress/status/warnings/errors. Respect `NO_COLOR`/`FORCE_COLOR`.
 
 ### Step 4: AppContext + Config
 
-In `context.rs`, define an immutable `AppContext` (resolved paths, verbosity, format, a lazy child resolver placeholder). In `config/`, build the figment loader (`env` + file) producing one immutable `Config` with `#[serde(deny_unknown_fields)]`, precedence `cli > env > project > user > defaults`, env prefix `CLAUDE_SESSION_` (nested `__`). XDG: user config at `~/.config/claude-session`; data/state/cache/runtime per spec.
+In `context.rs`, define an immutable `AppContext` (resolved paths, verbosity, format, output writer, a lazy child resolver placeholder). In `config/`, build the layered loader producing one immutable `Config` with unknown keys rejected, precedence `defaults < user < project < env < cli`, and per-key provenance. Path resolution follows `docs/reference/xdg-storage.md` — including that a relative `XDG_*` value is invalid and ignored, and that a missing runtime directory degrades explicitly rather than falling back.
 
 ### Final Step: Update the queue
 
@@ -66,4 +70,4 @@ In `context.rs`, define an immutable `AppContext` (resolved paths, verbosity, fo
 
 ## Next Round
 
-Round 3 (`clap-passthrough-and-minimal-spawn`) builds the root clap parser with verbatim external passthrough, the intrinsic wrapper-verb stubs, argv normalization, a minimal inherited-env child spawn so passthrough is demonstrable, and the `main.rs` dispatch wiring consuming this round's plumbing.
+Round 3 (`clap-passthrough-and-minimal-spawn`) builds the pure argv pre-split, the root clap parser over the wrapper's own grammar, the intrinsic wrapper-verb stubs, a minimal inherited-env child spawn so passthrough is demonstrable, and the `main.rs` dispatch wiring consuming this round's plumbing.

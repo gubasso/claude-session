@@ -1,6 +1,6 @@
 # claude-session — Integration, Docs & Hardening
 
-> Complexity: L | Rounds: 4 | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Complexity: L | Rounds: 4 | Generated: 2026-06-19 | Repo: repository root
 
 ## Problem Statement
 
@@ -41,8 +41,8 @@ When `/prex` is pointed at this directory or this `README.md`, it MUST:
 ## Decisions & Constraints
 
 - `Executor: prex (EF 1.5)`.
-- **Docs follow Diátaxis** (`docs-design`): the prior-art/competitive-analysis note → `docs/explanation/` (or `docs/reference/`); the headroom integration → `docs/guides/`; decisions → `docs/decisions/` (lean ADRs, ≤350 words, 5 sections, 5 statuses, never deleted).
-- **Capture the web research** (brief §10 + §9): the classified prior-art landscape (aisw, the cc-account-switchers, claude-swap, kustomize, bubblewrap/firejail, native CLAUDE_CONFIG_DIR facts) and the headroom integration contract must be saved into the repo docs and cited as INSPIRATION.
+- **Docs are organized by reader need**, per `AGENTS.md` (Documentation Maintenance) and `docs/decisions/0012-docs-architecture.md`: prior art is reference and **already exists** at `docs/reference/prior-art.md`; the proxy integration walkthrough is a guide; decisions are lean ADRs, at or under 350 words, five sections, never deleted.
+- **Revalidate and extend the existing prior art** rather than writing a second page. `docs/reference/prior-art.md` already classifies the switcher landscape, wrapper and shim design, configuration layering, process supervision, and sandboxing, and records the perishable native-child facts. `docs/reference/research-tracking.yaml` drives what to re-check and when.
 - **headroom is integration-by-seam, not internal**: document `ANTHROPIC_BASE_URL` → `headroom proxy` as the supported pattern; claude-session implements no compression.
 - **doctor degrades, never aborts** (shell-tool lesson): report each subsystem's health with a three/four-part error + hint; never abort the whole check on one bad subsystem.
 - **Release hardening**: `cargo deny`/`cargo audit` clean; user-facing `README.md`; install notes; pin/commit `Cargo.lock`.

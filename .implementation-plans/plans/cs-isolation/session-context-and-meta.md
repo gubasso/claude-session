@@ -1,6 +1,6 @@
 # Isolation R3: Session Dir, Metadata, Context Integration & Cleanup
 
-> Plan: cs-isolation | Round: 3 of 3 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-isolation | Round: 3 of 3 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -20,14 +20,20 @@ This plan round 1: `adapters/fs.rs`, secure-dir service, `resolve_session_root`.
 
 ### Key Files
 
-- `/workspaces/claude-session/src/services/session/dir.rs` — add `session_dir`.
-- `/workspaces/claude-session/src/services/session/meta.rs` — new.
-- `/workspaces/claude-session/src/services/session/cleanup.rs` — new.
-- `/workspaces/claude-session/src/context.rs` — add lazy session resolution.
+- `src/services/session/dir.rs` — add `session_dir`.
+- `src/services/session/meta.rs` — new.
+- `src/services/session/cleanup.rs` — new.
+- `src/context.rs` — add lazy session resolution.
 
 ### Existing Patterns
 
-Reference (codex-session, inspiration only): `session_dir(root, account, group_id)` joins `accounts/<account>/groups/<group-id>/` and `secure_dir`s each level; `meta.rs` writes `session-meta.json` atomically (tempfile `.persist()`); `cleanup.rs` prunes by mtime with `symlink_metadata` no-follow guards on the account and `groups/` dirs before recursing. Time: use the blessed `time` crate (not `chrono`) for the rfc3339 timestamp; resolve `started_at` once.
+The path layout, modes, single-writer rule, and cleanup policy are specified in `docs/reference/xdg-storage.md`; the concepts are in `docs/explanation/session-isolation.md`.
+
+`session_dir(root, account, group)` joins the account and group segments and secures **each level** with the round-1 helpers. Metadata is written atomically — a temporary file in the **same directory**, then rename, since rename is atomic only within a filesystem — at mode `0600`.
+
+Cleanup prunes only directories under a `groups/` parent, never account directories, and **never follows symbolic links** out of the tree it is pruning. It is conservative by design: leaving a stale directory costs bytes, while deleting a live session costs the user their work. Keep it opt-in and reported.
+
+For the timestamp use the `time` crate, not `chrono` — see the ruled-out list in `docs/reference/dependencies.md`. Resolve `started_at` once. The clock is an adapter so tests can inject it; see `docs/explanation/testing-strategy.md`.
 
 ## Implementation Steps
 

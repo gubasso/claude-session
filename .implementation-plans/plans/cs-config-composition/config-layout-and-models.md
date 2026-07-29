@@ -1,6 +1,6 @@
 # Config Composition R1: XDG Layout, Manifest & Piece Models
 
-> Plan: cs-config-composition | Round: 1 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-config-composition | Round: 1 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -20,14 +20,17 @@
 
 ### Key Files
 
-- `/workspaces/claude-session/src/services.rs` (+ `src/services/`) — add `config_compose/` submodule with `manifest.rs`, `piece.rs`.
-- `/workspaces/claude-session/src/config.rs` (+ `src/config/`) — knows `~/.config/claude-session`.
-- `/workspaces/claude-session/Cargo.toml` — add `serde_yaml_ng` for manifests via `cargo add serde_yaml_ng` (never hand-edit `[dependencies]`).
+- `src/services.rs` (+ `src/services/`) — add `config_compose/` submodule with `manifest.rs`, `piece.rs`.
+- `src/config.rs` (+ `src/config/`) — knows `~/.config/claude-session`.
+- `Cargo.toml` — add `serde_yaml_ng` for manifests via `cargo add serde_yaml_ng` (never hand-edit `[dependencies]`).
 
 ### Existing Patterns
 
-Reference model (devcontainerctl, inspiration only): one YAML manifest per profile with `layers:
-[base, agents, python]` (ordered; last wins); each layer a partial JSON piece referenced by name; schema `additionalProperties: false`, `minItems: 1`. Error reporting names the failing file ("Layer 'X' referenced in manifest 'Y' not found: <path>"). codex-session's `manifest.rs`/`layer.rs` show the Rust parse shape. Use the blessed `serde_yaml_ng` (NOT `serde_yaml`).
+The composition model — read-only JSON pieces plus an ordered YAML manifest per profile — is specified in `docs/reference/configuration.md` and recorded in `docs/decisions/0010-compose-native-settings-from-declared-layers.md`. Piece and manifest paths come from the artifact table in `docs/reference/xdg-storage.md`; both are user-authored and **read-only to the wrapper**.
+
+A manifest's sole required field is an ordered, non-empty list of piece names. Unknown fields are rejected and an empty list is rejected. A missing referenced piece is an error naming **both** the manifest and the resolved path it looked for — the concrete-value rule from `docs/reference/coding-conventions.md`.
+
+Use `serde_yaml_ng`, not `serde_yaml`, which is deprecated; see the ruled-out list in `docs/reference/dependencies.md`. Add it with `cargo add`.
 
 ## Implementation Steps
 

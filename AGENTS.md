@@ -10,6 +10,8 @@ This file is the single source of truth for how agents work in this project. `CL
 - **Stay XDG-compliant.** Config, state, data, and cache go to their `XDG_*` locations (with the documented defaults); never write to `$HOME` directly or to hard-coded personal paths.
 - **Stay self-contained**, in the sense the next section defines. This is load-bearing here, not boilerplate: the wrapper must not depend on a personal or external tree to build or run.
 
+The engineering specifications these contracts are worked out in live under `docs/`, indexed by [`docs/README.md`](./docs/README.md). They are normative design for code that has not been written yet — read the specification that owns a rule before implementing against it.
+
 <!-- self-containment -->
 
 ## Self-Containment
@@ -26,11 +28,24 @@ ADRs live in `docs/decisions/`, numbered `NNNN-short-title.md` from the `templat
 
 Implementation work is organized under `.implementation-plans/`, and `.implementation-plans/queue-plans.yaml` is the queue's source of truth — read it before starting work to find what is queued, in progress, or done, and update a plan's status there rather than inferring it from the tree. Individual plans live in `.implementation-plans/plans/`; a plan describes the work, while an ADR records a decision the work rests on.
 
+**A round file is not a specification.** It describes work to do; the durable contracts live under `docs/`. When a round and a specification disagree, the specification wins and the round is corrected — unless the round is actually right, in which case update the specification _and_ the ADR carrying that decision. A genuinely open question becomes a new ADR with status `Proposed` rather than two live claims in one repository.
+
+## Documentation Maintenance
+
+Documentation is organized by **reader need**, not by topic. Four zones, each making one promise: `docs/decisions/` records why a choice was made, `docs/explanation/` builds a mental model, `docs/reference/` gives exact lookup, `docs/guides/` gives ordered tasks. A topic directory goes _inside_ a zone, never as a sibling of the zones. `docs/README.md` is an index and never a fifth zone. A zone is created by its first real document, never by a placeholder. Recorded in [`docs/decisions/0012-docs-architecture.md`](./docs/decisions/0012-docs-architecture.md).
+
+- **One fact, one home.** Write a durable fact once, in the document that owns it, and link from everywhere else. The test is whether deleting a mention elsewhere would leave the canonical statement intact; if not, the mention is a second source of truth. Restatement is how documentation drifts.
+- **ADRs stay lean.** At or under 350 words in the template's five sections, one decision per file, one status from `{Proposed, Accepted, Implemented, Superseded, Deprecated, Rejected}`. The word cap is a splitting signal: worked detail belongs in a reference page the record links to.
+- **ADRs are never deleted.** A decision that stops being true is `Superseded` by a new record with a forward link; one whose context evaporated with no successor is `Deprecated`; one partly changed keeps its status and gains an `Amended by ADR-NNNN` line. A rejected option worth not re-debating stays as a `Rejected` record.
+- **Directory structure is owned by the filesystem, not by prose.** A `README.md` (or `AGENTS.md`) explains a directory's purpose — its domains, concepts, and rules — and never maintains a hand-copied file tree, which drifts the moment a file is added or renamed. When a listing aids discovery, give each entry a purpose, not a bare path the filesystem already shows. An auto-generated table of contents is the exception, since the generator keeps it in sync.
+- **Comments are documentation only when load-bearing.** Keep a comment that carries rationale, an invariant, a boundary condition, or an external constraint; delete one that narrates what the code plainly does, or replace it with a better name. Where an ADR governs the code, name it in the comment.
+- **Drafts live in the gitignored `.draft/`.** Promotion out of it is a rewrite into the owning document, not a move — a draft is written for its author, a specification for the next reader. Delete the draft once its substance has shipped.
+- Perishable facts — anything externally owned, such as the wrapped binary's behaviour — are registered in [`docs/reference/research-tracking.yaml`](./docs/reference/research-tracking.yaml) with a cadence, rather than being asserted as permanent.
+
 ## Working Conventions
 
 - Keep changes scoped and reversible; prefer editing existing files over adding new ones.
 - Documentation and rationale live beside the code they describe.
-- Directory structure is owned by the filesystem, not by prose. A `README.md` (or `AGENTS.md`) explains a directory's purpose — its domains, concepts, and rules — and never maintains a hand-copied file tree, which drifts the moment a file is added or renamed. When a listing aids discovery, give each entry a purpose, not a bare path the filesystem already shows. An auto-generated table of contents is the exception, since the generator keeps it in sync.
 - Run the project's own lint and test tasks before proposing changes. The gates are wired into `.pre-commit-config.yaml` — rustfmt, clippy, nextest, cargo-audit, cargo-deny, taplo, typos, gitleaks, ripsecrets, and cargo-machete — so `pre-commit run --all-files` is the single command that reproduces CI's verdict locally. Fix what the hooks report; do not bypass them.
 - Commit messages follow Conventional Commits, linted by `committed` against `committed.toml`: lowercase description, no trailing period, and every line (subject included) at or under 72 characters. Tune `committed.toml` rather than the hook config.
 - The pinned toolchain in `rust-toolchain.toml` is authoritative; the `flake.nix` devShell provides the surrounding tools. Do not depend on whatever happens to be installed on the host.

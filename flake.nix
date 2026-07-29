@@ -37,6 +37,9 @@
             pkgs.cargo-audit
             # TOML formatter for the local `taplo format` pre-commit hook.
             pkgs.taplo
+            # JSON/JSONC + markdown formatter; the dprint pre-commit hooks run as
+            # language:system and require it on PATH.
+            pkgs.dprint
             pkgs.just
             pkgs.pre-commit
             # Nix quality tools for the pre-commit `_nix` overlay hooks
@@ -44,6 +47,11 @@
             pkgs.nixfmt
             pkgs.statix
             pkgs.deadnix
+            # Node for the markdownlint-cli2 pre-commit hook. pre-commit's node
+            # language falls back to nodeenv, which downloads a generic-glibc
+            # node that cannot execute on a Nix host (no /lib64 loader); with
+            # node+npm on PATH it uses `language_version: system` instead.
+            pkgs.nodejs
           ];
           # native deps for -sys crates, uncomment as needed:
           # buildInputs = [ pkgs.openssl ];

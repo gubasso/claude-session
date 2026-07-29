@@ -1,6 +1,6 @@
 # Accounts & Auth R1: Filesystem-Backed Account Registry
 
-> Plan: cs-accounts-auth | Round: 1 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: /workspaces/claude-session
+> Plan: cs-accounts-auth | Round: 1 of 4 | Complexity: L | Executor: prex (EF 1.5) | Generated: 2026-06-19 | Repo: repository root
 
 ## Context
 
@@ -21,14 +21,19 @@
 
 ### Key Files
 
-- `/workspaces/claude-session/src/services.rs` (+ `src/services/`) — add `account/` submodule with `registry.rs`.
-- `/workspaces/claude-session/src/services/session/dir.rs` — reuse secure-dir helpers.
-- `/workspaces/claude-session/src/domain/ids.rs` — reuse `AccountId`.
+- `src/services.rs` (+ `src/services/`) — add `account/` submodule with `registry.rs`.
+- `src/services/session/dir.rs` — reuse secure-dir helpers.
+- `src/domain/ids.rs` — reuse `AccountId`.
 
 ### Existing Patterns
 
-Reference (codex-session `services/account/registry.rs`, inspiration only): `Registry { root:
-accounts, last_account_path: state/last-account }`; `AccountEntry { id, dir, has_auth, last_used_at }`; `account_dir` joins `root/<name>`; `group_auth_seed_path` joins `<account>/auth.json` (claude analog: the credential seed file, e.g. `.credentials.json`); `list()` scans + sorts. Disk layout target: `$XDG_STATE_HOME/claude-session/{state/last-account, accounts/<name>/}`.
+The on-disk layout, the writer of each artifact, and its mode are specified in the artifact table in `docs/reference/xdg-storage.md`. Account directories are `0700`; the credential seed and the last-account marker are `0600`. Every one of these artifacts has exactly **one writer** — this subsystem — which is what makes concurrent sessions on the same account safe.
+
+`AccountId` validation reuses the newtype from `cs-isolation`: charset `[a-z0-9_-]`, a lowercase-ASCII or digit first character, at most 32 bytes, and a value that fails validation is rejected rather than truncated.
+
+Every write that must not be observed half-finished — the seed, the last-account marker — goes through a temporary file **in the same directory** followed by a rename, since rename is atomic only within a filesystem.
+
+Credentials live only in the secure state tree: never in user-editable configuration, never in cache, never in the runtime base. See `docs/decisions/0011-isolate-credentials-by-seed-and-session.md`.
 
 ## Implementation Steps
 
