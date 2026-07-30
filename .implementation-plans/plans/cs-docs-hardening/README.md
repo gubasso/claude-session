@@ -41,7 +41,7 @@ This plan adds no exceptions to it.
 - **Docs are organized by reader need**, per `AGENTS.md` (Documentation Maintenance) and `docs/decisions/0012-docs-architecture.md`: prior art is reference and **already exists** at `docs/reference/prior-art.md`; the proxy integration walkthrough is a guide; decisions are lean ADRs, at or under 350 words, five sections, never deleted.
 - **Revalidate and extend the existing prior art** rather than writing a second page. `docs/reference/prior-art.md` already classifies the switcher landscape, wrapper and shim design, configuration layering, process supervision, and sandboxing, and records the perishable native-child facts. `docs/reference/research-tracking.yaml` drives what to re-check and when.
 - **headroom is integration-by-seam, not internal**: document `ANTHROPIC_BASE_URL` → `headroom proxy` as the supported pattern; claude-session implements no compression.
-- **doctor degrades, never aborts** (shell-tool lesson): report each subsystem's health with a three/four-part error + hint; never abort the whole check on one bad subsystem.
+- **doctor degrades, never aborts**: every catalog check runs independently, a failure never aborts the rest, and each one carries the four-part error shape from `docs/reference/exit-codes.md`. The catalog, the report, the grammar, and the exit rule are all specified in `docs/reference/logging-and-output.md`.
 - **Release hardening**: `cargo deny`/`cargo audit` clean; user-facing `README.md`; install notes; pin/commit `Cargo.lock`.
 
 ## Rejected Alternatives

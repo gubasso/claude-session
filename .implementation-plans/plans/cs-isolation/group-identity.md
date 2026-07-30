@@ -4,7 +4,7 @@
 
 ## Context
 
-`claude-session` isolates every interactive terminal by giving each its own `CLAUDE_CONFIG_DIR` (set later by `cs-wrapper-runtime`). The key must be general and multiplexer-AGNOSTIC: the controlling terminal (pty). Every interactive tab/split/pane owns a distinct pty regardless of tmux/kitty/wezterm/screen/zellij, so keying on the controlling terminal guarantees per-pane isolation without any multiplexer knowledge. This round builds the validated `AccountId` and `GroupId` newtypes and the derivation chain. Round 1 produced the secure filesystem primitives and session-root resolution.
+`claude-session` isolates every interactive terminal by giving each its own group directory under the selected account. The key must be general and multiplexer-AGNOSTIC: the controlling terminal (pty). Every interactive tab/split/pane owns a distinct pty regardless of tmux/kitty/wezterm/screen/zellij, so keying on the controlling terminal guarantees per-pane isolation without any multiplexer knowledge. This round builds the validated `AccountId` and `GroupId` newtypes and the derivation chain. Round 1 produced the secure filesystem primitives and session-root resolution.
 
 ## Previous Rounds
 
@@ -13,7 +13,7 @@
 ## Scope of This Round
 
 - IN scope: `domain/ids.rs` (`AccountId` and `GroupId` newtypes; validation: lowercase-ASCII/digit start, `[a-z0-9_-]` body, length limits, returning `DomainError`); `services/session/group_id.rs` derivation chain with explicit priority (CLI `--session` → env `CLAUDE_SESSION_GROUP` → controlling terminal via `tty` → parent pid + `/proc/<ppid>/stat` starttime → process pid with a visible `Ui` warning); an optional neutral cross-container discriminator (machine-id / hostname / cgroup-derived) behind a config flag (off by default). Strictly NO multiplexer env-var sniffing.
-- OUT of scope: building the session dir + metadata (round 3), account registry/auth (`cs-accounts-auth`), spawning/env injection (`cs-wrapper-runtime`).
+- OUT of scope: building the group directory + metadata (round 3), account discovery and auth (`cs-accounts-auth`), spawning/env injection (`cs-wrapper-runtime`).
 
 ## Current State
 

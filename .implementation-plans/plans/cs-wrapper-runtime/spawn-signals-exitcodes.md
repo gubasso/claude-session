@@ -13,7 +13,7 @@ This plan round 1: `adapters/spawner.rs` with `Spawner`/`StdSpawner`, `resolve_c
 ## Scope of This Round
 
 - IN scope: `StdSpawner::spawn_and_wait(inv, pid_sink)` (build the command, manage env via the invocation's inherit/remove/set sets — env construction lands in round 3, here a pass-through env), publish the child process id for the signal machinery, wait, clear it; `adapters/spawner.rs` signal handling implementing the **matrix** in `docs/reference/process-runtime.md` via `signal-hook` — async-signal-safe flag registration plus a dispatch thread, forwarding only the signals the terminal does not broadcast to the group, re-raising `SIGSTOP` on the wrapper for `SIGTSTP`, and emulating the default action for a signal arriving before the child exists; status propagation (exit code unchanged; signal death reproduced by re-raise, `128 + N` clamped as fallback); rewire `commands/pass_through.rs` and `commands/dispatch.rs` to use `spawn_and_wait`.
-- OUT of scope: isolated child env + `CLAUDE_CONFIG_DIR` injection + headroom seam (round 3); accounts/auth/config composition (later plans).
+- OUT of scope: child env construction + `CLAUDE_CONFIG_DIR` injection + the argv-prefix and headroom seams (round 3); accounts/auth/config composition (later plans).
 
 ## Current State
 
@@ -74,4 +74,4 @@ Integration-test with a stub child per `docs/reference/testing-and-quality.md`: 
 
 ## Next Round
 
-Round 3 (`child-env-injection-and-headroom-seam`) builds the isolated child env, injects `CLAUDE_CONFIG_DIR` from the resolved session dir, exposes the `ANTHROPIC_BASE_URL` headroom/proxy seam, and adds end-to-end passthrough integration tests.
+Round 3 (`child-env-injection-and-headroom-seam`) builds the child env, injects the account-scoped `CLAUDE_CONFIG_DIR`, builds the argv-prefix seam, exposes the `ANTHROPIC_BASE_URL` headroom/proxy seam, and adds end-to-end passthrough integration tests.

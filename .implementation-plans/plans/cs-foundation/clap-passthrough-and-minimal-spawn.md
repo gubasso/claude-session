@@ -12,8 +12,8 @@ Round 1: canonical module tree + manifest. Round 2: `AppError` + exit-code matri
 
 ## Scope of This Round
 
-- IN scope: `cli/argv.rs`, the pure argv pre-split described below; `cli.rs` root `Cli` parser (`disable_version_flag` so `-V` is wrapper-owned) with a `GlobalArgs` flatten carrying the wrapper-owned flags specified in `docs/reference/cli-surface.md` (`-v/--verbose` count, `-q/--quiet`, `--config <path>`, `--dry-run`, plus `--account`, `--session`, `--profile` reserved as stubs for later plans; machine output is **not** here — `--json` is verb-level per ADR-0024) and a `Commands` enum covering the wrapper verbs only; intrinsic wrapper-verb STUBS (`version`, `completion`, `config`, `doctor`, `init` — each a free `pub fn run(ctx, args) -> Result<(), AppError>` reporting "not yet implemented" via `Ui`, except `version`, which prints our version plus the resolved child path and version); a minimal `commands/pass_through.rs` that spawns the real `claude` with **inherited env** (no isolation) via `std::process::Command`, waits, and propagates the child exit code; `commands/dispatch.rs`; `main.rs` (`parse → init logging → AppContext → dispatch → exit-code map`, ≤120 LOC).
-- OUT of scope: the hexagonal `Spawner` trait, signal forwarding, recursion guard, isolated `CLAUDE_CONFIG_DIR` injection (all in `cs-wrapper-runtime`); session dirs (`cs-isolation`); accounts (`cs-accounts-auth`); config composition (`cs-config-composition`).
+- IN scope: `cli/argv.rs`, the pure argv pre-split described below; `cli.rs` root `Cli` parser (`disable_version_flag` so `-V` is wrapper-owned) with a `GlobalArgs` flatten carrying the wrapper-owned flags specified in `docs/reference/cli-surface.md` (`-v/--verbose` count, `-q/--quiet`, `--config <path>`, `--dry-run`, plus `--account`, `--session`, `--profile` reserved as stubs for later plans; machine output is **not** here — `--json` is verb-level per ADR-0024) and a `Commands` enum covering exactly the verbs the table in `docs/reference/cli-surface.md` lists; a free `pub fn run(ctx, args) -> Result<(), AppError>` stub per verb reporting "not yet implemented" via `Ui`, except `version`, which prints our version plus the resolved child path and version in the shape that page specifies; a minimal `commands/pass_through.rs` that spawns the real `claude` with **inherited env** (no isolation) via `std::process::Command`, waits, and propagates the child exit code; `commands/dispatch.rs`; `main.rs` (`parse → init logging → AppContext → dispatch → exit-code map`, ≤120 LOC).
+- OUT of scope: the hexagonal `Spawner` trait, signal forwarding, recursion guard, child env construction and `CLAUDE_CONFIG_DIR` injection (all in `cs-wrapper-runtime`); session dirs (`cs-isolation`); accounts (`cs-accounts-auth`); config composition (`cs-config-composition`).
 
 ## Current State
 
@@ -33,7 +33,7 @@ Argv layout is `claude-session [WRAPPER FLAGS] <verb> [--] [CHILD ARGS...]`, `--
 
 ### Process model note
 
-claude-session needs post-exit work (credential sync-back, trust sync) in later plans, so it **spawn-and-waits** rather than `exec`s. This round's minimal spawn does the simplest correct thing: inherit env, run `claude`, propagate exit code. `cs-wrapper-runtime` replaces it with the robust path.
+claude-session **spawn-and-waits** rather than `exec`s, for the supervision and post-flight obligations amended `docs/decisions/0004-spawn-and-wait-child-supervision.md` and `docs/reference/process-runtime.md` own. This round's minimal spawn does the simplest correct thing: inherit env, run `claude`, propagate exit code. `cs-wrapper-runtime` replaces it with the robust path.
 
 ## Implementation Steps
 
@@ -59,7 +59,7 @@ In `commands/pass_through.rs`, resolve `claude` via a simple `which`/PATH lookup
 
 ### Step 4: Wrapper-verb stubs + dispatch + main
 
-Add `commands/dispatch.rs` (routes wrapper verbs vs. `External` passthrough) and stub handlers for `version`/`completion`/`config`/`doctor`/`init`. Wire `main.rs`: `parse → init logging → build AppContext → dispatch → map AppError to exit code`. Keep `main.rs` ≤120 LOC.
+Add `commands/dispatch.rs` (routes wrapper verbs vs. `External` passthrough) and one stub handler per verb in the `docs/reference/cli-surface.md` table. That table is the closed list — a verb absent from it, including one a previous draft of this project reserved, is not stubbed here. Wire `main.rs`: `parse → init logging → build AppContext → dispatch → map AppError to exit code`. Keep `main.rs` ≤120 LOC.
 
 ### Final Step: Update the queue
 

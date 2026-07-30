@@ -23,13 +23,13 @@ plans:
     depends_on:
       - cs-wrapper-runtime
     prompt: /prex -ar @.implementation-plans/plans/cs-accounts-auth/
-    notes: Directory-discovered accounts, shared per-account config/native login, long-lived subscription-token mode, precedence warnings, and account login/list/status/remove. Login mode hard-fails below child version 2.1.211 (ADR-0031).
+    notes: Directory-discovered accounts, shared per-account config/native login, long-lived subscription-token mode, precedence warnings, and account login/list/status/remove. Login mode hard-fails below the child version floor (ADR-0031).
   - item: cs-config-composition
     status: todo
     depends_on:
       - cs-isolation
     prompt: /prex -ar @.implementation-plans/plans/cs-config-composition/
-    notes: JSON pieces + YAML manifest -> serde_json merge (provenance) -> native settings.json; config/profile verbs. Also the xtask workspace member + generated config examples/schema (ADR-0013/0014) and their pre-commit freshness gate.
+    notes: JSON pieces + YAML manifest -> serde_json merge (provenance) -> native settings.json; the config and profile verbs. Also the xtask workspace member + generated config examples/schema (ADR-0013/0014) and their pre-commit freshness gate.
   - item: cs-docs-hardening
     status: todo
     depends_on:

@@ -4,7 +4,7 @@
 
 ## Context
 
-`claude-session`'s config source of truth is user-editable XDG config, not native `claude` files. Profiles are YAML manifests that compose partial `settings.json` JSON pieces. This round establishes the on-disk config layout under `~/.config/claude-session/`, the manifest and piece models, and their loader validation — the inputs the merge engine (round 2) consumes. `cs-foundation` provides the figment `Config`, error layers, and `Ui`; the blessed `serde_yaml_ng` dep is added here for manifests.
+`claude-session`'s config source of truth is user-editable XDG config, not native `claude` files. Profiles are YAML manifests that compose partial `settings.json` JSON pieces. This round establishes the on-disk config layout under the config base, the manifest and piece models, and their loader validation — the inputs the merge engine (round 2) consumes. `cs-foundation` provides the figment `Config`, error layers, and `Ui`; the blessed `serde_yaml_ng` dep is added here for manifests.
 
 ## Previous Rounds
 
@@ -12,7 +12,7 @@
 
 ## Scope of This Round
 
-- IN scope: define the layout `~/.config/claude-session/` with `manifests/<profile>.yaml` and `settings/<piece>.json`; `services/config_compose/manifest.rs` (parse a manifest with `serde_yaml_ng`: ordered `layers: [string]`, `deny_unknown_fields`, require `minItems:1`); `services/config_compose/
+- IN scope: implement the config-base layout `manifests/<profile>.yaml` and `settings/<piece>.json` from the artifact table in `docs/reference/xdg-storage.md`; `services/config_compose/manifest.rs` (parse a manifest with `serde_yaml_ng`: ordered `layers: [string]`, `deny_unknown_fields`, require `minItems:1`); `services/config_compose/
   piece.rs` (load JSON pieces as `serde_json::Value`, preserving file path + layer name for error reporting); resolve a profile name → manifest path → ordered piece paths, erroring clearly when a referenced piece is missing.
 - OUT of scope: the merge engine (round 2), generation/output (round 3), CLI verbs (round 4).
 
@@ -21,7 +21,7 @@
 ### Key Files
 
 - `src/services.rs` (+ `src/services/`) — add `config_compose/` submodule with `manifest.rs`, `piece.rs`.
-- `src/config.rs` (+ `src/config/`) — knows `~/.config/claude-session`.
+- `src/config.rs` (+ `src/config/`) — resolves the config base.
 - `Cargo.toml` — add `serde_yaml_ng` for manifests via `cargo add serde_yaml_ng` (never hand-edit `[dependencies]`).
 
 ### Existing Patterns
@@ -40,7 +40,7 @@ In this plan's `queue-rounds.yaml`, set this round's (`item: config-layout-and-m
 
 ### Step 1: Layout
 
-Define and document `~/.config/claude-session/{manifests/<profile>.yaml, settings/<piece>.json}` in `config/`.
+Implement `{manifests/<profile>.yaml, settings/<piece>.json}` under the resolved config base in `config/`. The base's variable, default, and namespacing come from `docs/reference/xdg-storage.md`; a home-relative path is never hard-coded.
 
 ### Step 2: Manifest model
 

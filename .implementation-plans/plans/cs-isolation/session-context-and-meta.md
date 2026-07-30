@@ -4,7 +4,7 @@
 
 ## Context
 
-The child `claude` will later (in `cs-wrapper-runtime`) receive `CLAUDE_CONFIG_DIR=<session-dir>`. This round assembles the per-account/per-group session directory model from the secure primitives (round 1) and the identity derivation (round 2), writes session metadata, exposes the resolved session through `AppContext`, and adds conservative stale-session cleanup. After this round, `claude-session` can resolve a unique secure isolated directory for the current terminal — it just does not spawn into it yet.
+The child will later (in `cs-wrapper-runtime`) receive this group's composed settings through the native `--settings` flag, while `CLAUDE_CONFIG_DIR` points at the account. This round assembles the per-account/per-group session directory model from the secure primitives (round 1) and the identity derivation (round 2), writes session metadata, exposes the resolved session through `AppContext`, and adds conservative stale-session cleanup. After this round, `claude-session` can resolve a unique secure isolated directory for the current terminal — it just does not spawn into it yet.
 
 ## Previous Rounds
 
@@ -14,7 +14,7 @@ This plan round 1: `adapters/fs.rs`, secure-dir service, `resolve_session_root`.
 
 - IN scope: `services/session/dir.rs` `session_dir(root, account, group)` building `accounts/<account>/groups/<group-id>/` securely step-by-step; `services/session/meta.rs` (atomic `session-meta.json` write via tempfile+persist; fields `{account, group_id, group_source, cwd,
   started_at(rfc3339), account_source}`); lazy session resolution in `AppContext` (resolve once, reuse); `services/session/cleanup.rs` (conservative age-based pruning of stale `groups/<id>/` dirs with no-follow symlink guards); `doctor` inspection helper surfacing the resolved session dir.
-- OUT of scope: setting `CLAUDE_CONFIG_DIR` / spawning (`cs-wrapper-runtime`); real accounts (use `default`, replaced by `cs-accounts-auth`); credentials/config composition (later plans).
+- OUT of scope: building the child environment and argv / spawning (`cs-wrapper-runtime`); real accounts (use `default`, replaced by `cs-accounts-auth`); credentials and settings composition (later plans).
 
 ## Current State
 
@@ -73,4 +73,4 @@ In `services/session/cleanup.rs`, add conservative stale-`groups/<id>/` pruning 
 
 ## Next Round
 
-This is the final round of this plan. `cs-wrapper-runtime` consumes the resolved session dir to inject `CLAUDE_CONFIG_DIR` into the child and spawn it with signal forwarding.
+This is the final round of this plan. `cs-wrapper-runtime` consumes the resolved group directory when it builds the child's environment and argv, and spawns with signal forwarding.

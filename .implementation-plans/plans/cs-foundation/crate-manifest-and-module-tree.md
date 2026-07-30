@@ -4,7 +4,7 @@
 
 ## Context
 
-`claude-session` is a from-scratch Rust CLI wrapping the `claude` command (baseline v2.1.183). The hard contract: never break native passthrough, stay XDG-compliant, stay self-contained. The crate today is a stub: `src/main.rs` prints "Hello, world!"; `Cargo.toml` has `name = "claude-session"`, `version = "0.1.0"`, `edition = "2024"`, empty `[dependencies]`; `rust-toolchain.toml` pins `channel = "stable"`. The surrounding project is fully wired — pre-commit, `justfile`, `deny.toml`, `flake.nix`, CI, and a populated `docs/` tree carrying the specifications this round implements against. This round establishes the manifest (first dependencies, strict lints, release profile, concrete `rust-version`) and the canonical empty module tree so `cargo check` passes — the substrate every later round wires into.
+`claude-session` is a from-scratch Rust CLI wrapping the `claude` command. The hard contract: never break native passthrough, stay XDG-compliant, stay self-contained. The crate today is a stub: `src/main.rs` prints "Hello, world!"; `Cargo.toml` has `name = "claude-session"`, `version = "0.1.0"`, `edition = "2024"`, empty `[dependencies]`; `rust-toolchain.toml` pins `channel = "stable"`. The surrounding project is fully wired — pre-commit, `justfile`, `deny.toml`, `flake.nix`, CI, and a populated `docs/` tree carrying the specifications this round implements against. This round establishes the manifest (first dependencies, strict lints, release profile, concrete `rust-version`) and the canonical empty module tree so `cargo check` passes — the substrate every later round wires into.
 
 ## Previous Rounds
 

@@ -4,7 +4,7 @@
 
 ## Context
 
-`doctor` is the user's self-diagnostic. The shell-tool lesson is that it must report every subsystem's health gracefully and never abort the whole check on one bad subsystem (their `doctor` had to special-case profile resolution to avoid aborting). This round hardens `doctor` across all subsystems now that they exist: config layout, child binary + version floor, session dirs, accounts + seeds, auth, and generated settings. `cs-foundation` provided the `doctor` stub; later plans added subsystem checks incrementally — this round makes it comprehensive and uniform.
+`doctor` is the user's self-diagnostic, and it must report every subsystem's health without one bad subsystem aborting the rest. This round hardens it across every subsystem now that they exist, against the catalog in `docs/reference/logging-and-output.md`. `cs-foundation` provided the `doctor` stub; later plans added their own catalog entries incrementally — this round makes the whole set complete and uniform.
 
 ## Previous Rounds
 
@@ -12,8 +12,8 @@
 
 ## Scope of This Round
 
-- IN scope: a comprehensive `commands/doctor.rs` that checks, **each independently and without aborting**: config tree presence/validity; resolved child `claude` binary + minimum version floor; session-root resolution + secure-dir health; account registry + seed validity + current account; auth readiness (subscription seed or token fallback); generated `settings.json` freshness; with a three/four-part error + hint per failing check; `--json` structured output aggregating all results and an overall pass/warn/fail. A documented minimum supported `claude` version (baseline 2.1.183) as a checked floor.
-- OUT of scope: completions/man pages (round 3); ADR/release (round 4).
+- IN scope: a comprehensive `commands/doctor.rs` running **every** entry in the catalog table in `docs/reference/logging-and-output.md`, each independently and without aborting; the full verb grammar that page specifies — `--json`, `--list`, and `--strict`, all verb-level and combinable; the report shape and the JSON document that page specifies; the exit rule it specifies, including the bare `1` that `--strict` produces.
+- OUT of scope: completions/man pages (round 3); ADR/release (round 4). The catalog's contents, ids, severities, and the checked version floor are **not** decided here — that table owns them.
 
 ## Current State
 
@@ -25,11 +25,13 @@
 
 ### Existing Patterns
 
-The full check catalog, its hard-versus-soft classification, and the output contract are specified in `docs/reference/logging-and-output.md`. Implement that table.
+The full check catalog, its ids, scopes, hard-versus-soft classification, the `err.kind` each failure exits with, the report shape, and the JSON document are all specified in `docs/reference/logging-and-output.md`. Implement that page; do not restate it here and do not add a check the catalog does not list. There is exactly **one** probe set, and a command guard reads the same one — `docs/decisions/0018-one-probe-set-with-stable-check-ids.md`.
 
-Two rules govern the design. **Every check runs independently and one failure never aborts the rest** — a `doctor` that stops at the first problem is useless exactly when it is needed, because the first problem is often a consequence of the third. And **an inert soft check never gates**: a feature the user has not configured reports as not-applicable, since failing `doctor` over unused features punishes the user for not using them.
+Three rules govern the design. **Every check runs independently and one failure never aborts the rest** — a `doctor` that stops at the first problem is useless exactly when it is needed, because the first problem is often a consequence of the third. **An inert soft check reports `skipped` with a reason and never gates**, since failing `doctor` over a feature the user has not configured punishes them for not using it, and a skip never touches the exit code. And **check ids are public API**: scripts match them, so the table grows by appending and a rename is a breaking change.
 
-The exit code is non-zero only when a **hard** check fails. Each failure carries the four-part error shape from `docs/reference/exit-codes.md`. The child version floor is a perishable fact tracked in `docs/reference/research-tracking.yaml`, and the check is defensive: an unparsable version string is reported, not fatal.
+Exit is `0` when no hard check fails, otherwise the `err.kind` code of the first failing hard check **in catalog order** — which is why that table's order is contractual. `--strict` adds one rule and nothing else, specified in `docs/decisions/0034-exit-one-when-doctor-strict-promotes-a-warning.md`. Each failure carries the four-part error shape from `docs/reference/exit-codes.md`.
+
+A below-floor child version is a `doctor` **warning** and a `login`-mode launch **failure**: the same fact at two severities, because only one of them is a precondition. The floor itself is a perishable, externally-owned fact tracked in `docs/reference/research-tracking.yaml` and named in `docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md`; an unparsable version string is reported here, not fatal.
 
 ## Implementation Steps
 
@@ -37,17 +39,21 @@ The exit code is non-zero only when a **hard** check fails. Each failure carries
 
 In this plan's `queue-rounds.yaml`, set this round's (`item: doctor-hardening`) `status` to `doing`.
 
-### Step 1: Subsystem probes
+### Step 1: Complete the probe set
 
-Add read-only health probes (config, child+version floor, session dirs, accounts+seeds+auth, generated settings), each returning a result rather than aborting.
+Add a read-only probe for every catalog entry not yet implemented by an earlier plan, each returning a result rather than aborting, keyed by the id the catalog gives it.
 
-### Step 2: Aggregate + report
+### Step 2: Report and machine output
 
-Aggregate into an overall pass/warn/fail; emit a human report and a `--json` structured output; each failure carries a four-part message + hint.
+Emit the human report and the `--json` document exactly as `docs/reference/logging-and-output.md` specifies them, including the bracketed status words, the indented hint line, the summary line, and the document's field-omission rules.
 
-### Step 3: Tests
+### Step 3: Grammar and exit
 
-`assert_cmd`-test `doctor` in both text and `--json` modes against fixtures with one broken subsystem (verify it reports, does not abort, and exits non-zero appropriately).
+Wire `--list` (print the catalog without running anything) and `--strict`. Implement the exit rule: `0` with no hard failure, the first failing hard check's code otherwise, and `1` when `--strict` promotes a warning.
+
+### Step 4: Tests
+
+`assert_cmd`-test `doctor` in text, `--json`, and `--list` modes against fixtures with one broken subsystem: verify it reports, does not abort, and exits the code the catalog order predicts. Test that `--strict` promotes a warning to `1` and can never fail a passing catalog, and that a skip never changes the exit.
 
 ### Final Step: Update the queue
 
@@ -55,10 +61,11 @@ Aggregate into an overall pass/warn/fail; emit a human report and a `--json` str
 
 ## Acceptance Criteria
 
-- [ ] `doctor` checks config/child+version/session/accounts/auth/generated-settings, each independently.
+- [ ] Every catalog entry in `docs/reference/logging-and-output.md` runs, by its documented id, and no check outside that table exists.
 - [ ] One broken subsystem is reported (with a four-part message + hint) without aborting the others.
-- [ ] `doctor` in `--json` mode aggregates results with an overall pass/warn/fail and a correct exit code.
-- [ ] The minimum `claude` version floor is checked and surfaced.
+- [ ] The `--json` document matches the specified shape, and the report matches the specified text form.
+- [ ] `--list` prints the catalog without running it; `--strict` promotes a warning to `1` and nothing else.
+- [ ] The exit is `0`, the first failing hard check's code, or the bare `1`, per the specified rule.
 - [ ] `assert_cmd` tests pass.
 - [ ] This plan's `queue-rounds.yaml` shows round `doctor-hardening` as `done`.
 

@@ -4,18 +4,18 @@
 
 ## Problem Statement
 
-`claude-session` must support multiple named accounts with **subscription auth as the primary and always-available path**, while keeping native `claude` config blind to the user. It mirrors the reference's three-layer auth model: a managed `claude login` per account authenticates into an isolated dir → the resulting credentials become a per-account **seed** → each session gets its own **copy** of that seed. API-key / `ANTHROPIC_AUTH_TOKEN` injection is a secondary fallback for headless/CI. This plan adds the account registry, the managed-login flow, the resolver + auth gate (seed→session copy), the trust sync-back of `.claude.json` project state, and the `account` CLI verbs. Depends on `cs-wrapper-runtime` (managed login and the gate spawn `claude` via the runtime) and, transitively, `cs-isolation`/`cs-foundation`.
+`claude-session` must support multiple named accounts, each with its own durable native identity, while owning only what the child does not: selection, mode metadata, and any wrapper-stored token. An account is a directory under the state base; the child owns everything below that account's `config/`, including its saved login. This plan adds account discovery and selection, `account login` in both stored modes, launch-time authentication with its precedence warnings and version floor, and the `account` CLI verbs. The design is specified in `docs/reference/accounts.md`. Depends on `cs-wrapper-runtime` (login and launch both go through the spawner) and, transitively, `cs-isolation`/`cs-foundation`.
 
 ## Strategy
 
-Four rounds. R1 builds the filesystem-backed account registry (`accounts/<name>/`, seed paths, `last-account`). R2 implements managed `claude login` per account into an isolated dir + hardened credential copy to the seed. R3 builds the resolver (flag > env > last/default) + the auth gate (seed→session copy) + API-key fallback + trust sync-back. R4 exposes the `account` CLI verbs with `--json` and redaction, and wires `doctor`.
+Four rounds. R1 builds the account store — directory discovery, `auth-mode.json`, the last-used marker, hardened file I/O — and the selection resolver. R2 implements `account login` in both modes: launching the child's own login into the account `config/`, and transactional ingest of a long-lived subscription token. R3 resolves the stored mode at launch, contributes the child's authentication environment, warns about ambient precedence and shadowing, and enforces the child version floor. R4 exposes the `account` verbs and adds the catalog's account checks to `doctor`.
 
 ## Rounds
 
-1. `account-registry.md` — filesystem-backed registry, account dirs, seed paths, last-account.
-2. `managed-login.md` — managed `claude login` per account (subscription OAuth) + hardened seed write.
-3. `auth-gate-and-resolver.md` — resolver, auth gate, seed→session copy, API-key fallback, trust sync-back.
-4. `account-commands.md` — `account add|list|status|remove|refresh` verbs, `--json`, redaction, doctor.
+1. `account-discovery.md` — account directories, mode metadata, last-used marker, hardened I/O, selection resolver.
+2. `account-login.md` — `account login` in login mode and token mode, with transactional rotation.
+3. `launch-auth-and-precedence.md` — launch-time mode resolution, child environment, precedence warnings, version floor.
+4. `account-commands.md` — the `account` verb tree, machine output, redaction, doctor catalog entries.
 
 ## Execution Commands
 
@@ -26,7 +26,7 @@ Any executor following [the contract](../../README.md#the-executor-contract) can
 /prex -ar @.implementation-plans/plans/cs-accounts-auth/
 
 # Or target a specific round file directly:
-/prex -ar .implementation-plans/plans/cs-accounts-auth/account-registry.md
+/prex -ar .implementation-plans/plans/cs-accounts-auth/account-discovery.md
 ```
 
 ## Execution Discipline
@@ -38,26 +38,30 @@ This plan adds no exceptions to it.
 ## Decisions & Constraints
 
 - **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
-- **Subscription auth is primary and MUST always be available** via managed `claude login`. API-key / `ANTHROPIC_AUTH_TOKEN` injection is a secondary fallback only.
-- **Three-layer auth model**: managed login into an isolated dir → per-account seed (`accounts/<name>/`) → per-session copy (into the session dir from `cs-isolation`). Mirrors codex's native→seed→session.
-- **Account selection priority**: CLI `--account` flag > env `CLAUDE_SESSION_ACCOUNT` > last-used / `default`. `AccountId` reuses the validated newtype from `cs-isolation`.
-- **Native config blind to user**: users never edit native `claude` credential files directly; claude-session manages seeds and session copies. Credentials are never written to user-editable config.
-- **Hardened credential I/O**: symlink/hardlink/ownership checks, `secure_file_read`, atomic writes, 0700 dirs / 0600 files; never write a token into `~/.config/claude-session` or a cleanable session cache path.
-- **Native credential surface**: `claude` writes `.credentials.json` under its config dir (or macOS Keychain); a fresh isolated `CLAUDE_CONFIG_DIR` has none until login or token injection.
+- **Two stored modes, chosen once by `account login`** and resolved deterministically afterwards. Ambient state never rewrites a stored mode. Specified in `docs/reference/accounts.md`.
+- **One saved login per account, shared by its runs** — never copied per session, because the child's cross-process refresh coordination only protects processes sharing one file. `docs/decisions/0025-share-one-native-login-per-account.md`, which supersedes the earlier seed-and-copy model in `docs/decisions/0011-isolate-credentials-by-seed-and-session.md`.
+- **The ownership boundary is absolute.** The wrapper owns selection, mode metadata, and any stored token; the child owns everything below the account `config/`. The wrapper never reads, copies, writes, refreshes, synchronizes, or fingerprints a child credential.
+- **Secrets enter from a terminal or standard input only** — never argv, environment, a file flag, or scraped child output — and the wrapper never calls an OAuth endpoint. `docs/decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md`.
+- **No subcommand ever prints a credential**, at any verbosity or in any format.
+- **The wrapper contributes environment variables and never removes them.** Ambient higher-precedence authentication is warned about, never stripped.
+- **Login mode enforces a child version floor before spawn**; token mode and an unselected passthrough do not. `docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md`.
+- **Selection appends one rung** below the configuration precedence ladder in `docs/reference/configuration.md`; it does not define a chain of its own.
+- **Paths, modes, and writers** come from the artifact table in `docs/reference/xdg-storage.md`.
 
 ## Rejected Alternatives
 
-- **API-key-only auth** — rejected; subscription must be primary and always available.
-- **Mixing `apiKeyHelper` with subscription tokens** — rejected (the shell tool flags this as fragile and surprising); pick one path per invocation.
-- **Storing tokens in user config** — rejected; credentials live only in secured seed/session dirs.
-- **Quota-aware auto-rotation and failover** — out of scope for v1. It requires modelling quota state the wrapper cannot observe reliably, and it is orthogonal to isolation. The resolver supports explicit and last/default selection, leaving room for a future `auto`. See the switcher survey in `docs/reference/prior-art.md`.
+- **A per-account credential seed copied into each session** — superseded. Separate copies bypass the child's refresh lock and recreate the rotate-and-revoke failure; see `docs/decisions/0025-share-one-native-login-per-account.md`.
+- **Wrapper-side credential and project-trust sync-back** — removed with the seed model. `docs/decisions/0004-spawn-and-wait-child-supervision.md` is amended accordingly; spawn-and-wait now rests on child supervision and post-flight marker and log finalization.
+- **A registry index file** — rejected; a second source of truth for which accounts exist drifts from the directory it claims to describe.
+- **Wrapper-managed API-key or ambient-token injection as a fallback path** — rejected. Those mechanisms already outrank a subscription account inside the child; the wrapper reports them and stays out of the way.
+- **Quota-aware auto-rotation and failover** — out of scope. It requires modelling quota state the wrapper cannot observe reliably, and it is orthogonal to isolation. See the switcher survey in `docs/reference/prior-art.md`.
 
 ## Risks & Edge Cases
 
-- Managed login inside containers: the OAuth/browser flow may not be available; document the API-key / token fallback path and fail with a clear hint.
-- Seed staleness/expiry: `account refresh` re-runs login; the gate surfaces a clear error when a seed is missing.
-- Concurrent session copies of the same seed: copy must be atomic and idempotent.
-- Trust sync-back must not clobber a newer `.claude.json` state; merge conservatively under a lock.
+- Login inside containers: the browser flow may be unavailable, which is what token mode is for; fail with a clear hint rather than a partial account.
+- A pasted token minted earlier than ingest reports a wrong age unless the mint-time correction flag is used; the reported expiry is always labelled an estimate.
+- The child's credential location and status-probe behaviour are externally owned and perishable; both are registered in `docs/reference/research-tracking.yaml` and consumed defensively.
+- A below-floor child is a `doctor` warning and a `login`-mode launch failure — the same fact at two severities, because only one of them is a precondition.
 
 ## Completion
 

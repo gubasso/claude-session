@@ -61,7 +61,7 @@ Add the `commands/dispatch.rs` match arms; `assert_cmd`-test `config compose`/`s
 
 ## Acceptance Criteria
 
-- [ ] `config view|path|compose|validate|status` and `profile list|status` work via the four-edit rule with `--json`.
+- [ ] Every `config` and `profile` subcommand in the table in `docs/reference/configuration.md` works via the four-edit rule with verb-level `--json`, and no subcommand outside it exists.
 - [ ] `compose`/`validate` surface per-key provenance and unknown-key warnings.
 - [ ] `status` reports the active profile, resolved pieces, and freshness.
 - [ ] `doctor` reports config health without aborting.

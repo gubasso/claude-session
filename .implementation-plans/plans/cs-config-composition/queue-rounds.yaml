@@ -16,10 +16,10 @@ rounds:
     depends_on:
       - merge-engine
     prompt: /prex -ar .implementation-plans/plans/cs-config-composition/generate-settings.md
-    notes: Atomic native settings.json output, schema validation, freshness, provenance sidecar, .claude.json trust state.
+    notes: Atomic native settings.json output, validation, freshness, provenance sidecar.
   - item: config-commands
     status: todo
     depends_on:
       - generate-settings
     prompt: /prex -ar .implementation-plans/plans/cs-config-composition/config-commands.md
-    notes: config/profile verbs (view|path|compose|validate|status, list|status), --json, provenance.
+    notes: config and profile verbs per docs/reference/configuration.md, --json, provenance.

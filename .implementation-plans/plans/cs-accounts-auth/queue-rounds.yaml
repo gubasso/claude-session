@@ -1,25 +1,25 @@
 # Rounds for this plan, in execution order. status: backlog | todo | doing | done
 rounds:
-  - item: account-registry
+  - item: account-discovery
     status: todo
     depends_on: []
-    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/account-registry.md
-    notes: Filesystem-backed account registry, account dirs, seed paths, last-account.
-  - item: managed-login
+    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/account-discovery.md
+    notes: Account dirs, auth-mode metadata, last-account marker, hardened I/O, resolver.
+  - item: account-login
     status: todo
     depends_on:
-      - account-registry
-    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/managed-login.md
-    notes: Managed claude login per account (subscription OAuth) + hardened seed write.
-  - item: auth-gate-and-resolver
+      - account-discovery
+    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/account-login.md
+    notes: account login in login mode and token mode, with transactional rotation.
+  - item: launch-auth-and-precedence
     status: todo
     depends_on:
-      - managed-login
-    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/auth-gate-and-resolver.md
-    notes: Resolver, auth gate, seed->session copy, API-key fallback, trust sync-back.
+      - account-login
+    prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/launch-auth-and-precedence.md
+    notes: Launch-time mode resolution, child env, precedence warnings, version floor.
   - item: account-commands
     status: todo
     depends_on:
-      - auth-gate-and-resolver
+      - launch-auth-and-precedence
     prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/account-commands.md
-    notes: account add|list|status|remove|refresh verbs, --json, redaction, doctor.
+    notes: account login|list|status|remove verbs, --json, redaction, doctor catalog.

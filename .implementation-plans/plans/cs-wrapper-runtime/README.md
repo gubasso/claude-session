@@ -4,17 +4,17 @@
 
 ## Problem Statement
 
-`claude-session` ultimately executes the native `claude` binary with an isolated config dir, correct env, preserved argv, correct signal semantics, faithful exit status, and a clean seam for any fronting proxy. This plan owns the process/spawn subsystem — the `Spawner` port, child-binary resolution with two recursion guards, spawn-and-wait with the signal matrix and status propagation, and isolated child-env construction — replacing the minimal inherited-env spawn that `cs-foundation` shipped. It is kept separate from "compute the session location" (`cs-isolation`). The contracts it implements are in `docs/reference/process-runtime.md` and `docs/reference/exit-codes.md`; the reasoning is in `docs/explanation/wrapper-model.md`. Depends on `cs-isolation` (it consumes the resolved session dir) and, transitively, `cs-foundation`.
+`claude-session` ultimately executes the native `claude` binary with the right configuration directory, correct env, preserved argv, correct signal semantics, faithful exit status, and a clean seam for any fronting proxy. This plan owns the process/spawn subsystem — the `Spawner` port, child-binary resolution with two recursion guards, spawn-and-wait with the signal matrix and status propagation, and child-env and argv construction — replacing the minimal inherited-env spawn that `cs-foundation` shipped. It is kept separate from "compute the session location" (`cs-isolation`). The contracts it implements are in `docs/reference/process-runtime.md` and `docs/reference/exit-codes.md`; the reasoning is in `docs/explanation/wrapper-model.md`. Depends on `cs-isolation` (it consumes the resolved session dir) and, transitively, `cs-foundation`.
 
 ## Strategy
 
-Three rounds. R1 builds child resolution (the lookup ladder + both recursion guards) and the `Spawner` trait, and finalizes the `version` verb. R2 implements spawn-and-wait with the signal matrix and status propagation, replacing the foundation's minimal spawn. R3 builds the isolated child-env (`ChildInvocation`/`ChildEnv` — scrub internal vars, set `CLAUDE_CONFIG_DIR`), wires the isolation plan's session dir into the spawn, exposes the general environment-injection seam, and adds end-to-end passthrough integration tests.
+Three rounds. R1 builds child resolution (the lookup ladder + both recursion guards) and the `Spawner` trait, and finalizes the `version` verb. R2 implements spawn-and-wait with the signal matrix and status propagation, replacing the foundation's minimal spawn. R3 builds the child environment (`ChildInvocation`/`ChildEnv` — scrub internal vars, set the account-scoped `CLAUDE_CONFIG_DIR`), builds the wrapper-owned argv prefix around the untouched user suffix, exposes the general environment-injection seam, and adds end-to-end passthrough integration tests.
 
 ## Rounds
 
 1. `child-resolution.md` — `Spawner` trait, child-binary resolution chain, recursion guard, `version`.
 2. `spawn-signals-exitcodes.md` — spawn-and-wait, the signal matrix, child exit-status propagation.
-3. `child-env-injection-and-headroom-seam.md` — `ChildEnv` scrubbing + `CLAUDE_CONFIG_DIR` injection + the general env-injection seam + e2e passthrough tests.
+3. `child-env-injection-and-headroom-seam.md` — `ChildEnv` scrubbing + `CLAUDE_CONFIG_DIR` injection + the argv-prefix seam + the general env-injection seam + e2e passthrough tests.
 
 ## Execution Commands
 
@@ -37,17 +37,17 @@ This plan adds no exceptions to it.
 ## Decisions & Constraints
 
 - **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
-- **Spawn-and-wait, not `exec`** — post-exit work (credential sync-back, trust sync in `cs-accounts-auth`) requires control to return after the child exits.
+- **Spawn-and-wait, not `exec`** — child supervision and the post-flight obligations in `docs/reference/process-runtime.md` require control to return after the child exits.
 - **Child-binary resolution** (highest first): `$CLAUDE_SESSION_CHILD_BIN` → config entry (`child_bin`) → `PATH` search → optional bundled vendor path.
 - **Recursion guard**: marker env `CLAUDE_SESSION_REENTRY=1` + `current_exe().canonicalize()` self-check so the wrapper never re-invokes itself as the child.
 - **Exit status**: child code N → wrapper exits N unchanged; a signal-killed child is reproduced by re-raising the signal on the wrapper, with `128 + N` (clamped) as the fallback. Specified in `docs/reference/exit-codes.md`.
 - **Signal handling is partial, not blanket.** The child shares the wrapper's foreground process group, so terminal-generated signals (`SIGINT`, `SIGQUIT`, `SIGTSTP`, `SIGCONT`, `SIGWINCH`) already reach it — forwarding those double-delivers. The wrapper forwards only `SIGTERM`, `SIGHUP`, `SIGUSR1`, and `SIGUSR2`, and re-raises `SIGSTOP` on itself for `SIGTSTP`. The matrix is in `docs/reference/process-runtime.md`; **implement it as written rather than reasoning it out afresh**.
-- **Child env**: inherit parent env, REMOVE internal `CLAUDE_SESSION_*` keys (except the intentional `REENTRY` marker), SET `CLAUDE_CONFIG_DIR=<session-dir>`. Argv forwarded verbatim as `OsString`.
+- **Child env**: inherit parent env, REMOVE internal `CLAUDE_SESSION_*` keys (except the intentional `REENTRY` marker), SET the variables the table in `docs/reference/process-runtime.md` credits — `CLAUDE_CONFIG_DIR` points at the **account** configuration directory, which is what lets runs of one account share a saved login (`docs/decisions/0025-share-one-native-login-per-account.md`). The user's argv is forwarded verbatim as `OsString` as an untouched suffix.
 - **The proxy seam is a general mechanism**: arbitrary child environment keys are composable from configuration and the command line, so any fronting proxy can be pointed at through `ANTHROPIC_BASE_URL`. Implement the composition, never the proxy — no compression, rewriting, or routing inside the wrapper.
 
 ## Rejected Alternatives
 
-- **`exec` as the default** — rejected; auth and trust sync-back must run after the child exits. Recorded in `docs/decisions/0004-spawn-and-wait-child-supervision.md`.
+- **`exec` as the default** — rejected; supervision and post-flight work must run after the child exits. Recorded in amended `docs/decisions/0004-spawn-and-wait-child-supervision.md`.
 - **Any request-manipulating logic inside the wrapper** — rejected; provide the environment seam only.
 - **Parsing the child's grammar to rewrite flags** — rejected; forward verbatim and claim only a denylist of wrapper-owned flags. Recorded in `docs/decisions/0002-verbatim-argv-passthrough.md`.
 
