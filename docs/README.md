@@ -42,6 +42,7 @@ The zone carries cross-cutting models, not one page per subsystem. Accounts have
 - [Coding conventions](./reference/coding-conventions.md) — naming, visibility, error layering, and the panic policy.
 - [Dependencies](./reference/dependencies.md) — the reviewed crate set and the rules for adding to it.
 - [Testing and quality](./reference/testing-and-quality.md) — test tools, lanes, gates, and which contract each test locks down.
+- [Release workflow](./reference/release-workflow.md) — exact branch, automation, authentication, packaging, distribution, and recovery contracts.
 - [Prior art](./reference/prior-art.md) — comparable projects, what was inspected, and what was borrowed or rejected.
 - [Research tracking](./reference/research-tracking.yaml) — the perishable facts these documents rest on, and when to re-check each.
 - [Examples](./reference/examples/) — the configuration files a user copies. Most are generated from the config types and must not be hand-edited; [configuration](./reference/configuration.md#generated-examples-and-schema) says which, and why.
@@ -49,6 +50,7 @@ The zone carries cross-cutting models, not one page per subsystem. Accounts have
 ## Guides
 
 - [Development workflow](./guides/development-workflow.md) — pick up queued work, add a command, add a dependency, write a test, run the gate.
+- [Release and publishing](./guides/releasing.md) — one-time bootstrap, routine release, emergency publish, and recovery procedures.
 
 The zone grows with the specifications, not with the releases: a guide is written whenever a task needs an ordered procedure, and before `0.1.0` its reader is the implementer ([ADR-0036](./decisions/0036-write-the-specifications-before-the-code.md)). A page missing today is work outstanding rather than a decision — closed by a real guide, never by a placeholder ([ADR-0012](./decisions/0012-docs-architecture.md)).
 

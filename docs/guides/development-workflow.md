@@ -147,27 +147,13 @@ Commits follow Conventional Commits, checked by a hook:
 docs: add wrapper model and process runtime specs
 ```
 
-## Branch, review, and release
+## Branch and review
 
 Two long-lived branches, plus short-lived feature branches.
 
-| Branch                       | Role                                                                                           |
-| ---------------------------- | ---------------------------------------------------------------------------------------------- |
-| `develop`                    | The integration branch and the **release trigger**. Release automation watches it.             |
-| `master`                     | The release branch — a mirror of the latest published version. **No human ever writes to it.** |
-| `feat/…`, `fix/…`, `chore/…` | Short-lived, branched off `develop`, merged back through a reviewed PR.                        |
+Branch short-lived work from `develop`. Keep it linear by rebasing onto `develop` rather than merging `develop` into it, then merge only through a reviewed pull request with green CI to `develop`. Never target or push `master`.
 
-The flow is one-way:
-
-```text
-feat/*  ──PR──▶  develop  ──release──▶  (tag vX.Y.Z)  ──CI promote──▶  master
-```
-
-Keep a feature branch **linear by rebasing** onto `develop` rather than merging `develop` into it; a branch full of back-merges is unreviewable as a diff. Merge only through a reviewed PR with green CI.
-
-`master` is written by CI, which fast-forwards it after a successful release. A human pushing to `master` breaks the invariant that it mirrors exactly what was published — which is the only reason it is worth having a second branch at all. Protect it at the forge rather than relying on discipline.
-
-Releases are cut by automation from `develop`; the publishing procedure and its credentials are in `PUBLISHING.md`.
+[The release workflow](../reference/release-workflow.md#branch-and-release-invariant) owns branch roles and the promotion invariant. Use [the release guide](./releasing.md) for release work.
 
 ## Dependency and security baseline
 
@@ -177,7 +163,7 @@ Local scanning runs in the gate — secret scans, advisories, and licence checks
 
 **A workflow's action pins are tags, and a tag is mutable.** An unchanged `uses:` line does not mean unchanged code: the referenced tag moves when its maintainer moves it, so CI can change behaviour with no commit here to explain it. Nothing in the gate reads `.github/`, so currency is re-checked on a cadence — [research tracking](../reference/research-tracking.yaml), `pinned-action-currency`.
 
-**Branch protection** is the one part of this baseline that lives at the forge, and it is not configured yet. The `master` invariant above is a forge setting, not a convention; configure it so CI is the only writer.
+Configure the forge through [the enforcement contract](../reference/release-workflow.md#forge-enforcement) and [the release bootstrap procedure](./releasing.md#bootstrap-release-automation-once).
 
 ## Before proposing a change
 

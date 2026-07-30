@@ -86,7 +86,7 @@ hooks:
 	{{dev}} pre-commit run --all-files --hook-stage pre-commit
 	{{dev}} pre-commit run --all-files --hook-stage pre-push
 
-# --- Publishing (thin wrappers over scripts/; see PUBLISHING.md) -------------
+# --- Publishing (thin wrappers; see docs/guides/releasing.md) ----------------
 
 # Dry-run the crates.io publish (no upload).
 publish-dry:

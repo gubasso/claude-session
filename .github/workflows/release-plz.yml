@@ -1,29 +1,34 @@
-# release-plz — version bump, changelog, tag, and crates.io publish.
+# release-plz — release PR, source publish, tag, and inline master promotion.
 #
 # The filename MUST stay `release-plz.yml`: the crates.io Trusted Publisher for
 # this crate is configured against this exact workflow file. Renaming it breaks
 # publishing.
 #
-# Auth is Trusted Publishing (OIDC). There is deliberately NO
+# crates.io auth is Trusted Publishing (OIDC). There is deliberately NO
 # CARGO_REGISTRY_TOKEN secret and NO rust-lang/crates-io-auth-action step —
 # release-plz mints the short-lived crates.io token itself from the job's
 # `id-token: write` permission.
 #
-# The FIRST publish of a new crate is manual (see PUBLISHING.md); Trusted
-# Publishing can only be configured against an already-existing crate.
+# GitHub writes use short-lived installed-App tokens. This lets an App-authored
+# tag retrigger the separate cargo-dist workflow and lets promotion write the
+# protected master branch as its bypass actor.
 #
-# Two jobs, in order:
-#   release-plz-release — publish any version on main that is not yet on
-#                         crates.io, and push its git tag.
-#   release-plz-pr      — open/refresh the release PR (version bump + changelog).
+# The FIRST publish of a new crate is manual (see docs/guides/releasing.md);
+# Trusted Publishing can only be configured against an existing crate.
+#
+# Jobs:
+#   release-plz-release — publish versions on develop and push release tags.
+#   release-plz-pr      — open/refresh the release PR.
+#   promote             — fast-forward master to the exact release tag.
 #
 # Behaviour is configured by release-plz.toml at the repo root
-# (semver_check = false — bin-only crate; see PUBLISHING.md).
+# (semver_check = false — bin-only crate). Binary archives and the GitHub
+# Release belong to generated .github/workflows/release.yml.
 name: release-plz
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
 
 permissions:
   contents: read
@@ -37,26 +42,37 @@ jobs:
     name: release-plz release
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      releases_created: ${{ steps.release-plz.outputs.releases_created }}
+      releases: ${{ steps.release-plz.outputs.releases }}
     permissions:
       # Required by crates.io Trusted Publishing: release-plz exchanges this
       # OIDC token for a short-lived registry token.
       id-token: write
-      # Push the release commit and tag.
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
+      - name: Mint release App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_PLZ_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLZ_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       # No Nix devShell here: release-plz/action brings its own pinned cargo
       # and runs release-plz as a self-contained binary. Toolchain parity is
-      # enforced by ci.yml, which gates main before anything reaches this job.
+      # enforced by ci.yml, which gates develop before anything reaches this job.
       - name: Run release-plz release
+        id: release-plz
         uses: release-plz/action@v0.5
         with:
           command: release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
   release-plz-pr:
     name: release-plz PR
@@ -64,15 +80,65 @@ jobs:
     timeout-minutes: 20
     needs: [release-plz-release]
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
+      - name: Mint release App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_PLZ_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLZ_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Run release-plz release-pr
         uses: release-plz/action@v0.5
         with:
           command: release-pr
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+  promote:
+    name: promote release to master
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: release-plz-release
+    if: needs.release-plz-release.outputs.releases_created == 'true'
+    permissions:
+      contents: read
+    steps:
+      - name: Mint promotion App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_PLZ_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLZ_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Fast-forward master to the release tag
+        env:
+          RELEASES: ${{ needs.release-plz-release.outputs.releases }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(jq -er '.[0].tag | select(type == "string" and length > 0 and . != "null")' <<<"$RELEASES")"
+          git fetch origin develop --tags
+          release_commit="$(git rev-parse "refs/tags/${tag}^{commit}")"
+          git merge-base --is-ancestor "$release_commit" origin/develop
+
+          if git ls-remote --exit-code --heads origin master >/dev/null 2>&1; then
+            git fetch origin master
+            git switch --force-create master origin/master
+            git merge --ff-only "$release_commit"
+          else
+            git switch --detach "$release_commit"
+            git switch --create master
+          fi
+
+          git push origin master

@@ -37,7 +37,7 @@ exclude = [
   "/dprint.json",
   "/dprint.markdown.json",
   "/statix.toml",
-  "/PUBLISHING.md",
+  "/dist-workspace.toml",
   "/release-plz.toml",
   "/scripts",
   "/uninstall.sh",

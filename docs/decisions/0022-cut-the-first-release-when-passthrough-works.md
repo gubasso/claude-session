@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-The crate builds a placeholder binary, but the release machinery is already wired: `release-plz.toml`, the helper scripts under `scripts/`, and the runbook in `PUBLISHING.md` could publish today. crates.io versions are immutable — a published version can be yanked but never replaced — so the timing of the first upload is a one-way door. It also decides what `README.md` may promise and which guides can honestly be written.
+The crate builds a placeholder binary, but the release machinery is already wired: `release-plz.toml`, the helper scripts under `scripts/`, and [the release runbook](../guides/releasing.md) could publish today. crates.io versions are immutable — a published version can be yanked but never replaced — so the timing of the first upload is a one-way door. It also decides what `README.md` may promise and which guides can honestly be written.
 
 ## Considered Options
 

@@ -388,3 +388,69 @@ facts:
       Compare each pinned tag against the action's current release and its
       advisories. A tag is mutable, so an unchanged workflow file is not
       evidence that the code it runs is unchanged.
+
+  - id: crates-io-trusted-publishing
+    fact: >-
+      crates.io Trusted Publishing identity, supported triggers, enforcement,
+      and first-publish requirements.
+    owner: docs/reference/release-workflow.md
+    dependents:
+      - docs/guides/releasing.md
+      - .github/workflows/release-plz.yml
+    cadence: quarterly
+    last_checked: 2026-07-30
+    source:
+      - https://crates.io/docs/trusted-publishing
+    revalidate: >-
+      Re-check publisher identity fields, supported workflow triggers,
+      enforcement behavior, and the first-publish requirement.
+
+  - id: release-plz-action-contract
+    fact: >-
+      release-plz action commands, default-branch behavior, OIDC support,
+      release outputs, and default tag shape.
+    owner: docs/reference/release-workflow.md
+    dependents:
+      - .github/workflows/release-plz.yml
+      - release-plz.toml
+    cadence: quarterly
+    last_checked: 2026-07-30
+    source:
+      - https://release-plz.dev/docs
+    revalidate: >-
+      Re-check commands, default-branch behavior, OIDC authentication, action
+      outputs, and the default release tag.
+
+  - id: github-release-app-token-behavior
+    fact: >-
+      GitHub default-token retrigger behavior, installed-App token inputs, and
+      personal-account ruleset bypass support.
+    owner: docs/reference/release-workflow.md
+    dependents:
+      - .github/workflows/release-plz.yml
+      - docs/guides/releasing.md
+    cadence: quarterly
+    last_checked: 2026-07-30
+    source:
+      - https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-when-your-workflow-runs/triggering-a-workflow
+      - https://github.com/actions/create-github-app-token
+      - https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
+    revalidate: >-
+      Re-check default-token workflow retriggering, App action behavior and
+      inputs, and personal-account bypass actors.
+
+  - id: cargo-dist-generator-contract
+    fact: >-
+      cargo-dist stable version, configuration schema, generated workflow
+      filename and trigger, supported targets, runners, and actions.
+    owner: dist-workspace.toml
+    dependents:
+      - docs/reference/release-workflow.md
+      - .github/workflows/release.yml
+    cadence: quarterly
+    last_checked: 2026-07-30
+    source:
+      - https://opensource.axo.dev/cargo-dist/
+    revalidate: >-
+      Re-check the stable version, schema, generated filename and trigger,
+      supported targets, runners, and generated action versions.
