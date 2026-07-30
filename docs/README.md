@@ -50,7 +50,7 @@ The zone carries cross-cutting models, not one page per subsystem. Accounts have
 
 - [Development workflow](./guides/development-workflow.md) — pick up queued work, add a command, add a dependency, write a test, run the gate.
 
-The zone holds one guide by design, not by omission. A guide promises verification, and nothing user-facing is verifiable before the first release; installing, troubleshooting, and a first-session walkthrough are written when [ADR-0022](./decisions/0022-cut-the-first-release-when-passthrough-works.md) is satisfied, never as placeholders ([ADR-0012](./decisions/0012-docs-architecture.md)).
+The zone grows with the specifications, not with the releases: a guide is written whenever a task needs an ordered procedure, and before `0.1.0` its reader is the implementer ([ADR-0036](./decisions/0036-write-the-specifications-before-the-code.md)). A page missing today is work outstanding rather than a decision — closed by a real guide, never by a placeholder ([ADR-0012](./decisions/0012-docs-architecture.md)).
 
 ## Decisions
 

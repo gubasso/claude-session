@@ -28,3 +28,5 @@ Chosen option: **publish nothing until passthrough works**. The crate's descript
 Accepted
 
 `Cargo.toml` holds `0.1.0` as the unreleased authoring version; the tag that mirrors it does not exist yet.
+
+Amended by [ADR-0036](./0036-write-the-specifications-before-the-code.md): documentation is not gated on the release, so the second consequence above no longer holds and the `guides/` zone grows with the specifications. The release decision recorded here is unchanged.
