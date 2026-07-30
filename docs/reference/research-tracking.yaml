@@ -27,47 +27,35 @@ version: 1
 facts:
   - id: child-config-dir-var
     fact: >-
-      CLAUDE_CONFIG_DIR redirects the child's configuration directory, and is
-      the mechanism the whole isolation design rests on.
+      CLAUDE_CONFIG_DIR selects one account-wide child configuration directory
+      and relocates saved-login storage on Linux and Windows.
     owner: docs/reference/process-runtime.md
     dependents:
       - docs/explanation/session-isolation.md
       - docs/decisions/0006-place-files-by-xdg-ownership.md
-      - docs/decisions/0011-isolate-credentials-by-seed-and-session.md
-    cadence: quarterly
-    last_checked: 2026-07-28
+      - docs/decisions/0025-share-one-native-login-per-account.md
+      - docs/decisions/0028-pass-composed-settings-with-the-native-flag.md
+    cadence: monthly
+    last_checked: 2026-07-30
     revalidate: >-
-      Run the child with the variable pointed at an empty directory and confirm
-      it reads and writes there rather than in the default location. Check the
-      upstream changelog for any statement about the variable's status.
+      Check the current environment-variable documentation, then run the child
+      on Linux with the variable pointed at an empty account config directory
+      and confirm configuration and login state are written there.
 
   - id: child-credential-file-layout
     fact: >-
-      The child stores credentials in a file inside its configuration
-      directory on Linux; other platforms may use a system keychain.
-    owner: docs/reference/prior-art.md
+      The child stores its saved login inside the configuration directory on
+      Linux and Windows, while macOS uses Keychain.
+    owner: docs/reference/xdg-storage.md
     dependents:
-      - docs/reference/xdg-storage.md
-      - docs/decisions/0011-isolate-credentials-by-seed-and-session.md
-    cadence: quarterly
-    last_checked: 2026-07-28
+      - docs/reference/accounts.md
+      - docs/decisions/0025-share-one-native-login-per-account.md
+    cadence: monthly
+    last_checked: 2026-07-30
     revalidate: >-
-      Authenticate into a scratch configuration directory and inspect what
-      appears. Confirm the seed-and-copy model still transfers an
-      authenticated state.
-
-  - id: child-trust-state-file
-    fact: >-
-      Project-trust and onboarding state live in a file separate from the
-      settings file, which is why they are synced back independently.
-    owner: docs/reference/configuration.md
-    dependents:
-      - docs/reference/process-runtime.md
-    cadence: quarterly
-    last_checked: 2026-07-28
-    revalidate: >-
-      Inspect a scratch configuration directory after a session in a new
-      project and confirm which file records the trust decision.
+      Check current authentication and environment-variable documentation.
+      Authenticate into an isolated config directory on Linux and Windows and
+      confirm the file location; inspect documented macOS Keychain behavior.
 
   - id: child-settings-schema
     fact: >-
@@ -86,16 +74,169 @@ facts:
   - id: child-version-floor
     fact: >-
       The minimum child version this wrapper is designed against; baseline
-      2.1.183.
-    owner: docs/reference/prior-art.md
+      2.1.211.
+    owner: docs/reference/process-runtime.md
+    dependents:
+      - docs/decisions/0025-share-one-native-login-per-account.md
+      - docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md
+    cadence: monthly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Check the current troubleshooting documentation and changelog for the
+      minimum version attached to shared-login refresh coordination.
+
+  - id: child-cross-process-refresh-lock
+    fact: >-
+      Processes sharing one saved login coordinate refresh from child version
+      2.1.211.
+    owner: docs/reference/accounts.md
+    dependents:
+      - docs/decisions/0025-share-one-native-login-per-account.md
+      - docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md
+    cadence: monthly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Check current troubleshooting documentation and changelog, then run two
+      concurrent child processes against one config directory across a refresh
+      boundary and confirm one coordinated renewal without login revocation.
+
+  - id: child-setup-token-contract
+    fact: >-
+      setup-token mints a long-lived subscription token consumed through
+      CLAUDE_CODE_OAUTH_TOKEN and does not provide a wrapper-owned output format.
+    owner: docs/reference/accounts.md
+    dependents:
+      - docs/decisions/0026-store-and-inject-a-long-lived-subscription-token.md
+      - docs/decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md
+    cadence: quarterly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Check current authentication and CLI documentation, then run setup-token
+      with redacted output and confirm the token works only through the
+      documented environment variable. Do not codify presentation text.
+
+  - id: child-auth-precedence
+    fact: >-
+      Ambient cloud, API, and helper authentication can shadow an injected
+      subscription token, which in turn shadows a saved login.
+    owner: docs/reference/accounts.md
     dependents:
       - docs/reference/process-runtime.md
+      - docs/reference/logging-and-output.md
     cadence: monthly
-    last_checked: 2026-07-28
+    last_checked: 2026-07-30
     revalidate: >-
-      Compare the floor against the current release. Raise it only with a
-      reason — a floor that tracks the latest release for no purpose breaks
-      users on stable distributions.
+      Compare the current authentication-precedence documentation and test
+      redacted combinations of saved login, OAuth-token injection, API key,
+      auth token, helper, and each cloud-provider selector.
+
+  - id: child-auth-status-json
+    fact: >-
+      The documented auth status JSON command can probe selected authentication
+      without exposing credential material.
+    owner: docs/reference/accounts.md
+    dependents:
+      - docs/reference/logging-and-output.md
+    cadence: quarterly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Check current CLI documentation and run auth status --json with login and
+      injected-token modes, recording only schema and status behavior.
+
+  - id: child-login-expiry-warning
+    fact: >-
+      The child reports approaching saved-login expiry but does not provide the
+      same warning surface for injected long-lived tokens.
+    owner: docs/reference/accounts.md
+    dependents:
+      - docs/reference/logging-and-output.md
+    cadence: quarterly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Check current authentication and status documentation, then observe
+      redacted status output near login expiry and in injected-token mode.
+
+  - id: child-settings-flag
+    fact: >-
+      The native settings flag accepts an additional settings document.
+    owner: docs/reference/configuration.md
+    dependents:
+      - docs/decisions/0028-pass-composed-settings-with-the-native-flag.md
+      - docs/reference/process-runtime.md
+    cadence: monthly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Check current CLI and settings documentation, then launch with one
+      temporary settings file and verify its non-secret setting is applied.
+
+  - id: child-settings-duplicate-flag
+    fact: >-
+      Behavior when the child receives more than one settings flag is
+      unverified.
+    owner: docs/reference/process-runtime.md
+    dependents:
+      - docs/decisions/0028-pass-composed-settings-with-the-native-flag.md
+    cadence: monthly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Run the current child with two settings files carrying distinct and
+      conflicting harmless values; record whether it merges, selects one, or
+      errors, and compare with current CLI documentation.
+
+  - id: child-credential-lifetimes
+    fact: >-
+      Exact access-token and refresh-grant lifetimes are observed rather than
+      documented guarantees.
+    owner: docs/reference/accounts.md
+    dependents:
+      - docs/reference/logging-and-output.md
+    cadence: quarterly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Measure redacted timestamps from a fresh saved login and compare with
+      current authentication documentation; never record token values.
+
+  - id: child-macos-keychain-scope
+    fact: >-
+      Whether macOS Keychain login is namespaced by CLAUDE_CONFIG_DIR is
+      unverified.
+    owner: docs/reference/accounts.md
+    dependents:
+      - docs/decisions/0025-share-one-native-login-per-account.md
+    cadence: monthly
+    last_checked: 2026-07-30
+    revalidate: >-
+      On macOS, authenticate two temporary configuration directories with
+      separate accounts and observe non-secret account identity and Keychain
+      item scope without exporting credential material.
+
+  - id: child-tui-login-config-dir
+    fact: >-
+      Whether in-TUI login honors the launch-time configuration directory is
+      unverified.
+    owner: docs/reference/accounts.md
+    dependents:
+      - docs/decisions/0025-share-one-native-login-per-account.md
+    cadence: monthly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Launch the child with an empty temporary configuration directory, use
+      in-TUI login, and confirm only by file metadata and non-secret status
+      that the selected directory received the login.
+
+  - id: child-token-mode-tui-login
+    fact: >-
+      The child's behavior when in-TUI login is invoked while an injected
+      subscription token is active is unverified.
+    owner: docs/reference/accounts.md
+    dependents:
+      - docs/reference/logging-and-output.md
+    cadence: monthly
+    last_checked: 2026-07-30
+    revalidate: >-
+      In an isolated test account, launch with a redacted injected token and
+      invoke in-TUI login; record whether it is offered, refused, or accepted
+      and shadowed, without recording credential content.
 
   - id: proxy-base-url-var
     fact: >-

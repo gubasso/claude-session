@@ -23,7 +23,7 @@ plans:
     depends_on:
       - cs-wrapper-runtime
     prompt: /prex -ar @.implementation-plans/plans/cs-accounts-auth/
-    notes: Account registry, managed claude login (subscription), seed->session, API-key fallback, account commands.
+    notes: Directory-discovered accounts, shared per-account config/native login, long-lived subscription-token mode, precedence warnings, and account login/list/status/remove. Login mode hard-fails below child version 2.1.211 (ADR-0031).
   - item: cs-config-composition
     status: todo
     depends_on:

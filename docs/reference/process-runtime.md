@@ -48,17 +48,32 @@ The marker is the one internal variable deliberately left in the child's environ
 
 The child's environment is built from the parent's, then modified:
 
-| Operation | Keys                                    | Reason                                                                                                          |
-| --------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Inherit   | Everything else                         | The child is a normal program and needs a normal environment                                                    |
-| Remove    | Every `CLAUDE_SESSION_*` key            | The wrapper's internal state is not the child's business, and a nested invocation must not inherit stale values |
-| Set       | `CLAUDE_SESSION_REENTRY=1`              | The recursion marker                                                                                            |
-| Set       | `CLAUDE_CONFIG_DIR=<session directory>` | The isolation mechanism; see [session isolation](../explanation/session-isolation.md)                           |
-| Set       | Composed injections                     | Zero or more keys from configuration or the command line — notably `ANTHROPIC_BASE_URL` for a fronting proxy    |
+| Operation                       | Keys                                           | Reason                                                              |
+| ------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------- |
+| Inherit                         | Everything else                                | The child is a normal program and needs a normal environment        |
+| Remove                          | Every `CLAUDE_SESSION_*` key                   | Internal wrapper state does not reach the child                     |
+| Set                             | `CLAUDE_SESSION_REENTRY=1`                     | Recursion marker                                                    |
+| Set when an account is selected | `CLAUDE_CONFIG_DIR=<account config directory>` | Selects the account-wide child state                                |
+| Set only in token mode          | `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>`    | Selects the stored long-lived subscription token                    |
+| Set                             | Composed injections                            | Zero or more user-configured values, including `ANTHROPIC_BASE_URL` |
+
+When no account is selected, the wrapper injects neither `CLAUDE_CONFIG_DIR` nor `CLAUDE_CODE_OAUTH_TOKEN`.
+
+Before launch, the wrapper resolves the stored mode and detects ambient higher-precedence authentication. It may warn on standard error as specified by [accounts](./accounts.md#stored-modes-and-launch-behavior), but preserves every inherited variable and never strips ambient authentication.
 
 The composed injections are the **proxy seam**. They are a general mechanism — any key, any value, from configuration or a flag — rather than a proxy-specific feature. `claude-session` implements no proxying, compression, or request rewriting of its own.
 
 Standard input, output, and error are inherited unmodified. The working directory is inherited unmodified.
+
+## Child argument vector
+
+For an account-backed group, the wrapper constructs one prefix:
+
+```text
+--settings <absolute groups/<group>/settings.json path>
+```
+
+The original child argument vector follows as an untouched suffix. Its order, bytes, count, and `--` sentinel are preserved. Duplicate `--settings` behavior is unverified; the wrapper does not parse, deduplicate, reorder, or reject user tokens. See [ADR-0028](../decisions/0028-pass-composed-settings-with-the-native-flag.md).
 
 ## Process group topology
 
@@ -96,19 +111,21 @@ There is a window between the wrapper starting and the child existing. A signal 
 
 ## Spawn and wait
 
-The wrapper spawns and waits; it does not `exec`. The reason is post-flight work — credential and trust sync-back — which never runs if the process image is replaced. See [ADR-0004](../decisions/0004-spawn-and-wait-child-supervision.md).
+The wrapper spawns and waits; it does not `exec`. Current supervision and post-flight obligations are recorded in amended [ADR-0004](../decisions/0004-spawn-and-wait-child-supervision.md).
 
 Sequence:
 
 1. Resolve and validate the child.
-2. Build the invocation: binary, argument vector, environment.
-3. Prepare the session: directory, credentials, composed settings.
-4. Install signal handling.
-5. Spawn. Publish the child's process id where the signal machinery can read it.
-6. Wait for the child to exit, handling interruption of the wait itself.
-7. Clear the published process id.
-8. Run post-flight work.
-9. Map the child's wait status and exit.
+2. Resolve the account and stored mode, if selected.
+3. Validate private account state and the child-owned config path without reading the child credential.
+4. Resolve the group and compose its settings.
+5. In token mode, retrieve and validate the token immediately before spawn.
+6. Build the environment and wrapper-owned argv prefix around the untouched user suffix.
+7. Install signal handling.
+8. Spawn and publish the child's process id.
+9. Wait for the child to exit, then clear the published process id.
+10. Run post-flight work.
+11. Map the child's wait status and exit.
 
 Step 7 before step 8 matters: a signal arriving during post-flight has no child to reach, and forwarding to a dead process id risks hitting an unrelated process that has since reused the number.
 
@@ -118,11 +135,16 @@ The wrapper waits for the specific child it spawned. It does not reap arbitrary 
 
 Post-flight work runs after the child exits and before the wrapper does:
 
-- Sync project-trust state from the session directory back to the account seed, under a lock, merging conservatively rather than overwriting.
 - Update the account's last-used marker.
 - Flush logs.
 
-Post-flight failures are **reported but do not change the exit code** of a passthrough invocation. The child's status is the user's answer to "did my command work"; a sync-back failure is a wrapper problem and is reported on standard error. Overwriting a successful child's exit code with a wrapper-internal failure would break every script wrapping this wrapper.
+Post-flight failures are **reported but do not change the exit code** of a passthrough invocation. The child's status is the user's answer to “did my command work”; a marker or log-finalization failure is reported on standard error.
+
+## Child version floor
+
+Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor **fails before spawn**, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
+
+The check is scoped to what depends on the child's refresh lock. `token` mode and a passthrough with no selected account are never blocked by it. The `doctor` probe still reports version state, but it is voluntary and does not stand in for this precondition.
 
 ## Further reading
 

@@ -19,17 +19,17 @@ When the first non-flag token is a wrapper verb, the invocation is a wrapper com
 
 This table is the denylist. Every flag on it is intercepted by the wrapper and never reaches the child. **Every flag not on it is forwarded verbatim**, whether or not the wrapper recognizes it, and whether or not it exists in the child.
 
-| Flag               | Meaning                                                | Why the wrapper claims it                                                                       |
-| ------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `--verbose`, `-v`  | Increase diagnostic verbosity; repeatable              | The wrapper's own diagnostics need a control the child's do not provide                         |
-| `--quiet`, `-q`    | Suppress all diagnostics below error                   | Pairs with `--verbose`; required for scripted use                                               |
-| `--config <path>`  | Override the wrapper's own configuration file          | Needed before configuration is loaded, so it cannot itself come from configuration              |
-| `--account <name>` | Select the account whose credentials seed this session | The wrapper owns accounts; the child has no concept of them                                     |
-| `--session <id>`   | Override the derived session group identity            | The wrapper owns session identity; see [session isolation](../explanation/session-isolation.md) |
-| `--profile <name>` | Select the settings profile to compose                 | The wrapper owns composition; see [configuration](./configuration.md)                           |
-| `--dry-run`        | Resolve and report what would happen; spawn nothing    | A wrapper-level rehearsal has no child equivalent                                               |
-| `--version`, `-V`  | Print the wrapper's version and the resolved child's   | Must report both, which the child cannot do                                                     |
-| `--help`, `-h`     | Print the wrapper's help                               | Must describe the wrapper's grammar, not the child's                                            |
+| Flag               | Meaning                                              | Why the wrapper claims it                                                                       |
+| ------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `--verbose`, `-v`  | Increase diagnostic verbosity; repeatable            | The wrapper's own diagnostics need a control the child's do not provide                         |
+| `--quiet`, `-q`    | Suppress all diagnostics below error                 | Pairs with `--verbose`; required for scripted use                                               |
+| `--config <path>`  | Override the wrapper's own configuration file        | Needed before configuration is loaded, so it cannot itself come from configuration              |
+| `--account <name>` | Select the account and stored authentication context | The wrapper owns account selection; the child owns its credential                               |
+| `--session <id>`   | Override the derived session group identity          | The wrapper owns session identity; see [session isolation](../explanation/session-isolation.md) |
+| `--profile <name>` | Select the settings profile to compose               | The wrapper owns composition; see [configuration](./configuration.md)                           |
+| `--dry-run`        | Resolve and report what would happen; spawn nothing  | A wrapper-level rehearsal has no child equivalent                                               |
+| `--version`, `-V`  | Print the wrapper's version and the resolved child's | Must report both, which the child cannot do                                                     |
+| `--help`, `-h`     | Print the wrapper's help                             | Must describe the wrapper's grammar, not the child's                                            |
 
 Two properties of this table are contractual:
 
@@ -61,18 +61,18 @@ The child receives `--account whatever`. The wrapper does not interpret it, does
 
 Verbs are top-level rather than nested under a namespace verb. Nesting would add a token to every wrapper invocation to solve a collision problem that the closed, documented verb list already solves.
 
-| Verb         | Purpose                                                                                        |
-| ------------ | ---------------------------------------------------------------------------------------------- |
-| `account`    | Manage accounts: add, list, status, remove, refresh credentials; see [accounts](./accounts.md) |
-| `config`     | Inspect the wrapper's configuration: view, path, schema, compose, validate, status             |
-| `profile`    | Inspect settings profiles: list, status                                                        |
-| `doctor`     | Diagnose every subsystem and report health; see [logging and output](./logging-and-output.md)  |
-| `completion` | Emit shell completions for the wrapper's grammar                                               |
-| `man`        | Emit man pages generated from the wrapper's grammar                                            |
-| `version`    | Print the wrapper's version and the resolved child's path and version                          |
-| `help`       | Print help                                                                                     |
+| Verb         | Purpose                                                                                       |
+| ------------ | --------------------------------------------------------------------------------------------- |
+| `account`    | Manage accounts: login, list, status, remove; see [accounts](./accounts.md)                   |
+| `config`     | Inspect the wrapper's configuration: view, path, schema, compose, validate, status            |
+| `profile`    | Inspect settings profiles: list, status                                                       |
+| `doctor`     | Diagnose every subsystem and report health; see [logging and output](./logging-and-output.md) |
+| `completion` | Emit shell completions for the wrapper's grammar                                              |
+| `man`        | Emit man pages generated from the wrapper's grammar                                           |
+| `version`    | Print the wrapper's version and the resolved child's path and version                         |
+| `help`       | Print help                                                                                    |
 
-A verb name collides with a child subcommand only if the child grows one with the same name. Should that happen, `--` remains the escape hatch, and the collision is recorded in this table rather than silently resolved.
+The child already owns `auth`, including `auth login`, so the wrapper does not claim that verb. Native auth remains passthrough; `account` is the existing wrapper namespace. Any other future collision uses `--` as the escape hatch and is recorded rather than silently resolved. See [ADR-0030](../decisions/0030-use-account-login-for-wrapper-authentication.md).
 
 There is no `init`. Configuration is optional — every key has a compiled-in default — and the wrapper never writes the user's configuration, so there is no scaffold to create. Users copy a [generated example](./configuration.md#generated-examples-and-schema) instead. See [ADR-0015](../decisions/0015-retire-the-init-verb.md).
 
@@ -92,6 +92,8 @@ Forwarding is **verbatim**. Specifically:
 **There is no argv normalization step.** A change that adds one is a change to the passthrough contract and requires a decision record before it requires code.
 
 Standard input, standard output, and standard error are inherited by the child unmodified. The wrapper writes nothing to standard output during a passthrough invocation; see [logging and output](./logging-and-output.md).
+
+For an account-backed group, [ADR-0028](../decisions/0028-pass-composed-settings-with-the-native-flag.md) narrowly authorizes one wrapper-owned prefix, `--settings <absolute group settings path>`. Every user-supplied token remains an untouched suffix with order, bytes, count, and `--` sentinel preserved. The wrapper does not parse or normalize that suffix.
 
 ## Parser shape
 
@@ -135,14 +137,14 @@ Reporting both is the point: a user debugging wrapper behaviour needs to know wh
 
 Two verbs need a person present. No others do.
 
-| Verb             | Why a person is needed                       | Escape when there is no terminal                      |
-| ---------------- | -------------------------------------------- | ----------------------------------------------------- |
-| `account remove` | It destroys a credential seed, irrecoverably | `--yes`                                               |
-| `account add`    | Subscription login opens a browser           | The API-token path; no flag substitutes for a browser |
+| Verb             | Why a person is needed                                                       | Escape when there is no terminal                          |
+| ---------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `account remove` | It removes local authentication and child state                              | `--yes`                                                   |
+| `account login`  | Native login uses the child's interactive flow; token paste reads a terminal | Long-lived subscription-token mode with `--token --stdin` |
 
 Every other verb — `config`, `profile`, `doctor`, `completion`, `man`, `version`, `help` — is read-only or inert. There is nothing to agree to, so none of them prompts and none of them gates.
 
-**Without a terminal, a confirming verb fails rather than prompting or proceeding.** When standard input is not a terminal and no escape was given, the verb stops **before any side effect** and exits `Unavailable` (69) — the kind whose definition already covers a missing controlling terminal, so nothing is added to [the exit-code matrix](./exit-codes.md). The diagnostic's hint names the escape from the table above; for `account add` that is the API-token path in [ADR-0011](../decisions/0011-isolate-credentials-by-seed-and-session.md).
+**Without a terminal, a confirming verb fails rather than prompting or proceeding.** When no controlling terminal is available and no escape was given, the verb stops **before any side effect** and exits `Unavailable` (69). The diagnostic names the escape above; token ingestion through `--stdin` follows [ADR-0027](../decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md).
 
 Reading the absence of a terminal as consent is the alternative, and it makes `account remove` silent under a pipe. Prompting anyway is worse: the process hangs on a stream nobody is reading. See [ADR-0021](../decisions/0021-fail-closed-without-a-terminal.md).
 

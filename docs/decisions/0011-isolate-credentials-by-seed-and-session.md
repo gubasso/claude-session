@@ -31,4 +31,6 @@ Credentials live only in secured state directories — never in user-editable co
 
 ## Status
 
-Accepted
+Superseded
+
+Superseded by [ADR-0025](./0025-share-one-native-login-per-account.md).

@@ -29,3 +29,5 @@ That is met by a specific topology. The child **shares the wrapper's foreground 
 ## Status
 
 Accepted
+
+Amended by [ADR-0025](./0025-share-one-native-login-per-account.md): credential and trust-state sync-back no longer justify spawn-and-wait; current supervision and post-flight obligations remain in [process runtime](../reference/process-runtime.md).

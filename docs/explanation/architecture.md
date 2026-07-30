@@ -28,9 +28,9 @@ Every run of the binary follows the same five-step spine:
 
 1. **Parse** — split argv into what the wrapper owns and what belongs to the child, then parse the wrapper's part. Nothing here touches the filesystem or the network.
 2. **Resolve** — build the `AppContext`: load layered configuration, resolve XDG paths, derive the session identity, install logging.
-3. **Prepare** — for a passthrough invocation, materialize what the child needs: the isolated session directory, the account's credentials, the composed `settings.json`.
+3. **Prepare** — for a passthrough invocation, resolve the account auth mode, validate its config and token state, derive the group, and compose the group `settings.json`.
 4. **Supervise** — resolve the child binary, spawn it, forward signals, wait.
-5. **Post-flight** — sync back whatever the child changed that the wrapper owns, then map the outcome to an exit code.
+5. **Post-flight** — update last-used state, finalize logs, then map the outcome to an exit code.
 
 Step 5 is why this program spawns and waits rather than `exec`-ing; see [the wrapper model](./wrapper-model.md).
 
@@ -46,7 +46,7 @@ The shipped crate has a flat module tree. Each module has one job and one explic
 
 **`domain/`** holds pure types and their invariants: validated newtypes, the child-invocation model, the session identity. It does **not** perform I/O. No filesystem, no network, no process spawning, no clock. Deriving serialization on a domain type is fine; calling a deserializer is not — that is a boundary concern.
 
-**`services/`** holds orchestration that more than one caller needs: the session resolver, the account gate, the settings composer. A service takes its dependencies as trait parameters so a test can substitute a fake. It is optional in principle and populated in practice, but a routine only earns a place here once it has a second caller or a real invariant to protect.
+**`services/`** holds orchestration that more than one caller needs: the group resolver, the account-mode gate, the settings composer. A service takes its dependencies as trait parameters so a test can substitute a fake. It is optional in principle and populated in practice, but a routine only earns a place here once it has a second caller or a real invariant to protect.
 
 **`adapters/`** is the **only** place that touches the outside world. Each adapter defines a trait — the port — plus a default implementation that does the real thing. The filesystem, the process spawner, and the clock all arrive through this module. This is the seam that makes a process-spawning wrapper testable at all; see [the testing strategy](./testing-strategy.md).
 

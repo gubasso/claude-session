@@ -73,7 +73,11 @@ Each record is one line, with a stable field set:
 
 One line per record, with structured fields rather than interpolated prose, because both a human with `grep` and a program with a parser can then use it.
 
-**Credentials, tokens, and API keys are never logged**, at any level, in any field. Neither are the child's arguments at default verbosity — a passed-through argument can contain a prompt, a path, or a secret. Argument logging is a trace-level, opt-in behaviour.
+**Credentials, tokens, API keys, and helper output are never emitted**, at any level or in any field. This covers human output, prompts, `--dry-run`, every `--json` document, logs, diagnostics, errors, and the diagnostic `where` clause. A concrete secret error location is its non-secret path, never its content.
+
+The only secret-derived value permitted is `sha256[..8]` of a wrapper-owned OAuth token where [accounts](./accounts.md#token-lifecycle) requires it. Token prefixes and every hash or fingerprint of a child-owned credential are prohibited. Non-secret paths, modes, timestamps, and mode metadata remain reportable.
+
+The child's arguments are not logged at default verbosity because a passed-through argument can contain a prompt, path, or secret. Trace-level argument logging must apply the same redaction rule.
 
 ## Colour
 
@@ -109,20 +113,20 @@ A guard that fails emits its check's remediation **verbatim** — not a paraphra
 
 Each check has a stable kebab-case **id**, a **scope**, a **severity**, and the `err.kind` a failure of it exits with.
 
-| Id                          | Scope   | Severity | `err.kind`           | Passes when                                                     |
-| --------------------------- | ------- | -------- | -------------------- | --------------------------------------------------------------- |
-| `base-dirs-resolve`         | Host    | Hard     | `Unavailable`        | Config and state resolve to absolute, usable paths              |
-| `runtime-dir-present`       | Host    | Soft     | `Unavailable`        | Present; absent is reported, not failed                         |
-| `wrapper-config-parses`     | Host    | Hard     | `Config`             | Parses, with no unknown keys                                    |
-| `child-binary-resolves`     | Host    | Hard     | `ChildNotFound`      | Found via the ladder in [process runtime](./process-runtime.md) |
-| `child-is-executable`       | Host    | Hard     | `ChildNotExecutable` | Executable by the current user                                  |
-| `child-version-floor`       | Host    | Soft     | `Unavailable`        | At or above the documented minimum                              |
-| `session-root-security`     | Session | Hard     | `Permission`         | Not a symlink, owned by the user, mode `0700`                   |
-| `session-identity-derives`  | Session | Soft     | `Unavailable`        | Derives above the process-id fallback rung                      |
-| `account-registry-readable` | Session | Soft     | `Io`                 | Readable; accounts have valid seeds                             |
-| `credentials-usable`        | Session | Soft     | `Auth`               | The current account has a usable seed or a configured token     |
-| `settings-compose`          | Session | Soft     | `DataFormat`         | The active profile resolves and every piece exists              |
-| `settings-fresh`            | Session | Soft     | `DataFormat`         | The generated settings are not stale                            |
+| Id                          | Scope   | Severity | `err.kind`           | Passes when                                                                           |
+| --------------------------- | ------- | -------- | -------------------- | ------------------------------------------------------------------------------------- |
+| `base-dirs-resolve`         | Host    | Hard     | `Unavailable`        | Config and state resolve to absolute, usable paths                                    |
+| `runtime-dir-present`       | Host    | Soft     | `Unavailable`        | Present; absent is reported, not failed                                               |
+| `wrapper-config-parses`     | Host    | Hard     | `Config`             | Parses, with no unknown keys                                                          |
+| `child-binary-resolves`     | Host    | Hard     | `ChildNotFound`      | Found via the ladder in [process runtime](./process-runtime.md)                       |
+| `child-is-executable`       | Host    | Hard     | `ChildNotExecutable` | Executable by the current user                                                        |
+| `child-version-floor`       | Host    | Soft     | `Unavailable`        | At or above the documented minimum                                                    |
+| `session-root-security`     | Session | Hard     | `Permission`         | Not a symlink, owned by the user, mode `0700`                                         |
+| `session-identity-derives`  | Session | Soft     | `Unavailable`        | Derives above the process-id fallback rung                                            |
+| `account-registry-readable` | Session | Soft     | `Io`                 | Account directories, auth-mode metadata, and selected storage are readable and secure |
+| `credentials-usable`        | Session | Soft     | `Auth`               | The current account's selected login or token mode is usable                          |
+| `settings-compose`          | Session | Soft     | `DataFormat`         | The active profile resolves and every piece exists                                    |
+| `settings-fresh`            | Session | Soft     | `DataFormat`         | The generated settings are not stale                                                  |
 
 **Hard** means the wrapper cannot function. **Soft** means a feature is degraded.
 
@@ -141,6 +145,8 @@ Exit is `0` when no hard check fails, and otherwise the `err.kind` code of the f
 Output is a human-readable report on standard output plus an overall verdict; `doctor --json` emits every check with its id, scope, severity, status, and message. Each failing check carries the four-part error shape from [exit codes](./exit-codes.md).
 
 The child version floor is a **perishable fact**: the child is externally owned and changes on its own schedule. It is registered in [research tracking](./research-tracking.yaml), and the check is defensive — an unparsable version string is reported, not fatal.
+
+Mode-aware probes also report ambient-auth shadowing, token-over-login shadowing, and unverified or below-floor child versions as warnings. These use the existing catalog/report model and do not add unstable check ids. A below-floor version is a `doctor` warning but a hard launch failure in `login` mode; see [ADR-0031](../decisions/0031-enforce-the-child-refresh-lock-version-floor.md) and [process runtime](./process-runtime.md#child-version-floor).
 
 ## Further reading
 

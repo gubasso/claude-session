@@ -4,7 +4,9 @@ Two distinct things share the word "configuration" in this project, and keeping 
 
 **The wrapper's own configuration** controls `claude-session`: which child to run, which account to use, how verbose to be. It is a layered value resolved at startup.
 
-**The child's settings** are what `claude` reads inside its isolated session directory. `claude-session` _generates_ them by composing user-authored pieces. The wrapper never edits the child's files in place.
+**The child's settings** are what `claude` reads from its account-wide configuration directory and an additional per-group document. `claude-session` generates the latter by composing user-authored pieces.
+
+**The child's authentication precedence** is separate from wrapper configuration precedence. It determines whether ambient cloud, API, helper, injected subscription-token, or saved-login authentication wins. [Accounts](./accounts.md#stored-modes-and-launch-behavior) owns that operational contract.
 
 Paths for both are in [XDG storage](./xdg-storage.md).
 
@@ -38,6 +40,16 @@ A missing file at any layer is **not an error**. An unreadable or malformed file
 A **single** underscore is part of a key name, not a level separator. `CLAUDE_SESSION_CHILD_BIN` therefore sets the flat key `child_bin` — the child-binary override in [process runtime](./process-runtime.md) — and not a nested `child.bin`.
 
 Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are **not** configuration keys, and are scrubbed from the child's environment. See [process runtime](./process-runtime.md).
+
+### Future token-helper boundary
+
+A future `token_helper` setting may select an argv-based helper process. Its settled boundary is:
+
+- argv execution with no shell interpolation;
+- explicit selection;
+- no silent fallback from helper to file or file to helper.
+
+The command protocol and configuration schema remain deferred under [ADR-0029](../decisions/0029-use-a-credential-helper-process-boundary.md). No generated example field exists until that specification is accepted.
 
 ### Schema
 
@@ -99,7 +111,7 @@ For each key, the wrapper tracks which layer supplied the winning value. This is
 
 ## Composing the child's settings
 
-The user does not edit the child's settings file. They author **pieces** and a **manifest**, and the wrapper composes them into the generated file inside the isolated session directory.
+The child may own `config/settings.json` in the account-wide configuration directory as its base layer. The user authors wrapper **pieces** and a **manifest**; the wrapper composes them into `groups/<group>/settings.json`, supplied as an additional native `--settings` layer under [ADR-0028](../decisions/0028-pass-composed-settings-with-the-native-flag.md).
 
 ### Inputs
 
@@ -145,7 +157,7 @@ This is the difference between "the setting is wrong" and "the setting is wrong 
 
 ### Generation and freshness
 
-Generation resolves the profile, loads the pieces, merges, validates, and writes atomically into the session directory.
+Generation resolves the profile, loads the pieces, merges, validates, and writes atomically to `accounts/<account>/groups/<group>/settings.json`.
 
 The freshness check compares the modification time of the generated file against **the manifest and every referenced piece**. Checking only the manifest is a real bug: editing a piece without touching the manifest leaves stale settings in place, and the symptom — an edit that appears to do nothing — is genuinely hard to diagnose.
 
@@ -157,9 +169,9 @@ That is the opposite of the rule for the wrapper's own configuration, and the as
 
 Unknown _piece_ keys are surfaced as warnings with provenance rather than errors.
 
-### Project trust state
+### Child-owned account state
 
-The child keeps project-trust and onboarding state in a separate file from its settings. The wrapper seeds it into a new session and syncs it back afterwards, under a lock, merging conservatively — a concurrent session's newer state is not this session's to discard. See [process runtime](./process-runtime.md).
+Trust, onboarding, project history, and other native state remain child-owned in the shared account `config/`. The wrapper neither seeds nor synchronizes them.
 
 ## Commands
 

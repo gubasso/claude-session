@@ -1,16 +1,22 @@
 # Accounts
 
-What an account is, how one is selected, and the contract of every `account` subcommand. For the reasoning behind the seed-and-copy model, see [ADR-0011](../decisions/0011-isolate-credentials-by-seed-and-session.md); for where the files live, [XDG storage](./xdg-storage.md).
+What an account is, how one is selected, and the contract of every `account` subcommand. The design is recorded in [ADR-0025](../decisions/0025-share-one-native-login-per-account.md), [ADR-0026](../decisions/0026-store-and-inject-a-long-lived-subscription-token.md), [ADR-0027](../decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md), [ADR-0029](../decisions/0029-use-a-credential-helper-process-boundary.md), and [ADR-0030](../decisions/0030-use-account-login-for-wrapper-authentication.md). Paths and permissions live in [XDG storage](./xdg-storage.md).
 
 This describes normative design. The crate is pre-implementation.
 
 ## What an account is
 
-An account is a **directory** under the state base, named by an identifier the user chose, holding a credential seed. There is no registry file, no metadata document, and no derived identity — the directory is the account, and enumerating accounts is reading one directory.
+An account is a directory under the state base, named by a user-chosen identifier. There is no global registry: enumerating accounts means reading the accounts directory.
 
-That is deliberate. A registry file is a second source of truth that can disagree with the filesystem, and reconciling the two is a failure mode with no good answer. The paths, modes, and lifetimes are in [XDG storage](./xdg-storage.md); account identifiers follow the group-identifier rules stated there.
+Each account contains `auth-mode.json`. This metadata is part of that account, not a second index, and records:
 
-The wrapper never parses a credential and never learns who the account belongs to. It knows a seed is present, when the account was last used, and whether the file passes its ownership checks. Anything more would mean reading a secret it has no reason to read.
+- `mode`: `login` or `token`;
+- `recorded_at`: when the selected authentication was recorded;
+- `fingerprint`: `sha256[..8]` of the wrapper-owned token in token mode only.
+
+The wrapper owns account selection, mode metadata, and any stored token. The child owns everything below the account's `config/`, including `.credentials.json`. The wrapper never reads, copies, writes, refreshes, synchronizes, or fingerprints a child credential, and caches no child authentication state. `account status` may `stat` the credential path on demand.
+
+Account identifiers follow the group-identifier rules in [XDG storage](./xdg-storage.md).
 
 ## Selection
 
@@ -18,79 +24,116 @@ The account for an invocation is resolved by the [configuration precedence ladde
 
 1. `--account <name>` — see [the CLI surface](./cli-surface.md#wrapper-owned-flags).
 2. The environment, then project configuration, then user configuration.
-3. The **last-used marker**, written whenever a session runs.
-4. Nothing. Verbs that need an account fail; verbs that do not, proceed.
+3. The last-used marker, written whenever an account-backed run completes.
+4. Nothing. Verbs that need an account fail; verbs that do not proceed.
 
-The marker is the bottom rung rather than a mode: it means "the same account as last time" for a user who has only one, and it is overridden by any explicit statement. `account status` reports which rung supplied the answer, for the same reason `config view` reports provenance — "why is it using that account?" should be answerable in one command.
+The marker means “the same account as last time”; any explicit selection overrides it. `account status` reports which rung supplied the answer.
 
-## Authenticating
+A passthrough with no selected account receives neither wrapper authentication variable.
 
-`account add` and `account refresh` both authenticate, and both do it the same way: create the account directory, run **the child's own login** in a scratch directory pointed at by the child's configuration-directory variable, then copy the credential it produced into the account's seed and remove the scratch copy. The wrapper never implements a login flow, never handles the browser, and never sees the exchange. See [ADR-0011](../decisions/0011-isolate-credentials-by-seed-and-session.md).
+## Stored modes and launch behavior
 
-The seed is written atomically and the scratch directory is removed whether login succeeded or not.
+Mode is chosen by `account login` and resolved deterministically on every later run. Ambient state never changes the stored mode.
 
-`add` is **transactional**: an account directory created by a login that then failed is removed again. A half-created account that `list` reports and every other verb rejects is worse than no account.
+| Mode    | Wrapper-provided child environment                                             | Authentication owner                                                    |
+| ------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `login` | `CLAUDE_CONFIG_DIR=<account config directory>`                                 | Child reads and refreshes its saved login                               |
+| `token` | The same `CLAUDE_CONFIG_DIR`, plus `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>` | Wrapper stores or retrieves the long-lived token; the child consumes it |
 
-Subscription login needs a browser. Where there is none, the API-token path is the escape, and it is first-class rather than a fallback — no flag substitutes for a browser. [The CLI surface](./cli-surface.md#confirmation-and-non-interactive-use) owns what happens when there is no terminal.
+In token mode, `CLAUDE_CODE_OAUTH_TOKEN` outranks a saved login that may also exist in `config/`. The wrapper reports that shadowing but does not remove either credential.
 
-## Refreshing and session copies
+The following ambient child mechanisms outrank the selected subscription account: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `apiKeyHelper`, Bedrock, Vertex, and Foundry configuration. They are never wrapper-managed and never stripped. Their presence may produce a warning only:
 
-Each session gets its **own copy** of the seed, and from the moment it is seeded the child owns that file — this is what lets concurrent sessions refresh tokens without corrupting each other, and it is why a token refreshed inside a session does not propagate back.
+- before launch, on standard error;
+- in `account status`;
+- in `doctor`.
 
-The consequence is that re-authenticating an account leaves every live session holding the old credential. `account refresh` therefore **deletes the credential copy in every session directory of that account**, so each session re-seeds from the new seed at its next start. It does not delete the session directories themselves, and it does not touch any other account.
+The wrapper never intercepts a slash command.
 
-Deleting rather than overwriting is what makes this safe for a session that is running right now: a child holding the file open keeps reading through its open descriptor and is not disturbed mid-flight, and the next start finds the file absent and seeds it fresh.
+## Logging in
 
-One gap remains, and it is the one [ADR-0011](../decisions/0011-isolate-credentials-by-seed-and-session.md) already names: a child that writes its credential file in the window after the refresh recreates a copy the next start will not replace. Ending and restarting that session clears it. The wrapper does not kill live children to close it.
+`account login [name]` is idempotent. It creates the account on the first successful login and safely replaces its mode on later successful runs. A failed first login removes the incomplete account.
+
+### Native login mode
+
+The wrapper resolves the account directory and launches the child's own `auth login` with the account `config/` as `CLAUDE_CONFIG_DIR`. It does not implement the browser flow or inspect the result. Native passthrough remains available:
+
+```text
+claude-session --account work -- auth login
+```
+
+An in-TUI `/login` inherits the launch environment and is expected to address the same child-owned location, but that exact child behavior is externally unverified and tracked in [research tracking](./research-tracking.yaml).
+
+### Long-lived token mode
+
+`account login [name] --token` selects token mode:
+
+1. Without `--stdin`, run `claude setup-token` with inherited standard streams, then read one line from the controlling terminal with echo disabled.
+2. With `--stdin`, read one line from standard input and never prompt.
+3. Reject empty or multi-line input. Do not parse a prefix or infer token lifetime.
+4. Stage the token in private storage, probe it through the child's documented `auth status --json` command, then atomically replace the old token and mode metadata.
+
+`--minted-at` corrects the time used for age and estimated-expiry reporting when a pasted token was minted earlier. Without it, `recorded_at` is the ingest time. Estimated expiry is that time plus 365 days and is always labeled an estimate.
+
+Token material is never accepted through argv, an environment variable, a wrapper file flag, or scraped child output. The wrapper never calls an OAuth endpoint.
+
+The default store is the private `oauth-token` file. An explicitly selected `token_helper` may retrieve it through an argv process boundary once that protocol is specified; helper and file modes never silently fall back to each other.
+
+### Token lifecycle
+
+`account status` may report:
+
+- mode and `recorded_at`;
+- age and estimated expiry;
+- token fingerprint `sha256[..8]`;
+- results from the child's documented status probe;
+- selected-account provenance and shadowing warnings.
+
+It never reports the token, token prefix, or any child-credential content or fingerprint.
+
+Rotation is transactional: stage, verify, replace, then discard staging. Failure leaves the old token and metadata intact. `account remove` deletes local use but cannot revoke a token upstream; its report says so.
+
+## Platform boundary
+
+On Linux and Windows, the child stores its ordinary login under `CLAUDE_CONFIG_DIR`; this wrapper remains Unix-only. On macOS, ordinary login persists in Keychain, but Keychain namespacing by config directory is unverified. Token mode is therefore the supported per-process multi-account design on macOS.
 
 ## Commands
 
-| Command                  | Arguments                                 | Reports                                                                              |
-| ------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------ |
-| `account add <name>`     | the new account's identifier              | The account created, and the directory it was created in                             |
-| `account list`           | —                                         | Every account: whether it has a usable seed, when it was last used, which is current |
-| `account status [name]`  | an account; the selected one when omitted | One account's seed status, last use, and which rung of the ladder selected it        |
-| `account remove <name>`  | the account to remove; `--yes`            | Whether the account was removed, and the directory tree that was deleted             |
-| `account refresh [name]` | an account; the selected one when omitted | The account re-authenticated, and how many session copies were invalidated           |
+| Command                 | Arguments                                                                          | Reports                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `account login [name]`  | optional account; `--token`, `--stdin`, and token-time correction where applicable | Selected mode, account path, and success without credential material                        |
+| `account list`          | —                                                                                  | Every account's mode, local-state usability, last use, and current selection                |
+| `account status [name]` | named account or selected account                                                  | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing |
+| `account remove <name>` | account; `--yes`                                                                   | Whether local state was removed and, for token mode, that upstream revocation did not occur |
 
-All accept `--json`. All write data to standard output and diagnostics, prompts, and warnings to standard error; see [logging and output](./logging-and-output.md).
+All accept `--json`. Data goes to standard output; diagnostics, prompts, and warnings go to standard error. **No subcommand ever prints a credential**, at any verbosity or in any format. See [logging and output](./logging-and-output.md).
 
-**No subcommand ever prints a credential**, at any verbosity or in any format. Seed presence and last use are what answer "is this account usable?", and they answer it without reading the secret.
+## Removal
 
-`add` and `remove` are the only account subcommands that need a person present. Which verbs confirm, why, and what happens without a terminal is in [the CLI surface](./cli-surface.md#confirmation-and-non-interactive-use).
+`remove` deletes the account directory and everything beneath it. Stale-group pruning never removes account-wide config. Removal confirms unless `--yes` is present.
 
-### Removal
+Before prompting, standard error warns when the account is selected or any group directory may still be active. Declining exits `0` and reports that nothing was removed, including as one JSON document. Removing the selected account clears the last-used marker.
 
-`remove` deletes the account directory and everything beneath it, including every session directory belonging to that account. It is the only operation in the program that deletes a session directory that is not stale, which is why it confirms.
-
-Before prompting, it warns when the account is the currently selected one, and when any of its session directories was touched recently enough to still be in use. Both warnings go to standard error, ahead of the prompt, so the person answering has read them first.
-
-**Declining is an answer, not a failure.** A declined removal exits `0` and reports that the account was not removed — including in JSON mode, where a subcommand that emitted no document at all would break the one-document rule in [logging and output](./logging-and-output.md#machine-output).
-
-Removing the currently selected account clears the last-used marker. Leaving it pointing at a directory that no longer exists would make the next invocation fail on a name the user never typed.
+Local token deletion is not upstream revocation. Child-owned login revocation remains a child operation.
 
 ## Failure modes
 
-Keyed to [the exit-code matrix](./exit-codes.md), which owns the mapping. No `err.kind` is specific to accounts: the matrix classifies by remedy, and every account failure has a remedy already in it. What distinguishes a missing account from a missing configuration file — both `NoInput` — is the diagnostic's **where** clause, which always names the concrete account or path.
+The [exit-code matrix](./exit-codes.md) owns mappings.
 
-| Condition                                                      | `err.kind`                            | Subcommands                   |
-| -------------------------------------------------------------- | ------------------------------------- | ----------------------------- |
-| The name breaks the identifier rules                           | `Usage`                               | all that take a name          |
-| The name is already an account                                 | `Usage`                               | `add`                         |
-| No name given and no account selected by any rung              | `Usage`                               | `status`, `refresh`           |
-| The named account does not exist                               | `NoInput`                             | `status`, `remove`, `refresh` |
-| No terminal and no escape was given                            | `Unavailable`                         | `add`, `remove`               |
-| Login exited non-zero, or produced no credential file          | `Auth`                                | `add`, `refresh`              |
-| The seed is unreadable, expired, or refused                    | `Auth`                                | `refresh`                     |
-| A symlink, ownership, or mode check on the account tree failed | `Permission`                          | all                           |
-| Reading or writing the account tree failed                     | `Io`                                  | all                           |
-| The child binary could not be resolved, or is not executable   | `ChildNotFound`, `ChildNotExecutable` | `add`, `refresh`              |
+| Condition                                                   | `err.kind`                            | Subcommands                   |
+| ----------------------------------------------------------- | ------------------------------------- | ----------------------------- |
+| Invalid account name or option combination                  | `Usage`                               | all applicable                |
+| No name and no selected account                             | `Usage`                               | `login`, `status`             |
+| Named account does not exist                                | `NoInput`                             | `status`, `remove`            |
+| Required terminal is unavailable                            | `Unavailable`                         | interactive `login`, `remove` |
+| Child login, token validation, or liveness probe fails      | `Auth`                                | `login`                       |
+| Mode metadata, selected storage, or child login is unusable | `Auth`                                | launch                        |
+| Symlink, owner, or mode validation fails                    | `Permission`                          | all                           |
+| Account-tree or helper I/O fails                            | `Io`                                  | all                           |
+| Child resolution or execution fails                         | `ChildNotFound`, `ChildNotExecutable` | `login`                       |
 
-Two cases that are deliberately **not** failures:
-
-- **No accounts at all.** `list` reports none and exits `0`. Never having added an account is a state, not an error.
-- **An unusable seed, reported by `status`.** `status` is a report; it exits `0` and says the seed is unusable. Only a subcommand that tries to _use_ the credential fails with `Auth`.
+`list` with no accounts exits `0`. `status` reports unusable authentication and exits `0`; an invocation that tries to use it fails.
 
 ## Diagnostics
 
-Two `doctor` checks cover this subsystem — `account-registry-readable` and `credentials-usable`. Both are soft, and both are skipped rather than failed when the user has no accounts. Their catalog entries are in [logging and output](./logging-and-output.md#the-catalog).
+The stable `account-registry-readable` and `credentials-usable` checks cover account directories, mode metadata, selected storage, and mode-aware usability. Both are soft and skipped when no account exists. See [logging and output](./logging-and-output.md#the-catalog).

@@ -28,3 +28,5 @@ With no terminal and no escape, a confirming verb fails **before any side effect
 ## Status
 
 Accepted
+
+Amended by [ADR-0027](./0027-ingest-secrets-only-from-stdin-or-a-terminal.md) and [ADR-0030](./0030-use-account-login-for-wrapper-authentication.md): `account login --token [--stdin]` and long-lived subscription-token terminology replace the historical planned `account add` and API-token wording.

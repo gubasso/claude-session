@@ -32,3 +32,5 @@ Validation is deliberately asymmetric: strict about the structure the wrapper ow
 ## Status
 
 Accepted
+
+Amended by [ADR-0028](./0028-pass-composed-settings-with-the-native-flag.md): composed output now lives under the group directory and reaches the child through its native settings flag.

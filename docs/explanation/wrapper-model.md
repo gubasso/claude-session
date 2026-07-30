@@ -58,7 +58,7 @@ That pre-parse is a pure function over a list of OS strings. Being pure and tota
 
 Replacing the wrapper's own process image with the child's is the cheapest way to be transparent — no signal forwarding, no exit-status translation, no extra process in the tree. This project does not do it.
 
-The reason is post-flight work. After the child exits, the wrapper must sync credential state and project-trust state back out of the isolated session directory. `exec` never returns, so that work would never happen. Correctness beats elegance here, and the cost is a real one: choosing to stay alive means owning signal forwarding, terminal semantics, and exit-status fidelity by hand.
+The current reasons are child supervision and post-flight last-used/log finalization. The original credential and trust-state sync-back rationale is historical; amended [ADR-0004](../decisions/0004-spawn-and-wait-child-supervision.md) and [process runtime](../reference/process-runtime.md) own the current obligations. Choosing to stay alive means owning signal forwarding, terminal semantics, and exit-status fidelity by hand.
 
 The wrapper's obligation, having made that choice, is to be **behaviourally indistinguishable** from `exec` in everything the user can observe: the same exit status, the same terminal behaviour, the same response to Ctrl-C.
 
@@ -85,11 +85,13 @@ Resolution is an explicit ladder — an environment override, then configuration
 
 Two independent guards prevent self-invocation. A marker variable is set in the child's environment, so a wrapper that finds itself as the child sees the marker and refuses. And the resolved path is canonicalized and compared against the wrapper's own executable, which catches the symlink case the marker cannot. Both, because either alone has a hole: the marker is defeated by a scrubbed environment, and the path check is defeated by a copy rather than a link.
 
-## Isolation by environment injection
+## Account selection and group settings
 
-The wrapper does not modify the child's configuration files. It points the child at a different configuration directory entirely, by setting the child's configuration-directory environment variable to a per-session path that the wrapper owns.
+The wrapper selects an account-wide configuration directory through `CLAUDE_CONFIG_DIR`; the child owns its saved login and other native state inside it. The wrapper never reads, copies, refreshes, fingerprints, or synchronizes that credential.
 
-This is the whole isolation mechanism, and its virtue is that it needs no cooperation from the child beyond a variable the child already honours. The reasoning about _which_ session a given terminal gets, and why that directory is durable state rather than cache, is in [session isolation](./session-isolation.md).
+Per-group composition leaves through one declared wrapper-added argv pair: `--settings <absolute group settings path>`. That pair precedes an opaque, verbatim user suffix. The wrapper preserves every user token and does not parse duplicate settings flags; see [ADR-0028](../decisions/0028-pass-composed-settings-with-the-native-flag.md).
+
+Account selection and terminal-group derivation are separate axes, explained in [session isolation](./session-isolation.md).
 
 The child's environment is otherwise inherited, with the wrapper's own internal variables scrubbed out. A child should never be able to observe the wrapper's internal state by reading its environment, both because it is none of the child's business and because a nested invocation would inherit stale values.
 
