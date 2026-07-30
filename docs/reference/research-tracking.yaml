@@ -18,6 +18,9 @@
 #   cadence     how often to re-check
 #   last_checked  ISO date of the last verification
 #   revalidate  concretely how to re-check it
+#   source      optional; the upstream page(s) revalidation reads. A link here
+#               is a starting point for the re-check, not a statement of the
+#               fact — the owning document still states it.
 #
 # Stable rationale (an ADR's reasoning, a design principle) is NOT tracked here.
 # It does not expire on a schedule; it is superseded by a decision.
@@ -37,6 +40,8 @@ facts:
       - docs/decisions/0028-pass-composed-settings-with-the-native-flag.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/env-vars
     revalidate: >-
       Check the current environment-variable documentation, then run the child
       on Linux with the variable pointed at an empty account config directory
@@ -52,6 +57,8 @@ facts:
       - docs/decisions/0025-share-one-native-login-per-account.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/authentication
     revalidate: >-
       Check current authentication and environment-variable documentation.
       Authenticate into an isolated config directory on Linux and Windows and
@@ -66,6 +73,8 @@ facts:
       - docs/decisions/0010-compose-native-settings-from-declared-layers.md
     cadence: quarterly
     last_checked: 2026-07-28
+    source:
+      - https://code.claude.com/docs/en/settings
     revalidate: >-
       Compare the documented settings keys against the last recorded set. A
       maintained published schema would let validation tighten; check whether
@@ -81,9 +90,15 @@ facts:
       - docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/troubleshoot-install
+      - https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
     revalidate: >-
       Check the current troubleshooting documentation and changelog for the
-      minimum version attached to shared-login refresh coordination.
+      minimum version attached to shared-login refresh coordination. Confirm
+      the child still reports its version in a parseable form: the launch
+      check fails closed when it does not, so a presentation change here
+      blocks login mode.
 
   - id: child-cross-process-refresh-lock
     fact: >-
@@ -95,6 +110,9 @@ facts:
       - docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/troubleshoot-install
+      - https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
     revalidate: >-
       Check current troubleshooting documentation and changelog, then run two
       concurrent child processes against one config directory across a refresh
@@ -110,6 +128,9 @@ facts:
       - docs/decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md
     cadence: quarterly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/authentication
+      - https://code.claude.com/docs/en/cli-reference
     revalidate: >-
       Check current authentication and CLI documentation, then run setup-token
       with redacted output and confirm the token works only through the
@@ -125,6 +146,8 @@ facts:
       - docs/reference/logging-and-output.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/authentication#authentication-precedence
     revalidate: >-
       Compare the current authentication-precedence documentation and test
       redacted combinations of saved login, OAuth-token injection, API key,
@@ -139,6 +162,8 @@ facts:
       - docs/reference/logging-and-output.md
     cadence: quarterly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/cli-reference
     revalidate: >-
       Check current CLI documentation and run auth status --json with login and
       injected-token modes, recording only schema and status behavior.
@@ -152,6 +177,8 @@ facts:
       - docs/reference/logging-and-output.md
     cadence: quarterly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/authentication
     revalidate: >-
       Check current authentication and status documentation, then observe
       redacted status output near login expiry and in injected-token mode.
@@ -165,6 +192,9 @@ facts:
       - docs/reference/process-runtime.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/cli-reference
+      - https://code.claude.com/docs/en/settings
     revalidate: >-
       Check current CLI and settings documentation, then launch with one
       temporary settings file and verify its non-secret setting is applied.
@@ -178,6 +208,8 @@ facts:
       - docs/decisions/0028-pass-composed-settings-with-the-native-flag.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/cli-reference
     revalidate: >-
       Run the current child with two settings files carrying distinct and
       conflicting harmless values; record whether it merges, selects one, or
@@ -192,6 +224,8 @@ facts:
       - docs/reference/logging-and-output.md
     cadence: quarterly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/authentication
     revalidate: >-
       Measure redacted timestamps from a fresh saved login and compare with
       current authentication documentation; never record token values.
@@ -205,6 +239,8 @@ facts:
       - docs/decisions/0025-share-one-native-login-per-account.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/authentication
     revalidate: >-
       On macOS, authenticate two temporary configuration directories with
       separate accounts and observe non-secret account identity and Keychain
@@ -219,6 +255,8 @@ facts:
       - docs/decisions/0025-share-one-native-login-per-account.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/env-vars
     revalidate: >-
       Launch the child with an empty temporary configuration directory, use
       in-TUI login, and confirm only by file metadata and non-secret status
@@ -233,6 +271,8 @@ facts:
       - docs/reference/logging-and-output.md
     cadence: monthly
     last_checked: 2026-07-30
+    source:
+      - https://code.claude.com/docs/en/authentication
     revalidate: >-
       In an isolated test account, launch with a redacted injected token and
       invoke in-TUI login; record whether it is offered, refused, or accepted
@@ -247,6 +287,8 @@ facts:
       - docs/explanation/wrapper-model.md
     cadence: quarterly
     last_checked: 2026-07-28
+    source:
+      - https://code.claude.com/docs/en/env-vars
     revalidate: >-
       Confirm against the current upstream documentation, and confirm no
       additional variable is now required alongside it.

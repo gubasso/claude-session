@@ -30,3 +30,5 @@ Copy-in/copy-out loses crash safety; symlinks and bind mounts have replacement o
 ## Status
 
 Accepted
+
+Supersedes [ADR-0011](./0011-isolate-credentials-by-seed-and-session.md).

@@ -21,6 +21,7 @@ For interactive minting, `setup-token` runs first with inherited standard stream
 ## Consequences
 
 - Good: token material stays out of argv, shell history, and ambient child environments.
+- Good: because the wrapper never ingests a token from the environment, an inherited credential variable is unambiguously ambient — which is what lets [accounts](../reference/accounts.md) distinguish configured authentication from inherited authentication and warn about shadowing.
 - Good: redirection already provides file-based automation without another flag.
 - Bad: interactive use includes an explicit paste step.
 - Bad: invocation without `--stdin` requires a controlling terminal under [ADR-0021](./0021-fail-closed-without-a-terminal.md).
