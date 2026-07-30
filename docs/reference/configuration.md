@@ -46,7 +46,7 @@ Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` ke
 - The resolved value is **immutable**. It is built once and passed by shared reference. Nothing mutates configuration mid-run.
 - Every key has a documented default, a type, and a one-line meaning. That description lives on the field itself, in the type, and is the source the artifacts below are rendered from — never a parallel doc that can rot.
 
-`claude-session config show` prints the resolved value; `--format json` makes it machine-readable. `claude-session config path` prints which files were consulted and which existed.
+`claude-session config view` prints the resolved value; `--json` makes it machine-readable. `claude-session config path` prints which files were consulted and which existed.
 
 ### Generated examples and schema
 
@@ -95,7 +95,7 @@ The generator lives in an `xtask` workspace member rather than in the shipped bi
 
 ### Provenance
 
-For each key, the wrapper tracks which layer supplied the winning value. This is what makes "why is it doing that?" answerable in one command rather than by bisecting files. `config show` reports it.
+For each key, the wrapper tracks which layer supplied the winning value. This is what makes "why is it doing that?" answerable in one command rather than by bisecting files. `config view` reports it.
 
 ## Composing the child's settings
 
@@ -165,16 +165,16 @@ The child keeps project-trust and onboarding state in a separate file from its s
 
 | Command           | Reports                                                                   |
 | ----------------- | ------------------------------------------------------------------------- |
-| `config show`     | The resolved wrapper configuration with per-key provenance                |
+| `config view`     | The resolved wrapper configuration with per-key provenance                |
 | `config path`     | Which files were consulted, and which existed                             |
 | `config schema`   | The JSON Schema for the wrapper's configuration                           |
 | `config compose`  | The merged settings and its provenance, without writing                   |
 | `config validate` | Structural problems, type conflicts, missing pieces, unknown-key warnings |
 | `config status`   | Active profile, resolved pieces, and whether the generated file is fresh  |
 | `profile list`    | Available manifests                                                       |
-| `profile show`    | One manifest's ordered layers and their resolved paths                    |
+| `profile status`  | One manifest's ordered layers and their resolved paths                    |
 
-All accept `--format json`. All write data to standard output and diagnostics to standard error; see [logging and output](./logging-and-output.md).
+All accept `--json`. All write data to standard output and diagnostics to standard error; see [logging and output](./logging-and-output.md).
 
 `config schema` is the runtime companion to the committed artifacts: the same type reaches the user as a committed schema, a committed example, and a live command, with no second source of truth among them.
 

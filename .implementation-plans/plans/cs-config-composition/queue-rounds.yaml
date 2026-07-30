@@ -22,4 +22,4 @@ rounds:
     depends_on:
       - generate-settings
     prompt: /prex -ar .implementation-plans/plans/cs-config-composition/config-commands.md
-    notes: config/profile verbs (show|path|compose|validate|status, list|show), --format json, provenance.
+    notes: config/profile verbs (view|path|compose|validate|status, list|status), --json, provenance.

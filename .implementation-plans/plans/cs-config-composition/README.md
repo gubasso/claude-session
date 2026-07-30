@@ -15,7 +15,7 @@ Four rounds. R1 builds the XDG config layout and the manifest/piece models with 
 1. `config-layout-and-models.md` — XDG config tree, manifest/piece models, loader validation.
 2. `merge-engine.md` — serde_json deep merge, per-key strategies, per-key provenance.
 3. `generate-settings.md` — atomic native settings.json output, schema validation, freshness, provenance sidecar, `.claude.json` trust/state.
-4. `config-commands.md` — `config`/`profile` verbs (`show|path|compose|validate|status`, `list|show`).
+4. `config-commands.md` — `config`/`profile` verbs (`view|path|compose|validate|status`, `list|status`).
 
 ## Execution Commands
 

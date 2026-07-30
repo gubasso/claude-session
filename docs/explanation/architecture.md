@@ -8,7 +8,7 @@ It does **not** carry exact values. Naming rules, visibility defaults, and the e
 
 Before the shapes, the premise everything else rests on: `claude-session` is **human-facing**. Its primary consumer is a developer at a terminal, and its main mode is handing that terminal to a child which is itself interactive ([ADR-0017](../decisions/0017-declare-a-human-facing-cli.md)).
 
-That single choice settles three things you would otherwise have to guess at. Machine-readable output is opt-in through `--format json` rather than the default. The terminal-output module is `ui/` — shaped for human rendering, not a protocol boundary. Diagnostics mirror to standard error by default, because a person should not have to enable seeing them.
+That single choice settles three things you would otherwise have to guess at. Machine-readable output is opt-in through `--json` rather than the default. The terminal-output module is `ui/` — shaped for human rendering, not a protocol boundary. Diagnostics mirror to standard error by default, because a person should not have to enable seeing them.
 
 It is a **design-time** category, not a runtime `isatty()` check. Terminal detection changes colour and progress rendering and nothing else; it never changes which format a command emits. A program whose output reshapes itself when piped cannot be scripted against.
 

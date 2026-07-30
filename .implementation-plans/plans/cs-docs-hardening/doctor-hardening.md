@@ -12,7 +12,7 @@
 
 ## Scope of This Round
 
-- IN scope: a comprehensive `commands/doctor.rs` that checks, **each independently and without aborting**: config tree presence/validity; resolved child `claude` binary + minimum version floor; session-root resolution + secure-dir health; account registry + seed validity + current account; auth readiness (subscription seed or token fallback); generated `settings.json` freshness; with a three/four-part error + hint per failing check; `--format json` structured output aggregating all results and an overall pass/warn/fail. A documented minimum supported `claude` version (baseline 2.1.183) as a checked floor.
+- IN scope: a comprehensive `commands/doctor.rs` that checks, **each independently and without aborting**: config tree presence/validity; resolved child `claude` binary + minimum version floor; session-root resolution + secure-dir health; account registry + seed validity + current account; auth readiness (subscription seed or token fallback); generated `settings.json` freshness; with a three/four-part error + hint per failing check; `--json` structured output aggregating all results and an overall pass/warn/fail. A documented minimum supported `claude` version (baseline 2.1.183) as a checked floor.
 - OUT of scope: completions/man pages (round 3); ADR/release (round 4).
 
 ## Current State
@@ -43,11 +43,11 @@ Add read-only health probes (config, child+version floor, session dirs, accounts
 
 ### Step 2: Aggregate + report
 
-Aggregate into an overall pass/warn/fail; emit a human report and a `--format json` structured output; each failure carries a four-part message + hint.
+Aggregate into an overall pass/warn/fail; emit a human report and a `--json` structured output; each failure carries a four-part message + hint.
 
 ### Step 3: Tests
 
-`assert_cmd`-test `doctor` in both text and `--format json` modes against fixtures with one broken subsystem (verify it reports, does not abort, and exits non-zero appropriately).
+`assert_cmd`-test `doctor` in both text and `--json` modes against fixtures with one broken subsystem (verify it reports, does not abort, and exits non-zero appropriately).
 
 ### Final Step: Update the queue
 
@@ -57,7 +57,7 @@ Aggregate into an overall pass/warn/fail; emit a human report and a `--format js
 
 - [ ] `doctor` checks config/child+version/session/accounts/auth/generated-settings, each independently.
 - [ ] One broken subsystem is reported (with a four-part message + hint) without aborting the others.
-- [ ] `doctor` in `--format json` mode aggregates results with an overall pass/warn/fail and a correct exit code.
+- [ ] `doctor` in `--json` mode aggregates results with an overall pass/warn/fail and a correct exit code.
 - [ ] The minimum `claude` version floor is checked and surfaced.
 - [ ] `assert_cmd` tests pass.
 - [ ] This plan's `queue-rounds.yaml` shows round `doctor-hardening` as `done`.

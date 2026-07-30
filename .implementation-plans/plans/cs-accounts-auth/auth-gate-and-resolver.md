@@ -71,4 +71,4 @@ In `services/trust_sync.rs`, conservatively sync `.claude.json` `[projects]` sta
 
 ## Next Round
 
-Round 4 (`account-commands`) exposes `account add|list|current|remove|refresh` with `--format json` and secret redaction, and wires account state into `doctor`.
+Round 4 (`account-commands`) exposes `account add|list|status|remove|refresh` with `--json` and secret redaction, and wires account state into `doctor`.

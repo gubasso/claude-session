@@ -34,6 +34,7 @@ A topic directory, when volume ever demands one, goes **inside** a zone. It is n
 - [Process runtime](./reference/process-runtime.md) — child resolution, the recursion guard, process groups, the signal matrix, and reaping.
 - [Exit codes](./reference/exit-codes.md) — the wrapper's exit-code matrix and the child-status passthrough rule.
 - [XDG storage](./reference/xdg-storage.md) — every artifact's base directory, writer, mode, and lifetime.
+- [Accounts](./reference/accounts.md) — what an account is, how one is selected, and the contract of every `account` subcommand.
 - [Configuration](./reference/configuration.md) — the precedence ladder and the settings-composition model.
 - [Logging and output](./reference/logging-and-output.md) — the stream contract, the log schema, colour rules, and the `doctor` check catalog.
 - [Coding conventions](./reference/coding-conventions.md) — naming, visibility, error layering, and the panic policy.

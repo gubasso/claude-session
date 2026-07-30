@@ -12,7 +12,7 @@ The test is whether a user could pipe the command into another program. If a byt
 
 | Class                     | Stream                                  | Notes                                                                                                                                                                              |
 | ------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A wrapper verb's result   | stdout                                  | Text or JSON per `--format`                                                                                                                                                        |
+| A wrapper verb's result   | stdout                                  | Text, or JSON when the verb was given `--json`                                                                                                                                     |
 | Progress, status, prompts | stderr                                  | Never stdout, even when interactive. Which verbs prompt at all, and what happens with no terminal, is in [the CLI surface](./cli-surface.md#confirmation-and-non-interactive-use). |
 | Warnings                  | stderr                                  |                                                                                                                                                                                    |
 | Errors                    | stderr                                  | Four-part shape; see [exit codes](./exit-codes.md)                                                                                                                                 |
@@ -21,11 +21,13 @@ The test is whether a user could pipe the command into another program. If a byt
 
 **During a passthrough invocation the wrapper writes nothing to standard output.** Not a banner, not a progress line, not a "launching claude" notice. The child's standard output is the user's data stream and the wrapper is not entitled to a byte of it. Wrapper diagnostics during a passthrough go to standard error, where they are already interleaved with the child's.
 
-Every terminal write goes through **one output writer**, owned by the context. Direct print macros are forbidden outside that writer and the entry point, and a lint enforces it; see [testing and quality](./testing-and-quality.md). One writer is what makes `--format json`, `--quiet`, and colour handling work uniformly instead of being reimplemented per command.
+Every terminal write goes through **one output writer**, owned by the context. Direct print macros are forbidden outside that writer and the entry point, and a lint enforces it; see [testing and quality](./testing-and-quality.md). One writer is what makes JSON mode, `--quiet`, and colour handling work uniformly instead of being reimplemented per command.
 
 ## Machine output
 
-`--format json` makes a wrapper verb emit a single JSON document on standard output. It is a mode, not a decoration: in JSON mode, no human-oriented text appears on standard output at all.
+`--json` makes a wrapper verb emit a single JSON document on standard output. It is a mode, not a decoration: in JSON mode, no human-oriented text appears on standard output at all.
+
+The flag is **verb-level** and every verb that produces data declares its own; there is no global `--format`. The reasoning is in [the CLI surface](./cli-surface.md#machine-output-is-not-on-this-table) and [ADR-0024](../decisions/0024-machine-output-is-a-per-verb-flag.md). One writer still renders every document, so the mode behaves identically across verbs even though the flag is declared per verb.
 
 Errors in JSON mode still go to standard error, and carry the `err.kind` from the exit-code matrix so a script can branch without parsing prose.
 
@@ -136,7 +138,7 @@ Exit is `0` when no hard check fails, and otherwise the `err.kind` code of the f
 
 `doctor --list` prints the catalog — every id, scope, and severity — without running anything, so a script can discover what it may match on.
 
-Output is a human-readable report on standard output plus an overall verdict; `--format json` emits every check with its id, scope, severity, status, and message. Each failing check carries the four-part error shape from [exit codes](./exit-codes.md).
+Output is a human-readable report on standard output plus an overall verdict; `doctor --json` emits every check with its id, scope, severity, status, and message. Each failing check carries the four-part error shape from [exit codes](./exit-codes.md).
 
 The child version floor is a **perishable fact**: the child is externally owned and changes on its own schedule. It is registered in [research tracking](./research-tracking.yaml), and the check is defensive — an unparsable version string is reported, not fatal.
 

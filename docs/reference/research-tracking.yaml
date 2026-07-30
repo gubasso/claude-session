@@ -191,3 +191,17 @@ facts:
     revalidate: >-
       Check each named crate for maintenance status and for a successor. The
       page carries no version numbers, so only names and rulings need review.
+
+  - id: pinned-action-currency
+    fact: >-
+      The GitHub Actions the workflows pin by tag are still maintained, and no
+      pin has been superseded or left behind by a security release.
+    owner: .github/workflows/
+    dependents:
+      - docs/guides/development-workflow.md
+    cadence: quarterly
+    last_checked: 2026-07-30
+    revalidate: >-
+      Compare each pinned tag against the action's current release and its
+      advisories. A tag is mutable, so an unchanged workflow file is not
+      evidence that the code it runs is unchanged.

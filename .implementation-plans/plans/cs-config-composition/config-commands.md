@@ -4,7 +4,7 @@
 
 ## Context
 
-With composition implemented, `claude-session` exposes the user-facing `config` and `profile` verbs to inspect paths, compose/preview, validate, and show status + provenance — following the four-edit rule with `--format json`. This is the final round of the config-composition plan. Rounds 1–3 built the layout, merge engine, and generation; this round wires them to the CLI and replaces the foundation's `config` stub.
+With composition implemented, `claude-session` exposes the user-facing `config` and `profile` verbs to inspect paths, compose/preview, validate, and report status + provenance — following the four-edit rule with `--json`. This is the final round of the config-composition plan. Rounds 1–3 built the layout, merge engine, and generation; this round wires them to the CLI and replaces the foundation's `config` stub.
 
 ## Previous Rounds
 
@@ -12,7 +12,7 @@ This plan R1: layout + models. R2: merge engine + provenance. R3: generation + f
 
 ## Scope of This Round
 
-- IN scope: the `config` subcommand (`show`, `path`, `compose`, `validate`, `status`) and a `profile` subcommand (`list`, `show`) per the four-edit rule (`cli/config.rs` + `cli/profile.rs`, `cli.rs` enum variants replacing the `config` stub, `commands/config.rs` + `commands/profile.rs` free `run` handlers, the `commands/dispatch.rs` match arms); `--format json` output via `Ui`; `compose`/`validate` run the engine in preview/check mode and surface **provenance** + unknown-key warnings; `status` shows the active profile, resolved pieces, and whether the generated `settings.json` is fresh; wire config health into `doctor`.
+- IN scope: the `config` subcommand (`view`, `path`, `compose`, `validate`, `status`) and a `profile` subcommand (`list`, `status`) per the four-edit rule (`cli/config.rs` + `cli/profile.rs`, `cli.rs` enum variants replacing the `config` stub, `commands/config.rs` + `commands/profile.rs` free `run` handlers, the `commands/dispatch.rs` match arms); `--json` output via `Ui`; `compose`/`validate` run the engine in preview/check mode and surface **provenance** + unknown-key warnings; `status` shows the active profile, resolved pieces, and whether the generated `settings.json` is fresh; wire config health into `doctor`.
 - OUT of scope: new composition machinery (done R1–R3); accounts (`cs-accounts-auth`); docs/headroom (`cs-docs-hardening`).
 
 ## Current State
@@ -28,7 +28,7 @@ This plan R1: layout + models. R2: merge engine + provenance. R3: generation + f
 
 The `config` and `profile` verbs and what each reports are specified in `docs/reference/configuration.md`; the wrapper grammar they live in is in `docs/reference/cli-surface.md`. The four-edit rule is in `docs/explanation/architecture.md`.
 
-Output discipline is specified in `docs/reference/logging-and-output.md`: results to stdout through the single writer, diagnostics to stderr, `--format json` a mode rather than a decoration.
+Output discipline is specified in `docs/reference/logging-and-output.md`: results to stdout through the single writer, diagnostics to stderr, `--json` a mode rather than a decoration.
 
 Two asymmetries to preserve. **Provenance** is per-key and reports which piece set each leaf — that is the difference between "this setting is wrong" and "this setting is wrong because that piece overrode this one". And **validation is deliberately asymmetric**: unknown keys in the wrapper's own configuration are errors, while unknown keys in the child's settings are warnings with provenance, because the child's schema evolves independently and rejecting a valid new setting is worse than passing it through.
 
@@ -40,11 +40,11 @@ In this plan's `queue-rounds.yaml`, set this round's (`item: config-commands`) `
 
 ### Step 1: clap shapes
 
-Add `cli/config.rs` (`show|path|compose|validate|status`) and `cli/profile.rs` (`list|show`); register the variants in `cli.rs` (replacing the `config` stub).
+Add `cli/config.rs` (`view|path|compose|validate|status`) and `cli/profile.rs` (`list|status`); register the variants in `cli.rs` (replacing the `config` stub).
 
 ### Step 2: Handlers
 
-Implement `commands/config.rs` + `commands/profile.rs` free `run` handlers calling the layout/merge/generate services; emit `--format json` via `Ui`; surface provenance + unknown-key warnings.
+Implement `commands/config.rs` + `commands/profile.rs` free `run` handlers calling the layout/merge/generate services; emit `--json` via `Ui`; surface provenance + unknown-key warnings.
 
 ### Step 3: doctor integration
 
@@ -61,7 +61,7 @@ Add the `commands/dispatch.rs` match arms; `assert_cmd`-test `config compose`/`s
 
 ## Acceptance Criteria
 
-- [ ] `config show|path|compose|validate|status` and `profile list|show` work via the four-edit rule with `--format json`.
+- [ ] `config view|path|compose|validate|status` and `profile list|status` work via the four-edit rule with `--json`.
 - [ ] `compose`/`validate` surface per-key provenance and unknown-key warnings.
 - [ ] `status` reports the active profile, resolved pieces, and freshness.
 - [ ] `doctor` reports config health without aborting.

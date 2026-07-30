@@ -22,4 +22,4 @@ rounds:
     depends_on:
       - auth-gate-and-resolver
     prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/account-commands.md
-    notes: account add|list|current|remove|refresh verbs, --format json, redaction, doctor.
+    notes: account add|list|status|remove|refresh verbs, --json, redaction, doctor.

@@ -49,7 +49,7 @@ In `logging.rs`, install exactly one tracing-subscriber from a function called b
 
 ### Step 3: Single-writer UI
 
-In `ui/`, define a `Ui` writer that owns ALL terminal output: stdout for the result (text or `--format json`), stderr for prompts/progress/status/warnings/errors. Respect `NO_COLOR`/`FORCE_COLOR`.
+In `ui/`, define a `Ui` writer that owns ALL terminal output: stdout for the result (text or `--json`), stderr for prompts/progress/status/warnings/errors. Respect `NO_COLOR`/`FORCE_COLOR`.
 
 ### Step 4: AppContext + Config
 

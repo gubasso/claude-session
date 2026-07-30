@@ -25,7 +25,7 @@ Two mechanical rules. Dependencies are **always added with `cargo add`**, never 
 - Good: the reference page carries **no version numbers**, so it cannot go stale — versions live in the lockfile.
 - Bad: the ruled-out list needs maintaining when a crate is deprecated, which is why it is a tracked perishable fact.
 - Bad: adding anything not on the list requires a recorded assessment — intended friction, but friction.
-- Bad: a committed lockfile means dependency-update noise in the history.
+- Bad: a committed lockfile means dependency-update noise in the history, and keeping it current is manual work ([ADR-0023](./0023-only-release-automation-opens-pull-requests.md)).
 
 ## Status
 

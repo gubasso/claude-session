@@ -19,24 +19,33 @@ When the first non-flag token is a wrapper verb, the invocation is a wrapper com
 
 This table is the denylist. Every flag on it is intercepted by the wrapper and never reaches the child. **Every flag not on it is forwarded verbatim**, whether or not the wrapper recognizes it, and whether or not it exists in the child.
 
-| Flag                    | Meaning                                                | Why the wrapper claims it                                                                       |
-| ----------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `--verbose`, `-v`       | Increase diagnostic verbosity; repeatable              | The wrapper's own diagnostics need a control the child's do not provide                         |
-| `--quiet`, `-q`         | Suppress all diagnostics below error                   | Pairs with `--verbose`; required for scripted use                                               |
-| `--format <text\|json>` | Output format for wrapper verbs                        | Machine consumption of wrapper output; has no meaning for passthrough                           |
-| `--config <path>`       | Override the wrapper's own configuration file          | Needed before configuration is loaded, so it cannot itself come from configuration              |
-| `--account <name>`      | Select the account whose credentials seed this session | The wrapper owns accounts; the child has no concept of them                                     |
-| `--session <id>`        | Override the derived session group identity            | The wrapper owns session identity; see [session isolation](../explanation/session-isolation.md) |
-| `--profile <name>`      | Select the settings profile to compose                 | The wrapper owns composition; see [configuration](./configuration.md)                           |
-| `--dry-run`             | Resolve and report what would happen; spawn nothing    | A wrapper-level rehearsal has no child equivalent                                               |
-| `--version`, `-V`       | Print the wrapper's version and the resolved child's   | Must report both, which the child cannot do                                                     |
-| `--help`, `-h`          | Print the wrapper's help                               | Must describe the wrapper's grammar, not the child's                                            |
+| Flag               | Meaning                                                | Why the wrapper claims it                                                                       |
+| ------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `--verbose`, `-v`  | Increase diagnostic verbosity; repeatable              | The wrapper's own diagnostics need a control the child's do not provide                         |
+| `--quiet`, `-q`    | Suppress all diagnostics below error                   | Pairs with `--verbose`; required for scripted use                                               |
+| `--config <path>`  | Override the wrapper's own configuration file          | Needed before configuration is loaded, so it cannot itself come from configuration              |
+| `--account <name>` | Select the account whose credentials seed this session | The wrapper owns accounts; the child has no concept of them                                     |
+| `--session <id>`   | Override the derived session group identity            | The wrapper owns session identity; see [session isolation](../explanation/session-isolation.md) |
+| `--profile <name>` | Select the settings profile to compose                 | The wrapper owns composition; see [configuration](./configuration.md)                           |
+| `--dry-run`        | Resolve and report what would happen; spawn nothing    | A wrapper-level rehearsal has no child equivalent                                               |
+| `--version`, `-V`  | Print the wrapper's version and the resolved child's   | Must report both, which the child cannot do                                                     |
+| `--help`, `-h`     | Print the wrapper's help                               | Must describe the wrapper's grammar, not the child's                                            |
 
 Two properties of this table are contractual:
 
 **Long-form and distinctive.** Short forms are used only where the convention is universal (`-v`, `-q`, `-V`, `-h`). Claiming a short flag that the child later wants is a collision the wrapper wins and the user loses, so the set stays small.
 
 **Append-only in spirit.** Adding a flag to this table removes a flag from the child's reachable surface. That is a passthrough-contract change, and it requires a decision record — see [ADR-0002](../decisions/0002-verbatim-argv-passthrough.md) and [ADR-0003](../decisions/0003-reserve-a-small-wrapper-cli-surface.md).
+
+### Machine output is not on this table
+
+`--json` is **verb-level**, accepted after the verb, and every verb that produces data owns its own:
+
+```text
+claude-session account list --json
+```
+
+A global `--format` would sit on the denylist above and cost the child a flag permanently, in exchange for nothing — machine output has no meaning for a passthrough invocation, which never emits wrapper output at all. Owning the flag per verb also keeps each verb's output schema independent, so one verb's document can change shape without implying anything about another's. See [ADR-0024](../decisions/0024-machine-output-is-a-per-verb-flag.md); the format contract itself is in [logging and output](./logging-and-output.md#machine-output).
 
 ### Reaching a child flag the wrapper has claimed
 
@@ -52,16 +61,16 @@ The child receives `--account whatever`. The wrapper does not interpret it, does
 
 Verbs are top-level rather than nested under a namespace verb. Nesting would add a token to every wrapper invocation to solve a collision problem that the closed, documented verb list already solves.
 
-| Verb         | Purpose                                                                                       |
-| ------------ | --------------------------------------------------------------------------------------------- |
-| `account`    | Manage accounts: add, list, show the current one, remove, refresh credentials                 |
-| `config`     | Inspect the wrapper's configuration: show, path, compose, validate, status                    |
-| `profile`    | Inspect settings profiles: list, show                                                         |
-| `doctor`     | Diagnose every subsystem and report health; see [logging and output](./logging-and-output.md) |
-| `completion` | Emit shell completions for the wrapper's grammar                                              |
-| `man`        | Emit man pages generated from the wrapper's grammar                                           |
-| `version`    | Print the wrapper's version and the resolved child's path and version                         |
-| `help`       | Print help                                                                                    |
+| Verb         | Purpose                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| `account`    | Manage accounts: add, list, status, remove, refresh credentials; see [accounts](./accounts.md) |
+| `config`     | Inspect the wrapper's configuration: view, path, schema, compose, validate, status             |
+| `profile`    | Inspect settings profiles: list, status                                                        |
+| `doctor`     | Diagnose every subsystem and report health; see [logging and output](./logging-and-output.md)  |
+| `completion` | Emit shell completions for the wrapper's grammar                                               |
+| `man`        | Emit man pages generated from the wrapper's grammar                                            |
+| `version`    | Print the wrapper's version and the resolved child's path and version                          |
+| `help`       | Print help                                                                                     |
 
 A verb name collides with a child subcommand only if the child grows one with the same name. Should that happen, `--` remains the escape hatch, and the collision is recorded in this table rather than silently resolved.
 
@@ -145,7 +154,7 @@ Reading the absence of a terminal as consent is the alternative, and it makes `a
 claude-session account remove work --yes
 ```
 
-Its absence from the wrapper-owned flag table above is the design, not an oversight. A top-level flag is intercepted before the passthrough split and is therefore subtracted from the child's reachable surface for good; a flag appearing after a wrapper verb is parsed inside an invocation the child never sees, so it costs the child nothing. `doctor --list` is verb-level for the same reason.
+Its absence from the wrapper-owned flag table above is the design, not an oversight. A top-level flag is intercepted before the passthrough split and is therefore subtracted from the child's reachable surface for good; a flag appearing after a wrapper verb is parsed inside an invocation the child never sees, so it costs the child nothing. `--json` and `doctor --list` are verb-level for the same reason.
 
 There is no `--non-interactive`. Detecting the missing terminal already produces exactly that behaviour, so a flag requesting it would be surface bought for nothing.
 

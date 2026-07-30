@@ -54,7 +54,7 @@ Then:
 
 - Check the flag names against [the CLI surface](./../reference/cli-surface.md). **Every flag the wrapper claims is a flag the child can no longer receive** — that is a passthrough-contract change and needs a decision record, not just a table edit.
 - Send results to standard output and everything else to standard error, through the single output writer. See [logging and output](./../reference/logging-and-output.md).
-- Support `--format json` if the verb produces data worth consuming from a script.
+- Declare the verb's own `--json` if it produces data worth consuming from a script.
 - Add an integration test file `tests/cmd_<verb>.rs` and a help snapshot.
 
 Verify:
@@ -171,19 +171,13 @@ Releases are cut by automation from `develop`; the publishing procedure and its 
 
 ## Dependency and security baseline
 
-Local scanning runs in the gate — secret scans, advisories, and licence checks all sit in `pre-commit`. All of it is **detection**: nothing in the gate proposes an upgrade, and nothing in it inspects the actions the workflows pin, which drift silently behind a tag.
+Local scanning runs in the gate — secret scans, advisories, and licence checks all sit in `pre-commit`. It reports; it does not rewrite. Two things follow.
 
-Two things therefore have to live at the forge, and neither is configured yet:
+**Upgrades are authored.** Run `cargo update` or edit a pinned version, target `develop`, and let the gate decide whether it lands, exactly as for any other change. `release-plz` opens the release pull request and is the only automation that opens one ([ADR-0023](../decisions/0023-only-release-automation-opens-pull-requests.md)).
 
-- **Automated dependency updates**, for crates and for workflow actions both.
-- **Branch protection.** The `master` invariant above is a forge setting, not a convention. Configure it so CI is the only writer.
+**A workflow's action pins are tags, and a tag is mutable.** An unchanged `uses:` line does not mean unchanged code: the referenced tag moves when its maintainer moves it, so CI can change behaviour with no commit here to explain it. Nothing in the gate reads `.github/`, so currency is re-checked on a cadence — [research tracking](../reference/research-tracking.yaml), `pinned-action-currency`.
 
-When either is set up, a dependency-update PR is treated like any other change: it targets `develop`, and the gate decides whether it lands.
-
-Two things bite whoever wires the update bot up, and both were found the hard way:
-
-- **Targeting `develop` requires `develop` to exist on the remote.** A `target-branch` naming a branch that is only local is not an error the bot reports usefully; it simply opens its pull requests against the default branch.
-- **Generated subjects overrun the commit-message limit.** `committed.toml` caps every line at 72 characters, and a bot configured to include a scope produces subjects longer than that for ordinary crate bumps. Either leave the scope out or raise the cap deliberately — do not exempt the bot from the hook.
+**Branch protection** is the one part of this baseline that lives at the forge, and it is not configured yet. The `master` invariant above is a forge setting, not a convention; configure it so CI is the only writer.
 
 ## Before proposing a change
 

@@ -70,5 +70,5 @@ Invoke compose before spawn in `pass_through.rs`. Integration-test that a profil
 
 ## Next Round
 
-Round 4 (`config-commands`) exposes `config show|path|compose|validate|status` and `profile
-list|show`, surfacing provenance and unknown-key warnings.
+Round 4 (`config-commands`) exposes `config view|path|compose|validate|status` and `profile
+list|status`, surfacing provenance and unknown-key warnings.
