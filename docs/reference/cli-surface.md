@@ -70,7 +70,7 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 | `completion` | Emit shell completions for the wrapper's grammar                                              |
 | `man`        | Emit man pages generated from the wrapper's grammar                                           |
 | `version`    | Print the wrapper's version and the resolved child's path and version                         |
-| `help`       | Print help                                                                                    |
+| `help`       | Print the wrapper's help, or one verb's                                                       |
 
 The child already owns `auth`, including `auth login`, so the wrapper does not claim that verb. Native auth remains passthrough; `account` is the existing wrapper namespace. Any other future collision uses `--` as the escape hatch and is recorded rather than silently resolved. See [ADR-0030](../decisions/0030-use-account-login-for-wrapper-authentication.md).
 
@@ -119,19 +119,47 @@ Authored prose the parser cannot generate — worked passthrough examples, the `
 
 Help describes the **wrapper's** grammar only. It does not reproduce, summarize, or link into the child's flag list, because that list is not the wrapper's to track. It should say, once and plainly, that unrecognized arguments are forwarded.
 
+The `help` verb is the same surface under another spelling: `claude-session help [<verb>]` prints exactly what `--help` and `<verb> --help` print. Requested help is a **result** — standard output, exit `0`. Help printed because an invocation was malformed is a **diagnostic** — standard error, exit `Usage`. The parser's own default differs on both counts and is overridden; see [exit codes](./exit-codes.md#wrapper-matrix).
+
 Shell completions cover the wrapper's grammar for the same reason. Completions never attempt to complete child arguments.
 
-**Man pages are generated from the same parser tree.** `man` writes roff to standard output, or to a directory named by an argument so a packager can render pages at build time. Because help, completions, and man pages all read one `Command` tree, the flag list has a single source and no surface can drift from another. The authored prose file included into long help is included into the man page too. See [ADR-0016](../decisions/0016-ship-man-pages.md).
+```text
+claude-session completion <bash|elvish|fish|powershell|zsh>
+```
+
+The five are the full set the generator supports, so the list is the dependency's rather than a subset this project would have to justify and revisit. The script is the verb's result and is written raw to standard output: no header, no summary, no diagnostic. An unrecognized shell exits `Usage`.
+
+**Man pages are generated from the same parser tree.** Because help, completions, and man pages all read one `Command` tree, the flag list has a single source and no surface can drift from another. The authored prose file included into long help is included into the man page too. See [ADR-0016](../decisions/0016-ship-man-pages.md).
+
+```text
+claude-session man [--out-dir <dir>]
+```
+
+Without `--out-dir`, `man` writes roff to standard output. With it, the page set is written into that directory — one page for the wrapper and one per verb — and standard output stays empty, so a packager can render at build time while a user previews without installing anything. Neither form takes `--json`: roff is not data.
 
 ## Version output
 
-`--version` and the `version` verb print, at minimum:
+`--version` and the `version` verb print the same two lines on standard output:
 
-- The wrapper's own version.
-- The resolved child binary's absolute path.
-- The child's self-reported version.
+```text
+claude-session 0.1.0
+claude /usr/local/bin/claude 1.0.2
+```
 
-Reporting both is the point: a user debugging wrapper behaviour needs to know which child was actually found, and path resolution is the most common source of surprise. When the child cannot be resolved, the wrapper's version still prints and the child line reports the resolution failure rather than aborting.
+Each line is `<name> [<path>] <version>`, with the version last so a caller can take the final field. Reporting both is the point: a user debugging wrapper behaviour needs to know which child was actually found, and path resolution is the most common source of surprise.
+
+When the child cannot be resolved or its version cannot be read, the second line names that condition in place of the version and **the exit stays `0`**. The wrapper's version is a fact it always knows; refusing to report it because the child is missing would withhold the one answer the user came for. `doctor` is where a missing child fails.
+
+The verb also takes `--json`, and the flag form does not — `--version` is intercepted before the verb split, where no verb-level flag applies:
+
+```json
+{
+  "version": "0.1.0",
+  "child": { "path": "/usr/local/bin/claude", "version": "1.0.2", "status": "ok" }
+}
+```
+
+`child.status` is one of `ok`, `not-found`, `not-executable`, or `unparsable`; `child.version` is omitted unless the status is `ok`, and `child.path` unless resolution got far enough to name one. The document carries no `schema_version`, per [machine output](./logging-and-output.md#machine-output).
 
 ## Confirmation and non-interactive use
 

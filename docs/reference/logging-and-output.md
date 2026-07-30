@@ -29,7 +29,19 @@ Every terminal write goes through **one output writer**, owned by the context. D
 
 The flag is **verb-level** and every verb that produces data declares its own; there is no global `--format`. The reasoning is in [the CLI surface](./cli-surface.md#machine-output-is-not-on-this-table) and [ADR-0024](../decisions/0024-machine-output-is-a-per-verb-flag.md). One writer still renders every document, so the mode behaves identically across verbs even though the flag is declared per verb.
 
-Errors in JSON mode still go to standard error, and carry the `err.kind` from the exit-code matrix so a script can branch without parsing prose.
+Errors in JSON mode still go to standard error, and are themselves a JSON object — the four parts of the [error shape](./exit-codes.md#error-message-shape) as fields, plus the `err.kind` a script branches on:
+
+```json
+{ "kind": "ChildNotExecutable", "what": "…", "where": "…", "why": "…", "hint": "…" }
+```
+
+This is the **one** document shape that is not the verb's to choose. A caller asking for JSON asked for it on both streams, and a failure is the case where falling back to prose is least useful.
+
+Three rules apply to every document, whichever verb emits it:
+
+- **One document per invocation**, and no envelope shared across verbs. Each verb's top-level object is its own shape, so a document can grow without an agreement every other verb has to honour. See [ADR-0032](../decisions/0032-give-each-verb-its-own-json-document.md).
+- **An absent optional field is omitted, never `null`.** A consumer tests for presence, which is one branch rather than two.
+- **`schema_version` appears only where the document is itself a contract a script matches against** — today that is `doctor` alone, whose check ids are public API. Adding it everywhere would promise a versioning guarantee the other verbs do not make.
 
 ## Verbosity
 
@@ -97,6 +109,12 @@ Colour never carries meaning by itself. Anything colour indicates is also stated
 
 `doctor` is the wrapper's self-diagnostic. Its output contract lives here because it _is_ an output surface; the subsystems it inspects are documented in their own pages.
 
+```text
+claude-session doctor [--json] [--list] [--strict]
+```
+
+All three flags are verb-level, for the reason [the CLI surface](./cli-surface.md#why---yes-is-not-in-the-flag-table) gives, and they combine: `doctor --list --json` is how a script discovers the catalog.
+
 **Every check runs independently, and one failure never aborts the rest.** A `doctor` that stops at the first problem is useless precisely when it is needed, because the first problem is often a consequence of the third.
 
 ### One probe set, three call sites
@@ -140,9 +158,39 @@ A soft check that is inert — a feature the user does not use — reports `skip
 
 Exit is `0` when no hard check fails, and otherwise the `err.kind` code of the first failing hard check in catalog order — which is why the table's order is itself contractual.
 
+`doctor --strict` adds one rule and nothing else: if the run would have exited `0` but any check reported `warn`, it exits `1` instead. It changes no check, no severity, and no output, and it can never make a passing catalog fail. It exists so a CI gate is one flag rather than a JSON parser, and `1` is the wrapper's only bare code — see [ADR-0034](../decisions/0034-exit-one-when-doctor-strict-promotes-a-warning.md) and [exit codes](./exit-codes.md#the-one-code-outside-the-taxonomy).
+
 `doctor --list` prints the catalog — every id, scope, and severity — without running anything, so a script can discover what it may match on.
 
-Output is a human-readable report on standard output plus an overall verdict; `doctor --json` emits every check with its id, scope, severity, status, and message. Each failing check carries the four-part error shape from [exit codes](./exit-codes.md).
+### The report
+
+The report is the verb's result, so it goes to standard output; progress and diagnostics go to standard error, which is what makes `doctor --json 2>/dev/null` safe to pipe.
+
+Checks are grouped by scope in catalog order, and each line carries its status as a bracketed word — `[pass]`, `[warn]`, `[fail]`, `[skipped]` — never a glyph or a colour alone, for the reason [colour](#colour) gives. A non-pass check is followed by an indented `hint:` line carrying the **Hint** part of the [error shape](./exit-codes.md#error-message-shape); a `skipped` check states its reason instead. The report ends with one summary line giving the counts and the exit the run produced.
+
+`doctor --json` emits that same run as one document:
+
+```json
+{
+  "status": "pass",
+  "checks": [
+    {
+      "id": "child-binary-resolves",
+      "scope": "host",
+      "severity": "hard",
+      "status": "pass",
+      "message": "…",
+      "hint": "…",
+      "reason": "…",
+      "kind": "ChildNotFound"
+    }
+  ],
+  "summary": { "total": 12, "passed": 12, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0 },
+  "schema_version": 1
+}
+```
+
+`hint` appears on any non-pass, `reason` only on a `skipped`, and `kind` only on a `warn` or `fail` — where it is the `err.kind` from [exit codes](./exit-codes.md). Omitted rather than `null`, per [machine output](#machine-output). `summary.hard_failures` is the field that predicts the exit: zero means `0`.
 
 The child version floor is a **perishable fact**: the child is externally owned and changes on its own schedule. It is registered in [research tracking](./research-tracking.yaml), and the check is defensive — an unparsable version string is reported, not fatal.
 

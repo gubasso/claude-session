@@ -59,6 +59,7 @@ Rules:
 - `AppError` is a **closed enum** with no catch-all variant. This is what makes the exit-code mapping exhaustive; see [exit codes](./exit-codes.md).
 - **A boxed trait-object error is never a return type** in this crate. It erases exactly the type information the exit-code mapping needs.
 - The boundary error type is used **only** in the entry point. It is the right tool for one place — assembling the final report — and the wrong tool everywhere else, because a function returning it tells the caller nothing about what can go wrong.
+- `main` returns `std::process::ExitCode`, and **`std::process::exit` is not called** — it skips destructors, and the non-blocking log sink is flushed by one. Reproducing a child's signal death is the single exception, because re-raising does not return; it lives in the entry point and nowhere else. Every code the process can produce is owned by one enum, hand-rolled rather than taken from a crate. See [ADR-0035](../decisions/0035-convert-the-typed-error-to-a-code-once.md) and [exit codes](./exit-codes.md).
 
 ## Panics
 

@@ -30,3 +30,5 @@ Two rules keep it useful rather than ceremonial. Every error carries the **concr
 ## Status
 
 Accepted
+
+Extended by [ADR-0035](./0035-convert-the-typed-error-to-a-code-once.md) — how the closed enum becomes a process status.

@@ -12,7 +12,7 @@ With the full flag/verb surface settled, `claude-session` finalizes its shell co
 
 ## Scope of This Round
 
-- IN scope: finalize `commands/completion.rs` to generate shell completions via `clap_complete` for the wrapper-owned grammar (bash/zsh/fish); confirm `commands/version.rs` (our version + resolved child path + `claude --version`); add `clap_mangen` man-page generation (a `man`/`--man` path or build artifact); ensure completions/man pages cover the final wrapper flags and do NOT attempt to complete passthrough child args.
+- IN scope: finalize `commands/completion.rs` to generate shell completions via `clap_complete`; finalize `commands/version.rs`; add `clap_mangen` man-page generation for the `man` verb; ensure completions/man pages cover the final wrapper flags and do NOT attempt to complete passthrough child args. The grammar, shell list, output shape, and exit codes for all three are specified in `docs/reference/cli-surface.md` — this round implements them and does not decide them.
 - OUT of scope: ADR closeout/release hardening (round 4); behavior changes to features.
 
 ## Current State
@@ -37,15 +37,15 @@ In this plan's `queue-rounds.yaml`, set this round's (`item: completions-and-man
 
 ### Step 1: Completions
 
-Finalize `commands/completion.rs` to emit `clap_complete` completions (bash/zsh/fish) for the wrapper-owned grammar.
+Finalize `commands/completion.rs` to emit `clap_complete` completions for the wrapper-owned grammar, for every shell `docs/reference/cli-surface.md` lists.
 
 ### Step 2: version
 
-Confirm `commands/version.rs` prints our version + resolved child path + `claude --version`.
+Finalize `commands/version.rs` to the two-line human form and the `--json` document in `docs/reference/cli-surface.md`, including the child-unavailable case and its exit.
 
 ### Step 3: Man pages
 
-Add `clap_mangen` man-page generation for the wrapper grammar.
+Add `clap_mangen` man-page generation behind the `man` verb, with the stdout and `--out-dir` behaviour `docs/reference/cli-surface.md` specifies.
 
 ### Step 4: Tests
 

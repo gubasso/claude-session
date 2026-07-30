@@ -29,3 +29,5 @@ Two properties make it usable. The mapping is **exhaustive over a closed error e
 ## Status
 
 Accepted
+
+Amended by [ADR-0033](./0033-append-fresh-exit-codes.md) — a new failure class now takes an unused number rather than one already in the table. Amended by [ADR-0034](./0034-exit-one-when-doctor-strict-promotes-a-warning.md) — `doctor --strict` exits a bare `1`, the one code that names no category. Realized by [ADR-0035](./0035-convert-the-typed-error-to-a-code-once.md).

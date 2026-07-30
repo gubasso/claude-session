@@ -32,7 +32,7 @@ Two details are easy to get wrong. **The first candidate that exists wins** — 
 
 Do **not** add an `exec` method to the trait. This project spawns and waits; `exec` is recorded as rejected in `docs/decisions/0004-spawn-and-wait-child-supervision.md`, and a trait method nobody may call is an invitation.
 
-Codes come from `docs/reference/exit-codes.md`: `127` for not-found and for the recursion refusal, `126` for found-but-not-executable.
+Codes come from `docs/reference/exit-codes.md` and are not decided here. Note that the recursion refusal is **not** a not-found: resolution succeeded and produced the wrong binary, so it carries its own `err.kind` and its own code.
 
 ## Implementation Steps
 

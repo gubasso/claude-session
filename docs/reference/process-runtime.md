@@ -131,6 +131,8 @@ Step 7 before step 8 matters: a signal arriving during post-flight has no child 
 
 The wrapper waits for the specific child it spawned. It does not reap arbitrary children, and it does not install a handler for child-termination signals — there is one child, and its status is collected by waiting.
 
+**Step 8 failing is not the same as the child failing.** A spawn that never produced a process — the process table is full, memory is exhausted, a pipe could not be created — exits `OsError` (71), because the wrapper is still on its own side of [the boundary](./exit-codes.md#two-regimes). It is distinct from `ChildNotFound` and `ChildNotExecutable`, which are decided at step 1 against a named path, and from `Internal` (70), which means the wrapper has a bug. Here the machine refused and the wrapper is working correctly.
+
 ## Post-flight
 
 Post-flight work runs after the child exits and before the wrapper does:
