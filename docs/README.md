@@ -1,6 +1,6 @@
 # Documentation
 
-This is the index into `claude-session`'s engineering documentation. It is an index and nothing else: it holds no rules of its own, and every durable fact lives in the document that owns it.
+This is the index into `claude-session`'s engineering documentation. Every durable fact lives in the document that owns it; the shape of the tree — which zones exist, and why one holds fewer pages than a reader might expect — is the one thing this file states on its own authority.
 
 The tree is organized by **reader need** first and topic second. Four zones, four promises:
 
@@ -27,6 +27,8 @@ A topic directory, when volume ever demands one, goes **inside** a zone. It is n
 - [Wrapper model](./explanation/wrapper-model.md) — what it means to wrap `claude`, and why the wrapper's grammar stays small and the child stays opaque.
 - [Session isolation](./explanation/session-isolation.md) — what a session is, how its identity is derived, and why redirecting the child's configuration directory is the isolation mechanism.
 - [Testing strategy](./explanation/testing-strategy.md) — how this project tests a process-spawning wrapper, and the anti-patterns review rejects.
+
+The zone carries cross-cutting models, not one page per subsystem. Accounts have none by design: [session isolation](./explanation/session-isolation.md) owns the account-to-group relationship, and [accounts](./reference/accounts.md) opens with the model its contract rests on — a third page could only restate them ([ADR-0012](./decisions/0012-docs-architecture.md)).
 
 ## Reference
 
