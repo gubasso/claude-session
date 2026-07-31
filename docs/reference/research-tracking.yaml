@@ -201,19 +201,23 @@ facts:
 
   - id: child-settings-duplicate-flag
     fact: >-
-      Behavior when the child receives more than one settings flag is
-      unverified.
+      Given more than one settings flag the child keeps the last occurrence
+      only; earlier files are not merged, not validated, and not read.
     owner: docs/reference/process-runtime.md
     dependents:
       - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
+      - docs/decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md
+      - docs/explanation/wrapper-model.md
     cadence: monthly
-    last_checked: 2026-07-30
+    last_checked: 2026-07-31
     source:
       - https://code.claude.com/docs/en/cli-reference
+      - measured against claude 2.1.220 on linux, 2026-07-31
     revalidate: >-
-      Run the current child with two settings files carrying distinct and
-      conflicting harmless values; record whether it merges, selects one, or
-      errors, and compare with current CLI documentation.
+      Run the current child's doctor with two settings paths where exactly one
+      holds malformed JSON, in both orders; the invalid-settings section names
+      the last path only. Order-independent reporting or an error means the
+      precedence changed and ADR-0047 must be revisited.
 
   - id: child-credential-lifetimes
     fact: >-
@@ -307,6 +311,31 @@ facts:
       On a major parser upgrade, retry the leading-unknown-flag invocation
       without the pre-split. If the parser handles it, the pre-split may be
       simplifiable — but the golden-argv tests stay either way.
+
+  - id: child-flag-and-verb-inventory
+    fact: >-
+      The child's top-level flag and subcommand spellings, and which of them
+      the wrapper-owned table and verb table overlap.
+    owner: docs/reference/cli-surface.md
+    dependents:
+      - docs/explanation/wrapper-model.md
+      - docs/decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md
+      - docs/decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md
+      - docs/decisions/ADR-0045-compose-doctor-with-the-child-report.md
+      - docs/reference/testing-and-quality.md
+    cadence: monthly, and on every child release the project adopts
+    last_checked: 2026-07-31
+    source:
+      - https://code.claude.com/docs/en/cli-reference
+      - the checked-in inventory fixture, labelled with the version it was taken from
+      - measured against claude 2.1.220 on linux, 2026-07-31
+    revalidate: >-
+      Rebuild the inventory from the child's own help, top level and every
+      subcommand, and diff it against the fixture. Upstream documentation is
+      not exhaustive, so the fixture is the authority and the published page
+      is the corroboration. Record a new shadowing overlap in the child-status
+      column; an overlap that would change a token's meaning forces the
+      wrapper spelling to be dropped or renamed under a new record.
 
   - id: signal-forwarding-model
     fact: >-

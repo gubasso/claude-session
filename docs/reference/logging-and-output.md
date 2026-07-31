@@ -45,15 +45,17 @@ Three rules apply to every document, whichever verb emits it:
 
 ## Verbosity
 
-| Invocation | Level              |
-| ---------- | ------------------ |
-| `--quiet`  | Errors only        |
-| Default    | Warnings and above |
-| `-v`       | Info and above     |
-| `-vv`      | Debug and above    |
-| `-vvv`     | Trace              |
+| Invocation                      | Level              |
+| ------------------------------- | ------------------ |
+| `--quiet`                       | Errors only        |
+| Default                         | Warnings and above |
+| `--verbose`                     | Info and above     |
+| `--verbose --verbose`           | Debug and above    |
+| `--verbose --verbose --verbose` | Trace              |
 
-`--quiet` and `--verbose` together is a usage error, not a silent precedence rule.
+Verbosity repeats by repeating the whole spelling. There is no `-v`, and `-vv` is not a wrapper token at all — it is forwarded to the child, like any other unclaimed argument. Both follow from exact, unbundled matching ([ADR-0043](../decisions/ADR-0043-match-wrapper-flags-by-exact-leading-spelling.md)); the reason `-v` is unavailable is that the child already spells it `--version` ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
+
+A fourth `--verbose` is not an error; the level is clamped at trace. `--quiet` and `--verbose` together is a usage error, not a silent precedence rule.
 
 `RUST_LOG` is honoured and, when set, **overrides** the flag-derived level. This is deliberate: the flag is the user's coarse control, and the environment variable is the developer's fine one, which needs per-module filtering the flags cannot express. No `CLAUDE_SESSION_LOG` variable is invented — reusing the ecosystem-standard name means existing knowledge transfers.
 
@@ -191,6 +193,12 @@ Checks are grouped by scope in catalog order, and each line carries its status a
 ```
 
 `hint` appears on any non-pass, `reason` only on a `skipped`, and `kind` only on a `warn` or `fail` — where it is the `err.kind` from [exit codes](./exit-codes.md). Omitted rather than `null`, per [machine output](#machine-output). `summary.hard_failures` is the field that predicts the exit: zero means `0`.
+
+### The child's own report
+
+`doctor` ends by running `claude doctor` and passing its output through **unmodified**, under its own heading, after the wrapper's summary line. The child's report is never parsed, reformatted, or summarized: the wrapper claims the verb name only because it composes with the child's rather than replacing it ([ADR-0045](../decisions/ADR-0045-compose-doctor-with-the-child-report.md)).
+
+Its exit status enters the catalog as one soft check — zero passes, anything else warns — so it can promote under `--strict` but can never turn a healthy wrapper into a hard failure over a program the wrapper does not own. Under `--json` the child's report is one opaque string field beside its status, which is what keeps the document's schema independent of the child's formatting. If the child cannot be resolved or spawned at all, that is already a hard check of the wrapper's own and this section is skipped with that reason.
 
 The child version floor is a **perishable fact**: the child is externally owned and changes on its own schedule. It is registered in [research tracking](./research-tracking.yaml), and the check is defensive — an unparsable version string is reported, not fatal.
 

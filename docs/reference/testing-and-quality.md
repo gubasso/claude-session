@@ -91,8 +91,26 @@ Each of these locks down a contract that is otherwise decorative:
 | Undocumented field         | A public config field without a description fails generation                    | [Configuration](./configuration.md)           |
 | Check-id coverage          | Every catalog id maps to an `err.kind` that exists                              | [Logging and output](./logging-and-output.md) |
 | Help snapshot              | Generated help does not change unnoticed                                        | [CLI surface](./cli-surface.md)               |
+| Denylist membership        | The spellings the pre-split claims are exactly the documented table             | [CLI surface](./cli-surface.md)               |
+| Spelling matrix            | Exact matching: no abbreviation, no bundling, no case folding, both value forms | [CLI surface](./cli-surface.md)               |
+| Leading-position scope     | A claimed flag after any other token reaches the child                          | [CLI surface](./cli-surface.md)               |
+| Malformed wrapper flag     | A claimed flag missing its value exits `Usage`; a near-miss forwards            | [CLI surface](./cli-surface.md)               |
+| Collision audit            | The claimed set meets the child's inventory only where documented               | [CLI surface](./cli-surface.md)               |
+| Child version floor        | A `login`-mode launch below the floor fails before spawn; `token` mode does not | [Process runtime](./process-runtime.md)       |
 
-Three of these have teeth beyond their own assertion. The exit-code matrix, written exhaustively over a closed enum, means adding an error variant without a code **fails the build**. The example round-trip is what stops a generated example from being a plausible-looking file the program itself would reject — an example that does not parse is worse than none, because the user trusts it. The undocumented-field test enforces the hard failure [ADR-0013](../decisions/ADR-0013-generate-config-examples-from-types.md) rests on: without it, the generator degrades quietly into emitting bare keys.
+The five flag-recognition tests are one obligation split by what each rejects, and together they are the proof of [ADR-0043](../decisions/ADR-0043-match-wrapper-flags-by-exact-leading-spelling.md) and [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md):
+
+| Test                   | Shape                                                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Denylist membership    | A snapshot of the sorted claimed-spelling set, derived from the parser rather than hand-written.                                                |
+| Spelling matrix        | Table-driven over every claimed flag by `--x=v`, `--x v`, `--x -y`, `-X`, `-XY`, an uppercase spelling, and a unique prefix.                    |
+| Leading-position scope | The stub receives `--verbose` from `claude-session -p x --verbose`.                                                                             |
+| Malformed wrapper flag | `--config` bare exits `Usage`; `--configg` forwards verbatim and the run exits with the stub's status.                                          |
+| Collision audit        | The claimed flag and verb sets are intersected with a checked-in, version-labelled inventory fixture and compared with the documented overlaps. |
+
+The collision audit reads the fixture, never the network and never a locally installed child; refreshing the fixture is the `child-flag-and-verb-inventory` revalidation, not a test run.
+
+Five of these have teeth beyond their own assertion. The exit-code matrix, written exhaustively over a closed enum, means adding an error variant without a code **fails the build**. The example round-trip is what stops a generated example from being a plausible-looking file the program itself would reject — an example that does not parse is worse than none, because the user trusts it. The undocumented-field test enforces the hard failure [ADR-0013](../decisions/ADR-0013-generate-config-examples-from-types.md) rests on: without it, the generator degrades quietly into emitting bare keys. Denylist membership means a flag added in code without its table row fails the build, and the collision audit means a child release that starts shadowing a claimed spelling fails the build — the only mechanism in the project that turns red without a change of its own, which is the point.
 
 ## The gate
 

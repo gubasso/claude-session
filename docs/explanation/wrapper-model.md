@@ -32,7 +32,11 @@ The wrapper claims a **denylist** of flags: a short, explicit list it intercepts
 
 The alternative — an allowlist of child flags the wrapper understands, with anything unrecognized rejected — fails the moment the child ships a new flag. The user would then need a new wrapper release to use a feature that already works in the tool being wrapped. That is exactly the failure the passthrough contract exists to prevent.
 
-The cost of a denylist is a genuine collision risk: if the wrapper claims a short flag and the child later claims the same one, the wrapper wins and the user loses access to the child's version. This is why wrapper flags are long-form and distinctive rather than single letters, and why every claimed flag is listed with a reason in [the CLI surface](../reference/cli-surface.md).
+The cost of a denylist is a genuine collision risk: if the wrapper claims a flag the child also claims, the wrapper wins and the user loses the child's version. That risk is real rather than theoretical — the child already spells `--verbose`, and it spells `-v` as its version flag.
+
+Three things keep the cost bounded. Wrapper flags are long-form and distinctive rather than single letters. Interception is **leading-position only**, so a claimed spelling typed after any other token still reaches the child. And the claimed set is compared against a recorded inventory of the child's own flags, with any unnamed overlap failing the build rather than being noticed later ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)). The exact spellings, their measured child status, and the escape hatches are in [the CLI surface](../reference/cli-surface.md#wrapper-owned-flags).
+
+A collision the wrapper cannot resolve by shadowing is resolved by renaming, as `auth` was, or by composing — running the child's command inside the wrapper's own and reporting both, as `doctor` does. Nothing is left to be discovered by a user who did not know a wrapper was in the way.
 
 ## Byte-preserving argv
 
@@ -90,6 +94,8 @@ Two independent guards prevent self-invocation. A marker variable is set in the 
 The wrapper selects an account-wide configuration directory through `CLAUDE_CONFIG_DIR`; the child owns its saved login and other native state inside it. The wrapper never reads, copies, refreshes, fingerprints, or synchronizes that credential.
 
 Per-group composition leaves through one declared wrapper-added argv pair: `--settings <absolute group settings path>`. That pair precedes an opaque, verbatim user suffix. The wrapper preserves every user token and does not parse duplicate settings flags; see [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
+
+The child keeps only the last `--settings` it is given, so a user who passes one replaces the group's composed document rather than adding to it. The wrapper accepts that precedence instead of repairing it: the alternative is inspecting the suffix, which is the coupling this whole model exists to avoid. The consequence is stated where a user meets it, in [the child argument vector](../reference/process-runtime.md#child-argument-vector).
 
 Account selection and terminal-group derivation are separate axes, explained in [session isolation](./session-isolation.md).
 

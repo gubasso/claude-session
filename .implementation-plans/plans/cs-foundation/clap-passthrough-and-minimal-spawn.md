@@ -4,7 +4,7 @@
 
 ## Context
 
-`claude-session` MUST never break native `claude` passthrough: any unknown arg/flag/subcommand forwards verbatim (`OsString`-preserving) to the real `claude`, and a bare `claude-session ...` runs `claude ...`. claude-session-owned global flags must never collide with native `claude` flags. This round builds the clap skeleton that routes wrapper-verbs vs. passthrough, the wrapper-verb stubs, and a **minimal** inherited-env child spawn so passthrough is demonstrable and testable now. The robust `Spawner` trait, full signal forwarding, exit-code mapping, recursion guard, and isolated child-env injection are deliberately deferred to the `cs-wrapper-runtime` plan. Rounds 1–2 produced the crate tree and the error/logging/context/config plumbing.
+`claude-session` MUST never break native `claude` passthrough: any unknown arg/flag/subcommand forwards verbatim (`OsString`-preserving) to the real `claude`, and a bare `claude-session ...` runs `claude ...`. Wrapper-owned global flags collide with native `claude` flags only where `docs/reference/cli-surface.md` names the overlap and states its reason; interception is leading-position only, and `--` always reaches the child spelling (ADR-0043, ADR-0044). This round builds the clap skeleton that routes wrapper-verbs vs. passthrough, the wrapper-verb stubs, and a **minimal** inherited-env child spawn so passthrough is demonstrable and testable now. The robust `Spawner` trait, full signal forwarding, exit-code mapping, recursion guard, and isolated child-env injection are deliberately deferred to the `cs-wrapper-runtime` plan. Rounds 1–2 produced the crate tree and the error/logging/context/config plumbing.
 
 ## Previous Rounds
 
@@ -12,7 +12,7 @@ Round 1: canonical module tree + manifest. Round 2: `AppError` + exit-code matri
 
 ## Scope of This Round
 
-- IN scope: `cli/argv.rs`, the pure argv pre-split described below; `cli.rs` root `Cli` parser (`disable_version_flag` so `-V` is wrapper-owned) with a `GlobalArgs` flatten carrying the wrapper-owned flags specified in `docs/reference/cli-surface.md` (`-v/--verbose` count, `-q/--quiet`, `--config <path>`, `--dry-run`, plus `--account`, `--session`, `--profile` reserved as stubs for later plans; machine output is **not** here — `--json` is verb-level per ADR-0024) and a `Commands` enum covering exactly the verbs the table in `docs/reference/cli-surface.md` lists; a free `pub fn run(ctx, args) -> Result<(), AppError>` stub per verb reporting "not yet implemented" via `Ui`, except `version`, which prints our version plus the resolved child path and version in the shape that page specifies; a minimal `commands/pass_through.rs` that spawns the real `claude` with **inherited env** (no isolation) via `std::process::Command`, waits, and propagates the child exit code; `commands/dispatch.rs`; `main.rs` (`parse → init logging → AppContext → dispatch → exit-code map`, ≤120 LOC).
+- IN scope: `cli/argv.rs`, the pure argv pre-split described below; `cli.rs` root `Cli` parser (`disable_version_flag` so `-V` is wrapper-owned) with a `GlobalArgs` flatten carrying the wrapper-owned flags specified in `docs/reference/cli-surface.md` (`--verbose` count — long form only, since the child spells `-v` as `--version`; `-q/--quiet`, `--config <path>`, `--dry-run`, plus `--account`, `--session`, `--profile` reserved as stubs for later plans; machine output is **not** here — `--json` is verb-level per ADR-0024) and a `Commands` enum covering exactly the verbs the table in `docs/reference/cli-surface.md` lists; a free `pub fn run(ctx, args) -> Result<(), AppError>` stub per verb reporting "not yet implemented" via `Ui`, except `version`, which prints our version plus the resolved child path and version in the shape that page specifies; a minimal `commands/pass_through.rs` that spawns the real `claude` with **inherited env** (no isolation) via `std::process::Command`, waits, and propagates the child exit code; `commands/dispatch.rs`; `main.rs` (`parse → init logging → AppContext → dispatch → exit-code map`, ≤120 LOC).
 - OUT of scope: the hexagonal `Spawner` trait, signal forwarding, recursion guard, child env construction and `CLAUDE_CONFIG_DIR` injection (all in `cs-wrapper-runtime`); session dirs (`cs-isolation`); accounts (`cs-accounts-auth`); config composition (`cs-config-composition`).
 
 ## Current State
@@ -70,7 +70,7 @@ Add `commands/dispatch.rs` (routes wrapper verbs vs. `External` passthrough) and
 - [ ] `claude-session --help` shows wrapper verbs + global flags without erroring on unknown native `claude` flags.
 - [ ] An unknown subcommand/flag (e.g. `claude-session --print "hi"`) forwards verbatim to the real `claude` (verified against a stubbed child binary in an `assert_cmd` test).
 - [ ] `claude-session version` prints claude-session's version plus the resolved child path+version.
-- [ ] `-V` is wrapper-owned and does not shadow a child flag; `--` separator works.
+- [ ] `-V` is wrapper-owned and free of the child's inventory; every other overlap matches the documented child-status column; `--` separator works, and a second `--` reaches the child as an ordinary argument.
 - [ ] The wrapper exit code equals the child's exit code.
 - [ ] This plan's `queue-rounds.yaml` shows round `clap-passthrough-and-minimal-spawn` as `done`.
 

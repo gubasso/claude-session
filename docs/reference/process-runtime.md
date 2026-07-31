@@ -6,7 +6,11 @@ This describes normative design. The crate is pre-implementation.
 
 ## Platform scope
 
-Unix is the supported target. The contracts below depend on process groups, POSIX signals, controlling terminals, and Unix file modes. Windows is explicitly out of scope; adding it is a separate decision, not an incremental port, because the signal and process-group model has no direct equivalent.
+Linux is the supported target, against child `claude` `2.1.220` or newer ([ADR-0046](../decisions/ADR-0046-support-linux-and-a-single-child-baseline.md)). Every child fact this project records is measured there, and every fixture that captures the child's behaviour is labelled with the version it came from.
+
+Other Unix systems are neither claimed nor deliberately broken. The contracts below depend on process groups, POSIX signals, controlling terminals, and Unix file modes, all of which they have, but nothing is measured on them and no gate proves them. Windows is explicitly out of scope; adding it is a separate decision, not an incremental port, because the signal and process-group model has no direct equivalent.
+
+The baseline is an evidence rule, not a launch gate. The only version check that refuses to spawn is the [child version floor](#child-version-floor) below.
 
 ## Child resolution
 
@@ -73,7 +77,9 @@ For an account-backed group, the wrapper constructs one prefix:
 --settings <absolute groups/<group>/settings.json path>
 ```
 
-The original child argument vector follows as an untouched suffix. Its order, bytes, count, and `--` sentinel are preserved. Duplicate `--settings` behavior is unverified; the wrapper does not parse, deduplicate, reorder, or reject user tokens. See [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
+The original child argument vector follows as an untouched suffix. Its order, bytes, count, and `--` sentinel are preserved. The wrapper does not parse, deduplicate, reorder, or reject user tokens. See [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
+
+**A user-supplied `--settings` replaces the group's document.** Measured against `claude` 2.1.220 on 2026-07-31, the child keeps only the last occurrence: an earlier settings file is not merged, not validated, and not even read. Since the wrapper's pair is a prefix, the user's own flag always wins and the composed group layer is silently discarded. That precedence is accepted rather than repaired — the wrapper cannot detect it without parsing the suffix ([ADR-0047](../decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md)). A user who wants both composes them into one file and passes that.
 
 ## Process group topology
 

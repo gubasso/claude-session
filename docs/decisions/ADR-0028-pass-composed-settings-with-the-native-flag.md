@@ -29,3 +29,5 @@ See [ADR-0010](./ADR-0010-compose-native-settings-from-declared-layers.md), [con
 ## Status
 
 Accepted
+
+Amended by [ADR-0047](./ADR-0047-let-a-user-settings-flag-override-the-group-layer.md), which discharges the unverified duplicate-flag consequence: the child keeps the last occurrence, so a user-supplied `--settings` replaces the group layer.

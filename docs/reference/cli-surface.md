@@ -17,25 +17,46 @@ When the first non-flag token is a wrapper verb, the invocation is a wrapper com
 
 ## Wrapper-owned flags
 
-This table is the denylist. Every flag on it is intercepted by the wrapper and never reaches the child. **Every flag not on it is forwarded verbatim**, whether or not the wrapper recognizes it, and whether or not it exists in the child.
+This table is the denylist. Every flag on it is intercepted by the wrapper **in leading position** and does not reach the child there. **Every flag not on it is forwarded verbatim**, whether or not the wrapper recognizes it, and whether or not it exists in the child.
 
-| Flag               | Meaning                                              | Why the wrapper claims it                                                                       |
-| ------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `--verbose`, `-v`  | Increase diagnostic verbosity; repeatable            | The wrapper's own diagnostics need a control the child's do not provide                         |
-| `--quiet`, `-q`    | Suppress all diagnostics below error                 | Pairs with `--verbose`; required for scripted use                                               |
-| `--config <path>`  | Override the wrapper's own configuration file        | Needed before configuration is loaded, so it cannot itself come from configuration              |
-| `--account <name>` | Select the account and stored authentication context | The wrapper owns account selection; the child owns its credential                               |
-| `--session <id>`   | Override the derived session group identity          | The wrapper owns session identity; see [session isolation](../explanation/session-isolation.md) |
-| `--profile <name>` | Select the settings profile to compose               | The wrapper owns composition; see [configuration](./configuration.md)                           |
-| `--dry-run`        | Resolve and report what would happen; spawn nothing  | A wrapper-level rehearsal has no child equivalent                                               |
-| `--version`, `-V`  | Print the wrapper's version and the resolved child's | Must report both, which the child cannot do                                                     |
-| `--help`, `-h`     | Print the wrapper's help                             | Must describe the wrapper's grammar, not the child's                                            |
+The child-status column is measured, not assumed. It is the intersection audited by [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md), taken from `claude` 2.1.220 on 2026-07-31; the `child-flag-and-verb-inventory` fact in [research tracking](./research-tracking.yaml) owns its freshness.
 
-Two properties of this table are contractual:
+| Flag               | Meaning                                              | Why the wrapper claims it                                                                       | Child status                                 |
+| ------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `--verbose`        | Increase diagnostic verbosity; repeatable            | The wrapper's own diagnostics need a control separate from the child's                          | Collides: the child has `--verbose` too      |
+| `--quiet`, `-q`    | Suppress all diagnostics below error                 | Pairs with `--verbose`; required for scripted use                                               | Free                                         |
+| `--config <path>`  | Override the wrapper's own configuration file        | Needed before configuration is loaded, so it cannot itself come from configuration              | Free                                         |
+| `--account <name>` | Select the account and stored authentication context | The wrapper owns account selection; the child owns its credential                               | Free                                         |
+| `--session <id>`   | Override the derived session group identity          | The wrapper owns session identity; see [session isolation](../explanation/session-isolation.md) | Free; the child's own flag is `--session-id` |
+| `--profile <name>` | Select the settings profile to compose               | The wrapper owns composition; see [configuration](./configuration.md)                           | Free                                         |
+| `--dry-run`        | Resolve and report what would happen; spawn nothing  | A wrapper-level rehearsal has no child equivalent                                               | Free                                         |
+| `--version`, `-V`  | Print the wrapper's version and the resolved child's | Must report both, which the child cannot do                                                     | `--version` collides by design; `-V` free    |
+| `--help`, `-h`     | Print the wrapper's help                             | Must describe the wrapper's grammar, not the child's                                            | Collides by design                           |
 
-**Long-form and distinctive.** Short forms are used only where the convention is universal (`-v`, `-q`, `-V`, `-h`). Claiming a short flag that the child later wants is a collision the wrapper wins and the user loses, so the set stays small.
+Three properties of this table are contractual:
+
+**Long-form and distinctive.** Short forms are used only where the convention is universal (`-q`, `-V`, `-h`). Claiming a short flag that the child later wants is a collision the wrapper wins and the user loses, so the set stays small. `-v` is deliberately absent: the child spells it `--version`, so claiming it for verbosity would change a token's meaning rather than shadow it ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
 
 **Append-only in spirit.** Adding a flag to this table removes a flag from the child's reachable surface. That is a passthrough-contract change, and it requires a decision record — see [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md).
+
+**Audited, not asserted.** An intersection between this table and the child's inventory that is not named in the child-status column fails the build. The mechanism is the collision-audit test in [testing and quality](./testing-and-quality.md#mandatory-tests).
+
+### Flag spelling
+
+Recognition is exact. A token is a wrapper flag only when all of these hold; anything else is child argv ([ADR-0043](../decisions/ADR-0043-match-wrapper-flags-by-exact-leading-spelling.md)).
+
+| Rule                 | Consequence                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Byte-exact           | `--config` is claimed; `--Config`, `--configg`, and `--conf` are not. Matching is ASCII case-sensitive.         |
+| No abbreviation      | A unique prefix is not the flag. `--acc` reaches the child.                                                     |
+| No bundling          | Short flags match only as whole single-letter tokens. `-qh` and `-vv` are child argv, as is any longer cluster. |
+| Leading position     | Recognition stops at the first token that is not a wrapper flag, and at `--`.                                   |
+| Value attachment     | A value-taking flag accepts `--flag=<value>` and `--flag <value>`.                                              |
+| Values are not flags | In the separated form a next token beginning with `-` is not consumed as the value.                             |
+
+Documentation and examples use the `--flag=<value>` form, because it is unambiguous at a glance about which side of the boundary the value belongs to.
+
+Repetition: `--verbose` is repeatable by repeating the whole spelling, and `--quiet` is idempotent. Every other wrapper flag is accepted at most once, and a repeat is a `Usage` error. What each verbosity level means, and why `--verbose` with `--quiet` is rejected, is in [logging and output](./logging-and-output.md#verbosity).
 
 ### Machine output is not on this table
 
@@ -47,32 +68,45 @@ claude-session account list --json
 
 A global `--format` would sit on the denylist above and cost the child a flag permanently, in exchange for nothing — machine output has no meaning for a passthrough invocation, which never emits wrapper output at all. Owning the flag per verb also keeps each verb's output schema independent, so one verb's document can change shape without implying anything about another's. See [ADR-0024](../decisions/ADR-0024-machine-output-is-a-per-verb-flag.md); the format contract itself is in [logging and output](./logging-and-output.md#machine-output).
 
-### Reaching a child flag the wrapper has claimed
+### When the child owns the same name
 
-`--` is the escape hatch. Everything after it is child argument territory, unconditionally:
+The wrapper wins in leading position, deterministically and **silently**. It does not warn, because warning would require the model of the child's grammar [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) forbids.
 
-```text
-claude-session -- --account whatever
-```
+Three things reach the child's own spelling:
 
-The child receives `--account whatever`. The wrapper does not interpret it, does not warn about it, and does not strip the tokens.
+| Escape               | Example                          | What the child receives                                 |
+| -------------------- | -------------------------------- | ------------------------------------------------------- |
+| The sentinel         | `claude-session -- --verbose`    | `--verbose`                                             |
+| Any earlier token    | `claude-session -p hi --verbose` | `-p hi --verbose` — recognition already stopped at `-p` |
+| A different spelling | `claude-session --session-id X`  | `--session-id X` — a near-miss is not claimed           |
+
+`--` is unconditional. Everything after it is child argument territory even if it spells a wrapper flag or verb, and **a second `--` after the boundary is an ordinary child argument** — the wrapper consumes the first and never inspects, strips, or counts the rest.
+
+Discovering a new collision is a procedure, not a note. Rebuild the child's inventory as the `child-flag-and-verb-inventory` fact in [research tracking](./research-tracking.yaml) describes, diff it against the child-status column, and resolve every difference before release: a shadowing collision is recorded in the column, and one that would change a token's meaning forces the wrapper's spelling to be dropped or renamed under a new decision record.
 
 ## Wrapper verbs
 
 Verbs are top-level rather than nested under a namespace verb. Nesting would add a token to every wrapper invocation to solve a collision problem that the closed, documented verb list already solves.
 
-| Verb         | Purpose                                                                                       |
-| ------------ | --------------------------------------------------------------------------------------------- |
-| `account`    | Manage accounts: login, list, status, remove; see [accounts](./accounts.md)                   |
-| `config`     | Inspect the wrapper's configuration: view, path, schema, compose, validate, status            |
-| `profile`    | Inspect settings profiles: list, status                                                       |
-| `doctor`     | Diagnose every subsystem and report health; see [logging and output](./logging-and-output.md) |
-| `completion` | Emit shell completions for the wrapper's grammar                                              |
-| `man`        | Emit man pages generated from the wrapper's grammar                                           |
-| `version`    | Print the wrapper's version and the resolved child's path and version                         |
-| `help`       | Print the wrapper's help, or one verb's                                                       |
+| Verb         | Purpose                                                                                                        |
+| ------------ | -------------------------------------------------------------------------------------------------------------- |
+| `account`    | Manage accounts: login, list, status, remove; see [accounts](./accounts.md)                                    |
+| `config`     | Inspect the wrapper's configuration: view, path, schema, compose, validate, status                             |
+| `profile`    | Inspect settings profiles: list, status                                                                        |
+| `doctor`     | Diagnose every subsystem, then run the child's own `doctor`; see [logging and output](./logging-and-output.md) |
+| `completion` | Emit shell completions for the wrapper's grammar                                                               |
+| `man`        | Emit man pages generated from the wrapper's grammar                                                            |
+| `version`    | Print the wrapper's version and the resolved child's path and version                                          |
+| `help`       | Print the wrapper's help, or one verb's                                                                        |
 
-The child already owns `auth`, including `auth login`, so the wrapper does not claim that verb. Native auth remains passthrough; `account` is the existing wrapper namespace. Any other future collision uses `--` as the escape hatch and is recorded rather than silently resolved. See [ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md).
+Two verb names overlap the child's, measured against `claude` 2.1.220 on 2026-07-31, and each resolves differently:
+
+| Child verb | Resolution | Reason                                                                                                                                                                                                                   |
+| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `auth`     | Renamed    | Native auth is the child's own credential flow and stays reachable as passthrough; `account` is the wrapper's namespace ([ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md)).             |
+| `doctor`   | Composed   | The two reports answer different questions, so the wrapper runs its own checks and then the child's, passing that output through unmodified ([ADR-0045](../decisions/ADR-0045-compose-doctor-with-the-child-report.md)). |
+
+Those are the only two resolutions available. A wrapper verb may keep a name the child owns **only** when it runs the child's command as part of its own and reports the result; otherwise it is renamed. Shadowing a child verb and leaving `--` as the sole remedy is not one of them, because a user reaching for a diagnostic does not know a wrapper is in the way. Every overlap is named in this table with its reasoning, and the audit that keeps the table honest is the same one that covers flags ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
 
 There is no `init`. Configuration is optional — every key has a compiled-in default — and the wrapper never writes the user's configuration, so there is no scaffold to create. Users copy a [generated example](./configuration.md#generated-examples-and-schema) instead. See [ADR-0015](../decisions/ADR-0015-retire-the-init-verb.md).
 
@@ -108,6 +142,18 @@ The contract is therefore:
 3. **Parse only the wrapper's part.** The parser sees a grammar in which every token is one it defines.
 
 The pre-split is pure and total over a list of OS strings, which is what makes it directly unit-testable. It is the single point where the passthrough contract can silently break, and the golden-argv tests in [testing and quality](./testing-and-quality.md) exist to guard it.
+
+**The split itself never fails.** It classifies; only the wrapper's own parse and validation step exits. That keeps totality a property of the function rather than a claim about its callers, and it gives exactly three outcomes for a token that looks like a wrapper flag:
+
+| Token                                                                                   | Outcome                                                                           |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Not an exact claimed spelling — `--configg`, `--acc`, `--CONFIG`, `-vq`                 | Split stops. The token and everything after it is child argv, forwarded verbatim. |
+| Claimed, value missing — `--config` last, or before `--`, or before a `-`-leading token | `Usage`, naming the flag on standard error.                                       |
+| Claimed, value malformed — `--config=`, `--verbose=1`                                   | `Usage`, naming the flag on standard error.                                       |
+
+The wrapper never suggests that an unrecognized token was a mistyped wrapper flag. Suggestion machinery needs a model of the child's flags in order to know what it is _not_ looking at, and the wrapper does not have one. Codes are in [exit codes](./exit-codes.md#wrapper-matrix).
+
+Two parser settings are hazards rather than tools here. Long-argument inference is opt-in and stays off, since a unique prefix today is not a unique prefix after the child ships a flag. A trailing variable-argument declaration is not a substitute for the pre-split either, and it carries a live argv-corruption risk: a value delimiter configured on that argument still applies, which would split a child token on a character the user typed literally.
 
 The parser is additionally configured to disable its automatic version flag, so that `--version` reports both the wrapper and the resolved child rather than the wrapper alone.
 
