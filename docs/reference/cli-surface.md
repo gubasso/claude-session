@@ -88,16 +88,16 @@ Discovering a new collision is a procedure, not a note. Rebuild the child's inve
 
 Verbs are top-level rather than nested under a namespace verb. Nesting would add a token to every wrapper invocation to solve a collision problem that the closed, documented verb list already solves.
 
-| Verb         | Purpose                                                                                                        |
-| ------------ | -------------------------------------------------------------------------------------------------------------- |
-| `account`    | Manage accounts: login, list, status, remove; see [accounts](./accounts.md)                                    |
-| `config`     | Inspect the wrapper's configuration: view, path, schema, compose, validate, status                             |
-| `profile`    | Inspect settings profiles: list, status                                                                        |
-| `doctor`     | Diagnose every subsystem, then run the child's own `doctor`; see [logging and output](./logging-and-output.md) |
-| `completion` | Emit shell completions for the wrapper's grammar                                                               |
-| `man`        | Emit man pages generated from the wrapper's grammar                                                            |
-| `version`    | Print the wrapper's version and the resolved child's path and version                                          |
-| `help`       | Print the wrapper's help, or one verb's                                                                        |
+| Verb         | Purpose                                                                   | Grammar specified in                          |
+| ------------ | ------------------------------------------------------------------------- | --------------------------------------------- |
+| `account`    | Manage accounts: login, list, status, remove                              | [accounts](./accounts.md)                     |
+| `config`     | Resolve, validate, and report the wrapper's configuration; no subcommands | [configuration](./configuration.md#commands)  |
+| `profile`    | List the available settings profiles                                      | [configuration](./configuration.md#commands)  |
+| `doctor`     | Diagnose every subsystem, then run the child's own `doctor`               | [logging and output](./logging-and-output.md) |
+| `completion` | Emit shell completions for the wrapper's grammar                          | [Help](#help)                                 |
+| `man`        | Emit man pages generated from the wrapper's grammar                       | [Help](#help)                                 |
+| `version`    | Print the wrapper's version and the resolved child's path and version     | [Version output](#version-output)             |
+| `help`       | Print the wrapper's help, or one verb's                                   | [Help](#help)                                 |
 
 Two verb names overlap the child's, measured against `claude` 2.1.220 on 2026-07-31, and each resolves differently:
 

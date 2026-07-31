@@ -58,7 +58,7 @@ The command protocol and configuration schema remain deferred under [ADR-0029](.
 - The resolved value is **immutable**. It is built once and passed by shared reference. Nothing mutates configuration mid-run.
 - Every key has a documented default, a type, and a one-line meaning. That description lives on the field itself, in the type, and is the source the artifacts below are rendered from — never a parallel doc that can rot.
 
-`claude-session config view` prints the resolved value; `--json` makes it machine-readable. `claude-session config path` prints which files were consulted and which existed.
+`claude-session config` prints the resolved value, including which files were consulted and which existed; see [Commands](#commands).
 
 ### Generated examples and schema
 
@@ -107,7 +107,7 @@ The generator lives in an `xtask` workspace member rather than in the shipped bi
 
 ### Provenance
 
-For each key, the wrapper tracks which layer supplied the winning value. This is what makes "why is it doing that?" answerable in one command rather than by bisecting files. `config view` reports it.
+For each key, the wrapper tracks which layer supplied the winning value. This is what makes "why is it doing that?" answerable in one command rather than by bisecting files. `config` reports it.
 
 ## Composing the child's settings
 
@@ -153,7 +153,7 @@ Merging is **deterministic**: the same inputs produce byte-identical output, wit
 
 Alongside the generated settings, the wrapper writes a sidecar recording the manifest used, the ordered pieces with their resolved paths, and, for every leaf key, which piece set it.
 
-This is the difference between "the setting is wrong" and "the setting is wrong _because_ this piece overrode that one". `config compose` and `config validate` surface it.
+This is the difference between "the setting is wrong" and "the setting is wrong _because_ this piece overrode that one". `config` surfaces it.
 
 ### Generation and freshness
 
@@ -175,20 +175,18 @@ Trust, onboarding, project history, and other native state remain child-owned in
 
 ## Commands
 
-| Command           | Reports                                                                   |
-| ----------------- | ------------------------------------------------------------------------- |
-| `config view`     | The resolved wrapper configuration with per-key provenance                |
-| `config path`     | Which files were consulted, and which existed                             |
-| `config schema`   | The JSON Schema for the wrapper's configuration                           |
-| `config compose`  | The merged settings and its provenance, without writing                   |
-| `config validate` | Structural problems, type conflicts, missing pieces, unknown-key warnings |
-| `config status`   | Active profile, resolved pieces, and whether the generated file is fresh  |
-| `profile list`    | Available manifests                                                       |
-| `profile status`  | One manifest's ordered layers and their resolved paths                    |
+Two verbs, no subcommands ([ADR-0049](../decisions/ADR-0049-collapse-config-inspection-into-one-verb.md)).
 
-All accept `--json`. All write data to standard output and diagnostics to standard error; see [logging and output](./logging-and-output.md).
+| Command        | Reports                                                                                                                                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`       | The resolved wrapper configuration with per-key provenance; which files were consulted and which existed; the active profile, its resolved pieces, and generated-settings freshness; and every defect found |
+| `profile list` | Available manifests                                                                                                                                                                                         |
 
-`config schema` is the runtime companion to the committed artifacts: the same type reaches the user as a committed schema, a committed example, and a live command, with no second source of truth among them.
+Both accept `--json`, and both write data to standard output and diagnostics to standard error; see [logging and output](./logging-and-output.md). `config` reports one profile's ordered layers and resolved paths when given `--profile <name>`.
+
+`config` **validates**, so it is an assertion verb: a structural defect or type conflict exits with that defect's code, while unknown-piece-key warnings stay advisory at `0`. The exact table is in [exit codes](./exit-codes.md#inspection-verbs-and-assertion-verbs).
+
+The checks it runs are the config-scoped subset of the one probe catalog `doctor` runs in full, so the two cannot disagree and quote one remediation wording ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)). `doctor` reports health and never renders configuration.
 
 ## Further reading
 

@@ -20,6 +20,10 @@ The engineering specifications these contracts are worked out in live under `doc
 
 Non-negotiable: this project is self-contained. The knowledge it depends on is held in-repo. An external reference is allowed only as a public link or citation for further reading — never as a load-bearing dependency on a resource outside the repository, and in particular never on an external, local, personalized, or mutating repository, path, or tool. If an external document, repo, or personal path is required to understand, build, or operate this project, copy its essential knowledge into the repository (a doc, an ADR, or an inline comment) so the repo stays complete on its own.
 
+## Scope
+
+Non-negotiable: build for a present need — YAGNI. A flag, subcommand, configuration key, or abstraction earns its place by a use this project has today, never by symmetry with a sibling, by completeness of a table, or by a use someone might have later. The cost of a speculative surface is not writing it: every surface is a contract that has to be specified, tested, documented, and kept working across every later passthrough and XDG change, and removing one is a breaking change. Prefer one command that answers the whole question to several that each answer a slice of it. A need that is real but not yet present is recorded as a rejected option in the ADR that considered it, so it is not re-debated, rather than shipped early.
+
 ## Decisions
 
 Non-negotiable: record every significant, hard-to-reverse decision as an ADR under the project's decisions directory, one decision per file, using the MADR-minimal `template.md`, so the rationale lives with the project. Accepted ADRs are not deleted; a changed decision gets a new superseding ADR. Exact status authority is in [project governance](./docs/reference/project-governance.md#decision-status).
