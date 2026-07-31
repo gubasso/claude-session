@@ -73,7 +73,7 @@ For an account-backed group, the wrapper constructs one prefix:
 --settings <absolute groups/<group>/settings.json path>
 ```
 
-The original child argument vector follows as an untouched suffix. Its order, bytes, count, and `--` sentinel are preserved. Duplicate `--settings` behavior is unverified; the wrapper does not parse, deduplicate, reorder, or reject user tokens. See [ADR-0028](../decisions/0028-pass-composed-settings-with-the-native-flag.md).
+The original child argument vector follows as an untouched suffix. Its order, bytes, count, and `--` sentinel are preserved. Duplicate `--settings` behavior is unverified; the wrapper does not parse, deduplicate, reorder, or reject user tokens. See [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
 
 ## Process group topology
 
@@ -111,7 +111,7 @@ There is a window between the wrapper starting and the child existing. A signal 
 
 ## Spawn and wait
 
-The wrapper spawns and waits; it does not `exec`. Current supervision and post-flight obligations are recorded in amended [ADR-0004](../decisions/0004-spawn-and-wait-child-supervision.md).
+The wrapper spawns and waits; it does not `exec`. Current supervision and post-flight obligations are recorded in amended [ADR-0004](../decisions/ADR-0004-spawn-and-wait-child-supervision.md).
 
 Sequence:
 
@@ -144,7 +144,7 @@ Post-flight failures are **reported but do not change the exit code** of a passt
 
 ## Child version floor
 
-Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor **fails before spawn**, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
+Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor **fails before spawn**, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
 
 The check is scoped to what depends on the child's refresh lock. `token` mode and a passthrough with no selected account are never blocked by it. The `doctor` probe still reports version state, but it is voluntary and does not stand in for this precondition.
 

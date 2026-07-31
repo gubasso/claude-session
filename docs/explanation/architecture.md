@@ -6,7 +6,7 @@ It does **not** carry exact values. Naming rules, visibility defaults, and the e
 
 ## A human-facing tool
 
-Before the shapes, the premise everything else rests on: `claude-session` is **human-facing**. Its primary consumer is a developer at a terminal, and its main mode is handing that terminal to a child which is itself interactive ([ADR-0017](../decisions/0017-declare-a-human-facing-cli.md)).
+Before the shapes, the premise everything else rests on: `claude-session` is **human-facing**. Its primary consumer is a developer at a terminal, and its main mode is handing that terminal to a child which is itself interactive ([ADR-0017](../decisions/ADR-0017-declare-a-human-facing-cli.md)).
 
 That single choice settles three things you would otherwise have to guess at. Machine-readable output is opt-in through `--json` rather than the default. The terminal-output module is `ui/` — shaped for human rendering, not a protocol boundary. Diagnostics mirror to standard error by default, because a person should not have to enable seeing them.
 
@@ -90,7 +90,7 @@ The design intent was one binary crate and no workspace, with migration deferred
 - `cargo check` gets slow enough to hurt the inner loop.
 - The crate approaches roughly eight thousand lines.
 
-**The first trigger has fired**, for exactly the reason it was written down. The configuration-example generator ([configuration](../reference/configuration.md)) has to reflect over the wrapper's own configuration types, and a binary-only crate cannot export them. So the repository is a two-member workspace: the crate gains a library target exposing what the tooling needs, and `xtask/` is a second binary depending on it by path ([ADR-0014](../decisions/0014-xtask-workspace-for-dev-tooling.md)).
+**The first trigger has fired**, for exactly the reason it was written down. The configuration-example generator ([configuration](../reference/configuration.md)) has to reflect over the wrapper's own configuration types, and a binary-only crate cannot export them. So the repository is a two-member workspace: the crate gains a library target exposing what the tooling needs, and `xtask/` is a second binary depending on it by path ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)).
 
 `xtask` is **development tooling and never shipped surface**. It is invoked as `cargo xtask <chore>`, it is not installed, and it is not on the CLI grammar in [the CLI surface](../reference/cli-surface.md). Its dependencies — the schema and rendering crates — live in its own manifest and never enter the binary a user installs. Nothing in `xtask/` may be imported by the wrapper; the dependency runs one way, as everywhere else here.
 

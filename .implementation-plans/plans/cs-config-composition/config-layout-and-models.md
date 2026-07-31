@@ -26,7 +26,7 @@
 
 ### Existing Patterns
 
-The composition model — read-only JSON pieces plus an ordered YAML manifest per profile — is specified in `docs/reference/configuration.md` and recorded in `docs/decisions/0010-compose-native-settings-from-declared-layers.md`. Piece and manifest paths come from the artifact table in `docs/reference/xdg-storage.md`; both are user-authored and **read-only to the wrapper**.
+The composition model — read-only JSON pieces plus an ordered YAML manifest per profile — is specified in `docs/reference/configuration.md` and recorded in `docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md`. Piece and manifest paths come from the artifact table in `docs/reference/xdg-storage.md`; both are user-authored and **read-only to the wrapper**.
 
 A manifest's sole required field is an ordered, non-empty list of piece names. Unknown fields are rejected and an empty list is rejected. A missing referenced piece is an error naming **both** the manifest and the resolved path it looked for — the concrete-value rule from `docs/reference/coding-conventions.md`.
 

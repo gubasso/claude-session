@@ -39,19 +39,19 @@ This plan adds no exceptions to it.
 
 - **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
 - **Two stored modes, chosen once by `account login`** and resolved deterministically afterwards. Ambient state never rewrites a stored mode. Specified in `docs/reference/accounts.md`.
-- **One saved login per account, shared by its runs** — never copied per session, because the child's cross-process refresh coordination only protects processes sharing one file. `docs/decisions/0025-share-one-native-login-per-account.md`, which supersedes the earlier seed-and-copy model in `docs/decisions/0011-isolate-credentials-by-seed-and-session.md`.
+- **One saved login per account, shared by its runs** — never copied per session, because the child's cross-process refresh coordination only protects processes sharing one file. `docs/decisions/ADR-0025-share-one-native-login-per-account.md`, which supersedes the earlier seed-and-copy model in `docs/decisions/ADR-0011-isolate-credentials-by-seed-and-session.md`.
 - **The ownership boundary is absolute.** The wrapper owns selection, mode metadata, and any stored token; the child owns everything below the account `config/`. The wrapper never reads, copies, writes, refreshes, synchronizes, or fingerprints a child credential.
-- **Secrets enter from a terminal or standard input only** — never argv, environment, a file flag, or scraped child output — and the wrapper never calls an OAuth endpoint. `docs/decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md`.
+- **Secrets enter from a terminal or standard input only** — never argv, environment, a file flag, or scraped child output — and the wrapper never calls an OAuth endpoint. `docs/decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md`.
 - **No subcommand ever prints a credential**, at any verbosity or in any format.
 - **The wrapper contributes environment variables and never removes them.** Ambient higher-precedence authentication is warned about, never stripped.
-- **Login mode enforces a child version floor before spawn**; token mode and an unselected passthrough do not. `docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md`.
+- **Login mode enforces a child version floor before spawn**; token mode and an unselected passthrough do not. `docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md`.
 - **Selection appends one rung** below the configuration precedence ladder in `docs/reference/configuration.md`; it does not define a chain of its own.
 - **Paths, modes, and writers** come from the artifact table in `docs/reference/xdg-storage.md`.
 
 ## Rejected Alternatives
 
-- **A per-account credential seed copied into each session** — superseded. Separate copies bypass the child's refresh lock and recreate the rotate-and-revoke failure; see `docs/decisions/0025-share-one-native-login-per-account.md`.
-- **Wrapper-side credential and project-trust sync-back** — removed with the seed model. `docs/decisions/0004-spawn-and-wait-child-supervision.md` is amended accordingly; spawn-and-wait now rests on child supervision and post-flight marker and log finalization.
+- **A per-account credential seed copied into each session** — superseded. Separate copies bypass the child's refresh lock and recreate the rotate-and-revoke failure; see `docs/decisions/ADR-0025-share-one-native-login-per-account.md`.
+- **Wrapper-side credential and project-trust sync-back** — removed with the seed model. `docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md` is amended accordingly; spawn-and-wait now rests on child supervision and post-flight marker and log finalization.
 - **A registry index file** — rejected; a second source of truth for which accounts exist drifts from the directory it claims to describe.
 - **Wrapper-managed API-key or ambient-token injection as a fallback path** — rejected. Those mechanisms already outrank a subscription account inside the child; the wrapper reports them and stays out of the way.
 - **Quota-aware auto-rotation and failover** — out of scope. It requires modelling quota state the wrapper cannot observe reliably, and it is orthogonal to isolation. See the switcher survey in `docs/reference/prior-art.md`.

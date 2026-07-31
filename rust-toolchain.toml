@@ -3,7 +3,7 @@
 # explains. Components are listed because flake.nix reads them from this file --
 # without them, rustfmt and clippy would arrive from the overlay's default profile
 # by luck. Bumping this is a reviewable, bisectable, revertable commit.
-# See docs/decisions/0019-pin-the-toolchain-and-declare-an-msrv.md.
+# See docs/decisions/ADR-0019-pin-the-toolchain-and-declare-an-msrv.md.
 [toolchain]
 channel = "1.97.1"
 components = ["rustfmt", "clippy"]

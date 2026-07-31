@@ -42,14 +42,14 @@ This plan adds no exceptions to it.
 - **Recursion guard**: marker env `CLAUDE_SESSION_REENTRY=1` + `current_exe().canonicalize()` self-check so the wrapper never re-invokes itself as the child.
 - **Exit status**: child code N → wrapper exits N unchanged; a signal-killed child is reproduced by re-raising the signal on the wrapper, with `128 + N` (clamped) as the fallback. Specified in `docs/reference/exit-codes.md`.
 - **Signal handling is partial, not blanket.** The child shares the wrapper's foreground process group, so terminal-generated signals (`SIGINT`, `SIGQUIT`, `SIGTSTP`, `SIGCONT`, `SIGWINCH`) already reach it — forwarding those double-delivers. The wrapper forwards only `SIGTERM`, `SIGHUP`, `SIGUSR1`, and `SIGUSR2`, and re-raises `SIGSTOP` on itself for `SIGTSTP`. The matrix is in `docs/reference/process-runtime.md`; **implement it as written rather than reasoning it out afresh**.
-- **Child env**: inherit parent env, REMOVE internal `CLAUDE_SESSION_*` keys (except the intentional `REENTRY` marker), SET the variables the table in `docs/reference/process-runtime.md` credits — `CLAUDE_CONFIG_DIR` points at the **account** configuration directory, which is what lets runs of one account share a saved login (`docs/decisions/0025-share-one-native-login-per-account.md`). The user's argv is forwarded verbatim as `OsString` as an untouched suffix.
+- **Child env**: inherit parent env, REMOVE internal `CLAUDE_SESSION_*` keys (except the intentional `REENTRY` marker), SET the variables the table in `docs/reference/process-runtime.md` credits — `CLAUDE_CONFIG_DIR` points at the **account** configuration directory, which is what lets runs of one account share a saved login (`docs/decisions/ADR-0025-share-one-native-login-per-account.md`). The user's argv is forwarded verbatim as `OsString` as an untouched suffix.
 - **The proxy seam is a general mechanism**: arbitrary child environment keys are composable from configuration and the command line, so any fronting proxy can be pointed at through `ANTHROPIC_BASE_URL`. Implement the composition, never the proxy — no compression, rewriting, or routing inside the wrapper.
 
 ## Rejected Alternatives
 
-- **`exec` as the default** — rejected; supervision and post-flight work must run after the child exits. Recorded in amended `docs/decisions/0004-spawn-and-wait-child-supervision.md`.
+- **`exec` as the default** — rejected; supervision and post-flight work must run after the child exits. Recorded in amended `docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md`.
 - **Any request-manipulating logic inside the wrapper** — rejected; provide the environment seam only.
-- **Parsing the child's grammar to rewrite flags** — rejected; forward verbatim and claim only a denylist of wrapper-owned flags. Recorded in `docs/decisions/0002-verbatim-argv-passthrough.md`.
+- **Parsing the child's grammar to rewrite flags** — rejected; forward verbatim and claim only a denylist of wrapper-owned flags. Recorded in `docs/decisions/ADR-0002-verbatim-argv-passthrough.md`.
 
 ## Risks & Edge Cases
 

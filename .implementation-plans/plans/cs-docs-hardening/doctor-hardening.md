@@ -25,13 +25,13 @@
 
 ### Existing Patterns
 
-The full check catalog, its ids, scopes, hard-versus-soft classification, the `err.kind` each failure exits with, the report shape, and the JSON document are all specified in `docs/reference/logging-and-output.md`. Implement that page; do not restate it here and do not add a check the catalog does not list. There is exactly **one** probe set, and a command guard reads the same one — `docs/decisions/0018-one-probe-set-with-stable-check-ids.md`.
+The full check catalog, its ids, scopes, hard-versus-soft classification, the `err.kind` each failure exits with, the report shape, and the JSON document are all specified in `docs/reference/logging-and-output.md`. Implement that page; do not restate it here and do not add a check the catalog does not list. There is exactly **one** probe set, and a command guard reads the same one — `docs/decisions/ADR-0018-one-probe-set-with-stable-check-ids.md`.
 
 Three rules govern the design. **Every check runs independently and one failure never aborts the rest** — a `doctor` that stops at the first problem is useless exactly when it is needed, because the first problem is often a consequence of the third. **An inert soft check reports `skipped` with a reason and never gates**, since failing `doctor` over a feature the user has not configured punishes them for not using it, and a skip never touches the exit code. And **check ids are public API**: scripts match them, so the table grows by appending and a rename is a breaking change.
 
-Exit is `0` when no hard check fails, otherwise the `err.kind` code of the first failing hard check **in catalog order** — which is why that table's order is contractual. `--strict` adds one rule and nothing else, specified in `docs/decisions/0034-exit-one-when-doctor-strict-promotes-a-warning.md`. Each failure carries the four-part error shape from `docs/reference/exit-codes.md`.
+Exit is `0` when no hard check fails, otherwise the `err.kind` code of the first failing hard check **in catalog order** — which is why that table's order is contractual. `--strict` adds one rule and nothing else, specified in `docs/decisions/ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md`. Each failure carries the four-part error shape from `docs/reference/exit-codes.md`.
 
-A below-floor child version is a `doctor` **warning** and a `login`-mode launch **failure**: the same fact at two severities, because only one of them is a precondition. The floor itself is a perishable, externally-owned fact tracked in `docs/reference/research-tracking.yaml` and named in `docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md`; an unparsable version string is reported here, not fatal.
+A below-floor child version is a `doctor` **warning** and a `login`-mode launch **failure**: the same fact at two severities, because only one of them is a precondition. The floor itself is a perishable, externally-owned fact tracked in `docs/reference/research-tracking.yaml` and named in `docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md`; an unparsable version string is reported here, not fatal.
 
 ## Implementation Steps
 

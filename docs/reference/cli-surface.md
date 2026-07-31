@@ -35,7 +35,7 @@ Two properties of this table are contractual:
 
 **Long-form and distinctive.** Short forms are used only where the convention is universal (`-v`, `-q`, `-V`, `-h`). Claiming a short flag that the child later wants is a collision the wrapper wins and the user loses, so the set stays small.
 
-**Append-only in spirit.** Adding a flag to this table removes a flag from the child's reachable surface. That is a passthrough-contract change, and it requires a decision record — see [ADR-0002](../decisions/0002-verbatim-argv-passthrough.md) and [ADR-0003](../decisions/0003-reserve-a-small-wrapper-cli-surface.md).
+**Append-only in spirit.** Adding a flag to this table removes a flag from the child's reachable surface. That is a passthrough-contract change, and it requires a decision record — see [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md).
 
 ### Machine output is not on this table
 
@@ -45,7 +45,7 @@ Two properties of this table are contractual:
 claude-session account list --json
 ```
 
-A global `--format` would sit on the denylist above and cost the child a flag permanently, in exchange for nothing — machine output has no meaning for a passthrough invocation, which never emits wrapper output at all. Owning the flag per verb also keeps each verb's output schema independent, so one verb's document can change shape without implying anything about another's. See [ADR-0024](../decisions/0024-machine-output-is-a-per-verb-flag.md); the format contract itself is in [logging and output](./logging-and-output.md#machine-output).
+A global `--format` would sit on the denylist above and cost the child a flag permanently, in exchange for nothing — machine output has no meaning for a passthrough invocation, which never emits wrapper output at all. Owning the flag per verb also keeps each verb's output schema independent, so one verb's document can change shape without implying anything about another's. See [ADR-0024](../decisions/ADR-0024-machine-output-is-a-per-verb-flag.md); the format contract itself is in [logging and output](./logging-and-output.md#machine-output).
 
 ### Reaching a child flag the wrapper has claimed
 
@@ -72,9 +72,9 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 | `version`    | Print the wrapper's version and the resolved child's path and version                         |
 | `help`       | Print the wrapper's help, or one verb's                                                       |
 
-The child already owns `auth`, including `auth login`, so the wrapper does not claim that verb. Native auth remains passthrough; `account` is the existing wrapper namespace. Any other future collision uses `--` as the escape hatch and is recorded rather than silently resolved. See [ADR-0030](../decisions/0030-use-account-login-for-wrapper-authentication.md).
+The child already owns `auth`, including `auth login`, so the wrapper does not claim that verb. Native auth remains passthrough; `account` is the existing wrapper namespace. Any other future collision uses `--` as the escape hatch and is recorded rather than silently resolved. See [ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md).
 
-There is no `init`. Configuration is optional — every key has a compiled-in default — and the wrapper never writes the user's configuration, so there is no scaffold to create. Users copy a [generated example](./configuration.md#generated-examples-and-schema) instead. See [ADR-0015](../decisions/0015-retire-the-init-verb.md).
+There is no `init`. Configuration is optional — every key has a compiled-in default — and the wrapper never writes the user's configuration, so there is no scaffold to create. Users copy a [generated example](./configuration.md#generated-examples-and-schema) instead. See [ADR-0015](../decisions/ADR-0015-retire-the-init-verb.md).
 
 ## Passthrough contract
 
@@ -93,7 +93,7 @@ Forwarding is **verbatim**. Specifically:
 
 Standard input, standard output, and standard error are inherited by the child unmodified. The wrapper writes nothing to standard output during a passthrough invocation; see [logging and output](./logging-and-output.md).
 
-For an account-backed group, [ADR-0028](../decisions/0028-pass-composed-settings-with-the-native-flag.md) narrowly authorizes one wrapper-owned prefix, `--settings <absolute group settings path>`. Every user-supplied token remains an untouched suffix with order, bytes, count, and `--` sentinel preserved. The wrapper does not parse or normalize that suffix.
+For an account-backed group, [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md) narrowly authorizes one wrapper-owned prefix, `--settings <absolute group settings path>`. Every user-supplied token remains an untouched suffix with order, bytes, count, and `--` sentinel preserved. The wrapper does not parse or normalize that suffix.
 
 ## Parser shape
 
@@ -129,7 +129,7 @@ claude-session completion <bash|elvish|fish|powershell|zsh>
 
 The five are the full set the generator supports, so the list is the dependency's rather than a subset this project would have to justify and revisit. The script is the verb's result and is written raw to standard output: no header, no summary, no diagnostic. An unrecognized shell exits `Usage`.
 
-**Man pages are generated from the same parser tree.** Because help, completions, and man pages all read one `Command` tree, the flag list has a single source and no surface can drift from another. The authored prose file included into long help is included into the man page too. See [ADR-0016](../decisions/0016-ship-man-pages.md).
+**Man pages are generated from the same parser tree.** Because help, completions, and man pages all read one `Command` tree, the flag list has a single source and no surface can drift from another. The authored prose file included into long help is included into the man page too. See [ADR-0016](../decisions/ADR-0016-ship-man-pages.md).
 
 ```text
 claude-session man [--out-dir <dir>]
@@ -172,9 +172,9 @@ Two verbs need a person present. No others do.
 
 Every other verb — `config`, `profile`, `doctor`, `completion`, `man`, `version`, `help` — is read-only or inert. There is nothing to agree to, so none of them prompts and none of them gates.
 
-**Without a terminal, a confirming verb fails rather than prompting or proceeding.** When no controlling terminal is available and no escape was given, the verb stops **before any side effect** and exits `Unavailable` (69). The diagnostic names the escape above; token ingestion through `--stdin` follows [ADR-0027](../decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md).
+**Without a terminal, a confirming verb fails rather than prompting or proceeding.** When no controlling terminal is available and no escape was given, the verb stops **before any side effect** and exits `Unavailable` (69). The diagnostic names the escape above; token ingestion through `--stdin` follows [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md).
 
-Reading the absence of a terminal as consent is the alternative, and it makes `account remove` silent under a pipe. Prompting anyway is worse: the process hangs on a stream nobody is reading. See [ADR-0021](../decisions/0021-fail-closed-without-a-terminal.md).
+Reading the absence of a terminal as consent is the alternative, and it makes `account remove` silent under a pipe. Prompting anyway is worse: the process hangs on a stream nobody is reading. See [ADR-0021](../decisions/ADR-0021-fail-closed-without-a-terminal.md).
 
 ### Why `--yes` is not in the flag table
 

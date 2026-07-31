@@ -25,7 +25,7 @@ This plan round 1: `manifest.rs`, `piece.rs`, profile→ordered-pieces resolutio
 
 ### Existing Patterns
 
-The merge semantics are specified in `docs/reference/configuration.md` and recorded in `docs/decisions/0010-compose-native-settings-from-declared-layers.md`. Implement that table exactly. For orientation, the shape being replaced is a shell-and-`jq` pipeline of roughly this form:
+The merge semantics are specified in `docs/reference/configuration.md` and recorded in `docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md`. Implement that table exactly. For orientation, the shape being replaced is a shell-and-`jq` pipeline of roughly this form:
 
 ```text
 $base * $tmpl                                   # scalars: last-wins (recursive object merge)

@@ -1,6 +1,6 @@
 # Accounts
 
-What an account is, how one is selected, and the contract of every `account` subcommand. The design is recorded in [ADR-0025](../decisions/0025-share-one-native-login-per-account.md), [ADR-0026](../decisions/0026-store-and-inject-a-long-lived-subscription-token.md), [ADR-0027](../decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md), [ADR-0029](../decisions/0029-use-a-credential-helper-process-boundary.md), and [ADR-0030](../decisions/0030-use-account-login-for-wrapper-authentication.md). Paths and permissions live in [XDG storage](./xdg-storage.md).
+What an account is, how one is selected, and the contract of every `account` subcommand. The design is recorded in [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md), [ADR-0026](../decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md), [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md), [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md), and [ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md). Paths and permissions live in [XDG storage](./xdg-storage.md).
 
 This describes normative design. The crate is pre-implementation.
 
@@ -64,7 +64,7 @@ claude-session --account work -- auth login
 
 A saved login carries two clocks. The access token expires in hours, and its renewal is a non-event: the child refreshes it without the wrapper or the user taking part. The refresh grant is the clock that ends the login, and only re-authenticating resets it. Neither lifetime is a documented guarantee, and no token prefix identifies which of the two a value belongs to — which is why nothing here infers an expiry from a credential.
 
-Concurrent runs of one account share that saved login. From child version 2.1.211 the child coordinates renewal across the processes holding it, so one refresh happens and the rest observe its result. That coordination is why [ADR-0025](../decisions/0025-share-one-native-login-per-account.md) shares a login rather than copying it, and why a `login`-mode launch below the floor [fails before spawn](./process-runtime.md#child-version-floor).
+Concurrent runs of one account share that saved login. From child version 2.1.211 the child coordinates renewal across the processes holding it, so one refresh happens and the rest observe its result. That coordination is why [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md) shares a login rather than copying it, and why a `login`-mode launch below the floor [fails before spawn](./process-runtime.md#child-version-floor).
 
 An in-TUI `/login` inherits the launch environment and is expected to address the same child-owned location, but that exact child behavior is externally unverified and tracked in [research tracking](./research-tracking.yaml). What `/login` does while token mode is injecting `CLAUDE_CODE_OAUTH_TOKEN` is unverified for a second reason: the injected token outranks any login it writes, so an apparent success there may change nothing the child goes on to use.
 

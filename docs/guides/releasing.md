@@ -9,7 +9,7 @@ This is the sole release and publishing runbook. Exact values and invariants liv
 - Conventional Commits on changes entering `develop`.
 - A green `pre-commit run --all-files`.
 - The release-plz, cargo-dist, workflow, and helper artifacts named in the reference are present.
-- [ADR-0022](../decisions/0022-cut-the-first-release-when-passthrough-works.md)'s passthrough criteria are satisfied before the first publish.
+- [ADR-0022](../decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md)'s passthrough criteria are satisfied before the first publish.
 
 ## Bootstrap release automation once
 

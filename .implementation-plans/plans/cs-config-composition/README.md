@@ -4,7 +4,7 @@
 
 ## Problem Statement
 
-`claude-session` is the configuration source of truth; the user never edits the child's files directly. Users author **partial JSON settings pieces** and an ordered **YAML manifest** — the manifest is the user-facing "profile" — and `claude-session` generates the final settings document the child is handed for that group. The model is base-and-overlay composition, reimplemented in Rust over `serde_json` and extended with **per-key provenance**, **configurable per-key array strategies**, and pragmatic validation. It is specified in `docs/reference/configuration.md` and recorded in `docs/decisions/0010-compose-native-settings-from-declared-layers.md`. Depends on `cs-foundation` (config, error, ui) and `cs-isolation` (the session dir the generated file lands in); runs in parallel with `cs-wrapper-runtime` and `cs-accounts-auth`.
+`claude-session` is the configuration source of truth; the user never edits the child's files directly. Users author **partial JSON settings pieces** and an ordered **YAML manifest** — the manifest is the user-facing "profile" — and `claude-session` generates the final settings document the child is handed for that group. The model is base-and-overlay composition, reimplemented in Rust over `serde_json` and extended with **per-key provenance**, **configurable per-key array strategies**, and pragmatic validation. It is specified in `docs/reference/configuration.md` and recorded in `docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md`. Depends on `cs-foundation` (config, error, ui) and `cs-isolation` (the session dir the generated file lands in); runs in parallel with `cs-wrapper-runtime` and `cs-accounts-auth`.
 
 ## Strategy
 

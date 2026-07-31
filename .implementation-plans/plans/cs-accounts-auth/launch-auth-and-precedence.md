@@ -25,7 +25,7 @@ This plan R1: account store, `auth-mode.json`, last-used marker, resolver. R2: `
 
 ### Existing Patterns
 
-The mode-to-environment table, the ambient mechanisms that outrank a selected account, and the warning surfaces are specified in `docs/reference/accounts.md`. The ordered spawn sequence this round hooks into — including token retrieval immediately before spawn and the post-flight obligations — is in `docs/reference/process-runtime.md`. The version floor and its failure are `docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md`.
+The mode-to-environment table, the ambient mechanisms that outrank a selected account, and the warning surfaces are specified in `docs/reference/accounts.md`. The ordered spawn sequence this round hooks into — including token retrieval immediately before spawn and the post-flight obligations — is in `docs/reference/process-runtime.md`. The version floor and its failure are `docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md`.
 
 Three rules govern the design, and each is a rule about what **not** to do.
 

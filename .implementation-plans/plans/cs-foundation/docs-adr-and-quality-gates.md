@@ -30,7 +30,7 @@ Round 1: crate tree + manifest. Round 2: error/logging/context/config plumbing. 
 
 ### Existing Patterns
 
-Quality-gate ownership is settled and documented in `docs/reference/testing-and-quality.md`: pre-commit hooks are the source of truth, `justfile` gate recipes delegate to `pre-commit run …`, and inner-loop recipes (`build`, `run`, `fmt`, `watch`) stay raw cargo. The boundary lints are defined in the same page. The ADR rules — five sections, at or under 350 words, one status from a closed vocabulary, never deleted — are in `AGENTS.md` under Documentation Maintenance, with the template at `docs/decisions/template.md`.
+Quality-gate ownership is settled and documented in `docs/reference/testing-and-quality.md`: pre-commit hooks are the source of truth, `justfile` gate recipes delegate to `pre-commit run …`, and inner-loop recipes (`build`, `run`, `fmt`, `watch`) stay raw cargo. The boundary lints are defined in the same page. The ADR rules — five sections, a word budget with a margin, one status from a closed vocabulary, never deleted — are in `AGENTS.md` under Documentation Maintenance, with the template at `docs/decisions/template.md`.
 
 ## Implementation Steps
 

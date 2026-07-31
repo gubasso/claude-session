@@ -1,5 +1,5 @@
 <!--
-Copy this file to `NNNN-short-title.md` in the project's decisions directory and fill it in. Keep filled ADRs at or below 350 words; keep each field brief, and split separate decisions into separate ADRs.
+Copy this file to `ADR-NNNN-short-title.md` in the project's decisions directory and fill it in. Aim for about 350 words and trim or split anything past 450 by `wc -w`; keep each field brief, and split separate decisions into separate ADRs.
 -->
 
 # ADR-NNNN: {Short Title}

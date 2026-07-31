@@ -26,7 +26,7 @@ This plan round 1: the account store, `auth-mode.json`, the last-used marker, ha
 
 ### Existing Patterns
 
-Both flows, the mode table they write, and the exact ingest rules are specified in `docs/reference/accounts.md`; the decisions behind them are `docs/decisions/0025-share-one-native-login-per-account.md`, `docs/decisions/0026-store-and-inject-a-long-lived-subscription-token.md`, `docs/decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md`, and `docs/decisions/0030-use-account-login-for-wrapper-authentication.md`. File modes, ownership checks, and atomic-write rules are in `docs/reference/xdg-storage.md`.
+Both flows, the mode table they write, and the exact ingest rules are specified in `docs/reference/accounts.md`; the decisions behind them are `docs/decisions/ADR-0025-share-one-native-login-per-account.md`, `docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md`, `docs/decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md`, and `docs/decisions/ADR-0030-use-account-login-for-wrapper-authentication.md`. File modes, ownership checks, and atomic-write rules are in `docs/reference/xdg-storage.md`.
 
 **Login mode copies nothing.** One saved login lives in the account's `config/` and every run of that account shares it, which is what lets the child coordinate refresh across concurrent processes. The wrapper does not implement the browser flow, does not read the resulting credential, and does not fingerprint it.
 

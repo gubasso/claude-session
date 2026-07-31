@@ -62,7 +62,7 @@ The parser exits `2` on a malformed invocation by default. That default is **ove
 
 ### The one code outside the taxonomy
 
-`1` is not in the matrix, because it is not a failure of the wrapper. It is emitted by `doctor --strict` alone, when the catalog completed and a soft check reported `warn` that the caller asked to treat as fatal. It carries no `err.kind` and no diagnostic, because nothing went wrong; see [ADR-0034](../decisions/0034-exit-one-when-doctor-strict-promotes-a-warning.md) and [the report](./logging-and-output.md#the-report).
+`1` is not in the matrix, because it is not a failure of the wrapper. It is emitted by `doctor --strict` alone, when the catalog completed and a soft check reported `warn` that the caller asked to treat as fatal. It carries no `err.kind` and no diagnostic, because nothing went wrong; see [ADR-0034](../decisions/ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) and [the report](./logging-and-output.md#the-report).
 
 Every other bare `1` is a bug.
 
@@ -115,7 +115,7 @@ Diagnostics go to standard error. Never to standard output; see [logging and out
 
 ## Stability
 
-The matrix is part of the user-facing API and is **append-only**. Three rules, and the difference between them matters ([ADR-0033](../decisions/0033-append-fresh-exit-codes.md)):
+The matrix is part of the user-facing API and is **append-only**. Three rules, and the difference between them matters ([ADR-0033](../decisions/ADR-0033-append-fresh-exit-codes.md)):
 
 - **A code's meaning is permanent.** It is never reassigned, and never widened to cover a second, unrelated class. This is the rule that protects existing callers: reuse silently changes what a branch already in the field catches.
 - **A new failure class takes a new `err.kind` and an unused number**, preferring the `sysexits` category that already names the condition. Adding a number breaks nothing, so append rather than force a poor fit onto a code already in the table.
@@ -125,7 +125,7 @@ Several kinds **may** share one code where `sysexits` gives them the same catego
 
 Consumers branch on `0` versus non-zero, or on a documented code. A consumer that enumerates the set and treats an unknown number as impossible is relying on something this page does not promise.
 
-Changing an existing mapping requires a decision record superseding [ADR-0005](../decisions/0005-exit-code-taxonomy.md).
+Changing an existing mapping requires a decision record superseding [ADR-0005](../decisions/ADR-0005-exit-code-taxonomy.md).
 
 ## Inspection verbs and assertion verbs
 
@@ -150,7 +150,7 @@ Both draw the same line in the same place: a defect the subject can still functi
 
 ## Error architecture
 
-The exit-code mapping is exhaustive because the error type is a closed enum. The layering that keeps it closed — typed per-layer errors converging on one application error, with a boundary error type used only at the outermost edge — is in [coding conventions](./coding-conventions.md) and [ADR-0008](../decisions/0008-layered-error-architecture.md).
+The exit-code mapping is exhaustive because the error type is a closed enum. The layering that keeps it closed — typed per-layer errors converging on one application error, with a boundary error type used only at the outermost edge — is in [coding conventions](./coding-conventions.md) and [ADR-0008](../decisions/ADR-0008-layered-error-architecture.md).
 
 ## Further reading
 

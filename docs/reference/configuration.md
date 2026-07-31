@@ -49,7 +49,7 @@ A future `token_helper` setting may select an argv-based helper process. Its set
 - explicit selection;
 - no silent fallback from helper to file or file to helper.
 
-The command protocol and configuration schema remain deferred under [ADR-0029](../decisions/0029-use-a-credential-helper-process-boundary.md). No generated example field exists until that specification is accepted.
+The command protocol and configuration schema remain deferred under [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md). No generated example field exists until that specification is accepted.
 
 ### Schema
 
@@ -62,7 +62,7 @@ The command protocol and configuration schema remain deferred under [ADR-0029](.
 
 ### Generated examples and schema
 
-The wrapper never writes the user's configuration ([ADR-0006](../decisions/0006-place-files-by-xdg-ownership.md)), so it cannot scaffold a starter file. It ships one to **copy** instead, generated from the config types so it cannot drift ([ADR-0013](../decisions/0013-generate-config-examples-from-types.md)).
+The wrapper never writes the user's configuration ([ADR-0006](../decisions/ADR-0006-place-files-by-xdg-ownership.md)), so it cannot scaffold a starter file. It ships one to **copy** instead, generated from the config types so it cannot drift ([ADR-0013](../decisions/ADR-0013-generate-config-examples-from-types.md)).
 
 Four artifacts live under `examples/`, and which are generated follows from whether a type describes them:
 
@@ -103,7 +103,7 @@ The default mode runs as a pre-commit hook, so a type change and its regenerated
 
 One consequence is worth knowing before it bites: **generated files must be staged whole.** Partially staging one — `git commit -p` on a generated example — commits something the generator did not produce, and the gate cannot tell that apart from a stale file.
 
-The generator lives in an `xtask` workspace member rather than in the shipped binary, so schema machinery never reaches a user's install ([ADR-0014](../decisions/0014-xtask-workspace-for-dev-tooling.md)).
+The generator lives in an `xtask` workspace member rather than in the shipped binary, so schema machinery never reaches a user's install ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)).
 
 ### Provenance
 
@@ -111,7 +111,7 @@ For each key, the wrapper tracks which layer supplied the winning value. This is
 
 ## Composing the child's settings
 
-The child may own `config/settings.json` in the account-wide configuration directory as its base layer. The user authors wrapper **pieces** and a **manifest**; the wrapper composes them into `groups/<group>/settings.json`, supplied as an additional native `--settings` layer under [ADR-0028](../decisions/0028-pass-composed-settings-with-the-native-flag.md).
+The child may own `config/settings.json` in the account-wide configuration directory as its base layer. The user authors wrapper **pieces** and a **manifest**; the wrapper composes them into `groups/<group>/settings.json`, supplied as an additional native `--settings` layer under [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
 
 ### Inputs
 

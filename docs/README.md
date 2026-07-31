@@ -28,7 +28,7 @@ A topic directory, when volume ever demands one, goes **inside** a zone. It is n
 - [Session isolation](./explanation/session-isolation.md) — what a session is, how its identity is derived, and why redirecting the child's configuration directory is the isolation mechanism.
 - [Testing strategy](./explanation/testing-strategy.md) — how this project tests a process-spawning wrapper, and the anti-patterns review rejects.
 
-The zone carries cross-cutting models, not one page per subsystem. Accounts have none by design: [session isolation](./explanation/session-isolation.md) owns the account-to-group relationship, and [accounts](./reference/accounts.md) opens with the model its contract rests on — a third page could only restate them ([ADR-0012](./decisions/0012-docs-architecture.md)).
+The zone carries cross-cutting models, not one page per subsystem. Accounts have none by design: [session isolation](./explanation/session-isolation.md) owns the account-to-group relationship, and [accounts](./reference/accounts.md) opens with the model its contract rests on — a third page could only restate them ([ADR-0012](./decisions/ADR-0012-docs-architecture.md)).
 
 ## Reference
 
@@ -52,7 +52,7 @@ The zone carries cross-cutting models, not one page per subsystem. Accounts have
 - [Development workflow](./guides/development-workflow.md) — pick up queued work, add a command, add a dependency, write a test, run the gate.
 - [Release and publishing](./guides/releasing.md) — one-time bootstrap, routine release, emergency publish, and recovery procedures.
 
-The zone grows with the specifications, not with the releases: a guide is written whenever a task needs an ordered procedure, and before `0.1.0` its reader is the implementer ([ADR-0036](./decisions/0036-write-the-specifications-before-the-code.md)). A page missing today is work outstanding rather than a decision — closed by a real guide, never by a placeholder ([ADR-0012](./decisions/0012-docs-architecture.md)).
+The zone grows with the specifications, not with the releases: a guide is written whenever a task needs an ordered procedure, and before `0.1.0` its reader is the implementer ([ADR-0036](./decisions/ADR-0036-write-the-specifications-before-the-code.md)). A page missing today is work outstanding rather than a decision — closed by a real guide, never by a placeholder ([ADR-0012](./decisions/ADR-0012-docs-architecture.md)).
 
 ## Decisions
 

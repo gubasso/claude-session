@@ -30,7 +30,7 @@ The resolution ladder, its per-candidate validation, and both recursion guards a
 
 Two details are easy to get wrong. **The first candidate that exists wins** — a candidate that exists but fails validation is an error, not a reason to try the next rung, because falling through would silently run a different binary than the user named. And **both** guards are required: the marker variable is defeated by an environment scrubbed between invocations, and the canonicalized self-check is defeated by a _copy_ of the wrapper rather than a link to it.
 
-Do **not** add an `exec` method to the trait. This project spawns and waits; `exec` is recorded as rejected in `docs/decisions/0004-spawn-and-wait-child-supervision.md`, and a trait method nobody may call is an invitation.
+Do **not** add an `exec` method to the trait. This project spawns and waits; `exec` is recorded as rejected in `docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md`, and a trait method nobody may call is an invitation.
 
 Codes come from `docs/reference/exit-codes.md` and are not decided here. Note that the recursion refusal is **not** a not-found: resolution succeeded and produced the wrong binary, so it carries its own `err.kind` and its own code.
 

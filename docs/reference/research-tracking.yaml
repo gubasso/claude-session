@@ -35,9 +35,9 @@ facts:
     owner: docs/reference/process-runtime.md
     dependents:
       - docs/explanation/session-isolation.md
-      - docs/decisions/0006-place-files-by-xdg-ownership.md
-      - docs/decisions/0025-share-one-native-login-per-account.md
-      - docs/decisions/0028-pass-composed-settings-with-the-native-flag.md
+      - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md
+      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
+      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
     cadence: monthly
     last_checked: 2026-07-30
     source:
@@ -54,7 +54,7 @@ facts:
     owner: docs/reference/xdg-storage.md
     dependents:
       - docs/reference/accounts.md
-      - docs/decisions/0025-share-one-native-login-per-account.md
+      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
     cadence: monthly
     last_checked: 2026-07-30
     source:
@@ -70,7 +70,7 @@ facts:
       composition validates structure but does not reject unknown keys.
     owner: docs/reference/configuration.md
     dependents:
-      - docs/decisions/0010-compose-native-settings-from-declared-layers.md
+      - docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md
     cadence: quarterly
     last_checked: 2026-07-28
     source:
@@ -86,8 +86,8 @@ facts:
       2.1.211.
     owner: docs/reference/process-runtime.md
     dependents:
-      - docs/decisions/0025-share-one-native-login-per-account.md
-      - docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md
+      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
+      - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
     cadence: monthly
     last_checked: 2026-07-30
     source:
@@ -106,8 +106,8 @@ facts:
       2.1.211.
     owner: docs/reference/accounts.md
     dependents:
-      - docs/decisions/0025-share-one-native-login-per-account.md
-      - docs/decisions/0031-enforce-the-child-refresh-lock-version-floor.md
+      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
+      - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
     cadence: monthly
     last_checked: 2026-07-30
     source:
@@ -124,8 +124,8 @@ facts:
       CLAUDE_CODE_OAUTH_TOKEN and does not provide a wrapper-owned output format.
     owner: docs/reference/accounts.md
     dependents:
-      - docs/decisions/0026-store-and-inject-a-long-lived-subscription-token.md
-      - docs/decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md
+      - docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md
+      - docs/decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md
     cadence: quarterly
     last_checked: 2026-07-30
     source:
@@ -188,7 +188,7 @@ facts:
       The native settings flag accepts an additional settings document.
     owner: docs/reference/configuration.md
     dependents:
-      - docs/decisions/0028-pass-composed-settings-with-the-native-flag.md
+      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
       - docs/reference/process-runtime.md
     cadence: monthly
     last_checked: 2026-07-30
@@ -205,7 +205,7 @@ facts:
       unverified.
     owner: docs/reference/process-runtime.md
     dependents:
-      - docs/decisions/0028-pass-composed-settings-with-the-native-flag.md
+      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
     cadence: monthly
     last_checked: 2026-07-30
     source:
@@ -236,7 +236,7 @@ facts:
       unverified.
     owner: docs/reference/accounts.md
     dependents:
-      - docs/decisions/0025-share-one-native-login-per-account.md
+      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
     cadence: monthly
     last_checked: 2026-07-30
     source:
@@ -252,7 +252,7 @@ facts:
       unverified.
     owner: docs/reference/accounts.md
     dependents:
-      - docs/decisions/0025-share-one-native-login-per-account.md
+      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
     cadence: monthly
     last_checked: 2026-07-30
     source:
@@ -300,7 +300,7 @@ facts:
     owner: docs/reference/cli-surface.md
     dependents:
       - docs/explanation/wrapper-model.md
-      - docs/decisions/0002-verbatim-argv-passthrough.md
+      - docs/decisions/ADR-0002-verbatim-argv-passthrough.md
     cadence: on-major-upgrade
     last_checked: 2026-07-28
     revalidate: >-
@@ -315,7 +315,7 @@ facts:
     owner: docs/reference/process-runtime.md
     dependents:
       - docs/explanation/wrapper-model.md
-      - docs/decisions/0004-spawn-and-wait-child-supervision.md
+      - docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md
     cadence: on-implementation
     last_checked: 2026-07-28
     revalidate: >-
@@ -330,7 +330,7 @@ facts:
     owner: docs/reference/xdg-storage.md
     dependents:
       - docs/explanation/session-isolation.md
-      - docs/decisions/0006-place-files-by-xdg-ownership.md
+      - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md
     cadence: annual
     last_checked: 2026-07-28
     revalidate: >-

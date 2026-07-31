@@ -12,7 +12,7 @@ This plan R1: manifest/piece models + resolution. R2: deep-merge engine + proven
 
 ## Scope of This Round
 
-- IN scope: `services/config_compose/generate.rs` — compose (resolve profile → pieces → merge) and write the final native `settings.json` atomically (tempfile → rename) into the resolved group directory; **freshness** check inspecting every referenced piece's mtime (regenerate only if any piece or the manifest is newer than the output); a provenance sidecar `.claude-session-compose.json` (manifest, ordered layers + paths, per-key provenance); **schema validation** of the merged `settings.json` (pragmatic — validate the wrapper-owned structure; allow unknown native keys unless a maintained schema is supplied); hook composition into the pass-through path so the group has a fresh `settings.json` before the child runs, and supply its absolute path into the wrapper-owned argv prefix `cs-wrapper-runtime` built, per `docs/decisions/0028-pass-composed-settings-with-the-native-flag.md`.
+- IN scope: `services/config_compose/generate.rs` — compose (resolve profile → pieces → merge) and write the final native `settings.json` atomically (tempfile → rename) into the resolved group directory; **freshness** check inspecting every referenced piece's mtime (regenerate only if any piece or the manifest is newer than the output); a provenance sidecar `.claude-session-compose.json` (manifest, ordered layers + paths, per-key provenance); **schema validation** of the merged `settings.json` (pragmatic — validate the wrapper-owned structure; allow unknown native keys unless a maintained schema is supplied); hook composition into the pass-through path so the group has a fresh `settings.json` before the child runs, and supply its absolute path into the wrapper-owned argv prefix `cs-wrapper-runtime` built, per `docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md`.
 - OUT of scope: the `config`/`profile` CLI verbs (round 4).
 
 ## Current State
@@ -31,7 +31,7 @@ Three rules carry the weight. The write is **atomic** — a temporary file in th
 
 Validation is pragmatic: validate the structure the wrapper owns and the well-formedness of the whole, but do **not** reject unknown keys in the child's schema. That schema is externally owned and evolves; it is tracked in `docs/reference/research-tracking.yaml`.
 
-The wrapper writes the generated settings document and its sidecar, and nothing else. Project trust, history, and onboarding are child-owned state inside the account's `config/`; the wrapper does not seed, copy, or sync them back — `docs/decisions/0025-share-one-native-login-per-account.md` removed that obligation, and `docs/decisions/0004-spawn-and-wait-child-supervision.md` is amended accordingly.
+The wrapper writes the generated settings document and its sidecar, and nothing else. Project trust, history, and onboarding are child-owned state inside the account's `config/`; the wrapper does not seed, copy, or sync them back — `docs/decisions/ADR-0025-share-one-native-login-per-account.md` removed that obligation, and `docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md` is amended accordingly.
 
 ## Implementation Steps
 

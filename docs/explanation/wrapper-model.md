@@ -58,7 +58,7 @@ That pre-parse is a pure function over a list of OS strings. Being pure and tota
 
 Replacing the wrapper's own process image with the child's is the cheapest way to be transparent — no signal forwarding, no exit-status translation, no extra process in the tree. This project does not do it.
 
-The current reasons are child supervision and post-flight last-used/log finalization. The original credential and trust-state sync-back rationale is historical; amended [ADR-0004](../decisions/0004-spawn-and-wait-child-supervision.md) and [process runtime](../reference/process-runtime.md) own the current obligations. Choosing to stay alive means owning signal forwarding, terminal semantics, and exit-status fidelity by hand.
+The current reasons are child supervision and post-flight last-used/log finalization. The original credential and trust-state sync-back rationale is historical; amended [ADR-0004](../decisions/ADR-0004-spawn-and-wait-child-supervision.md) and [process runtime](../reference/process-runtime.md) own the current obligations. Choosing to stay alive means owning signal forwarding, terminal semantics, and exit-status fidelity by hand.
 
 The wrapper's obligation, having made that choice, is to be **behaviourally indistinguishable** from `exec` in everything the user can observe: the same exit status, the same terminal behaviour, the same response to Ctrl-C.
 
@@ -89,7 +89,7 @@ Two independent guards prevent self-invocation. A marker variable is set in the 
 
 The wrapper selects an account-wide configuration directory through `CLAUDE_CONFIG_DIR`; the child owns its saved login and other native state inside it. The wrapper never reads, copies, refreshes, fingerprints, or synchronizes that credential.
 
-Per-group composition leaves through one declared wrapper-added argv pair: `--settings <absolute group settings path>`. That pair precedes an opaque, verbatim user suffix. The wrapper preserves every user token and does not parse duplicate settings flags; see [ADR-0028](../decisions/0028-pass-composed-settings-with-the-native-flag.md).
+Per-group composition leaves through one declared wrapper-added argv pair: `--settings <absolute group settings path>`. That pair precedes an opaque, verbatim user suffix. The wrapper preserves every user token and does not parse duplicate settings flags; see [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
 
 Account selection and terminal-group derivation are separate axes, explained in [session isolation](./session-isolation.md).
 

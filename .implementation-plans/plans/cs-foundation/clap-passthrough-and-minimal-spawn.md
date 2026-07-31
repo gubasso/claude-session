@@ -33,7 +33,7 @@ Argv layout is `claude-session [WRAPPER FLAGS] <verb> [--] [CHILD ARGS...]`, `--
 
 ### Process model note
 
-claude-session **spawn-and-waits** rather than `exec`s, for the supervision and post-flight obligations amended `docs/decisions/0004-spawn-and-wait-child-supervision.md` and `docs/reference/process-runtime.md` own. This round's minimal spawn does the simplest correct thing: inherit env, run `claude`, propagate exit code. `cs-wrapper-runtime` replaces it with the robust path.
+claude-session **spawn-and-waits** rather than `exec`s, for the supervision and post-flight obligations amended `docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md` and `docs/reference/process-runtime.md` own. This round's minimal spawn does the simplest correct thing: inherit env, run `claude`, propagate exit code. `cs-wrapper-runtime` replaces it with the robust path.
 
 ## Implementation Steps
 
@@ -49,7 +49,7 @@ Build `cli.rs` with the `Cli` struct, `GlobalArgs` (wrapper-owned, `global = tru
 
 Add `cli/argv.rs` with a **pure, total** pre-split over `Vec<OsString>`: consume leading tokens the wrapper's denylist claims and their values, stop at the first token that is not one or at `--`, and classify the remainder as either a wrapper verb (hand to the parser) or child argv (never hand to the parser).
 
-**Normalize nothing.** Do not strip empty arguments — an empty string is a real argument and filtering it silently changes the user's command line. Do not reorder, deduplicate, or re-quote. Preserve `OsString` throughout. See `docs/decisions/0002-verbatim-argv-passthrough.md`.
+**Normalize nothing.** Do not strip empty arguments — an empty string is a real argument and filtering it silently changes the user's command line. Do not reorder, deduplicate, or re-quote. Preserve `OsString` throughout. See `docs/decisions/ADR-0002-verbatim-argv-passthrough.md`.
 
 Unit-test the pre-split directly against the golden-argv table in `docs/reference/testing-and-quality.md`: it is the single point where the passthrough contract can silently break.
 

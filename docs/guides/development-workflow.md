@@ -110,9 +110,9 @@ Each names its profile explicitly. A `nextest` profile is inert unless `--profil
 
 Write a decision record when a choice is significant and hard to reverse — anything touching the passthrough contract, the storage layout, the CLI surface, or a dependency that would be painful to back out.
 
-1. Copy `docs/decisions/template.md` to `docs/decisions/NNNN-short-title.md`, taking the next free number.
+1. Copy `docs/decisions/template.md` to `docs/decisions/ADR-NNNN-short-title.md`, taking the next free number.
 2. Title it after **the choice**, not the task. "Spawn and wait rather than exec", not "process work".
-3. Keep the filled body at or under 350 words, in the template's five sections. The cap is a splitting signal: if it will not fit, you are recording more than one decision. Worked detail belongs in the reference page, and the record links to it.
+3. Aim for about 350 words in the template's five sections, and trim or split anything past 450 by `wc -w` before you commit it ([ADR-0041](../decisions/ADR-0041-budget-adr-length-with-a-margin.md)). Overshooting the budget usually means you are recording more than one decision; worked detail belongs in the reference page, and the record links to it.
 4. List the alternatives you seriously considered, with their bad consequences as well as good ones. A record with one option is a record of nothing.
 5. Status is `Accepted` for a binding decision with no code yet, `Implemented` once code enacts it.
 6. Link the record from the document that owns the detail, and link that document from the record.
@@ -159,7 +159,7 @@ Branch short-lived work from `develop`. Keep it linear by rebasing onto `develop
 
 Local scanning runs in the gate — secret scans, advisories, and licence checks all sit in `pre-commit`. It reports; it does not rewrite. Two things follow.
 
-**Upgrades are authored.** Run `cargo update` or edit a pinned version, target `develop`, and let the gate decide whether it lands, exactly as for any other change. `release-plz` opens the release pull request and is the only automation that opens one ([ADR-0023](../decisions/0023-only-release-automation-opens-pull-requests.md)).
+**Upgrades are authored.** Run `cargo update` or edit a pinned version, target `develop`, and let the gate decide whether it lands, exactly as for any other change. `release-plz` opens the release pull request and is the only automation that opens one ([ADR-0023](../decisions/ADR-0023-only-release-automation-opens-pull-requests.md)).
 
 **A workflow's action pins are tags, and a tag is mutable.** An unchanged `uses:` line does not mean unchanged code: the referenced tag moves when its maintainer moves it, so CI can change behaviour with no commit here to explain it. Nothing in the gate reads `.github/`, so currency is re-checked on a cadence — [research tracking](../reference/research-tracking.yaml), `pinned-action-currency`.
 

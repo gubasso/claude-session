@@ -27,7 +27,7 @@ Every terminal write goes through **one output writer**, owned by the context. D
 
 `--json` makes a wrapper verb emit a single JSON document on standard output. It is a mode, not a decoration: in JSON mode, no human-oriented text appears on standard output at all.
 
-The flag is **verb-level** and every verb that produces data declares its own; there is no global `--format`. The reasoning is in [the CLI surface](./cli-surface.md#machine-output-is-not-on-this-table) and [ADR-0024](../decisions/0024-machine-output-is-a-per-verb-flag.md). One writer still renders every document, so the mode behaves identically across verbs even though the flag is declared per verb.
+The flag is **verb-level** and every verb that produces data declares its own; there is no global `--format`. The reasoning is in [the CLI surface](./cli-surface.md#machine-output-is-not-on-this-table) and [ADR-0024](../decisions/ADR-0024-machine-output-is-a-per-verb-flag.md). One writer still renders every document, so the mode behaves identically across verbs even though the flag is declared per verb.
 
 Errors in JSON mode still go to standard error, and are themselves a JSON object — the four parts of the [error shape](./exit-codes.md#error-message-shape) as fields, plus the `err.kind` a script branches on:
 
@@ -39,7 +39,7 @@ This is the **one** document shape that is not the verb's to choose. A caller as
 
 Three rules apply to every document, whichever verb emits it:
 
-- **One document per invocation**, and no envelope shared across verbs. Each verb's top-level object is its own shape, so a document can grow without an agreement every other verb has to honour. See [ADR-0032](../decisions/0032-give-each-verb-its-own-json-document.md).
+- **One document per invocation**, and no envelope shared across verbs. Each verb's top-level object is its own shape, so a document can grow without an agreement every other verb has to honour. See [ADR-0032](../decisions/ADR-0032-give-each-verb-its-own-json-document.md).
 - **An absent optional field is omitted, never `null`.** A consumer tests for presence, which is one branch rather than two.
 - **`schema_version` appears only where the document is itself a contract a script matches against** — today that is `doctor` alone, whose check ids are public API. Adding it everywhere would promise a versioning guarantee the other verbs do not make.
 
@@ -101,7 +101,7 @@ Applied to stderr text and to stdout only in human format. Never in JSON mode. R
 4. The target stream is not a terminal — off.
 5. Otherwise — on.
 
-There is deliberately **no wrapper flag** for colour. `NO_COLOR` is the established convention and costs the child nothing, whereas claiming `--no-color` would take that spelling away from the child for good — a passthrough-contract change needing its own decision record, per [the CLI surface](./cli-surface.md) and [ADR-0003](../decisions/0003-reserve-a-small-wrapper-cli-surface.md).
+There is deliberately **no wrapper flag** for colour. `NO_COLOR` is the established convention and costs the child nothing, whereas claiming `--no-color` would take that spelling away from the child for good — a passthrough-contract change needing its own decision record, per [the CLI surface](./cli-surface.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md).
 
 Colour never carries meaning by itself. Anything colour indicates is also stated in the text, because a redirected stream, a colour-blind reader, and a screen reader all lose it.
 
@@ -119,7 +119,7 @@ All three flags are verb-level, for the reason [the CLI surface](./cli-surface.m
 
 ### One probe set, three call sites
 
-There is exactly **one** catalog of probes, and everything that needs a health answer reads it ([ADR-0018](../decisions/0018-one-probe-set-with-stable-check-ids.md)):
+There is exactly **one** catalog of probes, and everything that needs a health answer reads it ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)):
 
 1. **`doctor`** runs the whole catalog and reports.
 2. **A command guard** runs the subset that command requires, before doing work.
@@ -158,7 +158,7 @@ A soft check that is inert — a feature the user does not use — reports `skip
 
 Exit is `0` when no hard check fails, and otherwise the `err.kind` code of the first failing hard check in catalog order — which is why the table's order is itself contractual.
 
-`doctor --strict` adds one rule and nothing else: if the run would have exited `0` but any check reported `warn`, it exits `1` instead. It changes no check, no severity, and no output, and it can never make a passing catalog fail. It exists so a CI gate is one flag rather than a JSON parser, and `1` is the wrapper's only bare code — see [ADR-0034](../decisions/0034-exit-one-when-doctor-strict-promotes-a-warning.md) and [exit codes](./exit-codes.md#the-one-code-outside-the-taxonomy).
+`doctor --strict` adds one rule and nothing else: if the run would have exited `0` but any check reported `warn`, it exits `1` instead. It changes no check, no severity, and no output, and it can never make a passing catalog fail. It exists so a CI gate is one flag rather than a JSON parser, and `1` is the wrapper's only bare code — see [ADR-0034](../decisions/ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) and [exit codes](./exit-codes.md#the-one-code-outside-the-taxonomy).
 
 `doctor --list` prints the catalog — every id, scope, and severity — without running anything, so a script can discover what it may match on.
 
@@ -194,7 +194,7 @@ Checks are grouped by scope in catalog order, and each line carries its status a
 
 The child version floor is a **perishable fact**: the child is externally owned and changes on its own schedule. It is registered in [research tracking](./research-tracking.yaml), and the check is defensive — an unparsable version string is reported, not fatal.
 
-Mode-aware probes also report ambient-auth shadowing, token-over-login shadowing, and unverified or below-floor child versions as warnings. These use the existing catalog/report model and do not add unstable check ids. A below-floor version is a `doctor` warning but a hard launch failure in `login` mode; see [ADR-0031](../decisions/0031-enforce-the-child-refresh-lock-version-floor.md) and [process runtime](./process-runtime.md#child-version-floor).
+Mode-aware probes also report ambient-auth shadowing, token-over-login shadowing, and unverified or below-floor child versions as warnings. These use the existing catalog/report model and do not add unstable check ids. A below-floor version is a `doctor` warning but a hard launch failure in `login` mode; see [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md) and [process runtime](./process-runtime.md#child-version-floor).
 
 ## Further reading
 

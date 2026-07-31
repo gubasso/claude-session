@@ -28,13 +28,13 @@ This plan R1: account store, mode metadata, marker, resolver. R2: `account login
 
 The four-edit rule — `cli/<verb>.rs`, the `cli.rs` enum variant, `commands/<verb>.rs` with a free `run`, and the dispatch arm — is specified in `docs/explanation/architecture.md`. The `account` verb's place in the wrapper's grammar is in `docs/reference/cli-surface.md`; the per-subcommand contract — the exact subcommand set, each one's arguments, what each reports, and every failure mode — is the table in `docs/reference/accounts.md`, which this round implements rather than restates.
 
-`--json` is **verb-level**, never global — `docs/decisions/0024-machine-output-is-a-per-verb-flag.md` — and each verb owns its own document shape per `docs/decisions/0032-give-each-verb-its-own-json-document.md`. Output discipline is specified in `docs/reference/logging-and-output.md`: results to standard output through the single writer, diagnostics and prompts to standard error, and in JSON mode no human-oriented text appears on standard output at all.
+`--json` is **verb-level**, never global — `docs/decisions/ADR-0024-machine-output-is-a-per-verb-flag.md` — and each verb owns its own document shape per `docs/decisions/ADR-0032-give-each-verb-its-own-json-document.md`. Output discipline is specified in `docs/reference/logging-and-output.md`: results to standard output through the single writer, diagnostics and prompts to standard error, and in JSON mode no human-oriented text appears on standard output at all.
 
 **Credentials are never printed and never logged**, at any verbosity, in any format, with no escape hatch. `status` reports mode, recorded time, age, estimated expiry, the wrapper-owned token's `sha256[..8]` fingerprint, the child's own status probe, selection provenance, and shadowing — and never the token, a token prefix, or any child-credential content or fingerprint.
 
 Exit behaviour follows the inspection-versus-assertion split in `docs/reference/exit-codes.md`: `list` and `status` are inspection verbs and exit `0` whatever they find, including `list` with no accounts and `status` reporting unusable authentication. Only a wrapper-side failure makes them non-zero.
 
-Two catalog entries cover this subsystem, and their ids are public API specified in `docs/reference/logging-and-output.md`. Both are soft and skipped when no account exists. Adding a private check to `doctor` instead of a catalog entry is what `docs/decisions/0018-one-probe-set-with-stable-check-ids.md` forbids.
+Two catalog entries cover this subsystem, and their ids are public API specified in `docs/reference/logging-and-output.md`. Both are soft and skipped when no account exists. Adding a private check to `doctor` instead of a catalog entry is what `docs/decisions/ADR-0018-one-probe-set-with-stable-check-ids.md` forbids.
 
 Removal confirms unless `--yes` is present, warns first when the account is selected or a group directory may still be active, and reports plainly that deleting local state is not upstream revocation. Declining exits `0` and says nothing was removed.
 

@@ -14,11 +14,11 @@ These crates have been assessed as appropriate for this project. **Being on this
 
 ### Command line
 
-| Crate                           | Why                                                           | Skip if                                                                      |
-| ------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `clap` (derive, env, wrap_help) | The ecosystem standard. Derive keeps parse-shape declarative. | Never — the wrapper needs a parser                                           |
-| `clap_complete`                 | Shell completions generated from the same grammar as help     | Completions are dropped                                                      |
-| `clap_mangen`                   | Man pages from the same grammar                               | Never — [ADR-0016](../decisions/0016-ship-man-pages.md) commits to man pages |
+| Crate                           | Why                                                           | Skip if                                                                          |
+| ------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `clap` (derive, env, wrap_help) | The ecosystem standard. Derive keeps parse-shape declarative. | Never — the wrapper needs a parser                                               |
+| `clap_complete`                 | Shell completions generated from the same grammar as help     | Completions are dropped                                                          |
+| `clap_mangen`                   | Man pages from the same grammar                               | Never — [ADR-0016](../decisions/ADR-0016-ship-man-pages.md) commits to man pages |
 
 Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI surface](./cli-surface.md) for the pre-split contract.
 
@@ -83,7 +83,7 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 
 ### Development tooling — `xtask` only
 
-These are dependencies of the `xtask` workspace member ([ADR-0014](../decisions/0014-xtask-workspace-for-dev-tooling.md)) and **never enter the shipped binary's dependency graph**. That separation is the reason the generator lives in `xtask` at all, so adding one of these to the wrapper's own manifest defeats the point.
+These are dependencies of the `xtask` workspace member ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)) and **never enter the shipped binary's dependency graph**. That separation is the reason the generator lives in `xtask` at all, so adding one of these to the wrapper's own manifest defeats the point.
 
 | Crate                   | Why                                                                              |
 | ----------------------- | -------------------------------------------------------------------------------- |
@@ -107,20 +107,20 @@ Reviewed, not needed yet. Named here so the decision is not re-made from scratch
 
 ## Ruled out
 
-| Crate                 | Instead                                          | Why                                                                                                                                                                                                                                                         |
-| --------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dirs`                | `directories`                                    | Less maintained, and weaker about the specification's edge cases                                                                                                                                                                                            |
-| `chrono`              | `time`                                           | Historically larger audit surface; `time` covers this project's needs                                                                                                                                                                                       |
-| `lazy_static`         | `LazyLock`                                       | Superseded by the standard library                                                                                                                                                                                                                          |
-| `serde_yaml`          | `serde_yaml_ng`                                  | Deprecated and unmaintained                                                                                                                                                                                                                                 |
-| `env_logger`          | `tracing-subscriber`                             | This project uses `tracing`, and mixing facades gives two configuration surfaces                                                                                                                                                                            |
-| `structopt`           | `clap` derive                                    | Merged into `clap`                                                                                                                                                                                                                                          |
-| `failure`             | `thiserror` and `anyhow`                         | Long deprecated                                                                                                                                                                                                                                             |
-| `sysexits`            | One hand-rolled enum                             | It cannot express the codes this wrapper owns outside the convention — `1`, `126`, `127`, a child status in `0..=255` — so adopting it would split the code set across two owners ([ADR-0035](../decisions/0035-convert-the-typed-error-to-a-code-once.md)) |
-| `openssl` (direct)    | The platform's TLS, or none                      | An unnecessary C build dependency for a program that makes no network calls                                                                                                                                                                                 |
-| Rust `keyring` family | Private file or out-of-process credential helper | Its headless-Linux keyutils backend is memory-only and cannot provide reboot persistence; [ADR-0029](../decisions/0029-use-a-credential-helper-process-boundary.md) keeps secure-store integration outside the process                                      |
+| Crate                 | Instead                                          | Why                                                                                                                                                                                                                                                             |
+| --------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dirs`                | `directories`                                    | Less maintained, and weaker about the specification's edge cases                                                                                                                                                                                                |
+| `chrono`              | `time`                                           | Historically larger audit surface; `time` covers this project's needs                                                                                                                                                                                           |
+| `lazy_static`         | `LazyLock`                                       | Superseded by the standard library                                                                                                                                                                                                                              |
+| `serde_yaml`          | `serde_yaml_ng`                                  | Deprecated and unmaintained                                                                                                                                                                                                                                     |
+| `env_logger`          | `tracing-subscriber`                             | This project uses `tracing`, and mixing facades gives two configuration surfaces                                                                                                                                                                                |
+| `structopt`           | `clap` derive                                    | Merged into `clap`                                                                                                                                                                                                                                              |
+| `failure`             | `thiserror` and `anyhow`                         | Long deprecated                                                                                                                                                                                                                                                 |
+| `sysexits`            | One hand-rolled enum                             | It cannot express the codes this wrapper owns outside the convention — `1`, `126`, `127`, a child status in `0..=255` — so adopting it would split the code set across two owners ([ADR-0035](../decisions/ADR-0035-convert-the-typed-error-to-a-code-once.md)) |
+| `openssl` (direct)    | The platform's TLS, or none                      | An unnecessary C build dependency for a program that makes no network calls                                                                                                                                                                                     |
+| Rust `keyring` family | Private file or out-of-process credential helper | Its headless-Linux keyutils backend is memory-only and cannot provide reboot persistence; [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md) keeps secure-store integration outside the process                                      |
 
-Pseudo-terminal scraping of child token output is rejected architecturally by [ADR-0027](../decisions/0027-ingest-secrets-only-from-stdin-or-a-terminal.md). It authorizes no PTY or presentation-parser dependency; no unassessed crate is named.
+Pseudo-terminal scraping of child token output is rejected architecturally by [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md). It authorizes no PTY or presentation-parser dependency; no unassessed crate is named.
 
 ## Adding a dependency
 

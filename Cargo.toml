@@ -6,7 +6,7 @@ edition = "2024"
 # with a clear message instead of failing deep inside a dependency. Distinct from
 # the pin in rust-toolchain.toml: that is what we build with, this is what we
 # support. Raising it is a breaking change for consumers.
-# See docs/decisions/0019-pin-the-toolchain-and-declare-an-msrv.md.
+# See docs/decisions/ADR-0019-pin-the-toolchain-and-declare-an-msrv.md.
 rust-version = "1.97"
 authors = ["Gustavo Basso <gu@gubasso.xyz>"]
 description = "A CLI wrapper around the `claude` command that adds isolated, XDG-compliant sessions and multi-account switching."

@@ -16,7 +16,7 @@ Last surveyed: 2026-07-30.
 | [AWS CLI SSO](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html)                                             | Account-keyed login cache                                 | Persist one account login rather than copied derived credentials                    |
 | [kubectl credential plugins](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins) | Declared interactive mode                                 | Fail closed when required interaction has no terminal                               |
 
-Claude's rotate-and-revoke behavior and cross-process refresh lock make one shared saved login per account the safe child-specific design. Copying a credential into per-terminal directories evades the child's lock and recreates the concurrent-refresh failure; [ADR-0025](../decisions/0025-share-one-native-login-per-account.md) supersedes that earlier model.
+Claude's rotate-and-revoke behavior and cross-process refresh lock make one shared saved login per account the safe child-specific design. Copying a credential into per-terminal directories evades the child's lock and recreates the concurrent-refresh failure; [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md) supersedes that earlier model.
 
 ## Wrapper and configuration patterns
 
@@ -53,7 +53,7 @@ The owning operational contracts are [accounts](./accounts.md), [configuration](
 | In-TUI `/login` honors relocated config, and its token-mode behavior                                            | Unverified                                                |
 | Exact access-token and refresh-grant lifetimes                                                                  | Observed, not guaranteed                                  |
 
-The design floor is child version 2.1.211, enforced at launch by [ADR-0031](../decisions/0031-enforce-the-child-refresh-lock-version-floor.md).
+The design floor is child version 2.1.211, enforced at launch by [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md).
 
 ## Baselines
 

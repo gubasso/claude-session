@@ -92,13 +92,13 @@ Each of these locks down a contract that is otherwise decorative:
 | Check-id coverage          | Every catalog id maps to an `err.kind` that exists                              | [Logging and output](./logging-and-output.md) |
 | Help snapshot              | Generated help does not change unnoticed                                        | [CLI surface](./cli-surface.md)               |
 
-Three of these have teeth beyond their own assertion. The exit-code matrix, written exhaustively over a closed enum, means adding an error variant without a code **fails the build**. The example round-trip is what stops a generated example from being a plausible-looking file the program itself would reject — an example that does not parse is worse than none, because the user trusts it. The undocumented-field test enforces the hard failure [ADR-0013](../decisions/0013-generate-config-examples-from-types.md) rests on: without it, the generator degrades quietly into emitting bare keys.
+Three of these have teeth beyond their own assertion. The exit-code matrix, written exhaustively over a closed enum, means adding an error variant without a code **fails the build**. The example round-trip is what stops a generated example from being a plausible-looking file the program itself would reject — an example that does not parse is worse than none, because the user trusts it. The undocumented-field test enforces the hard failure [ADR-0013](../decisions/ADR-0013-generate-config-examples-from-types.md) rests on: without it, the generator degrades quietly into emitting bare keys.
 
 ## The gate
 
 `pre-commit run --all-files` is the single local command that reproduces the project's verdict. Hooks are the source of truth; task-runner gate recipes delegate to them, while inner-loop recipes stay raw `cargo`.
 
-Run it inside the devShell. Several hooks take their binary from the shell rather than building one, so outside it they fail at exec rather than reporting on content ([ADR-0040](../decisions/0040-provision-hook-binaries-from-the-devshell.md)).
+Run it inside the devShell. Several hooks take their binary from the shell rather than building one, so outside it they fail at exec rather than reporting on content ([ADR-0040](../decisions/ADR-0040-provision-hook-binaries-from-the-devshell.md)).
 
 | Hook                                   | Stage        | Enforces                                       |
 | -------------------------------------- | ------------ | ---------------------------------------------- |

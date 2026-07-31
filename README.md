@@ -24,7 +24,7 @@ Common starting points:
 
 ## Build from source
 
-There is no published release, and installing from a checkout today installs the placeholder binary. The first crates.io version waits until the wrapper actually forwards to `claude` — see [ADR-0022](./docs/decisions/0022-cut-the-first-release-when-passthrough-works.md).
+There is no published release, and installing from a checkout today installs the placeholder binary. The first crates.io version waits until the wrapper actually forwards to `claude` — see [ADR-0022](./docs/decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md).
 
 ```bash
 # Clone the repository

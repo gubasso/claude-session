@@ -27,7 +27,7 @@ Round 1 created `Cargo.toml` (blessed deps, strict lints, release profile, `rust
 
 ### Existing Patterns
 
-The exit-code matrix is specified in `docs/reference/exit-codes.md` — implement that table exactly, including the stable `err.kind` per variant, the four-part error shape (What/Where/Why/Hint), and the no-catch-all rule. The layer stack (`DomainError`, `<Sys>AdapterError`, `ServiceError`, `AppError`, boundary type only in `main`) is in `docs/reference/coding-conventions.md` and recorded in `docs/decisions/0008-layered-error-architecture.md`.
+The exit-code matrix is specified in `docs/reference/exit-codes.md` — implement that table exactly, including the stable `err.kind` per variant, the four-part error shape (What/Where/Why/Hint), and the no-catch-all rule. The layer stack (`DomainError`, `<Sys>AdapterError`, `ServiceError`, `AppError`, boundary type only in `main`) is in `docs/reference/coding-conventions.md` and recorded in `docs/decisions/ADR-0008-layered-error-architecture.md`.
 
 The stream contract, verbosity ladder, colour precedence, and log record schema are specified in `docs/reference/logging-and-output.md`: stdout carries the result only, `RUST_LOG` overrides the flag-derived level, and one record is one structured line. Credentials are never logged. Resolve the log path in `main` BEFORE installing the subscriber; the path itself comes from `docs/reference/xdg-storage.md`.
 

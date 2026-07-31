@@ -14,7 +14,7 @@ This page owns exact release and publishing values and invariants. Operator task
 feature PR → develop → release PR → vX.Y.Z + crates.io → inline fast-forward to master
 ```
 
-Promotion targets the release tag, never merely the workflow trigger SHA. The promotion job resolves the tag commit, requires it to be an ancestor of `origin/develop`, and uses `git merge --ff-only`. On the first release it may create `master` directly at the tag. [ADR-0020](../decisions/0020-adopt-a-two-branch-release-model.md) owns the branch decision.
+Promotion targets the release tag, never merely the workflow trigger SHA. The promotion job resolves the tag commit, requires it to be an ancestor of `origin/develop`, and uses `git merge --ff-only`. On the first release it may create `master` directly at the tag. [ADR-0020](../decisions/ADR-0020-adopt-a-two-branch-release-model.md) owns the branch decision.
 
 ## Source publication
 
@@ -41,7 +41,7 @@ The crates.io Trusted Publisher identity is:
 
 Never register `release.yml` as the publisher. The first publish uses a disposable, shortest-expiry token limited to endpoint `publish-new` and exact crate `claude-session`, then revokes it. Require Trusted Publishing only after one successful OIDC publish.
 
-[ADR-0037](../decisions/0037-publish-with-release-plz-and-trusted-publishing.md) owns registry publication; [ADR-0039](../decisions/0039-use-a-github-app-for-release-automation.md) owns the GitHub actor.
+[ADR-0037](../decisions/ADR-0037-publish-with-release-plz-and-trusted-publishing.md) owns registry publication; [ADR-0039](../decisions/ADR-0039-use-a-github-app-for-release-automation.md) owns the GitHub actor.
 
 ## Workflow and configuration ownership
 
@@ -95,7 +95,7 @@ Source publication and binary distribution are orthogonal. Cargo-dist 0.32.0 bui
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 
-It generates shell and PowerShell installers. Windows targets and a Homebrew tap are not configured. The App-authored release tag retriggers generated `release.yml`; its GitHub Release assets are consumable by cargo-binstall. [ADR-0038](../decisions/0038-distribute-binaries-with-cargo-dist.md) owns this choice.
+It generates shell and PowerShell installers. Windows targets and a Homebrew tap are not configured. The App-authored release tag retriggers generated `release.yml`; its GitHub Release assets are consumable by cargo-binstall. [ADR-0038](../decisions/ADR-0038-distribute-binaries-with-cargo-dist.md) owns this choice.
 
 ## Helper scripts
 
