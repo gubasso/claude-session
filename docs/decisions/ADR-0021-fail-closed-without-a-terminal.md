@@ -30,3 +30,5 @@ With no terminal and no escape, a confirming verb fails **before any side effect
 Accepted
 
 Amended by [ADR-0027](./ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md) and [ADR-0030](./ADR-0030-use-account-login-for-wrapper-authentication.md): `account login --token [--stdin]` and long-lived subscription-token terminology replace the historical planned `account add` and API-token wording.
+
+Amended by [ADR-0053](./ADR-0053-read-a-confirmation-from-the-controlling-terminal.md): "no terminal" is opening the controlling terminal and failing, not `isatty(0)`. The outcome above is unchanged; only the predicate is now stated.

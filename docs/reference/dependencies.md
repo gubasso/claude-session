@@ -95,15 +95,16 @@ These are dependencies of the `xtask` workspace member ([ADR-0014](../decisions/
 
 Reviewed, not needed yet. Named here so the decision is not re-made from scratch:
 
-| Crate                                      | Unlocked by                                 |
-| ------------------------------------------ | ------------------------------------------- |
-| `serde_yaml_ng`                            | The first profile                           |
-| `rustix`, `signal-hook`                    | The first real spawn with signal forwarding |
-| `which`                                    | The child resolution ladder                 |
-| `tempfile`                                 | The first atomic write or hermetic test     |
-| `clap_complete`, `clap_mangen`             | The completions and man-page work           |
-| `schemars`, `toml_edit`                    | The `xtask` example generator               |
-| `proptest`, `cargo-mutants`, `cargo-bloat` | The advanced test tier                      |
+| Crate                                      | Unlocked by                                                   |
+| ------------------------------------------ | ------------------------------------------------------------- |
+| `serde_yaml_ng`                            | The first profile                                             |
+| `rustix`                                   | The confirmation-prompt test harness, or the first real spawn |
+| `signal-hook`                              | The first real spawn with signal forwarding                   |
+| `which`                                    | The child resolution ladder                                   |
+| `tempfile`                                 | The first atomic write or hermetic test                       |
+| `clap_complete`, `clap_mangen`             | The completions and man-page work                             |
+| `schemars`, `toml_edit`                    | The `xtask` example generator                                 |
+| `proptest`, `cargo-mutants`, `cargo-bloat` | The advanced test tier                                        |
 
 ## Ruled out
 

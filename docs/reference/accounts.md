@@ -112,13 +112,13 @@ On Linux and Windows, the child stores its ordinary login under `CLAUDE_CONFIG_D
 | `account status [name]` | named account or selected account                                                  | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing |
 | `account remove <name>` | account; `--yes`                                                                   | Whether local state was removed and, for token mode, that upstream revocation did not occur |
 
-All accept `--json`. Data goes to standard output; diagnostics, prompts, and warnings go to standard error. **No subcommand ever prints a credential**, at any verbosity or in any format. See [logging and output](./logging-and-output.md).
+All accept `--json`. Data goes to standard output; diagnostics and warnings go to standard error, and a confirmation prompt goes to [the controlling terminal](./cli-surface.md#the-predicate). **No subcommand ever prints a credential**, at any verbosity or in any format. See [logging and output](./logging-and-output.md).
 
 ## Removal
 
 `remove` deletes the account directory and everything beneath it. Stale-group pruning never removes account-wide config. Removal confirms unless `--yes` is present.
 
-Before prompting, standard error warns when the account is selected or any group directory may still be active. Declining exits `0` and reports that nothing was removed, including as one JSON document. Removing the selected account clears the last-used marker.
+Before prompting, standard error warns when the account is selected or any group directory may still be active. The [confirmation contract](./cli-surface.md#the-exchange) owns the exchange and its exit status; declining reports that nothing was removed, as `removed: false` under `--json`. Removing the selected account clears the last-used marker.
 
 Local token deletion is not upstream revocation. Child-owned login revocation remains a child operation.
 

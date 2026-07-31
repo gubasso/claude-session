@@ -224,6 +224,37 @@ Every other verb — `config`, `profile`, `doctor`, `completion`, `man`, `versio
 
 Reading the absence of a terminal as consent is the alternative, and it makes `account remove` silent under a pipe. Prompting anyway is worse: the process hangs on a stream nobody is reading. See [ADR-0021](../decisions/ADR-0021-fail-closed-without-a-terminal.md).
 
+### The predicate
+
+**A terminal is available when the process can open `/dev/tty` read-write.** The `open` is the test; nothing consults `isatty(0)`. So `something | claude-session account remove work` **prompts** — standard input is a pipe, but the controlling terminal is still there and no confirming verb reads standard input. `Unavailable` is for the case where the `open` itself fails: a cron job, a service unit, a container with no terminal, a session detached by `setsid`. See [ADR-0053](../decisions/ADR-0053-read-a-confirmation-from-the-controlling-terminal.md).
+
+The prompt and its answer use that same handle, which is why a confirmation is [the one exception](./logging-and-output.md#the-stream-contract) to prompts going to standard error.
+
+### The exchange
+
+```text
+Remove account 'work' and all of its local state? [y/N]
+```
+
+`y` and `yes` consent, case-insensitively and after trimming surrounding whitespace. **Everything else declines** — a bare Enter, an unrecognized answer, and end of input alike. There is one question and one answer; an unrecognized answer is not re-asked, because a verb that loops on a terminal it may not fully control is a verb that can hang.
+
+The capitalized letter is the default, and it is `N` because the verb is destructive. The prompt names the object and the consequence, so what a person approves and what `--json` reports are the same facts.
+
+**Declining is not a failure.** The verb stops before any side effect and exits `0`: nothing was removed, which is an outcome rather than an error. What the report says is owned by the verb — for `account remove`, [accounts](./accounts.md#removal).
+
+### `--yes` and `--json` are orthogonal
+
+`--json` selects a schema, never a mode. It never supplies consent and never suppresses the prompt:
+
+| Invocation                      | Terminal available                                  | No controlling terminal                 |
+| ------------------------------- | --------------------------------------------------- | --------------------------------------- |
+| `account remove work`           | Prompt; either answer exits `0` with its report     | `Unavailable`, before any side effect   |
+| `account remove work --json`    | Prompt on the terminal, then one document on stdout | `Unavailable`, error document on stderr |
+| `account remove work --yes`     | No prompt                                           | No prompt                               |
+| `--yes --json`, in either order | No prompt; one document                             | No prompt; one document                 |
+
+Because the prompt is not on standard output, `--json` needs no interaction rule: `account remove work --json | jq` is already clean. Making `--json` imply `--yes` would let a formatting flag destroy data, and making it refuse rather than prompt would buy a third interactivity mode that discriminates nothing the predicate above has not already decided ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)). This is [ADR-0017](../decisions/ADR-0017-declare-a-human-facing-cli.md) and [ADR-0024](../decisions/ADR-0024-machine-output-is-a-per-verb-flag.md) applied, not a new rule.
+
 ### Why `--yes` is not in the flag table
 
 `--yes` is a **verb-level** flag, accepted after the verb:
