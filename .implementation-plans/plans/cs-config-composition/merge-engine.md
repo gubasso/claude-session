@@ -4,15 +4,15 @@
 
 ## Context
 
-The heart of config composition is a deterministic merge of the ordered JSON pieces into one final `settings.json` value. It must be idiomatic Rust (`serde_json::Value`, not jq), support configurable per-key array strategies, and record per-key provenance (which piece set each key) so errors and the `config` verbs can explain the result. This round builds that engine. Round 1 produced the manifest + piece models and ordered resolution.
+The heart of config composition is a deterministic merge of the ordered JSON pieces into one final `settings.json` value. It must be idiomatic Rust (`serde_json::Value`, not jq), support configurable per-key array strategies, and record per-key provenance (which piece set each key) so errors and the `config` verbs can explain the result. This round builds that engine. Round 1 produced the profile + piece models and ordered resolution.
 
 ## Previous Rounds
 
-This plan round 1: `manifest.rs`, `piece.rs`, profile→ordered-pieces resolution. Expect those to exist.
+This plan round 1: `profile.rs`, `piece.rs`, profile→ordered-pieces resolution. Expect those to exist.
 
 ## Scope of This Round
 
-- IN scope: `services/config_compose/merge.rs` — a recursive `serde_json::Value` deep merge folding the ordered pieces left-to-right; **scalars last-wins**; **objects merge-by-key**; **arrays configurable per-key** (default `replace`; opt-in `concat` and `merge-by-key`), with the strategy table sourced from an optional policy in the manifest; **per-key provenance** (track which piece set each leaf key, e.g. a parallel provenance map keyed by JSON path); typed `MergeError` (e.g. type-conflict at a path) naming the offending piece + path.
+- IN scope: `services/config_compose/merge.rs` — a recursive `serde_json::Value` deep merge folding the ordered pieces left-to-right; **scalars last-wins**; **objects merge-by-key**; **arrays configurable per-key** (default `replace`; opt-in `concat` and `merge-by-key`), with the strategy table sourced from an optional policy in the profile; **per-key provenance** (track which piece set each leaf key, e.g. a parallel provenance map keyed by JSON path); typed `MergeError` (e.g. type-conflict at a path) naming the offending piece + path.
 - OUT of scope: writing the output file / schema validation / freshness (round 3); CLI verbs (round 4).
 
 ## Current State
@@ -20,7 +20,7 @@ This plan round 1: `manifest.rs`, `piece.rs`, profile→ordered-pieces resolutio
 ### Key Files
 
 - `src/services/config_compose/merge.rs` — new.
-- `src/services/config_compose/manifest.rs` — may carry an optional per-key array-strategy policy.
+- `src/services/config_compose/profile.rs` — may carry an optional per-key array-strategy policy.
 - `src/error.rs` — add `MergeError` mapping.
 
 ### Existing Patterns
@@ -47,7 +47,7 @@ In `services/config_compose/merge.rs`, implement the recursive `serde_json::Valu
 
 ### Step 2: Per-key strategies
 
-Add a strategy table (default `replace`; opt-in `concat`/`merge-by-key`) sourced from optional manifest policy; apply per JSON path/key.
+Add a strategy table (default `replace`; opt-in `concat`/`merge-by-key`) sourced from optional profile policy; apply per JSON path/key.
 
 ### Step 3: Provenance
 

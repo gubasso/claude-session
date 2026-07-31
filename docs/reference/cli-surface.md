@@ -21,17 +21,17 @@ This table is the denylist. Every flag on it is intercepted by the wrapper **in 
 
 The child-status column is measured, not assumed. It is the intersection audited by [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md), taken from `claude` 2.1.220 on 2026-07-31; the `child-flag-and-verb-inventory` fact in [research tracking](./research-tracking.yaml) owns its freshness.
 
-| Flag               | Meaning                                              | Why the wrapper claims it                                                                       | Child status                                 |
-| ------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `--verbose`        | Increase diagnostic verbosity; repeatable            | The wrapper's own diagnostics need a control separate from the child's                          | Collides: the child has `--verbose` too      |
-| `--quiet`, `-q`    | Suppress all diagnostics below error                 | Pairs with `--verbose`; required for scripted use                                               | Free                                         |
-| `--config <path>`  | Override the wrapper's own configuration file        | Needed before configuration is loaded, so it cannot itself come from configuration              | Free                                         |
-| `--account <name>` | Select the account and stored authentication context | The wrapper owns account selection; the child owns its credential                               | Free                                         |
-| `--session <id>`   | Override the derived session group identity          | The wrapper owns session identity; see [session isolation](../explanation/session-isolation.md) | Free; the child's own flag is `--session-id` |
-| `--profile <name>` | Select the settings profile to compose               | The wrapper owns composition; see [configuration](./configuration.md)                           | Free                                         |
-| `--dry-run`        | Resolve and report what would happen; spawn nothing  | A wrapper-level rehearsal has no child equivalent                                               | Free                                         |
-| `--version`, `-V`  | Print the wrapper's version and the resolved child's | Must report both, which the child cannot do                                                     | `--version` collides by design; `-V` free    |
-| `--help`, `-h`     | Print the wrapper's help                             | Must describe the wrapper's grammar, not the child's                                            | Collides by design                           |
+| Flag               | Meaning                                              | Why the wrapper claims it                                                                                                   | Child status                                 |
+| ------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `--verbose`        | Increase diagnostic verbosity; repeatable            | The wrapper's own diagnostics need a control separate from the child's                                                      | Collides: the child has `--verbose` too      |
+| `--quiet`, `-q`    | Suppress all diagnostics below error                 | Pairs with `--verbose`; required for scripted use                                                                           | Free                                         |
+| `--config <path>`  | Override the wrapper's own configuration file        | Needed before configuration is loaded, so it cannot itself come from configuration                                          | Free                                         |
+| `--account <name>` | Select the account and stored authentication context | The wrapper owns account selection; the child owns its credential                                                           | Free                                         |
+| `--session <id>`   | Override the derived session group identity          | The wrapper owns session identity; see [session isolation](../explanation/session-isolation.md)                             | Free; the child's own flag is `--session-id` |
+| `--profile <name>` | Select the settings profile to compose               | The wrapper owns composition; declared on the launch and on `config` only, per [configuration](./configuration.md#commands) | Free                                         |
+| `--dry-run`        | Resolve and report what would happen; spawn nothing  | A wrapper-level rehearsal has no child equivalent                                                                           | Free                                         |
+| `--version`, `-V`  | Print the wrapper's version and the resolved child's | Must report both, which the child cannot do                                                                                 | `--version` collides by design; `-V` free    |
+| `--help`, `-h`     | Print the wrapper's help                             | Must describe the wrapper's grammar, not the child's                                                                        | Collides by design                           |
 
 Three properties of this table are contractual:
 
@@ -92,7 +92,7 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 | ------------ | ------------------------------------------------------------------------- | --------------------------------------------- |
 | `account`    | Manage accounts: login, list, status, remove                              | [accounts](./accounts.md)                     |
 | `config`     | Resolve, validate, and report the wrapper's configuration; no subcommands | [configuration](./configuration.md#commands)  |
-| `profile`    | List the available settings profiles                                      | [configuration](./configuration.md#commands)  |
+| `profile`    | List the available settings profiles; no subcommands                      | [configuration](./configuration.md#commands)  |
 | `doctor`     | Diagnose every subsystem, then run the child's own `doctor`               | [logging and output](./logging-and-output.md) |
 | `completion` | Emit shell completions for the wrapper's grammar                          | [Help](#help)                                 |
 | `man`        | Emit man pages generated from the wrapper's grammar                       | [Help](#help)                                 |

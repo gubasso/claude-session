@@ -25,7 +25,7 @@ Every variant of the error type maps to exactly one code. There is **no catch-al
 | `err.kind`           | Code | Name             | Fires when                                                                                                        |
 | -------------------- | ---- | ---------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `Usage`              | 64   | `EX_USAGE`       | A wrapper flag or verb was malformed, or arguments conflict                                                       |
-| `DataFormat`         | 65   | `EX_DATAERR`     | A configuration piece, manifest, or metadata file is syntactically valid but semantically wrong                   |
+| `DataFormat`         | 65   | `EX_DATAERR`     | A configuration piece, profile, or metadata file is syntactically valid but semantically wrong                    |
 | `NoInput`            | 66   | `EX_NOINPUT`     | A file the user explicitly named does not exist or cannot be read                                                 |
 | `Unavailable`        | 69   | `EX_UNAVAILABLE` | A required external facility is missing — no controlling terminal where one is required, no usable base directory |
 | `Internal`           | 70   | `EX_SOFTWARE`    | An invariant the program controls was violated. A bug.                                                            |
@@ -131,7 +131,7 @@ Changing an existing mapping requires a decision record superseding [ADR-0005](.
 
 Read-only verbs split into two kinds, and the split decides the exit.
 
-**Inspection** — `profile list`, `account list`, `account status`, `version`. These exit `0` when they ran, **whatever they found**. The state reported is data, not the verb's own outcome: `version` against an unresolvable child, or `account status` with nothing selected, is a produced answer. They exit non-zero only when **the wrapper itself** failed — it could not read the file it was asked to inspect, or could not resolve a base directory.
+**Inspection** — `profile`, `account list`, `account status`, `version`. These exit `0` when they ran, **whatever they found**. The state reported is data, not the verb's own outcome: `version` against an unresolvable child, or `account status` with nothing selected, is a produced answer. They exit non-zero only when **the wrapper itself** failed — it could not read the file it was asked to inspect, or could not resolve a base directory.
 
 A verb that exits non-zero because the answer was unwelcome cannot be used in a conditional, and its caller ends up parsing prose to recover the distinction.
 
@@ -148,6 +148,18 @@ A verb that exits non-zero because the answer was unwelcome cannot be used in a 
 | `doctor`, hard check failing             | code | The wrapper genuinely cannot function                                    |
 
 Both draw the same line in the same place: a defect the subject can still function with is advisory and exits `0`, one it cannot is fatal. `--strict` exists so a caller who disagrees about where that line sits can move it without the verb having to guess.
+
+### Resolving a profile name
+
+`--profile` is not a verb, so its failures land on whichever invocation declared it — the bare launch or `config` ([configuration](./configuration.md#selecting-the-active-profile)). `profile` itself takes no argument and cannot reach them:
+
+| Condition                                                | Exit | Why                                                           |
+| -------------------------------------------------------- | ---- | ------------------------------------------------------------- |
+| No name resolved from any layer                          | `0`  | Nothing was asked for, so nothing is composed                 |
+| A resolved name has no `profiles/<name>.yaml`            | `66` | `NoInput`, whichever layer named it                           |
+| A resolved profile names a piece that does not exist     | `66` | `NoInput`; the error names the profile and the path           |
+| A resolved profile is malformed or has an empty `layers` | `65` | `DataFormat`; it parsed and is semantically wrong             |
+| `profile` with no `profiles/` directory, or an empty one | `0`  | An empty list is the answer, not a failure — it is inspection |
 
 ## Error architecture
 

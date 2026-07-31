@@ -86,7 +86,7 @@ Each of these locks down a contract that is otherwise decorative:
 | Mode enforcement           | An over-permissive directory is corrected or refused                            | [XDG storage](./xdg-storage.md)               |
 | Unknown configuration key  | A typo is rejected, naming the key and file                                     | [Configuration](./configuration.md)           |
 | Merge determinism          | The same pieces produce byte-identical output                                   | [Configuration](./configuration.md)           |
-| Freshness on piece change  | Editing a piece without the manifest triggers regeneration                      | [Configuration](./configuration.md)           |
+| Freshness on piece change  | Editing a piece without the profile triggers regeneration                       | [Configuration](./configuration.md)           |
 | Example round-trip         | Every generated example parses through the real loader                          | [Configuration](./configuration.md)           |
 | Undocumented field         | A public config field without a description fails generation                    | [Configuration](./configuration.md)           |
 | Check-id coverage          | Every catalog id maps to an `err.kind` that exists                              | [Logging and output](./logging-and-output.md) |

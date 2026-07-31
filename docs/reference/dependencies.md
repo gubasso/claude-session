@@ -39,12 +39,12 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 
 ### Serialization
 
-| Crate            | Why                                                                              | Skip if                          |
-| ---------------- | -------------------------------------------------------------------------------- | -------------------------------- |
-| `serde` (derive) | The ecosystem standard                                                           | Never                            |
-| `serde_json`     | The child's settings are JSON; the merge engine operates on its value type       | Never                            |
-| `toml`           | The wrapper's own configuration format                                           |                                  |
-| `serde_yaml_ng`  | Profile manifests are YAML. The maintained successor to the deprecated original. | Manifests move to another format |
+| Crate            | Why                                                                        | Skip if                         |
+| ---------------- | -------------------------------------------------------------------------- | ------------------------------- |
+| `serde` (derive) | The ecosystem standard                                                     | Never                           |
+| `serde_json`     | The child's settings are JSON; the merge engine operates on its value type | Never                           |
+| `toml`           | The wrapper's own configuration format                                     |                                 |
+| `serde_yaml_ng`  | Profiles are YAML. The maintained successor to the deprecated original.    | Profiles move to another format |
 
 ### Configuration and paths
 
@@ -97,7 +97,7 @@ Reviewed, not needed yet. Named here so the decision is not re-made from scratch
 
 | Crate                                      | Unlocked by                                 |
 | ------------------------------------------ | ------------------------------------------- |
-| `serde_yaml_ng`                            | The first profile manifest                  |
+| `serde_yaml_ng`                            | The first profile                           |
 | `rustix`, `signal-hook`                    | The first real spawn with signal forwarding |
 | `which`                                    | The child resolution ladder                 |
 | `tempfile`                                 | The first atomic write or hermetic test     |

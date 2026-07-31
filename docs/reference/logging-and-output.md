@@ -145,7 +145,7 @@ Each check has a stable kebab-case **id**, a **scope**, a **severity**, and the 
 | `session-identity-derives`  | Session | Soft     | `Unavailable`        | Derives above the process-id fallback rung                                            |
 | `account-registry-readable` | Session | Soft     | `Io`                 | Account directories, auth-mode metadata, and selected storage are readable and secure |
 | `credentials-usable`        | Session | Soft     | `Auth`               | The current account's selected login or token mode is usable                          |
-| `settings-compose`          | Session | Soft     | `DataFormat`         | The active profile resolves and every piece exists                                    |
+| `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                  |
 | `settings-fresh`            | Session | Soft     | `DataFormat`         | The generated settings are not stale                                                  |
 
 **Hard** means the wrapper cannot function. **Soft** means a feature is degraded.

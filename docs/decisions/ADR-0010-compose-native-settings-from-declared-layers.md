@@ -34,3 +34,5 @@ Validation is deliberately asymmetric: strict about the structure the wrapper ow
 Accepted
 
 Amended by [ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md): composed output now lives under the group directory and reaches the child through its native settings flag.
+
+Amended by [ADR-0050](./ADR-0050-name-the-profile-surface-once.md) — what this record calls a manifest is named a profile everywhere; the composition decision is unchanged.

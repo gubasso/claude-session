@@ -30,3 +30,5 @@ One prohibition is load-bearing: the runtime base has **no portable default** an
 ## Status
 
 Accepted
+
+Amended by [ADR-0050](./ADR-0050-name-the-profile-surface-once.md) — the profile artifact moves from `manifests/` to `profiles/`; the ownership rule placing it is unchanged.

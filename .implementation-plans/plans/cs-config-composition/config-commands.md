@@ -4,7 +4,7 @@
 
 ## Context
 
-With composition implemented, `claude-session` exposes the user-facing `config` and `profile` verbs. `config` takes no subcommand: one invocation resolves, validates, and reports the whole picture. Both follow the four-edit rule with `--json` ([ADR-0049](../../../docs/decisions/ADR-0049-collapse-config-inspection-into-one-verb.md)). This is the final round of the config-composition plan. Rounds 1–3 built the layout, merge engine, and generation; this round wires them to the CLI and replaces the foundation's `config` stub.
+With composition implemented, `claude-session` exposes the user-facing `config` and `profile` verbs. Neither takes a subcommand: one `config` invocation resolves, validates, and reports the whole picture, and `profile` lists what `--profile` accepts. Both follow the four-edit rule with `--json` ([ADR-0049](../../../docs/decisions/ADR-0049-collapse-config-inspection-into-one-verb.md), [ADR-0051](../../../docs/decisions/ADR-0051-let-every-surface-element-discriminate.md)). This is the final round of the config-composition plan. Rounds 1–3 built the layout, merge engine, and generation; this round wires them to the CLI and replaces the foundation's `config` stub.
 
 ## Previous Rounds
 
@@ -12,7 +12,7 @@ This plan R1: layout + models. R2: merge engine + provenance. R3: generation + f
 
 ## Scope of This Round
 
-- IN scope: the bare `config` verb and `profile list` per the four-edit rule (`cli/config.rs` + `cli/profile.rs`, `cli.rs` enum variants replacing the `config` stub, `commands/config.rs` + `commands/profile.rs` free `run` handlers, the `commands/dispatch.rs` match arms); `--json` output via `Ui`; `config` runs the engine in preview mode and reports the resolved wrapper configuration with per-key **provenance**, the consulted files, the active profile with resolved pieces, generated-`settings.json` freshness, and unknown-key warnings; `config` exits on a structural or type defect per [exit codes](../../../docs/reference/exit-codes.md#inspection-verbs-and-assertion-verbs); wire the same config-scoped probe subset into `doctor`.
+- IN scope: the bare `config` and `profile` verbs per the four-edit rule (`cli/config.rs` + `cli/profile.rs`, `cli.rs` enum variants replacing the `config` stub, `commands/config.rs` + `commands/profile.rs` free `run` handlers, the `commands/dispatch.rs` match arms); `--json` output via `Ui`; `config` runs the engine in preview mode and reports the resolved wrapper configuration with per-key **provenance**, the consulted files, the active profile with resolved pieces, generated-`settings.json` freshness, and unknown-key warnings; `config` exits on a structural or type defect per [exit codes](../../../docs/reference/exit-codes.md#inspection-verbs-and-assertion-verbs); wire the same config-scoped probe subset into `doctor`.
 - OUT of scope: new composition machinery (done R1–R3); accounts (`cs-accounts-auth`); docs/headroom (`cs-docs-hardening`).
 
 ## Current State
@@ -40,7 +40,7 @@ In this plan's `queue-rounds.yaml`, set this round's (`item: config-commands`) `
 
 ### Step 1: clap shapes
 
-Add `cli/config.rs` (no subcommand; `--profile` and `--json`) and `cli/profile.rs` (`list`); register the variants in `cli.rs` (replacing the `config` stub).
+Add `cli/config.rs` (no subcommand; `--profile` and `--json`) and `cli/profile.rs` (no subcommand; `--json`); register the variants in `cli.rs` (replacing the `config` stub). Neither verb takes a positional argument, and `--profile` is declared on `config` alone, never globally ([ADR-0051](../../../docs/decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
 ### Step 2: Handlers
 
@@ -52,7 +52,7 @@ Extend `doctor` to run the config-scoped checks. Under [ADR-0018](../../../docs/
 
 ### Step 4: Dispatch + tests
 
-Add the `commands/dispatch.rs` match arms; `assert_cmd`-test `config` and `profile list` output (including provenance) and `config`'s exit code on a type conflict.
+Add the `commands/dispatch.rs` match arms; `assert_cmd`-test `config` and `profile` output (including provenance), `config`'s exit code on a type conflict, and `NoInput` for a `--profile` name with no file.
 
 ### Final Step: Update the queue
 

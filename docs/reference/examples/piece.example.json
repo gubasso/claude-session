@@ -4,7 +4,7 @@
     "",
     "A piece is a PARTIAL settings document in the child's own JSON format. It is",
     "never a whole settings file: a piece that sets one key contains only that key.",
-    "Pieces are composed in the order a manifest lists them; see docs/reference/configuration.md.",
+    "Pieces are composed in the order a profile lists them; see docs/reference/configuration.md.",
     "",
     "Copy this to a name of your choosing under the pieces directory and edit it there:",
     "    cp docs/reference/examples/piece.example.json \\",

@@ -8,11 +8,11 @@ The merged config value must become the native `settings.json` the child is hand
 
 ## Previous Rounds
 
-This plan R1: manifest/piece models + resolution. R2: deep-merge engine + provenance. `cs-isolation`: `AppContext`-resolved per-account/per-group session dir. Expect all to exist.
+This plan R1: profile/piece models + resolution. R2: deep-merge engine + provenance. `cs-isolation`: `AppContext`-resolved per-account/per-group session dir. Expect all to exist.
 
 ## Scope of This Round
 
-- IN scope: `services/config_compose/generate.rs` — compose (resolve profile → pieces → merge) and write the final native `settings.json` atomically (tempfile → rename) into the resolved group directory; **freshness** check inspecting every referenced piece's mtime (regenerate only if any piece or the manifest is newer than the output); a provenance sidecar `.claude-session-compose.json` (manifest, ordered layers + paths, per-key provenance); **schema validation** of the merged `settings.json` (pragmatic — validate the wrapper-owned structure; allow unknown native keys unless a maintained schema is supplied); hook composition into the pass-through path so the group has a fresh `settings.json` before the child runs, and supply its absolute path into the wrapper-owned argv prefix `cs-wrapper-runtime` built, per `docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md`.
+- IN scope: `services/config_compose/generate.rs` — compose (resolve profile → pieces → merge) and write the final native `settings.json` atomically (tempfile → rename) into the resolved group directory; **freshness** check inspecting every referenced piece's mtime (regenerate only if any piece or the profile is newer than the output); a provenance sidecar `.claude-session-compose.json` (profile, ordered layers + paths, per-key provenance); **schema validation** of the merged `settings.json` (pragmatic — validate the wrapper-owned structure; allow unknown native keys unless a maintained schema is supplied); hook composition into the pass-through path so the group has a fresh `settings.json` before the child runs, and supply its absolute path into the wrapper-owned argv prefix `cs-wrapper-runtime` built, per `docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md`.
 - OUT of scope: the `config`/`profile` CLI verbs (round 4).
 
 ## Current State
@@ -27,7 +27,7 @@ This plan R1: manifest/piece models + resolution. R2: deep-merge engine + proven
 
 Generation, freshness, the provenance sidecar, and the validation posture are specified in `docs/reference/configuration.md`; the output paths and modes are in `docs/reference/xdg-storage.md`.
 
-Three rules carry the weight. The write is **atomic** — a temporary file in the same directory, then rename — so a reader never sees a truncated settings file. The merge is **deterministic**, producing byte-identical output from identical inputs, or the freshness check and diffs are both useless. And **freshness compares against the manifest and every referenced piece**, not just the manifest: editing a piece without touching the manifest otherwise leaves stale settings in place, and the symptom — an edit that appears to do nothing — is genuinely hard to diagnose.
+Three rules carry the weight. The write is **atomic** — a temporary file in the same directory, then rename — so a reader never sees a truncated settings file. The merge is **deterministic**, producing byte-identical output from identical inputs, or the freshness check and diffs are both useless. And **freshness compares against the profile and every referenced piece**, not just the profile: editing a piece without touching the profile otherwise leaves stale settings in place, and the symptom — an edit that appears to do nothing — is genuinely hard to diagnose.
 
 Validation is pragmatic: validate the structure the wrapper owns and the well-formedness of the whole, but do **not** reject unknown keys in the child's schema. That schema is externally owned and evolves; it is tracked in `docs/reference/research-tracking.yaml`.
 
@@ -45,7 +45,7 @@ In `services/config_compose/generate.rs`, resolve → merge → write `settings.
 
 ### Step 2: Freshness + sidecar
 
-Add the freshness check (every piece + manifest mtime) and write the `.claude-session-compose.json` provenance sidecar.
+Add the freshness check (every piece + profile mtime) and write the `.claude-session-compose.json` provenance sidecar.
 
 ### Step 3: Validation
 
@@ -62,7 +62,7 @@ Invoke compose before spawn in `pass_through.rs` and supply the generated file's
 ## Acceptance Criteria
 
 - [ ] Composing a profile writes the native `settings.json` atomically into the resolved group directory.
-- [ ] Freshness checks every referenced piece + the manifest; an unchanged profile is not regenerated.
+- [ ] Freshness checks every referenced piece + the profile; an unchanged profile is not regenerated.
 - [ ] A `.claude-session-compose.json` provenance sidecar is written; the merged settings pass validation.
 - [ ] The generated file reaches the child as a `--settings` prefix, with the user's argv preserved as an untouched suffix.
 - [ ] Integration tests pass.
@@ -70,4 +70,4 @@ Invoke compose before spawn in `pass_through.rs` and supply the generated file's
 
 ## Next Round
 
-Round 4 (`config-commands`) exposes every `config` and `profile` subcommand in the table in `docs/reference/configuration.md`, surfacing provenance and unknown-key warnings.
+Round 4 (`config-commands`) exposes the `config` and `profile` verbs in the table in `docs/reference/configuration.md`, surfacing provenance and unknown-key warnings.

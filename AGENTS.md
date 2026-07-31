@@ -24,6 +24,8 @@ Non-negotiable: this project is self-contained. The knowledge it depends on is h
 
 Non-negotiable: build for a present need — YAGNI. A flag, subcommand, configuration key, or abstraction earns its place by a use this project has today, never by symmetry with a sibling, by completeness of a table, or by a use someone might have later. The cost of a speculative surface is not writing it: every surface is a contract that has to be specified, tested, documented, and kept working across every later passthrough and XDG change, and removing one is a breaking change. Prefer one command that answers the whole question to several that each answer a slice of it. A need that is real but not yet present is recorded as a rejected option in the ADR that considered it, so it is not re-debated, rather than shipped early.
 
+The test for a surface that does exist is what it **discriminates**: a subcommand distinguishes itself from its siblings, a flag distinguishes one invocation's behaviour from another's. So a namespace verb with a single subcommand collapses to the bare verb, and a flag is declared on the invocations that act on it rather than globally ([ADR-0051](./docs/decisions/ADR-0051-let-every-surface-element-discriminate.md)).
+
 ## Decisions
 
 Non-negotiable: record every significant, hard-to-reverse decision as an ADR under the project's decisions directory, one decision per file, using the MADR-minimal `template.md`, so the rationale lives with the project. Accepted ADRs are not deleted; a changed decision gets a new superseding ADR. Exact status authority is in [project governance](./docs/reference/project-governance.md#decision-status).

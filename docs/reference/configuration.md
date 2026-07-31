@@ -66,12 +66,12 @@ The wrapper never writes the user's configuration ([ADR-0006](../decisions/ADR-0
 
 Four artifacts live under `examples/`, and which are generated follows from whether a type describes them:
 
-| Artifact                         | Rendered from                                       | Kind                |
-| -------------------------------- | --------------------------------------------------- | ------------------- |
-| `examples/config.example.toml`   | the wrapper's configuration type                    | Generated           |
-| `examples/config.schema.json`    | the wrapper's configuration type                    | Generated           |
-| `examples/manifest.example.yaml` | the manifest type — `layers` and the strategy table | Generated           |
-| `examples/piece.example.json`    | nothing — a piece is the child's own format         | **Hand-maintained** |
+| Artifact                        | Rendered from                                      | Kind                |
+| ------------------------------- | -------------------------------------------------- | ------------------- |
+| `examples/config.example.toml`  | the wrapper's configuration type                   | Generated           |
+| `examples/config.schema.json`   | the wrapper's configuration type                   | Generated           |
+| `examples/profile.example.yaml` | the profile type — `layers` and the strategy table | Generated           |
+| `examples/piece.example.json`   | nothing — a piece is the child's own format        | **Hand-maintained** |
 
 A piece has no type to reflect over, because its shape is the child's and evolves on the child's schedule. It therefore ships as an authored file under the _same_ discipline as the generated ones: a header, fake values, and copied rather than scaffolded. The only difference is what keeps it correct.
 
@@ -111,25 +111,37 @@ For each key, the wrapper tracks which layer supplied the winning value. This is
 
 ## Composing the child's settings
 
-The child may own `config/settings.json` in the account-wide configuration directory as its base layer. The user authors wrapper **pieces** and a **manifest**; the wrapper composes them into `groups/<group>/settings.json`, supplied as an additional native `--settings` layer under [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
+The child may own `config/settings.json` in the account-wide configuration directory as its base layer. The user authors wrapper **pieces** and a **profile**; the wrapper composes them into `groups/<group>/settings.json`, supplied as an additional native `--settings` layer under [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
 
 ### Inputs
 
 **Pieces** are partial settings documents in the child's own format, JSON, under `settings/` in the config base. Each is a fragment: a piece that only sets one key contains only that key. Pieces are read-only to the wrapper.
 
-**Manifests** are profiles. One YAML file per profile under `manifests/`, whose sole required field is an ordered, non-empty list of piece names:
+**Profiles** are the named sets. One YAML file per profile under `profiles/`, whose sole required field is an ordered, non-empty list of piece names:
 
 ```yaml
-# manifests/work.yaml
+# profiles/work.yaml
 layers:
   - base
   - work-permissions
   - verbose-logging
 ```
 
-Order is significant and later wins. Unknown fields in a manifest are rejected. An empty list is rejected. A referenced piece that does not exist is an error naming both the manifest and the resolved path it looked for.
+Order is significant and later wins. Unknown fields in a profile are rejected. An empty list is rejected. A referenced piece that does not exist is an error naming both the profile and the resolved path it looked for.
 
-The active profile comes from `--profile`, then the environment, then the wrapper's configuration, then a default.
+One name, four layers, everywhere the concept appears ([ADR-0050](../decisions/ADR-0050-name-the-profile-surface-once.md)).
+
+### Selecting the active profile
+
+| Layer         | Spelling                         |
+| ------------- | -------------------------------- |
+| Flag          | `--profile <name>`               |
+| Environment   | `CLAUDE_SESSION_DEFAULT_PROFILE` |
+| Configuration | `default_profile`                |
+
+`default_profile` is the one configuration key with **no built-in value**. With nothing set and no `--profile`, no name is resolved, so nothing is composed and no `--settings` layer is passed — an empty config tree launches the child unchanged, which the passthrough contract requires.
+
+A name that _is_ resolved must exist. `profiles/<name>.yaml` missing is `NoInput`, whichever layer supplied the name: a profile the user asked for and did not get is the silent-wrong-settings bug the unknown-key rule exists to prevent. See [exit codes](./exit-codes.md#inspection-verbs-and-assertion-verbs).
 
 ### Merge semantics
 
@@ -143,7 +155,7 @@ Pieces are folded left to right into one document:
 | Array, `concat`       | Elements appended in layer order                                          |
 | Array, `merge-by-key` | Elements matched on a named field and merged; unmatched elements appended |
 
-Array strategy is the one genuinely contested decision. Replace is the default because it is predictable: what the last piece says is what you get. Concatenation is what you want for additive lists — extra permitted paths, extra tools — and it is opt-in **per key** through a strategy table in the manifest, because a global concat setting is wrong for roughly half of any real settings file.
+Array strategy is the one genuinely contested decision. Replace is the default because it is predictable: what the last piece says is what you get. Concatenation is what you want for additive lists — extra permitted paths, extra tools — and it is opt-in **per key** through a strategy table in the profile, because a global concat setting is wrong for roughly half of any real settings file.
 
 A **type conflict** — one piece making a key an object and another a string — is an error, not a silent overwrite. It names the key path, both pieces, and both types.
 
@@ -151,7 +163,7 @@ Merging is **deterministic**: the same inputs produce byte-identical output, wit
 
 ### Provenance sidecar
 
-Alongside the generated settings, the wrapper writes a sidecar recording the manifest used, the ordered pieces with their resolved paths, and, for every leaf key, which piece set it.
+Alongside the generated settings, the wrapper writes a sidecar recording the profile used, the ordered pieces with their resolved paths, and, for every leaf key, which piece set it.
 
 This is the difference between "the setting is wrong" and "the setting is wrong _because_ this piece overrode that one". `config` surfaces it.
 
@@ -159,7 +171,7 @@ This is the difference between "the setting is wrong" and "the setting is wrong 
 
 Generation resolves the profile, loads the pieces, merges, validates, and writes atomically to `accounts/<account>/groups/<group>/settings.json`.
 
-The freshness check compares the modification time of the generated file against **the manifest and every referenced piece**. Checking only the manifest is a real bug: editing a piece without touching the manifest leaves stale settings in place, and the symptom — an edit that appears to do nothing — is genuinely hard to diagnose.
+The freshness check compares the modification time of the generated file against **the profile and every referenced piece**. Checking only the profile is a real bug: editing a piece without touching the profile leaves stale settings in place, and the symptom — an edit that appears to do nothing — is genuinely hard to diagnose.
 
 ### Validation
 
@@ -175,14 +187,16 @@ Trust, onboarding, project history, and other native state remain child-owned in
 
 ## Commands
 
-Two verbs, no subcommands ([ADR-0049](../decisions/ADR-0049-collapse-config-inspection-into-one-verb.md)).
+Two verbs, neither with subcommands ([ADR-0049](../decisions/ADR-0049-collapse-config-inspection-into-one-verb.md), [ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
-| Command        | Reports                                                                                                                                                                                                     |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config`       | The resolved wrapper configuration with per-key provenance; which files were consulted and which existed; the active profile, its resolved pieces, and generated-settings freshness; and every defect found |
-| `profile list` | Available manifests                                                                                                                                                                                         |
+| Command   | Reports                                                                                                                                                                                                     |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`  | The resolved wrapper configuration with per-key provenance; which files were consulted and which existed; the active profile, its resolved pieces, and generated-settings freshness; and every defect found |
+| `profile` | The profiles available to `--profile`                                                                                                                                                                       |
 
 Both accept `--json`, and both write data to standard output and diagnostics to standard error; see [logging and output](./logging-and-output.md). `config` reports one profile's ordered layers and resolved paths when given `--profile <name>`.
+
+`--profile` is declared on the two invocations that act on it — the bare launch, which composes that profile's settings for the child, and `config`, which resolves and reports it. It is not a global flag, because on every other verb it would name a value nothing reads ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
 `config` **validates**, so it is an assertion verb: a structural defect or type conflict exits with that defect's code, while unknown-piece-key warnings stay advisory at `0`. The exact table is in [exit codes](./exit-codes.md#inspection-verbs-and-assertion-verbs).
 

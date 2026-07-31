@@ -4,7 +4,7 @@ rounds:
     status: todo
     depends_on: []
     prompt: /prex -ar .implementation-plans/plans/cs-config-composition/config-layout-and-models.md
-    notes: XDG config tree, manifest/piece models, loader validation.
+    notes: XDG config tree, profile/piece models, loader validation.
   - item: merge-engine
     status: todo
     depends_on:

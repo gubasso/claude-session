@@ -30,3 +30,5 @@ Chosen option: **one bare `config` verb**. It reports the resolved wrapper confi
 ## Status
 
 Accepted
+
+Amended by [ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md) — `profile list` collapses to `profile`, and the rule this record applied once is named there.
