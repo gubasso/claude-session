@@ -42,6 +42,7 @@ The zone carries cross-cutting models, not one page per subsystem. Accounts have
 - [Coding conventions](./reference/coding-conventions.md) — naming, visibility, error layering, and the panic policy.
 - [Dependencies](./reference/dependencies.md) — the reviewed crate set and the rules for adding to it.
 - [Testing and quality](./reference/testing-and-quality.md) — test tools, lanes, gates, and which contract each test locks down.
+- [Project governance](./reference/project-governance.md) — binding-rule owners, enforcement, and decision-status authority.
 - [Release workflow](./reference/release-workflow.md) — exact branch, automation, authentication, packaging, distribution, and recovery contracts.
 - [Prior art](./reference/prior-art.md) — comparable projects, what was inspected, and what was borrowed or rejected.
 - [Research tracking](./reference/research-tracking.yaml) — the perishable facts these documents rest on, and when to re-check each.

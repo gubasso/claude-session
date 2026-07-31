@@ -4,7 +4,7 @@ rounds:
     status: todo
     depends_on: []
     prompt: /prex -ar .implementation-plans/plans/cs-foundation/crate-manifest-and-module-tree.md
-    notes: Cargo.toml deps+lints+profile, toolchain components, empty canonical module tree compiling.
+    notes: Add absent Cargo lint/bin/release sections and the documented canonical module tree; preserve existing metadata, pin, lockfile, and empty dependency graph.
   - item: errors-logging-context-config
     status: todo
     depends_on:

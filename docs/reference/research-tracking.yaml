@@ -370,7 +370,7 @@ facts:
     owner: docs/reference/dependencies.md
     dependents: []
     cadence: semiannual
-    last_checked: 2026-07-28
+    last_checked: 2026-07-31
     revalidate: >-
       Check each named crate for maintenance status and for a successor. The
       page carries no version numbers, so only names and rulings need review.

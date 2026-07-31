@@ -10,11 +10,11 @@ This directory builds the foundation every feature plan depends on: the canonica
 
 ## Strategy
 
-Bottom-up, foundations first. R1 lays the manifest, lints, the first dependencies, and the canonical empty module tree so `cargo check` passes. R2 makes the cross-cutting plumbing real (error layers + the mandatory exit-code matrix test, tracing logging to XDG state, single-writer UI, `AppContext`, layered config). R3 builds the argv pre-split and clap skeleton, wrapper-verb stubs, and a minimal inherited-env child spawn so `claude-session <native args>` actually runs `claude`. R4 closes out the remaining gate work and verifies the code against the specifications. Each round leaves a compiling, test-covered base the next consumes.
+Bottom-up, foundations first. R1 adds only the absent manifest lint, binary, and release-profile sections plus the canonical module tree; existing package metadata, the pinned toolchain, and the empty lockfile are already present. R2 makes the cross-cutting plumbing real (error layers + the mandatory exit-code matrix test, tracing logging to XDG state, single-writer UI, `AppContext`, layered config). R3 builds the argv pre-split and clap skeleton, wrapper-verb stubs, and a minimal inherited-env child spawn so `claude-session <native args>` actually runs `claude`. R4 closes out the remaining gate work and verifies the code against the specifications. Each round leaves a compiling, test-covered base the next consumes.
 
 ## Rounds
 
-1. `crate-manifest-and-module-tree.md` — Cargo.toml (blessed deps, strict lints, release profile, concrete rust-version), toolchain components, canonical empty module tree compiling.
+1. `crate-manifest-and-module-tree.md` — absent Cargo manifest lint/binary/release sections and the canonical documented module tree; no speculative dependency or repeated bootstrap work.
 2. `errors-logging-context-config.md` — thiserror layers + exit-code matrix test, tracing→XDG state, single-writer ui, immutable AppContext, figment Config.
 3. `clap-passthrough-and-minimal-spawn.md` — argv pre-split, root parser, wrapper-verb stubs, minimal inherited-env child spawn, dispatch + main.rs.
 4. `docs-adr-and-quality-gates.md` — output-ownership lint hook, spec-versus-code conformance pass, queue closeout.
@@ -40,11 +40,10 @@ This plan adds no exceptions to it.
 ## Decisions & Constraints
 
 - **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
-- **Canonical crate tree is mandatory** — the module tree, roles, and per-directory prohibitions are specified in `docs/explanation/architecture.md`, which this round implements: single bin; `src/main.rs` ≤120 LOC (`parse → init logging → AppContext → dispatch → exit-code map`); `cli/` (clap derive only), `commands/` (one free `run(ctx, args) -> Result<(), AppError>` per verb), `domain/`, `services/`, `adapters/` (trait + impl), `config/`, `context.rs`, `error.rs`, `logging.rs`, `ui/`, `util/`. Post-2018 module form and the `pub(crate)` default are specified in `docs/reference/coding-conventions.md`.
-- **Start single-crate**; the workspace triggers are listed in `docs/explanation/architecture.md` and recorded in `docs/decisions/ADR-0007-layered-single-crate-architecture.md`. Do not migrate proactively.
+- **Canonical crate tree is mandatory** — exact module roles and prohibitions are owned by [`docs/explanation/architecture.md` § Module roles](../../../docs/explanation/architecture.md#module-roles), and every round inherits [`docs/reference/coding-conventions.md` § Implementation-round boundaries](../../../docs/reference/coding-conventions.md#implementation-round-boundaries).
+- **The `xtask` trigger has fired** under [ADR-0014](../../../docs/decisions/ADR-0014-xtask-workspace-for-dev-tooling.md). The later configuration-generator round owns creating that tooling; foundation work must neither expose an unowned public API nor import tooling into the shipped target. See [`architecture.md` § One shipped crate, plus `xtask`](../../../docs/explanation/architecture.md#one-shipped-crate-plus-xtask).
 - **thiserror-per-layer + mandatory exit-code matrix test** — the layer stack is specified in `docs/reference/coding-conventions.md` and the matrix in `docs/reference/exit-codes.md`: `DomainError`, `<Sys>AdapterError`, `ServiceError`, `AppError`; the boundary error type only in `main`; `AppError::exit_code()` maps every variant explicitly — NO catch-all `_ => 1`.
-- **Reviewed dependency set only** — the candidate, deferred, and ruled-out sets are in `docs/reference/dependencies.md`; a crate enters the manifest only when a round actually uses it. Commit `Cargo.lock`; enforce with `cargo deny`.
-- **Dependencies are ALWAYS added with `cargo add`** (project-wide, every plan/round). A coding agent adds a dependency via `cargo add <crate> [--features ...]` — NEVER by hand-editing the `[dependencies]` table or hand-writing a version string — so cargo resolves the dependency graph, fetches the latest compatible version, and updates `Cargo.lock`. Deviate only with a **documented exception** (a known-broken latest, or a deliberately required exact pin), recorded in an ADR or a code/manifest comment.
+- **Dependency admission** is owned by [`docs/reference/dependencies.md` § Adding a dependency](../../../docs/reference/dependencies.md#adding-a-dependency). A crate enters the selected graph only when its round uses it; no round pre-adds a deferred crate or hand-writes a version.
 - **Output discipline** — specified in `docs/reference/logging-and-output.md`: stdout = result only; stderr = everything else; all terminal output flows through the single `ui` writer; lint-enforced against stray `println!`/`eprintln!` outside `src/ui/` + `main.rs`.
 - **Config precedence** `defaults < user < project < env < cli`, with the env prefix, nesting, and schema rules specified in `docs/reference/configuration.md`. Paths come from `docs/reference/xdg-storage.md`.
 - **pre-commit hooks are the SoT for quality gates**; the gate map is in `docs/reference/testing-and-quality.md`. `justfile` gate recipes delegate to `pre-commit run …`; inner-loop recipes stay raw cargo.
@@ -54,14 +53,14 @@ This plan adds no exceptions to it.
 
 ## Rejected Alternatives
 
-- **Cargo workspace from day one** — rejected; start single-crate and migrate only on the documented triggers. See `docs/decisions/ADR-0007-layered-single-crate-architecture.md`.
+- **A broad library or tooling API** — rejected. ADR-0014 authorizes only the surface the `xtask` tooling needs; it does not turn the shipped crate into a general library.
 - **A single opaque error type everywhere** — rejected; typed per-layer errors converge on a closed `AppError` so `exit_code()` stays exhaustive. See `docs/decisions/ADR-0008-layered-error-architecture.md`.
 - **Building the full Spawner/signal/recursion-guard here** — rejected; that is a coherent subsystem owned by `cs-wrapper-runtime`. Foundation keeps a minimal inherited-env spawn.
 - **Argv normalization before parsing** — rejected. Order, bytes, count, and empty arguments are all preserved; the pre-split consumes only wrapper-owned tokens and never rewrites what it forwards. See `docs/decisions/ADR-0002-verbatim-argv-passthrough.md`.
 
 ## Risks & Edge Cases
 
-- `edition = "2024"` needs a recent stable toolchain; pin a concrete `rust-version` and verify `cargo check` before adding deps. (handled R1)
+- The existing Rust 2024/MSRV metadata and pinned 1.97.1 toolchain must remain aligned; R1 verifies them rather than recreating them.
 - The exit-code matrix is user-facing API; the mandatory test must enumerate every `AppError` variant so a future variant without a code fails the build. (handled R2)
 - Output-discipline lint false positives on doc comments; scope the grep to `src/`, exclude `src/ui/` + `main.rs`. (handled R4)
 - A derive parser alone cannot accept a leading unknown flag — that case is rejected before external-subcommand handling applies — so argv must be pre-split before parsing. See `docs/reference/cli-surface.md`. (handled R3)

@@ -25,4 +25,4 @@ Chosen option: **generate the binary-distribution workflow with cargo-dist** —
 
 Implemented
 
-Implemented by [`dist-workspace.toml`](../../dist-workspace.toml) and the generated [release workflow](../../.github/workflows/release.yml). This record neither supersedes nor amends another ADR; it replaces only an unrecorded deferral.
+Implemented by [`dist-workspace.toml`](../../dist-workspace.toml) and the generated [release workflow](../../.github/workflows/release.yml). This status is scoped to binary-distribution configuration and does not assert implementation of the placeholder wrapper crate. This record neither supersedes nor amends another ADR; it replaces only an unrecorded deferral.

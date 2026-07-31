@@ -25,4 +25,6 @@ Chosen option: **take the binaries from the devShell** — the project already p
 
 ## Status
 
-Implemented — enacted by [`flake.nix`](../../flake.nix) and [`.pre-commit-config.yaml`](../../.pre-commit-config.yaml).
+Implemented
+
+Enacted by [`flake.nix`](../../flake.nix) and [`.pre-commit-config.yaml`](../../.pre-commit-config.yaml).

@@ -4,71 +4,72 @@
 
 ## Context
 
-`claude-session` is a from-scratch Rust CLI wrapping the `claude` command. The hard contract: never break native passthrough, stay XDG-compliant, stay self-contained. The crate today is a stub: `src/main.rs` prints "Hello, world!"; `Cargo.toml` has `name = "claude-session"`, `version = "0.1.0"`, `edition = "2024"`, empty `[dependencies]`; `rust-toolchain.toml` pins `channel = "stable"`. The surrounding project is fully wired — pre-commit, `justfile`, `deny.toml`, `flake.nix`, CI, and a populated `docs/` tree carrying the specifications this round implements against. This round establishes the manifest (first dependencies, strict lints, release profile, concrete `rust-version`) and the canonical empty module tree so `cargo check` passes — the substrate every later round wires into.
+`claude-session` is a Rust CLI wrapping the `claude` command. The hard contracts are native passthrough, XDG compliance, and self-containment. The repository is already bootstrapped: `Cargo.toml` contains package metadata, edition 2024, `rust-version = "1.97"`, and an empty `[dependencies]`; `Cargo.lock` exists; `rust-toolchain.toml` pins 1.97.1 with `rustfmt` and `clippy`; and `src/main.rs` is still the hello-world stub. There is no canonical `src/` module tree yet.
+
+This round establishes only the absent manifest lint, binary, and release-profile sections plus the canonical shipped-crate module tree. It does not implement module behaviour, add speculative dependencies, create the later configuration generator, or change the queue graph.
 
 ## Previous Rounds
 
-This is the first round — no prior rounds.
+This is the first round; there are no prior rounds.
 
-## Scope of This Round
+## Durable inputs
 
-- IN scope: rewrite `Cargo.toml` (blessed deps, `[lints.rust]`/`[lints.clippy]`, `[[bin]]`, `[profile.release]`, `license`, `description`, concrete `rust-version`); add `components = ["rustfmt","clippy"]` to `rust-toolchain.toml`; create the empty canonical module tree (`src/cli.rs`, `src/commands.rs`, `src/domain.rs`, `src/services.rs`, `src/adapters.rs`, `src/config.rs`, `src/context.rs`, `src/error.rs`, `src/logging.rs`, `src/ui.rs`, `src/util.rs`) with minimal placeholder content so `cargo check` succeeds; reduce `src/main.rs` to a minimal `fn main()`.
-- OUT of scope: real error variants, logging install, clap parsing, command logic (later rounds).
+- [Implementation-round boundaries](../../../docs/reference/coding-conventions.md#implementation-round-boundaries) apply in full.
+- [Architecture § Module roles](../../../docs/explanation/architecture.md#module-roles) owns the shipped module tree and dependency direction.
+- [Architecture § One shipped crate, plus `xtask`](../../../docs/explanation/architecture.md#one-shipped-crate-plus-xtask) owns the tooling seam and library-surface limit.
+- [ADR-0007](../../../docs/decisions/ADR-0007-layered-single-crate-architecture.md) owns the layer boundaries; [ADR-0014](../../../docs/decisions/ADR-0014-xtask-workspace-for-dev-tooling.md) records that the `xtask` trigger has fired.
+- [Dependencies § Adding a dependency](../../../docs/reference/dependencies.md#adding-a-dependency) owns admission, graph selection, verification, and removal.
 
-## Current State
+## Scope of this round
 
-### Key Files
+In scope:
 
-- `Cargo.toml` — `[package] name = "claude-session" version = "0.1.0"
-  edition = "2024"`; empty `[dependencies]`.
-- `src/main.rs` — `fn main() { println!("Hello, world!"); }`.
-- `rust-toolchain.toml` — `[toolchain]` / `channel = "stable"`.
-- `.gitignore` — `/target`.
+- Add the absent `[[bin]]`, `[profile.release]`, `[lints.rust]`, and `[lints.clippy]` sections to `Cargo.toml` without changing existing package metadata.
+- Add only a reviewed dependency that code in this round actually uses, through the admission procedure. An empty module tree requires none, so `[dependencies]` remains empty unless the implementation introduces a concrete in-scope use.
+- Replace the hello-world stub with the canonical module declarations and create the canonical module files with meaningful module documentation and the minimum compiling content.
 
-### Existing Patterns
+Out of scope:
 
-The reviewed dependency set, the deferred set, and the ruled-out set with reasons are specified in `docs/reference/dependencies.md`. That page is candidates, not decisions: **add only what the foundation actually uses now**, since `cargo machete` fails on a declared-but-unused dependency. Note the deferred crates in a comment for the rounds that will need them. Two crates on that page need a deliberate call here: `tokio` is probably unnecessary — a wrapper that spawns one child and waits has no need for an async runtime — and `camino` applies only where paths are known-UTF-8, never at the argv or environment boundary.
+- Real parsing, error variants, logging, configuration, output, services, adapters, and process spawning.
+- The `xtask` generator, its development dependencies, and generated artifacts, which remain in the configuration-composition plan.
+- Broad public re-exports or any public API not required by the documented tooling seam.
+- Toolchain or package-metadata bootstrap work already present.
 
-Strict lints are specified in `docs/reference/coding-conventions.md`: `[lints.rust] unsafe_code = "forbid"`, `unused_must_use = "deny"`, `unreachable_pub = "warn"`; `[lints.clippy]` `all`/`pedantic`/`nursery` = warn (priority -1), `unwrap_used`/`expect_used` = warn. Release profile: `lto = "thin"`, `codegen-units = 1`, `strip = "symbols"`. The module tree and its per-directory prohibitions are in `docs/explanation/architecture.md`; the `foo.rs` + `foo/` form and the `pub(crate)` default are in `docs/reference/coding-conventions.md`.
+## Implementation steps
 
-## Implementation Steps
+### First step: mark this round as started
 
-### First Step: Mark this round as started
+In this plan's `queue-rounds.yaml`, set only `crate-manifest-and-module-tree` from `todo` to `doing`.
 
-In this plan's `queue-rounds.yaml`, set this round's (`item: crate-manifest-and-module-tree`) `status` to `doing`.
+### Step 1: complete the manifest shape
 
-### Step 1: Rewrite `Cargo.toml`
+Preserve the existing package metadata, edition, MSRV, and empty dependency table. Add the absent binary target, release profile, and lint tables using the exact values owned by [coding conventions](../../../docs/reference/coding-conventions.md#lints). Do not hand-edit a dependency entry or version. If a concrete in-scope need appears, stop and follow [the dependency procedure](../../../docs/reference/dependencies.md#adding-a-dependency); never pre-add a deferred crate.
 
-Hand-write the static manifest sections: `rust-version` (current stable), `license = "MIT OR Apache-2.0"`, a `description`, a `[[bin]]` (`name = "claude-session"`, `path = "src/main.rs"`), `[profile.release]`, and the `[lints.rust]`/`[lints.clippy]` blocks. Then add every dependency this round actually uses with **`cargo add`** (e.g. `cargo add clap --features derive,env,wrap_help`) — **NEVER by hand-editing `[dependencies]` or writing a version string** — so cargo resolves the graph and updates `Cargo.lock`. This rule is project-wide; see `docs/decisions/ADR-0009-blessed-dependency-set.md`. Do not add anything on the ruled-out list in `docs/reference/dependencies.md`, and do not pre-add deferred crates — `cargo machete` fails on an unused dependency. Deviate from `cargo add` only with a documented exception noted at the dependency.
+### Step 2: create the canonical shipped module tree
 
-### Step 2: Pin toolchain components
+Create the modules owned by [architecture](../../../docs/explanation/architecture.md#module-roles): `cli`, `commands`, `domain`, `services`, `adapters`, `config`, `context`, `error`, `logging`, `ui`, and `util`. Use post-2018 `foo.rs` plus sibling `foo/` form where children exist. Each module starts with documentation stating its role and prohibition; placeholders must be meaningful enough to satisfy lints without inventing behaviour.
 
-Edit `rust-toolchain.toml` to add `components = ["rustfmt", "clippy"]`.
+Respect dependency direction and placement even in placeholders: parse shape stays in `cli`, domain stays pure, and no I/O appears outside adapters. Do not create `xtask` imports or a broad library re-export. ADR-0014 is current authority, but the later generator round owns creating and consuming the tooling seam.
 
-### Step 3: Create the canonical module tree
+### Step 3: replace the hello-world entry point
 
-Create placeholder modules (post-2018 form, `foo.rs` + optional `foo/`): `src/cli.rs`, `src/commands.rs`, `src/domain.rs`, `src/services.rs`, `src/adapters.rs`, `src/config.rs`, `src/context.rs`, `src/error.rs`, `src/logging.rs`, `src/ui.rs`, `src/util.rs`. Each default visibility `pub(crate)`; add `mod` declarations in `main.rs`; keep placeholders minimal (a doc comment
+Replace the printing stub with module declarations and the minimum compiling `main`. Do not add output, parsing, environment reads, global state, or process exits. Later rounds own runtime wiring.
 
-- maybe one marker type) so lints pass.
+### Final step: verify and update the queue
 
-### Step 4: Minimal `main.rs`
+Run the acceptance commands and the repository gate. Read the results against the boundaries below; file existence or compile success alone is insufficient. Only after every criterion passes, set this round's status to `done` in `queue-rounds.yaml`.
 
-Reduce `src/main.rs` to declare the modules and a minimal `fn main()` that returns/exits cleanly (placeholder; real wiring lands R2–R3). Keep ≤120 LOC.
+## Acceptance criteria
 
-### Final Step: Update the queue
+- `cargo metadata --locked`, `cargo check`, and `cargo clippy --all-targets --all-features -- -D warnings` succeed, followed by `nix develop --command pre-commit run --all-files`.
+- `Cargo.toml` retains its existing package metadata and has the required binary, release-profile, and lint sections. No dependency version was hand-written and no deferred or unused dependency was added.
+- Every canonical module exists with module documentation and follows [the implementation-round boundaries](../../../docs/reference/coding-conventions.md#implementation-round-boundaries).
+- Boundary review rejects backwards imports, I/O outside adapters, mutable or ambient global state, terminal output outside its owner, and any OS-string conversion that could weaken passthrough.
+- Tooling-isolation review rejects an `xtask` import in shipped code, a development-tooling crate in the shipped graph, or public surface beyond the documented tooling seam.
+- No production `unsafe`, `panic!`, unjustified `unwrap` or `expect`, catch-all error, boxed return error, or direct `std::process::exit` is introduced.
+- `src/main.rs` contains only the minimal entry-point shape and no hello-world output.
+- The round's queue status changes only after all checks pass; no plan status or dependency edge changes.
 
-1. In this plan's `queue-rounds.yaml`, set this round's (`item: crate-manifest-and-module-tree`) `status` to `done`.
+## Next round
 
-## Acceptance Criteria
-
-- [ ] `cargo check` succeeds with the new manifest and module tree.
-- [ ] `cargo clippy` runs with the strict lint blocks active (no errors; warnings ok in placeholders).
-- [ ] `Cargo.toml` has `[[bin]]`, `[profile.release]`, concrete `rust-version`, `license`, lint blocks; no forbidden deps.
-- [ ] Every dependency was added via `cargo add` (latest compatible versions resolved); `Cargo.lock` is updated and committed. No dependency version strings were hand-written (barring a documented exception).
-- [ ] `rust-toolchain.toml` lists `components = ["rustfmt", "clippy"]`.
-- [ ] The canonical module tree exists and `src/main.rs` is ≤120 LOC.
-- [ ] This plan's `queue-rounds.yaml` shows round `crate-manifest-and-module-tree` as `done`.
-
-## Next Round
-
-Round 2 (`errors-logging-context-config`) fills the plumbing: thiserror layers + the mandatory exit-code matrix test, tracing logging to `$XDG_STATE_HOME`, the single-writer `ui`, the immutable `AppContext`, and the figment `Config` loader.
+Round 2 (`errors-logging-context-config`) fills the typed error, logging, output, context, and configuration foundations under their durable owners.

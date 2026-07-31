@@ -12,6 +12,8 @@ This file is the single source of truth for how agents work in this project. `CL
 
 The engineering specifications these contracts are worked out in live under `docs/`, indexed by [`docs/README.md`](./docs/README.md). They are normative design for code that has not been written yet — read the specification that owns a rule before implementing against it.
 
+[Project governance](./docs/reference/project-governance.md#rule-ownership-and-enforcement) maps each binding rule to its canonical owner, rejecting mechanism, and change protocol.
+
 <!-- self-containment -->
 
 ## Self-Containment
@@ -20,7 +22,7 @@ Non-negotiable: this project is self-contained. The knowledge it depends on is h
 
 ## Decisions
 
-Non-negotiable: record every significant, hard-to-reverse decision as an ADR under the project's decisions directory, one decision per file, using the MADR-minimal `template.md`, so the rationale lives with the project. Accepted ADRs are not deleted; a changed decision gets a new superseding ADR.
+Non-negotiable: record every significant, hard-to-reverse decision as an ADR under the project's decisions directory, one decision per file, using the MADR-minimal `template.md`, so the rationale lives with the project. Accepted ADRs are not deleted; a changed decision gets a new superseding ADR. Exact status authority is in [project governance](./docs/reference/project-governance.md#decision-status).
 
 ADRs live in `docs/decisions/`, named `ADR-NNNN-short-title.md` from the `template.md` beside them. Anything that changes the passthrough contract, the XDG layout, the CLI surface, or a dependency that is hard to back out of earns one.
 
@@ -40,7 +42,7 @@ Documentation is written **ahead of** the code it specifies, and no zone has a p
 - **Lean prose.** Prefer a list, a table, or a runnable command to a paragraph. State the fact; do not argue for it, weigh it, or restate it in a closing sentence. Keep a sentence of rationale only where its absence invites a wrong change. Depth belongs in the document that owns the topic — link there instead of summarizing, since a summary is a second source of truth that drifts.
 - **No stubs.** A file whose whole content is a pointer is deleted, not kept: redirect shims, `superseded — see X` notes, placeholder pages, and empty sections. Fix the inbound links instead. This is the same rule as "a zone is created by its first real document", applied to files.
 - **ADRs stay lean.** About 350 words in the template's five sections, one decision per file, one status from `{Proposed, Accepted, Implemented, Superseded, Deprecated, Rejected}`. The budget is a splitting signal, not a tripwire: a record at or under 450 words by `wc -w` is fine as it stands, and one over 450 is trimmed or split in the change that notices it — moving worked detail to the reference page the record links to — never logged as a task ([ADR-0041](./docs/decisions/ADR-0041-budget-adr-length-with-a-margin.md)).
-- **ADRs are never deleted.** A decision that stops being true is `Superseded` by a new record with a forward link; one whose context evaporated with no successor is `Deprecated`; one partly changed keeps its status and gains an `Amended by ADR-NNNN` line. A rejected option worth not re-debating stays as a `Rejected` record.
+- **ADRs are never deleted.** A decision that stops being true is `Superseded` by a new record with a forward link; one whose context evaporated with no successor is `Deprecated`; one partly changed keeps its status and gains an `Amended by ADR-NNNN` line. A rejected option worth not re-debating stays as a `Rejected` record. [Decision status](./docs/reference/project-governance.md#decision-status) defines which values are current authority.
 - **Directory structure is owned by the filesystem, not by prose.** A `README.md` (or `AGENTS.md`) explains a directory's purpose — its domains, concepts, and rules — and never maintains a hand-copied file tree, which drifts the moment a file is added or renamed. When a listing aids discovery, give each entry a purpose, not a bare path the filesystem already shows. An auto-generated table of contents is the exception, since the generator keeps it in sync.
 - **Comments are documentation only when load-bearing.** Keep a comment that carries rationale, an invariant, a boundary condition, or an external constraint; delete one that narrates what the code plainly does, or replace it with a better name. Where an ADR governs the code, name it in the comment.
 - **This file is authored, not generated.** It carries no frontmatter and no source map by choice: it is written to be read, not synthesized from the documents it points at. The digest convention — frontmatter, a token estimate, a regenerate-on-change rule — belongs to files that summarize a directory, which this one does not. Do not "fix" it toward that shape.
@@ -48,6 +50,8 @@ Documentation is written **ahead of** the code it specifies, and no zone has a p
 - Perishable facts — anything externally owned, such as the wrapped binary's behaviour — are registered in [`docs/reference/research-tracking.yaml`](./docs/reference/research-tracking.yaml) with a cadence, rather than being asserted as permanent.
 
 ## Working Conventions
+
+The exact owner, enforcement, and change protocol for binding project rules is mapped in [project governance](./docs/reference/project-governance.md#rule-ownership-and-enforcement).
 
 - Keep changes scoped and reversible; prefer editing existing files over adding new ones.
 - Documentation and rationale live beside the code they describe.

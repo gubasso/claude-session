@@ -124,17 +124,23 @@ Pseudo-terminal scraping of child token output is rejected architecturally by [A
 
 ## Adding a dependency
 
-**Always with `cargo add`.** Never by hand-editing the dependency table, and never by writing a version string:
+Follow this admission procedure in order:
+
+1. Name the concrete requirement and the durable contract or round that needs it now. Unused or speculative additions fail.
+2. Select the target graph explicitly: shipped wrapper, test/development only, or `xtask`. Development-tooling crates never enter the shipped graph.
+3. Require the crate to appear in the reviewed table. If it is deferred, its named unlock condition must have occurred. A ruled-out crate requires a replacement or superseding ADR when its rejection is architectural.
+4. Before adding an unlisted crate, update this page with its maintenance or successor status, licence compatibility, RustSec and advisory state, MSRV compatibility, minimal feature set, direct purpose, transitive size and duplication, and why the standard library or an existing crate is insufficient. A hard-to-back-out dependency or policy exception requires an ADR; a routine reviewed candidate does not.
+5. Add it with `cargo add` against the correct package and dependency class, using `--dev` for test-only use, only required features, and disabled default features when the assessment says they are unnecessary. Let Cargo write the version and lockfile.
+6. Use a known-broken-latest workaround or deliberate exact pin only with a manifest-adjacent reason, upstream issue or source, and revisit trigger. Use an ADR when the exception is architectural rather than temporary.
+7. Verify `cargo metadata --locked`, the round's build and tests, `cargo deny check advisories bans sources licenses`, `cargo audit`, `cargo machete`, and the full pre-commit gate. Remove a dependency with `cargo rm`, then rerun the same checks.
+
+`cargo add` is the only normal writer: never hand-edit a dependency table or write a version string. For example:
 
 ```bash
 cargo add clap --features derive,env,wrap_help
 ```
 
-The tool resolves the graph, picks a compatible version, and updates the lockfile in one step. Hand-editing skips resolution, so the manifest and the lockfile disagree until something else fixes them, and hand-written versions are routinely stale or over-tight on the day they are written.
-
-**The exception procedure.** Two cases justify deviating: a known-broken latest release, and a deliberate exact pin. Either requires a comment at the dependency saying which case it is and when to revisit — and if the reason is architectural rather than temporary, a decision record.
-
-**Before adding anything not on this page**, check that it is maintained, that its licence is on the allow-list, that its transitive tree is proportionate to the problem, and that the standard library does not already solve it. Record the assessment in the change that adds it.
+The states are distinct: **reviewed** authorizes consideration, not installation; **deferred** names the trigger; the manifest records present use; the lockfile records resolution; **ruled out** records a rejected approach. They are not interchangeable statuses.
 
 ## Lockfile and supply chain
 
