@@ -167,6 +167,8 @@ Help describes the **wrapper's** grammar only. It does not reproduce, summarize,
 
 The `help` verb is the same surface under another spelling: `claude-session help [<verb>]` prints exactly what `--help` and `<verb> --help` print. Requested help is a **result** — standard output, exit `0`. Help printed because an invocation was malformed is a **diagnostic** — standard error, exit `Usage`. The parser's own default differs on both counts and is overridden; see [exit codes](./exit-codes.md#wrapper-matrix).
 
+A **namespace verb requires its subcommand**. `account`, the only one, satisfies no invocation on its own, so bare `account` is malformed: the verb's help is a diagnostic, and so is an unrecognized subcommand. Both exit `Usage`. Unlike a mistyped wrapper flag, an unrecognized subcommand carries a nearest-match suggestion — the parser's subcommand set is closed and wholly wrapper-owned, so the reasoning that denies one to [flag spelling](#flag-spelling) does not reach it. See [ADR-0052](../decisions/ADR-0052-require-an-explicit-subcommand.md).
+
 Shell completions cover the wrapper's grammar for the same reason. Completions never attempt to complete child arguments.
 
 ```text

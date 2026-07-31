@@ -129,6 +129,7 @@ The [exit-code matrix](./exit-codes.md) owns mappings.
 | Condition                                                   | `err.kind`                            | Subcommands                   |
 | ----------------------------------------------------------- | ------------------------------------- | ----------------------------- |
 | Invalid account name or option combination                  | `Usage`                               | all applicable                |
+| No subcommand, or an unrecognized one                       | `Usage`                               | bare `account`                |
 | No name and no selected account                             | `Usage`                               | `login`, `status`             |
 | Named account does not exist                                | `NoInput`                             | `status`, `remove`            |
 | Required terminal is unavailable                            | `Unavailable`                         | interactive `login`, `remove` |
