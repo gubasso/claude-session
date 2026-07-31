@@ -161,17 +161,30 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-  # --- Spell check ---
-  - repo: https://github.com/crate-ci/typos
-    rev: v1.48.0
+  # --- Spell check + commit-message linting (system binaries from the devShell) ---
+  #
+  # crate-ci publishes both of these as `language: python` hooks whose wheel
+  # carries a prebuilt generic-glibc binary. That binary names
+  # /lib64/ld-linux-x86-64.so.2 as its ELF interpreter, which does not exist on a
+  # Nix host, so the hook installs cleanly and then fails at exec with a bare
+  # ENOENT. There is no configuration knob for it; the fix is to take the
+  # binaries from the flake devShell instead (ADR-0040). nixpkgs carries both at
+  # the versions this file previously pinned.
+  #
+  # Args mirror the upstream hook definitions so behaviour is unchanged.
+  - repo: local
     hooks:
       - id: typos
+        name: typos
+        entry: typos --write-changes --force-exclude
+        language: system
+        types: [text]
+        stages: [pre-commit, pre-merge-commit, pre-push, manual]
 
-  # --- Commit message linting (Rust-ecosystem; commit-msg stage) ---
-  - repo: https://github.com/crate-ci/committed
-    rev: v1.1.11
-    hooks:
       - id: committed
+        name: committed
+        entry: committed --fixup --wip --commit-file
+        language: system
         stages: [commit-msg]
 
   # --- Secret scanning (pre-commit, fast) ---
@@ -329,8 +342,16 @@ repos:
   # (report-only) verifies an explicit relative target actually resolves on disk,
   # complementing the pygrep FORM guards above (form vs. existence). Configure via
   # the sibling ./.markdownlint-cli2.jsonc. Uses the node variant.
+  #
+  # `language_version: system` is required, not an optimization (ADR-0040).
+  # pre-commit only picks system node on its own when node and npm resolve
+  # OUTSIDE $HOME; under a home-profile Nix install they do not, so it falls back
+  # to nodeenv and downloads a generic-glibc node that cannot exec on a Nix host.
+  # Naming the version explicitly bypasses that detection and uses the devShell's
+  # node, which still runs npm to install the pure-JS custom rule below.
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.22.1
     hooks:
       - id: markdownlint-cli2
+        language_version: system
         additional_dependencies: ['markdownlint-rule-relative-links']

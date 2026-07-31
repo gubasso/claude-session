@@ -47,10 +47,17 @@
             pkgs.nixfmt
             pkgs.statix
             pkgs.deadnix
-            # Node for the markdownlint-cli2 pre-commit hook. pre-commit's node
-            # language falls back to nodeenv, which downloads a generic-glibc
-            # node that cannot execute on a Nix host (no /lib64 loader); with
-            # node+npm on PATH it uses `language_version: system` instead.
+            # Spell check and commit-message lint. Upstream ships these as
+            # `language: python` hooks whose wheel carries a generic-glibc
+            # binary, which cannot execute here (ADR-0040), so both run as
+            # language:system off PATH.
+            pkgs.typos
+            pkgs.committed
+            # Node for the markdownlint-cli2 pre-commit hook, which is pinned to
+            # `language_version: system` because pre-commit's own nodeenv
+            # fallback downloads a generic-glibc node (ADR-0040). npm still
+            # installs the hook's pure-JS custom rule, which nixpkgs does not
+            # package.
             pkgs.nodejs
           ];
           # native deps for -sys crates, uncomment as needed:

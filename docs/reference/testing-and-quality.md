@@ -98,6 +98,8 @@ Three of these have teeth beyond their own assertion. The exit-code matrix, writ
 
 `pre-commit run --all-files` is the single local command that reproduces the project's verdict. Hooks are the source of truth; task-runner gate recipes delegate to them, while inner-loop recipes stay raw `cargo`.
 
+Run it inside the devShell. Several hooks take their binary from the shell rather than building one, so outside it they fail at exec rather than reporting on content ([ADR-0040](../decisions/0040-provision-hook-binaries-from-the-devshell.md)).
+
 | Hook                                   | Stage        | Enforces                                       |
 | -------------------------------------- | ------------ | ---------------------------------------------- |
 | `cargo fmt`                            | commit       | Canonical formatting                           |
