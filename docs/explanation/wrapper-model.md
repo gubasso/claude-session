@@ -99,13 +99,13 @@ The child keeps only the last `--settings` it is given, so a user who passes one
 
 Account selection and terminal-group derivation are separate axes, explained in [session isolation](./session-isolation.md).
 
-The child's environment is otherwise inherited, with the wrapper's own internal variables scrubbed out. A child should never be able to observe the wrapper's internal state by reading its environment, both because it is none of the child's business and because a nested invocation would inherit stale values.
+The child's environment is otherwise inherited, with the wrapper's own `CLAUDE_SESSION_*` variables scrubbed out and the recursion marker then set back. A child should never be able to observe the wrapper's internal state by reading its environment, both because it is none of the child's business and because a nested invocation would inherit stale values — and the marker is the deliberate exception, because a nested invocation seeing it is exactly how the guard fires.
 
 ## The proxy seam
 
 Some users front `claude` with a local proxy — for token compression, request logging, or routing. The child already supports this through an environment variable naming its API base URL.
 
-The wrapper's contribution is a **seam, not a feature**: the child's environment is composable, so that base URL and any other variables can be injected from configuration or the command line. `claude-session` implements no proxying, no compression, and no request rewriting of its own, and it should not grow any.
+The wrapper's contribution is a **seam, not a feature** — and the seam is inheritance. The wrapper does not touch that variable, so exporting it is all a user has to do; there is nothing to compose and no injection surface to maintain. `claude-session` implements no proxying, no compression, and no request rewriting of its own, and it should not grow any.
 
 The boundary is worth stating plainly because it is the kind of thing that erodes. Every request-manipulating feature added inside the wrapper is a feature that must track the upstream API, duplicate an existing external tool, and be debugged inside a process whose job is to launch another process. The seam stays a seam.
 

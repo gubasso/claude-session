@@ -47,6 +47,8 @@ The time budget is one number: **the commit hook stays under one second of test 
 
 Advanced-tier tools run on demand, not in a lane. They are diagnostics for a specific question, and gating on them buys noise.
 
+`predicates` string matchers and `insta::assert_snapshot!` are UTF-8 only, so neither may carry an argv or environment assertion — a lossy conversion inside the harness would let a broken wrapper pass. Where a snapshot of raw bytes is wanted, `insta::assert_binary_snapshot!` is the one that keeps them.
+
 ## Hermetic fixtures
 
 Every test touching the environment or the filesystem must satisfy all of these:
@@ -66,42 +68,57 @@ The last row is the one that produces the worst bugs. Both the environment and t
 
 Real-process tests use a stub binary placed on the search path ahead of anything else. It records the arguments, environment, and working directory it received, and exits with whatever status the test requires — including death by a chosen signal.
 
+**It records raw bytes, in the kernel's own format.** Three files in a directory the test names by variable — `argv`, `environ`, `cwd` — each entry written verbatim and separated by a NUL, with a trailing NUL. That is the `/proc/<pid>/cmdline` and `/proc/<pid>/environ` layout, and it is lossless without a length prefix because a NUL cannot occur inside an argument or an environment entry. Text, JSON, and any lossy conversion are forbidden: a stub that normalizes makes the golden argv test pass against a broken wrapper. Files rather than standard output, because the child's stdout is inherited unmodified and is itself under test.
+
 The stub is what makes passthrough assertions mechanical: not "the command looked right" but "the child received exactly these arguments, in this order, with these bytes."
 
 ## Mandatory tests
 
 Each of these locks down a contract that is otherwise decorative:
 
-| Test                      | Locks                                                                             | Owning document                               |
-| ------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------- |
-| Golden argv table         | Byte- and order-preserving passthrough, including empty and non-UTF-8 arguments   | [CLI surface](./cli-surface.md)               |
-| Exit-code matrix          | Every error variant maps to its documented code, no catch-all                     | [Exit codes](./exit-codes.md)                 |
-| Child exit fidelity       | A stub exiting with N produces N                                                  | [Exit codes](./exit-codes.md)                 |
-| Child signal fidelity     | A signal-killed stub produces signal death, or the documented fallback            | [Exit codes](./exit-codes.md)                 |
-| `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                         | [CLI surface](./cli-surface.md)               |
-| Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session        | [Process runtime](./process-runtime.md)       |
-| Recursion guard, identity | A **hard-linked** wrapper is caught, which path equality would miss               | [Process runtime](./process-runtime.md)       |
-| Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`   | [Process runtime](./process-runtime.md)       |
-| `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126       | [Process runtime](./process-runtime.md)       |
-| Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`               | [Process runtime](./process-runtime.md)       |
-| Environment isolation     | The stub sees the injected config directory and no internal variables             | [Process runtime](./process-runtime.md)       |
-| Symlink rejection         | A session path that is a symlink is refused                                       | [XDG storage](./xdg-storage.md)               |
-| Mode enforcement          | An over-permissive directory is corrected or refused                              | [XDG storage](./xdg-storage.md)               |
-| Unknown configuration key | A typo is rejected, naming the key and file                                       | [Configuration](./configuration.md)           |
-| Merge determinism         | The same pieces produce byte-identical output                                     | [Configuration](./configuration.md)           |
-| Freshness on piece change | Editing a piece without the profile triggers regeneration                         | [Configuration](./configuration.md)           |
-| Example round-trip        | Every generated example parses through the real loader                            | [Configuration](./configuration.md)           |
-| Undocumented field        | A public config field without a description fails generation                      | [Configuration](./configuration.md)           |
-| Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                | [Logging and output](./logging-and-output.md) |
-| Help snapshot             | Generated help does not change unnoticed                                          | [CLI surface](./cli-surface.md)               |
-| Denylist membership       | The spellings the pre-split claims are exactly the documented table               | [CLI surface](./cli-surface.md)               |
-| Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms   | [CLI surface](./cli-surface.md)               |
-| Leading-position scope    | A claimed flag after any other token reaches the child                            | [CLI surface](./cli-surface.md)               |
-| Malformed wrapper flag    | A claimed flag missing its value exits `Usage`; a near-miss forwards              | [CLI surface](./cli-surface.md)               |
-| Collision audit           | The claimed set meets the child's inventory only where documented                 | [CLI surface](./cli-surface.md)               |
-| Child version floor       | A `login`-mode launch below the floor fails before spawn; `token` mode does not   | [Process runtime](./process-runtime.md)       |
-| Confirmation predicate    | A piped invocation with a controlling terminal still prompts                      | [CLI surface](./cli-surface.md)               |
-| Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable` | [CLI surface](./cli-surface.md)               |
+| Test                      | Locks                                                                                              | Owning document                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Golden argv table         | The whole vector: `argv[0]`, the wrapper prefix, and a suffix preserved in order, count, and bytes | [CLI surface](./cli-surface.md)               |
+| Exit-code matrix          | Every error variant maps to its documented code, no catch-all                                      | [Exit codes](./exit-codes.md)                 |
+| Child exit fidelity       | A stub exiting with N produces N                                                                   | [Exit codes](./exit-codes.md)                 |
+| Child signal fidelity     | A signal-killed stub produces signal death, or the documented fallback                             | [Exit codes](./exit-codes.md)                 |
+| `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                                          | [CLI surface](./cli-surface.md)               |
+| Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session                         | [Process runtime](./process-runtime.md)       |
+| Recursion guard, identity | A **hard-linked** wrapper is caught, which path equality would miss                                | [Process runtime](./process-runtime.md)       |
+| Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`                    | [Process runtime](./process-runtime.md)       |
+| `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126                        | [Process runtime](./process-runtime.md)       |
+| Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`                                | [Process runtime](./process-runtime.md)       |
+| Environment isolation     | The stub sees the injected config directory and **exactly one** `CLAUDE_SESSION_*` key, the marker | [Process runtime](./process-runtime.md)       |
+| Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                 | [Process runtime](./process-runtime.md)       |
+| Symlink rejection         | A session path that is a symlink is refused                                                        | [XDG storage](./xdg-storage.md)               |
+| Mode enforcement          | An over-permissive directory is corrected or refused                                               | [XDG storage](./xdg-storage.md)               |
+| Unknown configuration key | A typo is rejected, naming the key and file                                                        | [Configuration](./configuration.md)           |
+| Merge determinism         | The same pieces produce byte-identical output                                                      | [Configuration](./configuration.md)           |
+| Freshness on piece change | Editing a piece without the profile triggers regeneration                                          | [Configuration](./configuration.md)           |
+| Example round-trip        | Every generated example parses through the real loader                                             | [Configuration](./configuration.md)           |
+| Undocumented field        | A public config field without a description fails generation                                       | [Configuration](./configuration.md)           |
+| Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                                 | [Logging and output](./logging-and-output.md) |
+| Help snapshot             | Generated help does not change unnoticed                                                           | [CLI surface](./cli-surface.md)               |
+| Denylist membership       | The spellings the pre-split claims are exactly the documented table                                | [CLI surface](./cli-surface.md)               |
+| Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms                    | [CLI surface](./cli-surface.md)               |
+| Leading-position scope    | A claimed flag after any other token reaches the child                                             | [CLI surface](./cli-surface.md)               |
+| Malformed wrapper flag    | A claimed flag missing its value exits `Usage`; a near-miss forwards                               | [CLI surface](./cli-surface.md)               |
+| Collision audit           | The claimed set meets the child's inventory only where documented                                  | [CLI surface](./cli-surface.md)               |
+| Child version floor       | A `login`-mode launch below the floor fails before spawn; `token` mode does not                    | [Process runtime](./process-runtime.md)       |
+| Confirmation predicate    | A piped invocation with a controlling terminal still prompts                                       | [CLI surface](./cli-surface.md)               |
+| Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable`                  | [CLI surface](./cli-surface.md)               |
+
+The golden argv table is the proof of [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md), so its legs are named rather than left to judgement:
+
+| Leg                     | Shape                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `argv[0]`               | The stub's own absolute resolved path, not a bare name and not the wrapper's.                       |
+| Empty argument          | `""` arrives as a real argument, in position, not filtered.                                         |
+| Non-UTF-8 argument      | The bytes `[0x66, 0x80, 0x6f]` — a lone continuation byte, invalid UTF-8, legal in an argument.     |
+| Non-UTF-8 settings path | `XDG_CONFIG_HOME` pointed at a directory with those bytes; the two-token prefix arrives byte-exact. |
+| Around `--`             | A wrapper spelling after the sentinel arrives uninterpreted, and count is preserved.                |
+
+Every leg compares OS strings against OS strings. A test that renders either side as text has stopped testing the contract, which is why the stub records bytes.
 
 The five flag-recognition tests are one obligation split by what each rejects, and together they are the proof of [ADR-0043](../decisions/ADR-0043-match-wrapper-flags-by-exact-leading-spelling.md) and [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md):
 
@@ -161,7 +178,7 @@ Fast, autofixing checks run at commit; slow and network-dependent ones at push. 
 
 ## Boundary lints
 
-Two architectural rules are structural and are enforced by grep rather than by the compiler:
+Four architectural rules are structural and are enforced by grep rather than by the compiler:
 
 **Dependency direction.** `domain/` imports nothing from `adapters/` or `services/`. A violation means pure code has acquired an I/O dependency, and the type system will not catch it.
 
@@ -169,7 +186,9 @@ Two architectural rules are structural and are enforced by grep rather than by t
 
 **Tooling isolation.** Nothing under `src/` imports from `xtask`, and the wrapper's own manifest does not list a development-tooling crate. The dependency runs one way, and the whole reason `xtask` exists is that its dependencies stay out of the shipped binary; see [dependencies](./dependencies.md).
 
-Scope the first two to `src/`, and be aware that doc comments and test code produce false positives — the output-ownership check must not fire on an example inside a `///` block.
+**Environment typing.** No `std::env::vars(` or `std::env::var(` under `src/`; the `_os` forms only. Both panic on an environment that is not valid UTF-8, which would turn a legal environment into a wrapper crash — the same conversion the [types rule](./coding-conventions.md#types) forbids on argv, in the place a type cannot catch it.
+
+Scope all but tooling isolation to `src/`, and be aware that doc comments and test code produce false positives — the output-ownership check must not fire on an example inside a `///` block.
 
 ## Markdown
 

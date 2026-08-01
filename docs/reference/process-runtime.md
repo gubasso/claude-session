@@ -63,26 +63,23 @@ Neither guard is sufficient alone. The marker is defeated by an environment scru
 
 **A `claude-session` run from inside a Claude Code session refuses to start.** The marker reaches the child, and anything the child launches inherits it, so a nested wrapper sees the marker and exits `ChildRecursion` before resolving anything. That is the guard working as specified rather than an edge case to repair: the nested wrapper genuinely cannot tell that invocation apart from the self-invocation loop the marker exists to break.
 
-The marker is the one internal variable deliberately left in the child's environment. Every other `CLAUDE_SESSION_*` variable is scrubbed.
+The marker is the one internal variable deliberately left in the child's environment. Every other `CLAUDE_SESSION_*` key is removed, wrapper inputs included.
 
 ## Child environment
 
-The child's environment is built from the parent's, then modified:
+The child's environment is a snapshot of the wrapper's own, scrubbed and then added to, in this order. **The order is load-bearing**: step 3 must follow step 2, or the scrub deletes the marker it just set ([ADR-0057](../decisions/ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md)).
 
-| Operation                       | Keys                                           | Reason                                                              |
-| ------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------- |
-| Inherit                         | Everything else                                | The child is a normal program and needs a normal environment        |
-| Remove                          | Every `CLAUDE_SESSION_*` key                   | Internal wrapper state does not reach the child                     |
-| Set                             | `CLAUDE_SESSION_REENTRY=1`                     | Recursion marker                                                    |
-| Set when an account is selected | `CLAUDE_CONFIG_DIR=<account config directory>` | Selects the account-wide child state                                |
-| Set only in token mode          | `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>`    | Selects the stored long-lived subscription token                    |
-| Set                             | Composed injections                            | Zero or more user-configured values, including `ANTHROPIC_BASE_URL` |
+1. **Snapshot** the wrapper's environment, keys and values as OS strings ([coding conventions](./coding-conventions.md#types)).
+2. **Remove** every key whose bytes begin `CLAUDE_SESSION_`, matched ASCII case-sensitively. This sweeps wrapper _inputs_ as well as internals: `CLAUDE_SESSION_CHILD_BIN` and `CLAUDE_SESSION_DEFAULT_PROFILE` are consumed at startup, and a nested wrapper must not re-read a stale one.
+3. **Set** `CLAUDE_SESSION_REENTRY=1`, the recursion marker.
+4. **Set** `CLAUDE_CONFIG_DIR` to the account config directory, selecting the account-wide child state — only when an account is selected.
+5. **Set** `CLAUDE_CODE_OAUTH_TOKEN` to the retrieved token — only in token mode, and only at [step 5 of the spawn sequence](#spawn-and-wait).
 
-When no account is selected, the wrapper injects neither `CLAUDE_CONFIG_DIR` nor `CLAUDE_CODE_OAUTH_TOKEN`.
+Step 2 is the wrapper's only removal, and steps 3 to 5 are its only additions. Everything else the user exported — ambient authentication, `PATH`, locale — reaches the child untouched, which is what makes the child a normal program.
 
-Before launch, the wrapper resolves the stored mode and detects ambient higher-precedence authentication. It may warn on standard error as specified by [accounts](./accounts.md#stored-modes-and-launch-behavior), but preserves every inherited variable and never strips ambient authentication.
+Before launch, the wrapper resolves the stored mode and detects ambient higher-precedence authentication. It may warn on standard error as specified by [accounts](./accounts.md#stored-modes-and-launch-behavior), and never strips ambient authentication.
 
-The composed injections are the **proxy seam**. They are a general mechanism — any key, any value, from configuration or a flag — rather than a proxy-specific feature. `claude-session` implements no proxying, compression, or request rewriting of its own.
+**The proxy seam is inheritance.** A user who fronts `claude` with a local proxy exports the child's base-URL variable, and the wrapper hands it over untouched. `claude-session` composes no injections of its own and implements no proxying, compression, or request rewriting; the rejected injection surface is recorded in [ADR-0057](../decisions/ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md).
 
 Standard input, output, and error are inherited unmodified. The working directory is inherited unmodified.
 
@@ -95,6 +92,10 @@ For an account-backed group, the wrapper constructs one prefix:
 ```
 
 The original child argument vector follows as an untouched suffix. Its order, bytes, count, and `--` sentinel are preserved. The wrapper does not parse, deduplicate, reorder, or reject user tokens. See [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
+
+The settings path is carried as an OS string, not a UTF-8 path: it derives from the XDG base directories, whose bytes are arbitrary ([dependencies](./dependencies.md)).
+
+**`argv[0]` is the resolved child's absolute path** — the default `Command` passes, which the wrapper does not override. It is the one value that cannot misname the file actually running, which is why `ps` and the child agree; the same argument by which [ADR-0055](../decisions/ADR-0055-compare-executable-identity-by-device-and-inode.md) rejected `argv[0]` as an identity signal.
 
 **A user-supplied `--settings` replaces the group's document.** Measured against `claude` 2.1.220 on 2026-07-31, the child keeps only the last occurrence: an earlier settings file is not merged, not validated, and not even read. Since the wrapper's pair is a prefix, the user's own flag always wins and the composed group layer is silently discarded. That precedence is accepted rather than repaired — the wrapper cannot detect it without parsing the suffix ([ADR-0047](../decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md)). A user who wants both composes them into one file and passes that.
 

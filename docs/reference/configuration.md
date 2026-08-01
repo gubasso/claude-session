@@ -39,7 +39,7 @@ A missing file at any layer is **not an error**. An unreadable or malformed file
 
 A **single** underscore is part of a key name, not a level separator. `CLAUDE_SESSION_CHILD_BIN` therefore sets the flat key `child_bin` — the child-binary override in [process runtime](./process-runtime.md) — and not a nested `child.bin`.
 
-Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are **not** configuration keys, and are scrubbed from the child's environment. See [process runtime](./process-runtime.md).
+Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are **not** configuration keys. What reaches the child is [process runtime](./process-runtime.md#child-environment)'s to say.
 
 ### Future token-helper boundary
 

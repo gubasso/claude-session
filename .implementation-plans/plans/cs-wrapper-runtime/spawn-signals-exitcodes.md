@@ -74,4 +74,4 @@ Integration-test with a stub child per `docs/reference/testing-and-quality.md`: 
 
 ## Next Round
 
-Round 3 (`child-env-injection-and-headroom-seam`) builds the child env, injects the account-scoped `CLAUDE_CONFIG_DIR`, builds the argv-prefix seam, exposes the `ANTHROPIC_BASE_URL` headroom/proxy seam, and adds end-to-end passthrough integration tests.
+Round 3 (`child-env-injection-and-headroom-seam`) builds the child env, sets the account-scoped `CLAUDE_CONFIG_DIR`, builds the argv-prefix seam and the byte-recording stub, and adds end-to-end passthrough integration tests.

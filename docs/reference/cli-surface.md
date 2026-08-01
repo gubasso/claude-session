@@ -58,6 +58,8 @@ Documentation and examples use the `--flag=<value>` form, because it is unambigu
 
 Repetition: `--verbose` is repeatable by repeating the whole spelling, and `--quiet` is idempotent. Every other wrapper flag is accepted at most once, and a repeat is a `Usage` error. What each verbosity level means, and why `--verbose` with `--quiet` is rejected, is in [logging and output](./logging-and-output.md#verbosity).
 
+Value types split on whether the value is a path or a name. `--config` takes a path, so its value is an OS string and bytes that are not valid UTF-8 are accepted — a Unix path is a byte string. `--account`, `--session`, and `--profile` name things the wrapper constructs directory components from and prints into `--json` documents and log records, so each requires valid UTF-8 and a value that is not exits `Usage`.
+
 ### Machine output is not on this table
 
 `--json` is **verb-level**, accepted after the verb, and every verb that produces data owns its own:
@@ -127,7 +129,7 @@ Forwarding is **verbatim**. Specifically:
 
 Standard input, standard output, and standard error are inherited by the child unmodified. The wrapper writes nothing to standard output during a passthrough invocation; see [logging and output](./logging-and-output.md).
 
-For an account-backed group, [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md) narrowly authorizes one wrapper-owned prefix, `--settings <absolute group settings path>`. Every user-supplied token remains an untouched suffix with order, bytes, count, and `--` sentinel preserved. The wrapper does not parse or normalize that suffix.
+For an account-backed group, [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md) narrowly authorizes one wrapper-owned prefix, `--settings <absolute group settings path>`. Every user-supplied token remains an untouched suffix with order, bytes, count, and `--` sentinel preserved. The wrapper does not parse or normalize that suffix. What the child sees in `argv[0]`, and how the prefix itself is typed, are in [process runtime](./process-runtime.md#child-argument-vector).
 
 ## Parser shape
 
@@ -150,6 +152,7 @@ The pre-split is pure and total over a list of OS strings, which is what makes i
 | Not an exact claimed spelling — `--configg`, `--acc`, `--CONFIG`, `-vq`                 | Split stops. The token and everything after it is child argv, forwarded verbatim. |
 | Claimed, value missing — `--config` last, or before `--`, or before a `-`-leading token | `Usage`, naming the flag on standard error.                                       |
 | Claimed, value malformed — `--config=`, `--verbose=1`                                   | `Usage`, naming the flag on standard error.                                       |
+| Claimed, value not valid UTF-8 where the flag requires text — `--account=<bad bytes>`   | `Usage`, naming the flag. `--config` is exempt: its value is a path.              |
 
 The wrapper never suggests that an unrecognized token was a mistyped wrapper flag. Suggestion machinery needs a model of the child's flags in order to know what it is _not_ looking at, and the wrapper does not have one. Codes are in [exit codes](./exit-codes.md#wrapper-matrix).
 

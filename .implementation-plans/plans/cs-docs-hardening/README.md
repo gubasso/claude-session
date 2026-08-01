@@ -4,7 +4,7 @@
 
 ## Problem Statement
 
-With the foundation, isolation, runtime, accounts/auth, and config-composition in place, `claude-session` needs its integration documented and its surface hardened for release. This plan documents the headroom/proxy integration (the `ANTHROPIC_BASE_URL` seam built in `cs-wrapper-runtime`), hardens `doctor` into a full graceful health check, finalizes shell completions + version + man pages, captures the web prior-art/competitive-analysis research into the repo docs (a brief requirement), and closes out the ADRs and release hardening. Depends on `cs-wrapper-runtime`, `cs-accounts-auth`, and `cs-config-composition` (it documents and hardens their behavior).
+With the foundation, isolation, runtime, accounts/auth, and config-composition in place, `claude-session` needs its integration documented and its surface hardened for release. This plan documents the headroom/proxy integration (`ANTHROPIC_BASE_URL`, which the child env inherits), hardens `doctor` into a full graceful health check, finalizes shell completions + version + man pages, captures the web prior-art/competitive-analysis research into the repo docs (a brief requirement), and closes out the ADRs and release hardening. Depends on `cs-wrapper-runtime`, `cs-accounts-auth`, and `cs-config-composition` (it documents and hardens their behavior).
 
 ## Strategy
 
@@ -40,7 +40,7 @@ This plan adds no exceptions to it.
 - **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
 - **Docs are organized by reader need**, per `AGENTS.md` (Documentation Maintenance) and `docs/decisions/ADR-0012-docs-architecture.md`: prior art is reference and **already exists** at `docs/reference/prior-art.md`; the proxy integration walkthrough is a guide; decisions are lean ADRs within the word budget, five sections, never deleted.
 - **Revalidate and extend the existing prior art** rather than writing a second page. `docs/reference/prior-art.md` already classifies the switcher landscape, wrapper and shim design, configuration layering, process supervision, and sandboxing, and records the perishable native-child facts. `docs/reference/research-tracking.yaml` drives what to re-check and when.
-- **headroom is integration-by-seam, not internal**: document `ANTHROPIC_BASE_URL` → `headroom proxy` as the supported pattern; claude-session implements no compression.
+- **headroom is integration-by-seam, not internal**: document exporting `ANTHROPIC_BASE_URL` → `headroom proxy` as the supported pattern; claude-session implements no compression and no injection surface.
 - **doctor degrades, never aborts**: every catalog check runs independently, a failure never aborts the rest, and each one carries the four-part error shape from `docs/reference/exit-codes.md`. The catalog, the report, the grammar, and the exit rule are all specified in `docs/reference/logging-and-output.md`.
 - **Release hardening**: `cargo deny`/`cargo audit` clean; user-facing `README.md`; install notes; pin/commit `Cargo.lock`.
 

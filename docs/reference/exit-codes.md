@@ -58,7 +58,7 @@ Two mappings depart from the header's own guidance, deliberately. Both are recor
 
 Five codes are deliberately unused: `NoUser` (67) and `NoHost` (68) are mail-transport concepts; `OsFile` (72) is for critical system files, which the wrapper never reads; `CantCreat` (73) is for a _user-specified_ output file, and every file the wrapper creates is wrapper-owned, so those failures are `Io` (74). `Protocol` (76) is for a remote protocol exchange — a child that returns unparsable output is `DataFormat` (65), because the child is a local process and its output is data.
 
-The parser exits `2` on a malformed invocation by default. That default is **overridden**: a malformed wrapper invocation exits `Usage` (64), because the matrix is the wrapper's single answer for what a code means and a parser-shaped exception to it would be one a script has to special-case. The stream the help text lands on is settled in [the CLI surface](./cli-surface.md#help).
+The parser exits `2` on a malformed invocation by default. That default is **overridden**: a malformed wrapper invocation exits `Usage` (64), because the matrix is the wrapper's single answer for what a code means and a parser-shaped exception to it would be one a script has to special-case. The parser's invalid-UTF-8 rejection, which a wrapper flag requiring text produces, arrives the same way. The stream the help text lands on is settled in [the CLI surface](./cli-surface.md#help).
 
 ### The one code outside the taxonomy
 

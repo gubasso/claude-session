@@ -26,6 +26,8 @@ For tests that do want a real process, the wrapper spawns a **stub binary** plac
 
 This gives exact, mechanical assertions about the passthrough contract. Not "the command looked right" but "the child received these arguments, in this order, with these bytes." The stub also makes it easy to test the failure modes that are awkward with a real child: an immediate non-zero exit, death by signal, a binary that exists but is not executable, a binary that is not there at all.
 
+What the stub writes is raw bytes rather than text, and that is the whole point of it. An argument that is not valid UTF-8 is legal on Unix and the wrapper promises to carry it, so a stub that recorded through a string type would launder the one case worth testing — and the test would pass against a wrapper that had already destroyed it. The exact format is in [testing and quality](../reference/testing-and-quality.md#the-recording-stub).
+
 ## Hermetic, without exception
 
 Every test that touches the environment or the filesystem must be **hermetic**: it observes nothing from the developer's machine and leaves nothing behind.
@@ -42,7 +44,7 @@ Hermeticity is stated as a hard rule rather than a preference because the failur
 
 Some contracts in this project are load-bearing enough that they are specified together with the test that locks them down. If the test is missing, the contract is decorative.
 
-**Golden argv.** For a table of representative command lines — a bare passthrough, a leading child flag, an empty argument, a non-UTF-8 argument, arguments around `--`, a wrapper flag before a child flag — assert the exact argument vector the child received. This is the passthrough contract, and it is the thing most likely to break silently during an unrelated refactor.
+**Golden argv.** For a table of representative command lines — a bare passthrough, a leading child flag, an empty argument, a non-UTF-8 argument, arguments around `--`, a wrapper flag before a child flag — assert the exact argument vector the child received, `argv[0]` and the wrapper's own prefix included rather than the user's suffix alone. This is the passthrough contract, and it is the thing most likely to break silently during an unrelated refactor.
 
 **The exit-code matrix.** Every variant of the error type is asserted against its documented code, with no catch-all arm anywhere in the mapping. Written this way, adding an error variant without assigning it a code fails the build rather than silently returning a generic failure. See [exit codes](../reference/exit-codes.md).
 
@@ -52,7 +54,7 @@ Some contracts in this project are load-bearing enough that they are specified t
 
 **The recursion guard.** With the wrapper itself resolvable as the child, the wrapper refuses rather than recursing. Worth testing both guard paths — the marker variable and the file-identity self-check — since either alone has a hole.
 
-**Isolation.** The stub child observes the injected configuration directory, and observes that the wrapper's internal variables have been scrubbed from its environment.
+**Isolation.** The stub child observes the injected configuration directory, and observes exactly one `CLAUDE_SESSION_*` variable: the recursion marker. The marker's _presence_ is asserted, not its absence — a child that cannot see it is a child whose recursion guard has already been broken, and an assertion that every internal variable is gone would demand precisely that.
 
 **Filesystem security.** A session directory that is a symbolic link is rejected. A directory with over-permissive mode is corrected or refused. These tests are the reason the security posture in [session isolation](./session-isolation.md) is real rather than aspirational.
 

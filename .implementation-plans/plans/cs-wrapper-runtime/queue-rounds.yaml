@@ -16,4 +16,4 @@ rounds:
     depends_on:
       - spawn-signals-exitcodes
     prompt: /prex -ar .implementation-plans/plans/cs-wrapper-runtime/child-env-injection-and-headroom-seam.md
-    notes: ChildEnv scrubbing + CLAUDE_CONFIG_DIR injection + argv-prefix and ANTHROPIC_BASE_URL seams + e2e passthrough tests.
+    notes: Ordered ChildEnv scrub + CLAUDE_CONFIG_DIR + argv-prefix seam + byte-recording stub + e2e passthrough tests.

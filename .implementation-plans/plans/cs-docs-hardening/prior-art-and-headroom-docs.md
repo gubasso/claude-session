@@ -4,7 +4,7 @@
 
 ## Context
 
-Prior art has already been surveyed and written up: `docs/reference/prior-art.md` classifies the account-switcher landscape, wrapper and shim design, Rust CLI structure, configuration layering, process supervision, and sandboxing, and records the perishable native-child facts the design rests on. Those facts expire, and the survey has a date. This round **revalidates and extends** that page rather than writing a competing one, and adds the guide that shows the proxy seam in use. The seam itself (environment injection into the child) was built in `cs-wrapper-runtime`; this round documents how to use it.
+Prior art has already been surveyed and written up: `docs/reference/prior-art.md` classifies the account-switcher landscape, wrapper and shim design, Rust CLI structure, configuration layering, process supervision, and sandboxing, and records the perishable native-child facts the design rests on. Those facts expire, and the survey has a date. This round **revalidates and extends** that page rather than writing a competing one, and adds the guide that shows the proxy seam in use. The seam itself is inheritance — the child env passes `ANTHROPIC_BASE_URL` through untouched (ADR-0057) — so this round documents how to use it, not a mechanism to build.
 
 ## Previous Rounds
 
@@ -30,7 +30,7 @@ The docs tree, `docs/reference/prior-art.md`, and `docs/reference/research-track
 
 Revalidation is driven by `docs/reference/research-tracking.yaml`: re-check each tracked fact, update `last_checked`, and record what changed. Extension means the product landscape the engineering survey did not cover, and any project that has since solved a problem this one still has open.
 
-The proxy seam is documented as a **general environment-injection mechanism** in `docs/explanation/wrapper-model.md` and `docs/reference/process-runtime.md`. The guide this round adds shows a concrete fronting proxy end to end; it must not restate the seam's contract, only exercise it — and it must state the boundary that the wrapper implements no compression, rewriting, or routing.
+The proxy seam is documented as **inheritance** in `docs/explanation/wrapper-model.md` and `docs/reference/process-runtime.md`. The guide this round adds shows a concrete fronting proxy end to end; it must not restate the seam's contract, only exercise it — and it must state the boundary that the wrapper implements no compression, rewriting, or routing.
 
 Zone placement follows `AGENTS.md` (Documentation Maintenance): the guide goes in `docs/guides/`, which already exists and holds the development workflow.
 
