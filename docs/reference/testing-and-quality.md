@@ -72,33 +72,36 @@ The stub is what makes passthrough assertions mechanical: not "the command looke
 
 Each of these locks down a contract that is otherwise decorative:
 
-| Test                       | Locks                                                                             | Owning document                               |
-| -------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------- |
-| Golden argv table          | Byte- and order-preserving passthrough, including empty and non-UTF-8 arguments   | [CLI surface](./cli-surface.md)               |
-| Exit-code matrix           | Every error variant maps to its documented code, no catch-all                     | [Exit codes](./exit-codes.md)                 |
-| Child exit fidelity        | A stub exiting with N produces N                                                  | [Exit codes](./exit-codes.md)                 |
-| Child signal fidelity      | A signal-killed stub produces signal death, or the documented fallback            | [Exit codes](./exit-codes.md)                 |
-| `--` sentinel              | A wrapper flag after `--` reaches the child uninterpreted                         | [CLI surface](./cli-surface.md)               |
-| Recursion guard, marker    | The marker variable stops re-entry                                                | [Process runtime](./process-runtime.md)       |
-| Recursion guard, self-path | The canonical self-check stops re-entry                                           | [Process runtime](./process-runtime.md)       |
-| Environment isolation      | The stub sees the injected config directory and no internal variables             | [Process runtime](./process-runtime.md)       |
-| Symlink rejection          | A session path that is a symlink is refused                                       | [XDG storage](./xdg-storage.md)               |
-| Mode enforcement           | An over-permissive directory is corrected or refused                              | [XDG storage](./xdg-storage.md)               |
-| Unknown configuration key  | A typo is rejected, naming the key and file                                       | [Configuration](./configuration.md)           |
-| Merge determinism          | The same pieces produce byte-identical output                                     | [Configuration](./configuration.md)           |
-| Freshness on piece change  | Editing a piece without the profile triggers regeneration                         | [Configuration](./configuration.md)           |
-| Example round-trip         | Every generated example parses through the real loader                            | [Configuration](./configuration.md)           |
-| Undocumented field         | A public config field without a description fails generation                      | [Configuration](./configuration.md)           |
-| Check-id coverage          | Every catalog id maps to an `err.kind` that exists                                | [Logging and output](./logging-and-output.md) |
-| Help snapshot              | Generated help does not change unnoticed                                          | [CLI surface](./cli-surface.md)               |
-| Denylist membership        | The spellings the pre-split claims are exactly the documented table               | [CLI surface](./cli-surface.md)               |
-| Spelling matrix            | Exact matching: no abbreviation, no bundling, no case folding, both value forms   | [CLI surface](./cli-surface.md)               |
-| Leading-position scope     | A claimed flag after any other token reaches the child                            | [CLI surface](./cli-surface.md)               |
-| Malformed wrapper flag     | A claimed flag missing its value exits `Usage`; a near-miss forwards              | [CLI surface](./cli-surface.md)               |
-| Collision audit            | The claimed set meets the child's inventory only where documented                 | [CLI surface](./cli-surface.md)               |
-| Child version floor        | A `login`-mode launch below the floor fails before spawn; `token` mode does not   | [Process runtime](./process-runtime.md)       |
-| Confirmation predicate     | A piped invocation with a controlling terminal still prompts                      | [CLI surface](./cli-surface.md)               |
-| Confirmation escape        | With no controlling terminal, `--yes` removes and its absence exits `Unavailable` | [CLI surface](./cli-surface.md)               |
+| Test                      | Locks                                                                             | Owning document                               |
+| ------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------- |
+| Golden argv table         | Byte- and order-preserving passthrough, including empty and non-UTF-8 arguments   | [CLI surface](./cli-surface.md)               |
+| Exit-code matrix          | Every error variant maps to its documented code, no catch-all                     | [Exit codes](./exit-codes.md)                 |
+| Child exit fidelity       | A stub exiting with N produces N                                                  | [Exit codes](./exit-codes.md)                 |
+| Child signal fidelity     | A signal-killed stub produces signal death, or the documented fallback            | [Exit codes](./exit-codes.md)                 |
+| `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                         | [CLI surface](./cli-surface.md)               |
+| Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session        | [Process runtime](./process-runtime.md)       |
+| Recursion guard, identity | A **hard-linked** wrapper is caught, which path equality would miss               | [Process runtime](./process-runtime.md)       |
+| Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`   | [Process runtime](./process-runtime.md)       |
+| `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126       | [Process runtime](./process-runtime.md)       |
+| Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`               | [Process runtime](./process-runtime.md)       |
+| Environment isolation     | The stub sees the injected config directory and no internal variables             | [Process runtime](./process-runtime.md)       |
+| Symlink rejection         | A session path that is a symlink is refused                                       | [XDG storage](./xdg-storage.md)               |
+| Mode enforcement          | An over-permissive directory is corrected or refused                              | [XDG storage](./xdg-storage.md)               |
+| Unknown configuration key | A typo is rejected, naming the key and file                                       | [Configuration](./configuration.md)           |
+| Merge determinism         | The same pieces produce byte-identical output                                     | [Configuration](./configuration.md)           |
+| Freshness on piece change | Editing a piece without the profile triggers regeneration                         | [Configuration](./configuration.md)           |
+| Example round-trip        | Every generated example parses through the real loader                            | [Configuration](./configuration.md)           |
+| Undocumented field        | A public config field without a description fails generation                      | [Configuration](./configuration.md)           |
+| Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                | [Logging and output](./logging-and-output.md) |
+| Help snapshot             | Generated help does not change unnoticed                                          | [CLI surface](./cli-surface.md)               |
+| Denylist membership       | The spellings the pre-split claims are exactly the documented table               | [CLI surface](./cli-surface.md)               |
+| Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms   | [CLI surface](./cli-surface.md)               |
+| Leading-position scope    | A claimed flag after any other token reaches the child                            | [CLI surface](./cli-surface.md)               |
+| Malformed wrapper flag    | A claimed flag missing its value exits `Usage`; a near-miss forwards              | [CLI surface](./cli-surface.md)               |
+| Collision audit           | The claimed set meets the child's inventory only where documented                 | [CLI surface](./cli-surface.md)               |
+| Child version floor       | A `login`-mode launch below the floor fails before spawn; `token` mode does not   | [Process runtime](./process-runtime.md)       |
+| Confirmation predicate    | A piped invocation with a controlling terminal still prompts                      | [CLI surface](./cli-surface.md)               |
+| Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable` | [CLI surface](./cli-surface.md)               |
 
 The five flag-recognition tests are one obligation split by what each rejects, and together they are the proof of [ADR-0043](../decisions/ADR-0043-match-wrapper-flags-by-exact-leading-spelling.md) and [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md):
 

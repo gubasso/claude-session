@@ -14,27 +14,42 @@ The baseline is an evidence rule, not a launch gate. The only version check that
 
 ## Child resolution
 
-The child binary is resolved by an explicit ladder, highest priority first. The first candidate that exists wins — a candidate that exists but fails validation is an error, not a reason to try the next rung. Falling through on a validation failure would silently run a different binary than the user named.
+The child binary is resolved by a ladder of two rungs, highest priority first. **A rung whose source is present is terminal**: the wrapper validates what that source named and reports the failure, rather than trying the next rung. Falling through on a broken rung would silently run a different binary than the user named ([ADR-0054](../decisions/ADR-0054-resolve-the-child-by-a-terminal-ladder.md)).
 
-| Priority | Source                                          | Notes                                                                 |
-| -------- | ----------------------------------------------- | --------------------------------------------------------------------- |
-| 1        | `CLAUDE_SESSION_CHILD_BIN` environment variable | Absolute path. The escape hatch for testing and for unusual installs. |
-| 2        | The `child_bin` configuration key               | Absolute path. See [configuration](./configuration.md).               |
-| 3        | Search of `PATH` for `claude`                   | The normal case.                                                      |
-| 4        | A bundled or vendored path                      | Only if the distribution ships one.                                   |
+| Priority | Source                            | Consulted when                                                |
+| -------- | --------------------------------- | ------------------------------------------------------------- |
+| 1        | The `child_bin` configuration key | It is set at any layer, `CLAUDE_SESSION_CHILD_BIN` among them |
+| 2        | Search of `PATH` for `claude`     | `child_bin` is unset, which is its default. The normal case.  |
 
-Each candidate is validated in order:
+`child_bin` is one key, not two rungs. Its layering — environment above project file above user file — belongs to [configuration](./configuration.md#precedence), and an empty environment value is set-to-empty rather than unset, so it reaches validation as a non-absolute path.
+
+Each resolved candidate is validated in order:
 
 | Check                                           | Failure              |
 | ----------------------------------------------- | -------------------- |
+| A `child_bin` value is an absolute path         | `Config`             |
 | The path exists                                 | `ChildNotFound`      |
 | The path is a regular file or a symlink to one  | `ChildNotFound`      |
 | The path is executable by the current user      | `ChildNotExecutable` |
 | The path does not resolve to the wrapper itself | `ChildRecursion`     |
 
+A relative `child_bin` is `Config` (78), not `ChildNotFound`: nothing failed to resolve, the setting is wrong. It is not resolved against the working directory, which Rust's own `Command` documentation calls platform-specific and unstable.
+
+Executability is `access(X_OK)`. That check is **advisory** — it produces a good diagnostic early and does not guarantee the spawn succeeds; see [spawn and wait](#spawn-and-wait).
+
 The distinction between not-found and not-executable is preserved all the way to the exit code, because the two have completely different fixes.
 
 **The resolved path is logged on every invocation**, passthrough included, at `info` under `op = resolve_child`, with the absolute path and the rung that produced it. Path resolution is the most common source of surprise in a wrapper installed under several names, and "which binary did it actually run" is the first question of every such report. This costs the child nothing: it is a log record, and the log file's level is independent of the stderr mirror's ([logging and output](./logging-and-output.md)), so the line is present at default verbosity without a byte reaching the terminal.
+
+### Searching `PATH`
+
+The inherited `PATH` is searched left to right for the fixed name `claude`, unmodified — the wrapper does not prune its own directory from it, because a wrapper ahead of its child on `PATH` is a misconfiguration to report as `ChildRecursion`, not to route around.
+
+**Zero-length entries are dropped.** POSIX calls the zero-length prefix a legacy feature meaning the current working directory, and a bare `::` in `PATH` would mean "run `./claude` from wherever the user happens to be standing" — the wrong thing for a process about to be handed credentials. The `which` crate emulates `which(1)` and does not filter them on Unix, so the wrapper filters them itself.
+
+A candidate rejected for execute permission does not stop the search; it is remembered. If no later entry yields an executable, that memory decides the failure: `ChildNotExecutable` if any candidate was rejected for permission, `ChildNotFound` otherwise. An unset `PATH` is `ChildNotFound`, with no invented default path.
+
+**The absolute resolved path is what gets spawned**, never the bare name, so the spawn performs no second search of its own and its `errno` names one file.
 
 ## Recursion guard
 
@@ -42,9 +57,11 @@ A wrapper installed under the same name as its child, or earlier on `PATH`, will
 
 **The marker variable.** `CLAUDE_SESSION_REENTRY=1` is set in every child's environment. A wrapper that starts with the marker already set is running as somebody's child; it refuses to resolve a child of its own and fails with `ChildRecursion`.
 
-**The canonical self-check.** The resolved child path is canonicalized — symbolic links followed, `.` and `..` collapsed — and compared against the canonicalized path of the wrapper's own executable. A match is `ChildRecursion`.
+**The identity self-check.** The wrapper's own executable comes from `std::env::current_exe`, which on this target reads `/proc/self/exe`. Both it and the resolved child path are `stat`ed, and **equal device and inode is `ChildRecursion`** — not equal canonical path strings, which would miss a hard link, since two names for one inode canonicalize to two different paths ([ADR-0055](../decisions/ADR-0055-compare-executable-identity-by-device-and-inode.md)).
 
-Neither guard is sufficient alone. The marker is defeated by an environment scrubbed between the two invocations; the self-check is defeated by a _copy_ of the wrapper rather than a link to it. Together they cover both.
+Neither guard is sufficient alone. The marker is defeated by an environment scrubbed between the two invocations; the identity check is defeated by a byte-for-byte _copy_ of the wrapper, or by the binary being replaced on disk mid-run. Together they cover both.
+
+**A `claude-session` run from inside a Claude Code session refuses to start.** The marker reaches the child, and anything the child launches inherits it, so a nested wrapper sees the marker and exits `ChildRecursion` before resolving anything. That is the guard working as specified rather than an edge case to repair: the nested wrapper genuinely cannot tell that invocation apart from the self-invocation loop the marker exists to break.
 
 The marker is the one internal variable deliberately left in the child's environment. Every other `CLAUDE_SESSION_*` variable is scrubbed.
 
@@ -137,7 +154,16 @@ Step 7 before step 8 matters: a signal arriving during post-flight has no child 
 
 The wrapper waits for the specific child it spawned. It does not reap arbitrary children, and it does not install a handler for child-termination signals — there is one child, and its status is collected by waiting.
 
-**Step 8 failing is not the same as the child failing.** A spawn that never produced a process — the process table is full, memory is exhausted, a pipe could not be created — exits `OsError` (71), because the wrapper is still on its own side of [the boundary](./exit-codes.md#two-regimes). It is distinct from `ChildNotFound` and `ChildNotExecutable`, which are decided at step 1 against a named path, and from `Internal` (70), which means the wrapper has a bug. Here the machine refused and the wrapper is working correctly.
+**Step 8 failing is not the same as the child failing.** A spawn that never produced a process leaves the wrapper on its own side of [the boundary](./exit-codes.md#two-regimes), so it exits with a wrapper code — never the child's, since there is no child. Which code depends on what refused, because step 1's checks are advisory and the child can be deleted or `chmod -x`'d in between ([ADR-0056](../decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md)):
+
+| Spawn failure                      | `err.kind`           | Code |
+| ---------------------------------- | -------------------- | ---- |
+| `ErrorKind::NotFound` (`ENOENT`)   | `ChildNotFound`      | 127  |
+| `ErrorKind::PermissionDenied`      | `ChildNotExecutable` | 126  |
+| `raw_os_error() == ENOEXEC`        | `ChildNotExecutable` | 126  |
+| Anything else — `ENOMEM`, `EMFILE` | `OsError`            | 71   |
+
+`ENOEXEC` is read through `raw_os_error` because Rust's `io::ErrorKind` has no variant for it; its meaning — found, exec bit set, unloadable — is exactly what 126 names. `OsError` keeps the scope it claims: the machine refused and the wrapper is working correctly. `Internal` (70) still means the wrapper has a bug.
 
 ## Post-flight
 

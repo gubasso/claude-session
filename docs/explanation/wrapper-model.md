@@ -85,9 +85,9 @@ The stop-and-continue signals need one further note. When the child is stopped a
 
 The wrapper must locate the real `claude` binary explicitly. Relying on a bare path search is how a wrapper installed under the same name as its child ends up invoking itself, forking until something runs out.
 
-Resolution is an explicit ladder — an environment override, then configuration, then a path search, then a bundled fallback — and it is checked at each step for existence and executability, with distinct failures for "not found" and "found but not executable". The ladder is spelled out in [the process runtime](../reference/process-runtime.md).
+Resolution is an explicit ladder — a configured override, then a path search — and whichever rung answers is the one that decides, including when what it named is broken. Existence and executability are checked, with distinct failures for "not found" and "found but not executable". The ladder is spelled out in [the process runtime](../reference/process-runtime.md).
 
-Two independent guards prevent self-invocation. A marker variable is set in the child's environment, so a wrapper that finds itself as the child sees the marker and refuses. And the resolved path is canonicalized and compared against the wrapper's own executable, which catches the symlink case the marker cannot. Both, because either alone has a hole: the marker is defeated by a scrubbed environment, and the path check is defeated by a copy rather than a link.
+Two independent guards prevent self-invocation. A marker variable is set in the child's environment, so a wrapper that finds itself as the child sees the marker and refuses. And the resolved child is compared against the wrapper's own executable by file identity, which catches the link case the marker cannot. Both, because either alone has a hole: the marker is defeated by a scrubbed environment, and the identity check is defeated by a copy rather than a link.
 
 ## Account selection and group settings
 

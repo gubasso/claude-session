@@ -50,7 +50,7 @@ Some contracts in this project are load-bearing enough that they are specified t
 
 **The `--` sentinel.** A wrapper flag spelled after `--` reaches the child as an argument and is not interpreted. This is one test and it prevents a whole class of surprising behaviour.
 
-**The recursion guard.** With the wrapper itself resolvable as the child, the wrapper refuses rather than recursing. Worth testing both guard paths — the marker variable and the canonical self-check — since either alone has a hole.
+**The recursion guard.** With the wrapper itself resolvable as the child, the wrapper refuses rather than recursing. Worth testing both guard paths — the marker variable and the file-identity self-check — since either alone has a hole.
 
 **Isolation.** The stub child observes the injected configuration directory, and observes that the wrapper's internal variables have been scrubbed from its environment.
 
