@@ -6,43 +6,44 @@ This describes normative design. The crate is pre-implementation.
 
 ## Base directories
 
-| Symbol  | Variable          | Default when unset or empty | Holds                                                                                |
-| ------- | ----------------- | --------------------------- | ------------------------------------------------------------------------------------ |
-| Config  | `XDG_CONFIG_HOME` | `$HOME/.config`             | User-authored configuration. Read-only at runtime.                                   |
-| State   | `XDG_STATE_HOME`  | `$HOME/.local/state`        | Durable program-written state that survives reboot and is not trivially recreatable. |
-| Data    | `XDG_DATA_HOME`   | `$HOME/.local/share`        | Durable program-written data portable between machines.                              |
-| Cache   | `XDG_CACHE_HOME`  | `$HOME/.cache`              | Anything safe to delete at any moment.                                               |
-| Runtime | `XDG_RUNTIME_DIR` | **No portable default**     | Ephemeral locks, sockets, and process identifiers.                                   |
+| Symbol | Variable          | Default when unset or empty | Holds                                                                                |
+| ------ | ----------------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| Config | `XDG_CONFIG_HOME` | `$HOME/.config`             | User-authored configuration. Read-only at runtime.                                   |
+| State  | `XDG_STATE_HOME`  | `$HOME/.local/state`        | Durable program-written state that survives reboot and is not trivially recreatable. |
+| Data   | `XDG_DATA_HOME`   | `$HOME/.local/share`        | Durable program-written data portable between machines.                              |
+| Cache  | `XDG_CACHE_HOME`  | `$HOME/.cache`              | Anything safe to delete at any moment.                                               |
 
 Every path is namespaced under `claude-session` inside its base.
 
-A relative XDG value is invalid and treated as unset, with a debug diagnostic. Runtime has no fallback: if absent, runtime-dependent behavior is reported unavailable. It never falls back to State or a shared temporary directory.
+A relative XDG value is invalid and treated as unset, with a debug diagnostic.
+
+`XDG_RUNTIME_DIR` is not used. A lock lives beside the file it guards, so it is reachable wherever that file is ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)), and the one base with no portable default is also the one base with nothing to put in it. Durable state never falls back to it or to a shared temporary directory.
 
 ## Artifact table
 
 Every artifact has one writer.
 
-| Artifact                 | Base    | Path within base                                                 | Writer                                               | Mode                           | Lifetime                              |
-| ------------------------ | ------- | ---------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------------------------------- |
-| Wrapper configuration    | Config  | `config.toml`                                                    | User                                                 | `0644`                         | Until changed                         |
-| Settings pieces          | Config  | `settings/<piece>.json`                                          | User                                                 | `0644`                         | Until changed                         |
-| Profiles                 | Config  | `profiles/<profile>.yaml`                                        | User                                                 | `0644`                         | Until changed                         |
-| Account directory        | State   | `accounts/<account>/`                                            | Account subsystem                                    | `0700`                         | Until account removal                 |
-| Auth-mode metadata       | State   | `accounts/<account>/auth-mode.json`                              | Account subsystem                                    | `0600`                         | Until mode replacement                |
-| Local OAuth token        | State   | `accounts/<account>/oauth-token`                                 | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
-| Native account config    | State   | `accounts/<account>/config/`                                     | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
-| Native saved login       | State   | `accounts/<account>/config/.credentials.json` on Linux/Windows   | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |
-| Group directory          | State   | `accounts/<account>/groups/<group>/`                             | Session subsystem                                    | `0700`                         | Until stale pruning                   |
-| Generated settings       | State   | `accounts/<account>/groups/<group>/settings.json`                | Composition subsystem                                | `0600`                         | Regenerated when stale                |
-| Composition provenance   | State   | `accounts/<account>/groups/<group>/.claude-session-compose.json` | Composition subsystem                                | `0600`                         | With generated settings               |
-| Session metadata         | State   | `accounts/<account>/groups/<group>/session-meta.json`            | Session subsystem                                    | `0600`                         | Group lifetime                        |
-| Last-used account marker | State   | `state/last-account`                                             | Account subsystem                                    | `0600`                         | Until selection changes               |
-| Log file                 | State   | `claude-session.log`                                             | Logging subsystem                                    | `0600`                         | Rotated                               |
-| Sync locks               | Runtime | `locks/<name>.lock`                                              | Lock holder                                          | `0600`                         | Process lifetime                      |
+| Artifact                 | Base   | Path within base                                                 | Writer                                               | Mode                           | Lifetime                              |
+| ------------------------ | ------ | ---------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------------------------------- |
+| Wrapper configuration    | Config | `config.toml`                                                    | User                                                 | `0644`                         | Until changed                         |
+| Settings pieces          | Config | `settings/<piece>.json`                                          | User                                                 | `0644`                         | Until changed                         |
+| Profiles                 | Config | `profiles/<profile>.yaml`                                        | User                                                 | `0644`                         | Until changed                         |
+| Account directory        | State  | `accounts/<account>/`                                            | Account subsystem                                    | `0700`                         | Until account removal                 |
+| Auth-mode metadata       | State  | `accounts/<account>/auth-mode.json`                              | Account subsystem                                    | `0600`                         | Until mode replacement                |
+| Local OAuth token        | State  | `accounts/<account>/oauth-token`                                 | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
+| Native account config    | State  | `accounts/<account>/config/`                                     | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
+| Native saved login       | State  | `accounts/<account>/config/.credentials.json` on Linux/Windows   | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |
+| Group directory          | State  | `accounts/<account>/groups/<group>/`                             | Session subsystem                                    | `0700`                         | Until stale pruning                   |
+| Generated settings       | State  | `accounts/<account>/groups/<group>/settings.json`                | Composition subsystem                                | `0600`                         | Regenerated when stale                |
+| Composition provenance   | State  | `accounts/<account>/groups/<group>/.claude-session-compose.json` | Composition subsystem                                | `0600`                         | With generated settings               |
+| Session metadata         | State  | `accounts/<account>/groups/<group>/session-meta.json`            | Session subsystem                                    | `0600`                         | Group lifetime                        |
+| Last-used account marker | State  | `state/last-account`                                             | Account subsystem                                    | `0600`                         | Until selection changes               |
+| Write lock               | State  | `.<scope>.lock` beside the files it guards                       | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
+| Log file                 | State  | `claude-session.log`                                             | Logging subsystem                                    | `0600`                         | Rotated                               |
 
 The child may create other files and directories below `config/`; it owns their names, contents, modes, and lifecycle. On macOS, the child stores ordinary login material in Keychain rather than the relocated credential path; see [accounts](./accounts.md#platform-boundary).
 
-Credentials are state, not data or cache: they are durable, machine-specific, and unsafe to lose silently. Generated settings are state because removing them during a run changes child behavior. Locks are runtime because persistence across reboot makes them stale.
+Credentials are state, not data or cache: they are durable, machine-specific, and unsafe to lose silently. Generated settings are state because removing them during a run changes child behavior.
 
 ## Group identifiers
 
@@ -73,22 +74,74 @@ The wrapper validates the child-owned `.credentials.json` path before relying on
 
 ## Atomic writes
 
-Wrapper-owned files whose partial content would be misread use a temporary file in the same directory, flush, mode-setting, then atomic rename. This covers:
+Two hazards, two mechanisms, and neither substitutes for the other ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)):
 
-- `auth-mode.json` and `oauth-token`;
-- generated settings and composition provenance;
-- session metadata;
-- the last-used marker.
+| Hazard      | Symptom                                   | Mechanism     |
+| ----------- | ----------------------------------------- | ------------- |
+| Torn read   | A reader parses half-old, half-new bytes  | Atomic rename |
+| Lost update | A complete but wrong file survives a race | Advisory lock |
 
-The child-owned `.credentials.json` is explicitly excluded.
+**Every** wrapper-owned file whose partial content would be misread is written by atomic rename: `auth-mode.json` and `oauth-token`, generated settings and composition provenance, session metadata, and the last-used marker. The child-owned `.credentials.json` is excluded.
 
-## Cleanup
+### The sequence
+
+| Step | Operation                                  | Why this step exists                                                                          |
+| ---- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| 1    | Acquire the in-process mutex for the scope | A lock is per open file description, so it cannot exclude a second thread of the same process |
+| 2    | Open `.<scope>.lock`, creating if absent   | The sentinel is a lock handle, not a claim                                                    |
+| 3    | Take the exclusive lock                    | Excludes other processes until this one exits or releases                                     |
+| 4    | Write `.<final-name>.<pid>.tmp`            | Same directory, so the rename stays within one filesystem                                     |
+| 5    | `fsync` the temporary                      | The bytes are on the disk                                                                     |
+| 6    | Set the mode on the temporary              | The final name is never briefly world-readable                                                |
+| 7    | Rename onto the final name                 | The swap a reader can never observe half of                                                   |
+| 8    | `fsync` the directory                      | The **name change** is on the disk; step 5 alone does not survive power loss                  |
+| 9    | Release                                    | Or exit, which releases it just as completely                                                 |
+
+Steps 5 and 8 are the two points at which the wrapper promises the bytes have reached the disk, and they promise different things: without step 8 a crash can resurrect the old file, or leave a zero-length one at the final name.
+
+The temporary is created with `O_CREAT | O_EXCL`. Its name makes an abandoned one recognizable to [the sweep](#cleanup-and-recovery), and two processes cannot share a process id, so an existing file of that name is an orphan by construction and is removed and recreated once.
+
+### Lock scopes
+
+A lock exists only where a write is **not** a function of the files it reads, or where two files carry one invariant:
+
+| Scope                                  | Guards                                             | Because                                                                        |
+| -------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `accounts/<account>/.credentials.lock` | `oauth-token` and `auth-mode.json`                 | Each login mints a new secret, so a reordered rename can persist a revoked one |
+| `.../groups/<group>/.settings.lock`    | `settings.json` and `.claude-session-compose.json` | Provenance claiming freshness over stale settings is a state nothing corrects  |
+
+Session metadata and the last-used marker take no lock. Both are recomputed from their inputs, or are a selection where the most recent write is the right answer.
+
+**The lock file is never deleted.** Unlinking it lets one holder destroy the file another is about to lock. A permanent empty file is the design, and because it carries no claim, a kill leaves nothing for the next run to break.
+
+Acquisition blocks, up to a deadline; past it the run exits [`TempFail`](./exit-codes.md#wrapper-matrix).
+
+### What this does not promise
+
+Two `account login` runs against one account still end with one token on disk. The lock decides **which** — the last issued rather than an arbitrary one — and stock `claude` has the same race in its own credential store, so this is not a failure mode the wrapper adds ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)).
+
+## Cleanup and recovery
+
+**A normal exit removes nothing.** Every artifact in the table outlives the run that wrote it by design: configuration is the user's, the account and group trees are the point of the program, and the log is rotated rather than deleted. The one file a run creates without intending to keep is an atomic-write temporary, and that is consumed by its own rename rather than by a cleanup step. [Post-flight](./process-runtime.md#post-flight) therefore deletes nothing, and that is the contract rather than an omission.
+
+**A kill leaves exactly two things**, and neither can fail the next run ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)):
+
+| Left behind                           | Why it is harmless                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| An orphaned `.<final-name>.<pid>.tmp` | The final path still holds the previous complete file, since the rename either happened or did not |
+| The unflushed tail of the log         | The log is a diagnostic record, and no wrapper behaviour reads it back                             |
+
+A held lock is not on that list. The kernel drops it when the holder's descriptors close, which happens on every death including `SIGKILL`, so a lock is never inherited by the next run as a refusal.
+
+There is no half-written durable state to repair. A reader sees the old complete file or the new one, never a partial one, which is the property the atomic rename is there to buy.
+
+**The sweep** removes an orphaned temporary from any wrapper-managed directory the invocation already walks for [its security checks](#filesystem-security). A temporary whose embedded process id belongs to a live process is left alone, so a concurrent writer's rename can never be broken by a sweep; the cost is that a temporary from a previous boot whose id has since been reused lingers, which nothing depends on. Lock files are never swept.
 
 Stale-group pruning is conservative:
 
 - only directories below `groups/` are candidates;
 - symbolic links are never followed;
-- a possibly active group is retained;
+- a possibly active group is retained, decided by age;
 - pruning is opt-in and reported;
 - account-wide `config/`, mode metadata, and token storage are never pruned.
 

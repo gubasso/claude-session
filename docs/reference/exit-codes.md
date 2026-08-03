@@ -31,7 +31,7 @@ Every variant of the error type maps to exactly one code. There is **no catch-al
 | `Internal`           | 70   | `EX_SOFTWARE`    | An invariant the program controls was violated. A bug.                                                            |
 | `OsError`            | 71   | `EX_OSERR`       | The operating system refused an operation the wrapper is entitled to — `fork` failed, a pipe could not be created |
 | `Io`                 | 74   | `EX_IOERR`       | An I/O operation failed for a reason not covered more specifically                                                |
-| `TempFail`           | 75   | `EX_TEMPFAIL`    | A condition a retry is expected to clear — a runtime lock held by a concurrent `claude-session`                   |
+| `LockBusy`           | 75   | `EX_TEMPFAIL`    | A write lock was still held by another run when the acquisition deadline expired                                  |
 | `Auth`               | 77   | `EX_NOPERM`      | Credentials are missing, expired, or refused                                                                      |
 | `Permission`         | 77   | `EX_NOPERM`      | A filesystem ownership or mode check failed                                                                       |
 | `Config`             | 78   | `EX_CONFIG`      | Configuration is malformed, contains an unknown key, or is internally inconsistent                                |
@@ -45,7 +45,7 @@ Codes 126 and 127 are shell conventions rather than `sysexits` values, and they 
 
 `Auth` and `Permission` share code 77. They are separate `err.kind` values because their fixes differ — re-authenticate versus repair a file mode — and the kind string is what a script should match on. The line between them is the **subject**, not the severity: `Auth` is about a credential's validity, `Permission` about a path's ownership or mode. A credential file with the wrong owner is `Permission`, because the credential may be perfectly valid and the fix is `chmod`.
 
-`TempFail` is the only code that tells a caller to **try again**. Every other failure is a standing condition a retry reproduces, which is why a lock held by a concurrent run must not report as `Unavailable` — that code says the facility is missing, and the facility is present and busy.
+**`LockBusy` is the one code that tells a caller to try again.** Every other failure in the matrix is a standing condition a retry reproduces. It fires only where the wrapper genuinely contends — the [write locks](./xdg-storage.md#lock-scopes) guarding a minted credential or a two-file invariant ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)) — and never on a lock left behind by a killed run, because the kernel releases those.
 
 `OsError` and `Internal` are both "the wrapper's fault" from a distance and must not be merged. `Internal` is a bug and belongs in an issue report; `OsError` means the machine refused — a process-table limit, memory pressure — and the wrapper is working correctly. `sysexits` draws exactly this line, reserving 70 for "non-operating system related errors as possible". A wrapper whose one job is `fork` and `exec` needs the distinction more than most programs do.
 

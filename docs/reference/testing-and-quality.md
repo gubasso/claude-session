@@ -92,6 +92,11 @@ Each of these locks down a contract that is otherwise decorative:
 | Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                 | [Process runtime](./process-runtime.md)       |
 | Symlink rejection         | A session path that is a symlink is refused                                                        | [XDG storage](./xdg-storage.md)               |
 | Mode enforcement          | An over-permissive directory is corrected or refused                                               | [XDG storage](./xdg-storage.md)               |
+| Interrupted write         | An abandoned temporary leaves the previous complete file readable at the final path                | [XDG storage](./xdg-storage.md)               |
+| Sweep safety              | An orphaned temporary is removed, and one whose process id is live is kept                         | [XDG storage](./xdg-storage.md)               |
+| Cross-process exclusion   | A second writer of a locked scope waits, then exits `LockBusy` at its deadline                     | [XDG storage](./xdg-storage.md)               |
+| In-process exclusion      | Two threads writing one scope serialize, which the file lock alone would not achieve               | [XDG storage](./xdg-storage.md)               |
+| Lock release on death     | A holder killed by `SIGKILL` leaves the next acquisition uncontended                               | [XDG storage](./xdg-storage.md)               |
 | Unknown configuration key | A typo is rejected, naming the key and file                                                        | [Configuration](./configuration.md)           |
 | Merge determinism         | The same pieces produce byte-identical output                                                      | [Configuration](./configuration.md)           |
 | Freshness on piece change | Editing a piece without the profile triggers regeneration                                          | [Configuration](./configuration.md)           |

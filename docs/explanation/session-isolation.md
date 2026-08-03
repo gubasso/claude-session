@@ -42,10 +42,9 @@ Support for that scenario may namespace the group with one neutral host or conta
 Account config and group artifacts are durable program-written state that may survive reboot. They are not:
 
 - user-authored Configuration;
-- safely disposable Cache;
-- ephemeral Runtime coordination.
+- safely disposable Cache.
 
-Runtime remains the home for locks and similar coordination. It has no portable fallback and may be absent in containers, cron, or remote logins. The wrapper reports that degradation and never relocates durable state to Runtime or a shared temporary directory.
+The Runtime base is unused: the wrapper opens no socket, and its [write locks](../reference/xdg-storage.md#lock-scopes) live beside the files they guard rather than in a separate tree ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)). Durable state is never relocated to it or to a shared temporary directory.
 
 ## One writer per artifact
 

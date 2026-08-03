@@ -64,7 +64,7 @@ Replacing the wrapper's own process image with the child's is the cheapest way t
 
 The current reasons are child supervision and post-flight last-used/log finalization. The original credential and trust-state sync-back rationale is historical; amended [ADR-0004](../decisions/ADR-0004-spawn-and-wait-child-supervision.md) and [process runtime](../reference/process-runtime.md) own the current obligations. Choosing to stay alive means owning signal forwarding, terminal semantics, and exit-status fidelity by hand.
 
-The wrapper's obligation, having made that choice, is to be **behaviourally indistinguishable** from `exec` in everything the user can observe: the same exit status, the same terminal behaviour, the same response to Ctrl-C.
+The wrapper's obligation, having made that choice, is to be **behaviourally indistinguishable** from `exec` in everything the user can observe: the same exit status, the same terminal behaviour, the same response to Ctrl-C. [ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md) generalizes that obligation past argv and exit status, and names the two classes of divergence a wrapper feature may buy.
 
 ## Signals and the double-delivery trap
 

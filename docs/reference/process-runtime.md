@@ -175,6 +175,8 @@ Post-flight work runs after the child exits and before the wrapper does:
 
 Post-flight failures are **reported but do not change the exit code** of a passthrough invocation. The child's status is the user's answer to “did my command work”; a marker or log-finalization failure is reported on standard error.
 
+Post-flight deletes nothing, and a wrapper killed before it runs leaves nothing that can fail the next run. What survives a kill, and which run removes it, is in [XDG storage](./xdg-storage.md#cleanup-and-recovery).
+
 ## Child version floor
 
 Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor **fails before spawn**, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
