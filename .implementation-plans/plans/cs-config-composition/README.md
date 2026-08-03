@@ -4,17 +4,17 @@
 
 ## Problem Statement
 
-`claude-session` is the configuration source of truth; the user never edits the child's files directly. Users author **partial JSON settings pieces** and an ordered **YAML profile**, and `claude-session` generates the final settings document the child is handed for that group. The model is base-and-overlay composition, reimplemented in Rust over `serde_json` and extended with **per-key provenance**, **configurable per-key array strategies**, and pragmatic validation. It is specified in `docs/reference/configuration.md` and recorded in `docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md`. Depends on `cs-foundation` (config, error, ui) and `cs-isolation` (the session dir the generated file lands in); runs in parallel with `cs-wrapper-runtime` and `cs-accounts-auth`.
+`claude-session` is the configuration source of truth; the user never edits the child's files directly. Users author **partial JSON settings pieces** and an ordered **YAML profile**, and `claude-session` generates the final settings document the child is handed for that profile. The model is base-and-overlay composition, reimplemented in Rust over `serde_json` and extended with **per-key provenance**, **configurable per-key array strategies**, and pragmatic validation. It is specified in `docs/reference/configuration.md` and recorded in `docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md`. Depends on `cs-foundation` (config, error, ui) and `cs-isolation` (the entry key and store the generated file lands in); runs in parallel with `cs-wrapper-runtime` and `cs-accounts-auth`.
 
 ## Strategy
 
-Four rounds. R1 builds the XDG config layout and the profile/piece models with loader validation. R2 builds the `serde_json::Value` deep-merge engine (per-key strategies + provenance). R3 generates the native `settings.json` atomically into the resolved group directory, with validation, freshness, and a provenance sidecar. R4 exposes the `config`/`profile` verbs.
+Four rounds. R1 builds the XDG config layout and the profile/piece models with loader validation. R2 builds the `serde_json::Value` deep-merge engine (per-key strategies + provenance). R3 writes the native `settings.json` atomically into the composed-settings store under its input-digest name, with validation and a provenance sidecar. R4 exposes the `config`/`profile` verbs.
 
 ## Rounds
 
 1. `config-layout-and-models.md` — XDG config tree, profile/piece models, loader validation.
 2. `merge-engine.md` — serde_json deep merge, per-key strategies, per-key provenance.
-3. `generate-settings.md` — atomic native settings.json output, validation, freshness, provenance sidecar.
+3. `generate-settings.md` — atomic native settings.json output at its input-digest name, validation, provenance sidecar.
 4. `config-commands.md` — the `config` and `profile` verbs listed in `docs/reference/configuration.md`.
 
 ## Execution Commands
@@ -40,8 +40,8 @@ This plan adds no exceptions to it.
 - **Executor provenance:** `prex (EF 1.5)` — the profile these rounds were generated with. Provenance only; see [the contract](../../README.md#the-executor-contract).
 - **JSON pieces + YAML profile → generated native `settings.json`.** Source pieces are partial `settings.json` JSON files; a profile is one YAML file declaring an ordered `layers: [...]` list (last-wins). NOT TOML source.
 - **Profile schema**: one YAML file whose sole required field is an ordered, non-empty `layers` list. Unknown fields rejected, empty list rejected. Specified in `docs/reference/configuration.md`.
-- **Merge rules**: a recursive `serde_json::Value` merge — objects by key, scalars last-wins, arrays **replace by default** with `concat` and `merge-by-key` opt-in **per key**. The merge is deterministic (identical inputs, byte-identical output) or freshness and diffs are both useless. Record **per-key provenance**. Specified in `docs/reference/configuration.md`.
-- **Atomic output** (tempfile → rename) into the resolved account/session dir; **freshness** check must inspect every referenced piece's mtime (not just the profile); a provenance sidecar (`.claude-session-compose.json`).
+- **Merge rules**: a recursive `serde_json::Value` merge — objects by key, scalars last-wins, arrays **replace by default** with `concat` and `merge-by-key` opt-in **per key**. The merge is deterministic (identical inputs, byte-identical output) — it is what lets an entry be named by its inputs at all. Record **per-key provenance**. Specified in `docs/reference/configuration.md`.
+- **Atomic output** (tempfile → rename) into the composed-settings store at `composed/profile-<name>-<digest>.json`; **existence** of that path is the whole freshness answer, since the digest covers the profile and every piece by content; a provenance sidecar `<entry>.compose.json`.
 - User-authored profiles and pieces live under the **config base**, whose resolution and defaults are owned by `docs/reference/xdg-storage.md`; never a hard-coded home-relative path. They are dotfile-manageable, and native `claude` config stays blind to the user.
 
 ## Rejected Alternatives
@@ -54,7 +54,7 @@ This plan adds no exceptions to it.
 
 - Conflicting array-merge intent across keys: default to `replace` (safe last-wins), make concat/merge-by-key opt-in per key; document the default.
 - A piece with an unknown/typo'd key: surface it with provenance (which file), aligned with `deny_unknown_fields` philosophy, but allow unknown _native_ settings keys unless a maintained schema exists (native settings schema evolves).
-- Stale generated `settings.json` when a piece changes but the profile mtime does not: check every referenced piece's mtime/hash, not just the profile's.
+- Stale generated `settings.json` when a piece changes but the profile does not: unrepresentable, because a changed piece changes the entry name. Do not reintroduce an mtime comparison.
 - A composed value the child lets the user change live at runtime: the generated file is the session's starting point, not a lock. Do not re-assert it mid-session.
 
 ## Completion

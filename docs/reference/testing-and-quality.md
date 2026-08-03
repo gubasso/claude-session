@@ -90,10 +90,13 @@ Each of these locks down a contract that is otherwise decorative:
 | Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`                                | [Process runtime](./process-runtime.md)       |
 | Environment isolation     | The stub sees the injected config directory and **exactly one** `CLAUDE_SESSION_*` key, the marker | [Process runtime](./process-runtime.md)       |
 | Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                 | [Process runtime](./process-runtime.md)       |
-| Group derivation source   | With a pipe on stdin and a controlling terminal present, the group derives from the terminal       | [XDG storage](./xdg-storage.md)               |
-| Group derivation fallback | With no controlling terminal, the group derives from the session leader and warns only below that  | [XDG storage](./xdg-storage.md)               |
-| Group claim conflict      | A group whose recorded fingerprint is another session's is never opened, and the run gets its own  | [XDG storage](./xdg-storage.md)               |
-| Symlink rejection         | A session path that is a symlink is refused                                                        | [XDG storage](./xdg-storage.md)               |
+| Profile isolation         | Two profiles launched from one terminal and one account get different entry paths and bytes        | [XDG storage](./xdg-storage.md)               |
+| Entry key determinism     | Changing a piece's content, resolved path, order, or the strategy table names a different entry    | [XDG storage](./xdg-storage.md)               |
+| Terminal independence     | Identical inputs under different terminal state and different accounts name the same entry         | [XDG storage](./xdg-storage.md)               |
+| Entry immutability        | An existing entry is never rewritten, and a run that finds a matching one composes nothing         | [XDG storage](./xdg-storage.md)               |
+| Sidecar mismatch refusal  | An entry whose recorded digest disagrees with the recomputed one is neither opened nor overwritten | [XDG storage](./xdg-storage.md)               |
+| Partial pair recovery     | With exactly one member present, both are written from this run's inputs, never the survivor kept  | [XDG storage](./xdg-storage.md)               |
+| Symlink rejection         | A wrapper-managed path that is a symlink is refused                                                | [XDG storage](./xdg-storage.md)               |
 | Mode enforcement          | An over-permissive directory is corrected, and the check reports `pass`, not `fail`                | [XDG storage](./xdg-storage.md)               |
 | Unmanaged ancestors       | A `0755` `$HOME` or `.local` is never checked or corrected                                         | [XDG storage](./xdg-storage.md)               |
 | Interrupted write         | An abandoned temporary leaves the previous complete file readable at the final path                | [XDG storage](./xdg-storage.md)               |
@@ -103,7 +106,7 @@ Each of these locks down a contract that is otherwise decorative:
 | Lock release on death     | A holder killed by `SIGKILL` leaves the next acquisition uncontended                               | [XDG storage](./xdg-storage.md)               |
 | Unknown configuration key | A typo is rejected, naming the key and file                                                        | [Configuration](./configuration.md)           |
 | Merge determinism         | The same pieces produce byte-identical output                                                      | [Configuration](./configuration.md)           |
-| Freshness on piece change | Editing a piece without the profile triggers regeneration                                          | [Configuration](./configuration.md)           |
+| Freshness on piece change | Editing a piece without the profile names a new entry and leaves the old one untouched             | [Configuration](./configuration.md)           |
 | Example round-trip        | Every generated example parses through the real loader                                             | [Configuration](./configuration.md)           |
 | Undocumented field        | A public config field without a description fails generation                                       | [Configuration](./configuration.md)           |
 | Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                                 | [Logging and output](./logging-and-output.md) |
@@ -119,13 +122,13 @@ Each of these locks down a contract that is otherwise decorative:
 
 The golden argv table is the proof of [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md), so its legs are named rather than left to judgement:
 
-| Leg                     | Shape                                                                                               |
-| ----------------------- | --------------------------------------------------------------------------------------------------- |
-| `argv[0]`               | The stub's own absolute resolved path, not a bare name and not the wrapper's.                       |
-| Empty argument          | `""` arrives as a real argument, in position, not filtered.                                         |
-| Non-UTF-8 argument      | The bytes `[0x66, 0x80, 0x6f]` — a lone continuation byte, invalid UTF-8, legal in an argument.     |
-| Non-UTF-8 settings path | `XDG_CONFIG_HOME` pointed at a directory with those bytes; the two-token prefix arrives byte-exact. |
-| Around `--`             | A wrapper spelling after the sentinel arrives uninterpreted, and count is preserved.                |
+| Leg                     | Shape                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `argv[0]`               | The stub's own absolute resolved path, not a bare name and not the wrapper's.                      |
+| Empty argument          | `""` arrives as a real argument, in position, not filtered.                                        |
+| Non-UTF-8 argument      | The bytes `[0x66, 0x80, 0x6f]` — a lone continuation byte, invalid UTF-8, legal in an argument.    |
+| Non-UTF-8 settings path | `XDG_STATE_HOME` pointed at a directory with those bytes; the two-token prefix arrives byte-exact. |
+| Around `--`             | A wrapper spelling after the sentinel arrives uninterpreted, and count is preserved.               |
 
 Every leg compares OS strings against OS strings. A test that renders either side as text has stopped testing the contract, which is why the stub records bytes.
 

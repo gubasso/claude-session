@@ -147,12 +147,10 @@ Each check has a stable kebab-case **id**, a **scope**, a **severity**, and the 
 | `storage-paths-typed`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path has the file type the artifact table assigns it |
 | `storage-directory-modes`   | Session | Hard     | `Permission`         | Every wrapper-managed directory has mode `0700`, after automatic correction         |
 | `storage-secret-modes`      | Session | Hard     | `Permission`         | Every wrapper-owned file assigned mode `0600` has that mode, after correction       |
-| `session-identity-derives`  | Session | Soft     | `Unavailable`        | The group identity derives above the random fallback rung                           |
-| `session-group-claim`       | Session | Soft     | `Unavailable`        | The derived group is unclaimed, or claimed by this run's own derivation fingerprint |
 | `account-registry-readable` | Session | Soft     | `Io`                 | Account directories and auth-mode metadata are readable and parse                   |
 | `credentials-usable`        | Session | Soft     | `Auth`               | The current account's selected login or token mode is usable                        |
 | `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                |
-| `settings-fresh`            | Session | Soft     | `DataFormat`         | The generated settings are not stale                                                |
+| `settings-entry-consistent` | Session | Hard     | `DataFormat`         | A materialized entry's recorded digest matches the one its inputs recompute         |
 
 **Hard** means the wrapper cannot function. **Soft** means a feature is degraded.
 
@@ -162,21 +160,19 @@ Ids are **public API**. Scripts match them and messages cite them, so renaming o
 
 ### Remediations
 
-Each failing check owns **one** remediation template. It is the **Hint** of the [error shape](./exit-codes.md#error-message-shape); What, Where, and Why are computed from the failure. `{path}`, `{expected_type}`, `{actual_type}`, `{expected_mode}`, `{account}`, and `{group}` are substituted without changing the surrounding wording — "verbatim" means the same template and the same substitution rules at both call sites, not that a runtime path cannot be inserted.
+Each failing check owns **one** remediation template. It is the **Hint** of the [error shape](./exit-codes.md#error-message-shape); What, Where, and Why are computed from the failure. `{path}`, `{expected_type}`, `{actual_type}`, `{expected_mode}`, and `{account}` are substituted without changing the surrounding wording — "verbatim" means the same template and the same substitution rules at both call sites, not that a runtime path cannot be inserted.
 
 Where one command fixes the condition, the remedy **is** that command, on its own line, in the form `git` uses for dubious ownership. Where no single command is safe, it is not invented: a bad remedy is worse than a precise description, which is why `storage-paths-owned` below does not print a `chown`.
 
-| Check                       | Remediation                                                                                                                                                                                          |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storage-paths-no-symlinks` | Move the symbolic link at `{path}` aside and recreate the expected `{expected_type}` there, restoring only content you trust.                                                                        |
-| `storage-paths-owned`       | `{path}` is owned by another user, which usually means a restored backup or a file created under `sudo`. Do not change its owner in place — move it aside and let the wrapper recreate it as you.    |
-| `storage-paths-typed`       | `{path}` is a `{actual_type}` and this location must be a `{expected_type}`. Move it aside and let the wrapper recreate it; nothing under this path is unrecoverable except an account login.        |
-| `storage-directory-modes`   | Could not restrict `{path}` to mode `{expected_mode}`. Check that it is on a filesystem supporting Unix permissions and was created by the current user.                                             |
-| `storage-secret-modes`      | Could not restrict `{path}` to mode `{expected_mode}`. Move the file to storage that supports Unix permissions before using it again.                                                                |
-| `base-dirs-resolve`         | `XDG_CONFIG_HOME` and `XDG_STATE_HOME` must be absolute paths, or unset so the defaults apply. Run `claude-session doctor` to see what each resolved to.                                             |
-| `account-registry-readable` | The account registry under `{path}` could not be read. Check that it exists and is readable; if it is missing entirely, `claude-session account login {account}` recreates it.                       |
-| `session-identity-derives`  | No controlling terminal and no usable process session, so this run's group `{group}` is new and will not be found again. Pass `--session <id>` to give it a name that is.                            |
-| `session-group-claim`       | Group `{group}` already belongs to a different terminal session, so this run was given another. That means one state tree shared between machines or containers; pass `--session <id>` to name each. |
+| Check                       | Remediation                                                                                                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storage-paths-no-symlinks` | Move the symbolic link at `{path}` aside and recreate the expected `{expected_type}` there, restoring only content you trust.                                                                     |
+| `storage-paths-owned`       | `{path}` is owned by another user, which usually means a restored backup or a file created under `sudo`. Do not change its owner in place — move it aside and let the wrapper recreate it as you. |
+| `storage-paths-typed`       | `{path}` is a `{actual_type}` and this location must be a `{expected_type}`. Move it aside and let the wrapper recreate it; nothing under this path is unrecoverable except an account login.     |
+| `storage-directory-modes`   | Could not restrict `{path}` to mode `{expected_mode}`. Check that it is on a filesystem supporting Unix permissions and was created by the current user.                                          |
+| `storage-secret-modes`      | Could not restrict `{path}` to mode `{expected_mode}`. Move the file to storage that supports Unix permissions before using it again.                                                             |
+| `base-dirs-resolve`         | `XDG_CONFIG_HOME` and `XDG_STATE_HOME` must be absolute paths, or unset so the defaults apply. Run `claude-session doctor` to see what each resolved to.                                          |
+| `account-registry-readable` | The account registry under `{path}` could not be read. Check that it exists and is readable; if it is missing entirely, `claude-session account login {account}` recreates it.                    |
 
 On a **credential path** — `oauth-token`, `auth-mode.json`, or the child's `.credentials.json` — the `storage-paths-no-symlinks` template appends one clause, because a link there means something else may have read the secret:
 
@@ -223,7 +219,7 @@ Checks are grouped by scope in catalog order, and each line carries its status a
       "kind": "ChildNotFound"
     }
   ],
-  "summary": { "total": 17, "passed": 17, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0 },
+  "summary": { "total": 15, "passed": 15, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0 },
   "schema_version": 1
 }
 ```

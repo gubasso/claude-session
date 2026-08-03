@@ -13,7 +13,7 @@ The `cs-foundation` plan (a depended-on sibling) produced: the canonical crate t
 ## Scope of This Round
 
 - IN scope: `adapters/fs.rs` (a filesystem adapter trait + default std/`rustix`/`tempfile` impl: no-follow metadata, secure directory creation, mode enforcement, atomic write via temporary-file-then-rename **in the same directory**, rename); `services/session/dir.rs` secure-dir helpers (`ensure_owned_dir_0700`, `inspect_secure_dir`, step-by-step per-component path creation) and `resolve_session_root(state_dir)` (the state base; validate not-a-symlink, real directory, owner, mode `0700`) plus a non-mutating `inspect_session_root`; typed adapter/service errors (symlink, wrong-owner, non-directory, permission, io) mapping to the codes in `docs/reference/exit-codes.md`.
-- OUT of scope: deriving group ids (round 2), session dir/metadata (round 3), spawning or env injection (`cs-wrapper-runtime`), accounts (`cs-accounts-auth`).
+- OUT of scope: identifiers and the composed-settings entry key (round 2), the account directory and context wiring (round 3), spawning or env injection (`cs-wrapper-runtime`), accounts (`cs-accounts-auth`).
 
 ## Current State
 
@@ -27,7 +27,7 @@ The `cs-foundation` plan (a depended-on sibling) produced: the canonical crate t
 
 The security posture is specified in `docs/reference/xdg-storage.md` and must be implemented as written: a metadata call that does **not** follow symbolic links, applied to **each path component in turn** rather than only to the leaf; ownership checked against the current user; non-directories rejected; mode enforced at `0700` on **every** invocation rather than assumed from creation. Creation is idempotent, since two invocations from the same pane can race.
 
-**Session roots resolve to the state base, and there is no fallback into runtime.** The runtime base has no portable default and is genuinely absent in containers and under `cron`; a fallback that relocates durable state there can lose credentials and would present as a mysterious logout. When runtime is unavailable the wrapper degrades explicitly and durable state stays put. See `docs/decisions/ADR-0006-place-files-by-xdg-ownership.md`. Runtime is used only for locks, and a missing runtime base disables locking rather than moving it.
+**Session roots resolve to the state base, and there is no fallback into runtime.** The runtime base has no portable default and is genuinely absent in containers and under `cron`; a fallback that relocates durable state there can lose credentials and would present as a mysterious logout. When runtime is unavailable the wrapper degrades explicitly and durable state stays put. See `docs/decisions/ADR-0006-place-files-by-xdg-ownership.md`. The runtime base is not used at all: a lock lives beside the file it guards, so it is reachable wherever that file is (`docs/reference/xdg-storage.md`).
 
 Add any crates not yet present (`rustix` with `process` and `fs`; `tempfile`) with **`cargo add`** — never by hand-editing `[dependencies]`. Target disk layout for later rounds is the artifact table in `docs/reference/xdg-storage.md`.
 
@@ -63,4 +63,4 @@ Wire the new errors into `AppError` with explicit `exit_code()` mappings (config
 
 ## Next Round
 
-Round 2 (`group-identity`) adds the validated `AccountId`/`GroupId` newtypes and the multiplexer-agnostic derivation chain that names the per-group directory this round can securely create.
+Round 2 (`composed-settings-store`) adds the validated `AccountId`/`ProfileId` newtypes and the input-digest entry key that names the composed-settings files this round can securely create.

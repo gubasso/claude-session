@@ -8,7 +8,7 @@ Before spawning the child, `claude-session` resolves the selected account's **st
 
 ## Previous Rounds
 
-This plan R1: account store, `auth-mode.json`, last-used marker, resolver. R2: `account login` in both modes. `cs-isolation`: resolved group directory. `cs-wrapper-runtime`: child resolution, environment construction, spawn-and-wait, post-flight. Expect all to exist.
+This plan R1: account store, `auth-mode.json`, last-used marker, resolver. R2: `account login` in both modes. `cs-isolation`: resolved account directory and composed-settings entry. `cs-wrapper-runtime`: child resolution, environment construction, spawn-and-wait, post-flight. Expect all to exist.
 
 ## Scope of This Round
 

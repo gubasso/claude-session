@@ -32,3 +32,5 @@ Reconsideration trigger: a supported multi-user or shared-host deployment.
 ## Status
 
 Accepted
+
+Amended by [ADR-0065](./ADR-0065-retire-the-terminal-group.md) — the checks continue over the composed-settings store; session metadata and group identity leave the asset set.

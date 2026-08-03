@@ -5,15 +5,15 @@ rounds:
     depends_on: []
     prompt: /prex -ar .implementation-plans/plans/cs-isolation/secure-session-dirs.md
     notes: Filesystem adapter + secure-dir service + XDG session-root resolution (owner/symlink/0700).
-  - item: group-identity
+  - item: composed-settings-store
     status: todo
     depends_on:
       - secure-session-dirs
-    prompt: /prex -ar .implementation-plans/plans/cs-isolation/group-identity.md
-    notes: AccountId/GroupId newtypes + multiplexer-agnostic derivation chain + neutral container discriminator.
-  - item: session-context-and-meta
+    prompt: /prex -ar .implementation-plans/plans/cs-isolation/composed-settings-store.md
+    notes: AccountId/ProfileId newtypes + entry-key computation + write-once publication.
+  - item: session-context
     status: todo
     depends_on:
-      - group-identity
-    prompt: /prex -ar .implementation-plans/plans/cs-isolation/session-context-and-meta.md
-    notes: Per-account/per-group session dir, session-meta.json, AppContext integration, stale-session cleanup.
+      - composed-settings-store
+    prompt: /prex -ar .implementation-plans/plans/cs-isolation/session-context.md
+    notes: Account dir, lazy account/profile resolution in AppContext, doctor paths.

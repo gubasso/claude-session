@@ -20,8 +20,6 @@ Two properties are load-bearing. The lock file is **never deleted**, because unl
 
 Scope is the writes that need it — the account credential pair and the settings-and-provenance pair. A write derived from its inputs stays lock-free.
 
-Concurrent `account login` on one account still discards one token. The lock makes the survivor the last issued, not both.
-
 ## Consequences
 
 - Good: `TempFail` (75) regains the producer [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) anticipated — an acquisition past its deadline.
@@ -34,3 +32,5 @@ Concurrent `account login` on one account still discards one token. The lock mak
 Accepted
 
 Supersedes [ADR-0059](./ADR-0059-coordinate-concurrent-runs-by-atomic-rename.md) — the atomic rename and its temporary naming carry forward unchanged; only "no wrapper write has a critical section" is withdrawn. The runtime base stays unused, since a lock lives beside the file it guards.
+
+Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — the settings-and-provenance scope is withdrawn: both files carry the same input digest, so the two-file invariant is expressed in the name. The credential scope and the criterion are unchanged.

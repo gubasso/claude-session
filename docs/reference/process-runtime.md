@@ -85,10 +85,10 @@ Standard input, output, and error are inherited unmodified. The working director
 
 ## Child argument vector
 
-For an account-backed group, the wrapper constructs one prefix:
+For a resolved profile, the wrapper constructs one prefix:
 
 ```text
---settings <absolute groups/<group>/settings.json path>
+--settings <absolute composed/profile-<name>-<digest>.json path>
 ```
 
 The original child argument vector follows as an untouched suffix. Its order, bytes, count, and `--` sentinel are preserved. The wrapper does not parse, deduplicate, reorder, or reject user tokens. See [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
@@ -97,7 +97,7 @@ The settings path is carried as an OS string, not a UTF-8 path: it derives from 
 
 **`argv[0]` is the resolved child's absolute path** — the default `Command` passes, which the wrapper does not override. It is the one value that cannot misname the file actually running, which is why `ps` and the child agree; the same argument by which [ADR-0055](../decisions/ADR-0055-compare-executable-identity-by-device-and-inode.md) rejected `argv[0]` as an identity signal.
 
-**A user-supplied `--settings` replaces the group's document.** Measured against `claude` 2.1.220 on 2026-07-31, the child keeps only the last occurrence: an earlier settings file is not merged, not validated, and not even read. Since the wrapper's pair is a prefix, the user's own flag always wins and the composed group layer is silently discarded. That precedence is accepted rather than repaired — the wrapper cannot detect it without parsing the suffix ([ADR-0047](../decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md)). A user who wants both composes them into one file and passes that.
+**A user-supplied `--settings` replaces the wrapper's composed document.** Measured against `claude` 2.1.220 on 2026-07-31, the child keeps only the last occurrence: an earlier settings file is not merged, not validated, and not even read. Since the wrapper's pair is a prefix, the user's own flag always wins and the composed layer is silently discarded. That precedence is accepted rather than repaired — the wrapper cannot detect it without parsing the suffix ([ADR-0047](../decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md)). A user who wants both composes them into one file and passes that.
 
 ## Process group topology
 
@@ -142,7 +142,7 @@ Sequence:
 1. Resolve and validate the child.
 2. Resolve the account and stored mode, if selected.
 3. Validate private account state and the child-owned config path without reading the child credential.
-4. Resolve the group and compose its settings.
+4. Resolve the profile and ensure its composed settings entry exists.
 5. In token mode, retrieve and validate the token immediately before spawn.
 6. Build the environment and wrapper-owned argv prefix around the untouched user suffix.
 7. Install signal handling.

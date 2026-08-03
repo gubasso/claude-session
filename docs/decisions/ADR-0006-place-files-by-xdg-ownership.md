@@ -22,10 +22,10 @@ One prohibition is load-bearing: the runtime base has **no portable default** an
 
 - Good: the home directory stays clean, and each base can be backed up, synced, or cleared according to what it means.
 - Good: "reset my configuration" and "clear my cache" have unambiguous answers that cannot destroy credentials.
-- Good: the single-writer rule makes concurrency tractable with several terminals live against one account.
+- Good: the single-writer rule makes concurrency tractable.
 - Bad: paths are longer and less guessable than one dot-directory, so `doctor` must report resolved paths.
 - Bad: refusing a runtime fallback means some coordination is simply unavailable in a container.
-- Bad: mode and ownership checks run on every invocation, not only at creation — necessary, since a directory can be made unsafe later, but it is work on a hot path.
+- Bad: mode and ownership checks run on every invocation, not only at creation, which is work on a hot path.
 
 ## Status
 
@@ -36,3 +36,5 @@ Amended by [ADR-0050](./ADR-0050-name-the-profile-surface-once.md) — the profi
 Amended by [ADR-0060](./ADR-0060-lock-the-writes-that-are-not-derivable.md) — the runtime base has no artifact, since a lock lives beside the file it guards, so its absence is no longer a degradation to report; the ownership rule is unchanged.
 
 Amended by [ADR-0061](./ADR-0061-protect-storage-from-accidental-local-drift.md) — the mode and ownership checks this record names gain a recorded scope, so what they cost is measured against what they defend; the ownership rule is unchanged.
+
+Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — composed settings move to a top-level input-addressed `composed/` store; the ownership rule is unchanged.

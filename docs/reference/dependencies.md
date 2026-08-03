@@ -56,14 +56,14 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 
 ### Process and system
 
-| Crate         | Why                                                                                                                   | Skip if                                                      |
-| ------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `rustix`      | Safe, direct system calls — ownership checks, process identity, `ttyname` and `getsid` — without a raw `unsafe` block |                                                              |
-| `sha2`        | The account token's `sha256[..8]` and the hashed host discriminator; RustCrypto, and the only hash the project needs  |                                                              |
-| `signal-hook` | The widely-used signal handling crate; async-signal-safe registration                                                 |                                                              |
-| `libc`        | Only where `rustix` has no equivalent                                                                                 | `rustix` covers the need, which it usually does              |
-| `which`       | `PATH` search for the child binary. It emulates `which(1)`, so the wrapper drops zero-length `PATH` entries itself    | The search is hand-rolled, which is easy to get subtly wrong |
-| `tempfile`    | Atomic write-then-rename, and hermetic test directories                                                               | Never                                                        |
+| Crate         | Why                                                                                                                       | Skip if                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `rustix`      | Safe, direct system calls — ownership checks and process identity — without a raw `unsafe` block                          |                                                              |
+| `sha2`        | The account token's `sha256[..8]` and the composed-settings input digest; RustCrypto, and the only hash the project needs |                                                              |
+| `signal-hook` | The widely-used signal handling crate; async-signal-safe registration                                                     |                                                              |
+| `libc`        | Only where `rustix` has no equivalent                                                                                     | `rustix` covers the need, which it usually does              |
+| `which`       | `PATH` search for the child binary. It emulates `which(1)`, so the wrapper drops zero-length `PATH` entries itself        | The search is hand-rolled, which is easy to get subtly wrong |
+| `tempfile`    | Atomic write-then-rename, and hermetic test directories                                                                   | Never                                                        |
 
 ### Asynchrony
 
@@ -96,17 +96,17 @@ These are dependencies of the `xtask` workspace member ([ADR-0014](../decisions/
 
 Reviewed, not needed yet. Named here so the decision is not re-made from scratch:
 
-| Crate                                      | Unlocked by                                                                                |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `serde_yaml_ng`                            | The first profile                                                                          |
-| `rustix`                                   | The confirmation-prompt test harness, the group derivation ladder, or the first real spawn |
-| `sha2`                                     | The first token fingerprint or host discriminator                                          |
-| `signal-hook`                              | The first real spawn with signal forwarding                                                |
-| `which`                                    | The child resolution ladder                                                                |
-| `tempfile`                                 | The first atomic write or hermetic test                                                    |
-| `clap_complete`, `clap_mangen`             | The completions and man-page work                                                          |
-| `schemars`, `toml_edit`                    | The `xtask` example generator                                                              |
-| `proptest`, `cargo-mutants`, `cargo-bloat` | The advanced test tier                                                                     |
+| Crate                                      | Unlocked by                                                  |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| `serde_yaml_ng`                            | The first profile                                            |
+| `rustix`                                   | The confirmation-prompt test harness or the first real spawn |
+| `sha2`                                     | The first token fingerprint or composed-settings digest      |
+| `signal-hook`                              | The first real spawn with signal forwarding                  |
+| `which`                                    | The child resolution ladder                                  |
+| `tempfile`                                 | The first atomic write or hermetic test                      |
+| `clap_complete`, `clap_mangen`             | The completions and man-page work                            |
+| `schemars`, `toml_edit`                    | The `xtask` example generator                                |
+| `proptest`, `cargo-mutants`, `cargo-bloat` | The advanced test tier                                       |
 
 ## Ruled out
 

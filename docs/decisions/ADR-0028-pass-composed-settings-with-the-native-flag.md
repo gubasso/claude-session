@@ -31,3 +31,5 @@ See [ADR-0010](./ADR-0010-compose-native-settings-from-declared-layers.md), [con
 Accepted
 
 Amended by [ADR-0047](./ADR-0047-let-a-user-settings-flag-override-the-group-layer.md), which discharges the unverified duplicate-flag consequence: the child keeps the last occurrence, so a user-supplied `--settings` replaces the group layer.
+
+Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — the document this record prepends is keyed by profile and input digest rather than by a terminal group. The prefix mechanism, the untouched user suffix, and the shared account directory are unchanged.

@@ -32,3 +32,7 @@ The catalog itself lives in [logging and output](../reference/logging-and-output
 ## Status
 
 Accepted
+
+Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — `settings-fresh` is removed, since entry existence replaces the freshness comparison, and `settings-entry-consistent` is appended, since an entry disagreeing with its recomputed key is a `DataFormat` condition and a check owns one `err.kind`.
+
+Amended by [ADR-0065](./ADR-0065-retire-the-terminal-group.md) — `session-identity-derives` and `session-group-claim` are removed with the group they probe. Surviving ids stay stable and append-only; the append-only contract binds against released consumers, and a pre-implementation crate has none.

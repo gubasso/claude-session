@@ -36,7 +36,7 @@ Exit behaviour follows the inspection-versus-assertion split in `docs/reference/
 
 Two catalog entries cover this subsystem, and their ids are public API specified in `docs/reference/logging-and-output.md`. Both are soft and skipped when no account exists. Adding a private check to `doctor` instead of a catalog entry is what `docs/decisions/ADR-0018-one-probe-set-with-stable-check-ids.md` forbids.
 
-Removal confirms unless `--yes` is present, warns first when the account is selected or a group directory may still be active, and reports plainly that deleting local state is not upstream revocation. Declining exits `0` and says nothing was removed.
+Removal confirms unless `--yes` is present, warns first when the account is selected, and reports plainly that deleting local state is not upstream revocation. Declining exits `0` and says nothing was removed.
 
 ## Implementation Steps
 
@@ -76,4 +76,4 @@ Add the `commands/dispatch.rs` match arm. With `assert_cmd`, test each verb's JS
 
 ## Next Round
 
-This is the final round of this plan. `cs-config-composition` (parallel sibling) generates the settings document that lands in the group directory; `cs-docs-hardening` finalizes `doctor`, completions, man pages, docs, and release.
+This is the final round of this plan. `cs-config-composition` (parallel sibling) generates the settings document that lands in the composed-settings store; `cs-docs-hardening` finalizes `doctor`, completions, man pages, docs, and release.

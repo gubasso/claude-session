@@ -4,7 +4,7 @@ Public projects and specifications inspected while designing `claude-session`. T
 
 Facts marked observed or unverified are externally owned and tracked in [research tracking](./research-tracking.yaml).
 
-Last surveyed: 2026-07-31.
+Last surveyed: 2026-08-03.
 
 ## Argv splitting and flag reservation
 
@@ -80,24 +80,24 @@ On publishing that scope at all: [restic](https://restic.readthedocs.io/en/stabl
 | [clig.dev](https://clig.dev/)                                                                 | Catch errors and rewrite them for humans; its worked example puts the fixing command in the message             | Taken; the four-part error shape is this rule made explicit                                                           |
 | OpenSSH's "bad ownership or modes" message                                                    | Names the condition precisely, offers no remedy                                                                 | Rejected as a model — it is one of the most-searched error strings there is, which is what the verbatim rule prevents |
 
-## Terminal session identity
+## Derived artifacts and named profiles
 
-How other tools decide "which terminal is this", for the ladder in [ADR-0062](../decisions/ADR-0062-derive-the-group-from-the-controlling-terminal.md) and the claim check in [ADR-0063](../decisions/ADR-0063-claim-a-group-by-its-derivation-fingerprint.md).
+How other tools name a derived artifact, and how they name a user-chosen one. The prior art [ADR-0064](../decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md) rests on.
 
-| Source                                                                           | Mechanism                                                                                                         | Taken / rejected                                                                                                       |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| [tmux(1)](https://man.archlinux.org/man/tmux.1)                                  | `pane_tty` and `client_tty` are separate formats: the pane's pseudo-terminal is the server's, the client's is not | The distinction is the whole ladder — rung 2 reads the pane's, which reattaching cannot change                         |
-| [screen(1)](https://man7.org/linux/man-pages/man1/screen.1.html)                 | Windows keep running while the session is detached; `$STY` is `pid.tty.host` of the terminal where it was created | Confirms the same split; `$STY` rejected as tool-specific and as session- rather than window-scoped                    |
-| [`credentials(7)`](https://man7.org/linux/man-pages/man7/credentials.7.html)     | A terminal is the controlling terminal of at most one session; a session id is the `setsid` caller's process id   | Both taken: the first is why rung 2 cannot collide, the second is rung 3                                               |
-| [`proc_pid_stat(5)`](https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html) | Field 22 is start time in clock ticks since boot; field 7 is the controlling terminal's device number             | Start time taken as the discriminator that makes a reused process id a different identity                              |
-| [`pam_systemd(8)`](https://man7.org/linux/man-pages/man8/pam_systemd.8.html)     | `XDG_SESSION_ID` is filename-safe and unique per boot                                                             | Rejected on granularity: one login, shared by every pane of it                                                         |
-| [atuin](https://github.com/atuinsh/atuin)                                        | Mints a random per-shell UUID in shell initialization                                                             | Rejected as a design, taken as the last rung: without a shell-integration hook a random id is never rediscovered       |
-| kitty, WezTerm, iTerm2                                                           | Each exports its own per-window identifier under its own name                                                     | Rejected: mutually incompatible, and inside a multiplexer they describe the client that reattaching replaces           |
-| [`script(1)`](https://man7.org/linux/man-pages/man1/script.1.html), asciinema    | Allocate their own pseudo-terminal and run the program under it                                                   | Not a model — they create identity rather than discover it; the consequence is that a run under one gets its own group |
-| [Linux devpts](https://www.kernel.org/doc/html/latest/filesystems/devpts.html)   | Pty indices are allocated independently per mount of the filesystem                                               | The source of the container collision ADR-0063 answers                                                                 |
-| [`machine-id(5)`](https://man7.org/linux/man-pages/man5/machine-id.5.html)       | Stable per installation, confidential, and absent or empty in an image                                            | Taken as the host discriminator, hashed and with a hostname fallback for exactly those two caveats                     |
+| Source                                                                                                      | Mechanism                                                                               | Taken / rejected                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [Nix store path](https://nix.dev/manual/nix/latest/store/store-path.html)                                   | `/nix/store/<digest>-<name>`; each base name references exactly one store object        | Taken as the shape: a digest for uniqueness, a symbolic name for diagnosability, and no lock because entries are immutable |
+| [Go module cache](https://go.dev/ref/mod)                                                                   | Extracted module directories are made read-only, to prevent accidental modification     | Taken: a derived artifact is immutable                                                                                     |
+| [Chromium user data dir](https://chromium.googlesource.com/chromium/src/+/main/docs/user_data_dir.md)       | `--user-data-dir`, and two running instances cannot share one                           | Cautionary: a singleton lock is needed because a profile directory is mutable live state, which composed settings are not  |
+| [Firefox command-line options](https://wiki.mozilla.org/Firefox/CommandLineOptions)                         | `-P <name>` and `-profile <path>`                                                       | Taken: the profile name is the key, and the terminal never is                                                              |
+| [gcloud configurations](https://docs.cloud.google.com/sdk/docs/configurations)                              | Named configurations, selected by `CLOUDSDK_ACTIVE_CONFIG_NAME`                         | Taken: a per-process variable _selects_, and never _keys the store_                                                        |
+| [AWS CLI named profiles](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html)      | `[profile name]` sections, chosen by `AWS_PROFILE` or `--profile`                       | Taken: selection by name, per invocation                                                                                   |
+| [kubectl kubeconfig](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/) | Named contexts, a `KUBECONFIG` list, and `--context`                                    | Cautionary: a shared mutable current-context should not own invocation state                                               |
+| [git worktree](https://git-scm.com/docs/git-worktree)                                                       | `$GIT_DIR/worktrees/<id>`, a `locked` file blocking pruning, and an explicit prune verb | Taken: split state by whether it is per-instance or shared — the account/profile split                                     |
+| [systemd.unit(5)](https://man7.org/linux/man-pages/man5/systemd.unit.5.html)                                | Instantiated units, `foo@<instance>.service`                                            | Taken as the naming pattern for N isolated instances                                                                       |
+| [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir/latest/)                  | `XDG_*_HOME` relocate classes of files                                                  | Taken for the wrapper's own roots; rejected as a global override for the child                                             |
 
-Behaviour of externally owned terminals and multiplexers is registered in [research tracking](./research-tracking.yaml) rather than treated as permanent.
+Container-tool context layouts, and the selection mechanics of rustup, pyenv, nvm, asdf, and direnv, were not inspected and are not load-bearing.
 
 ## Process supervision
 

@@ -8,7 +8,7 @@
 
 ## Previous Rounds
 
-`cs-foundation`: crate, plumbing, `--account` reserved global flag. `cs-isolation`: `AccountId`/`GroupId`, secure dirs, state-root resolution. `cs-wrapper-runtime`: spawner + child env construction. Expect all to exist.
+`cs-foundation`: crate, plumbing, `--account` reserved global flag. `cs-isolation`: `AccountId`/`ProfileId`, secure dirs, state-root resolution. `cs-wrapper-runtime`: spawner + child env construction. Expect all to exist.
 
 ## Scope of This Round
 

@@ -11,7 +11,7 @@ plans:
     depends_on:
       - cs-foundation
     prompt: /prex -ar @.implementation-plans/plans/cs-isolation/
-    notes: Secure dirs, pty-keyed multiplexer-agnostic group identity, session context+meta+cleanup.
+    notes: Secure dirs, composed-settings store keyed by profile inputs, session context.
   - item: cs-wrapper-runtime
     status: todo
     depends_on:

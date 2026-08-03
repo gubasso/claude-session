@@ -32,3 +32,5 @@ Copy-in/copy-out loses crash safety; symlinks and bind mounts have replacement o
 Accepted
 
 Supersedes [ADR-0011](./ADR-0011-isolate-credentials-by-seed-and-session.md).
+
+Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — the shared account `config/` this record establishes is unchanged; what a group retained is now profile-owned composed settings, stored outside the account tree.

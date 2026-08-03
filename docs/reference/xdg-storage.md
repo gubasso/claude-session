@@ -1,6 +1,6 @@
 # XDG storage
 
-Where every artifact lives, who writes it, and what protects it. For the account/group split, see [session isolation](../explanation/session-isolation.md).
+Where every artifact lives, who writes it, and what protects it. For the account/profile split, see [session isolation](../explanation/session-isolation.md).
 
 This describes normative design. The crate is pre-implementation.
 
@@ -25,29 +25,27 @@ The `0700` on wrapper-managed directories is the specification's own default rat
 
 Every artifact has one writer.
 
-| Artifact                 | Base   | Path within base                                                 | Writer                                               | Mode                           | Lifetime                              |
-| ------------------------ | ------ | ---------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------------------------------- |
-| Wrapper configuration    | Config | `config.toml`                                                    | User                                                 | `0644`                         | Until changed                         |
-| Settings pieces          | Config | `settings/<piece>.json`                                          | User                                                 | `0644`                         | Until changed                         |
-| Profiles                 | Config | `profiles/<profile>.yaml`                                        | User                                                 | `0644`                         | Until changed                         |
-| Account directory        | State  | `accounts/<account>/`                                            | Account subsystem                                    | `0700`                         | Until account removal                 |
-| Auth-mode metadata       | State  | `accounts/<account>/auth-mode.json`                              | Account subsystem                                    | `0600`                         | Until mode replacement                |
-| Local OAuth token        | State  | `accounts/<account>/oauth-token`                                 | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
-| Native account config    | State  | `accounts/<account>/config/`                                     | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
-| Native saved login       | State  | `accounts/<account>/config/.credentials.json` on Linux/Windows   | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |
-| Group directory          | State  | `accounts/<account>/groups/<group>/`                             | Session subsystem                                    | `0700`                         | Until stale pruning                   |
-| Generated settings       | State  | `accounts/<account>/groups/<group>/settings.json`                | Composition subsystem                                | `0600`                         | Regenerated when stale                |
-| Composition provenance   | State  | `accounts/<account>/groups/<group>/.claude-session-compose.json` | Composition subsystem                                | `0600`                         | With generated settings               |
-| Session metadata         | State  | `accounts/<account>/groups/<group>/session-meta.json`            | Session subsystem                                    | `0600`                         | Group lifetime                        |
-| Last-used account marker | State  | `state/last-account`                                             | Account subsystem                                    | `0600`                         | Until selection changes               |
-| Write lock               | State  | `.<scope>.lock` beside the files it guards                       | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
-| Log file                 | State  | `claude-session.log`                                             | Logging subsystem                                    | `0600`                         | Rotated                               |
+| Artifact                 | Base   | Path within base                                               | Writer                                               | Mode                           | Lifetime                              |
+| ------------------------ | ------ | -------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------------------------------- |
+| Wrapper configuration    | Config | `config.toml`                                                  | User                                                 | `0644`                         | Until changed                         |
+| Settings pieces          | Config | `settings/<piece>.json`                                        | User                                                 | `0644`                         | Until changed                         |
+| Profiles                 | Config | `profiles/<profile>.yaml`                                      | User                                                 | `0644`                         | Until changed                         |
+| Account directory        | State  | `accounts/<account>/`                                          | Account subsystem                                    | `0700`                         | Until account removal                 |
+| Auth-mode metadata       | State  | `accounts/<account>/auth-mode.json`                            | Account subsystem                                    | `0600`                         | Until mode replacement                |
+| Local OAuth token        | State  | `accounts/<account>/oauth-token`                               | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
+| Native account config    | State  | `accounts/<account>/config/`                                   | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
+| Native saved login       | State  | `accounts/<account>/config/.credentials.json` on Linux/Windows | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |
+| Composed settings        | State  | `composed/profile-<name>-<digest>.json`                        | Composition subsystem                                | `0600`                         | Permanent                             |
+| Composition provenance   | State  | `composed/profile-<name>-<digest>.compose.json`                | Composition subsystem                                | `0600`                         | Permanent                             |
+| Last-used account marker | State  | `state/last-account`                                           | Account subsystem                                    | `0600`                         | Until selection changes               |
+| Write lock               | State  | `.<scope>.lock` beside the files it guards                     | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
+| Log file                 | State  | `claude-session.log`                                           | Logging subsystem                                    | `0600`                         | Rotated                               |
 
 The child may create other files and directories below `config/`; it owns their names, contents, modes, and lifecycle. On macOS, the child stores ordinary login material in Keychain rather than the relocated credential path; see [accounts](./accounts.md#platform-boundary).
 
 Credentials are state, not data or cache: they are durable, machine-specific, and unsafe to lose silently. Generated settings are state because removing them during a run changes child behavior.
 
-## Group identifiers
+## Identifiers
 
 | Property        | Rule                            |
 | --------------- | ------------------------------- |
@@ -55,46 +53,25 @@ Credentials are state, not data or cache: they are durable, machine-specific, an
 | First character | Lowercase ASCII letter or digit |
 | Maximum length  | 32 bytes                        |
 
-Account identifiers use the same rules. Why the group is derived this way is in [session isolation](../explanation/session-isolation.md#deriving-the-group-without-knowing-multiplexers) and [ADR-0062](../decisions/ADR-0062-derive-the-group-from-the-controlling-terminal.md).
+These rules apply to account identifiers and to profile names, both of which the wrapper turns into path components. A user-supplied value that fails them exits `Usage`, naming the value and the layer that supplied it; nothing is ever truncated or rewritten.
 
-### The derivation ladder
+## Composed settings entries
 
-First hit wins.
+Each entry is a pure function of its inputs, so its name is computed from them ([ADR-0064](../decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md)).
 
-| # | Input                                                 | Identifier                    |
-| - | ----------------------------------------------------- | ----------------------------- |
-| 0 | `--session <id>`                                      | The value, unchanged          |
-| 1 | `CLAUDE_SESSION_GROUP`                                | The value, unchanged          |
-| 2 | `ttyname_r(3)` on a descriptor opened from `/dev/tty` | `<disc>-pts-3`, `<disc>-tty1` |
-| 3 | `getsid(0)` and that process's start time             | `<disc>-s-<sid>-<start>`      |
-| 4 | 64 bits of operating-system randomness                | `<disc>-r-<hex>`              |
+| Part      | Value                                                        |
+| --------- | ------------------------------------------------------------ |
+| Prefix    | `profile-`, literal                                          |
+| Name      | The profile name, under [the identifier rules](#identifiers) |
+| Separator | `-`                                                          |
+| Digest    | The first 12 lowercase hex characters of the input digest    |
+| Suffix    | `.json` for the settings, `.compose.json` for its provenance |
 
-Rung 2 opens `/dev/tty`; nothing consults `isatty(0)`, so a piped invocation still derives from the terminal it has ([ADR-0053](../decisions/ADR-0053-read-a-confirmation-from-the-controlling-terminal.md)). Its identifier is the device path with `/dev/` stripped and `/` replaced by `-`. Rung 3 reads `/proc/<sid>/stat` field 22 on Linux; the start time is what makes a reused process id a different identity. Rung 4 emits one warning; the rungs above it emit none.
+The input digest is SHA-256 over a versioned, unambiguously framed preimage: the literal domain tag `claude-session-composed-v1`, then the profile name, the profile file's resolved absolute path and the SHA-256 of its bytes, then for every piece in profile order its resolved absolute path and the SHA-256 of its bytes. Every field is length-prefixed, so no field value can imitate a field boundary. Paths are hashed as raw OS bytes, since a path is a byte string. The array-strategy table is a field of the profile file, so the profile's own content digest covers it.
 
-`<disc>` is the host discriminator from [ADR-0063](../decisions/ADR-0063-claim-a-group-by-its-derivation-fingerprint.md): six hex characters of a keyed hash of `/etc/machine-id`, or of the hostname when that file is absent or empty. It is always present. The machine identity itself is never stored or printed.
+Twelve hex characters name the entry; the **full digest is recorded in the provenance sidecar**. Before an existing entry is reused, that recorded digest is compared against the one just computed — the inputs were read to compute the key, so the comparison costs nothing. A match reuses the entry. A mismatch is [`DataFormat`](./exit-codes.md#wrapper-matrix): the entry is neither opened nor overwritten. That is what makes "two profiles never share settings" a check rather than a probability, and it is why twelve characters is a naming choice rather than a safety margin.
 
-### Rejection is not fallthrough
-
-The two rules differ by who supplied the value, because the useful answer differs:
-
-| Source                     | A value failing the rules      |
-| -------------------------- | ------------------------------ |
-| Rung 0 or 1, user-supplied | Exits `Usage`                  |
-| Rung 2 or 3, derived       | Falls through to the next rung |
-
-Neither is ever truncated or rewritten. A user who typed a bad identifier wants to know; an exotic device name is the wrapper's problem to route around, and failing the run over one would make a working terminal unusable.
-
-### Claiming a group
-
-A group's `session-meta.json` records the full derivation fingerprint — the rung, the terminal path, its `st_rdev` and `(st_dev, st_ino)`, the session leader and start time, and the pid and mount namespace ids. Before a group is used:
-
-| State               | Action                                                    |
-| ------------------- | --------------------------------------------------------- |
-| No directory        | Create it and claim it                                    |
-| Fingerprint matches | Reuse it                                                  |
-| Fingerprint differs | Never open its settings; derive a suffixed group and warn |
-
-This is what makes "two separate sessions never share a group" a check rather than a probability, and it is reported by [`session-group-claim`](./logging-and-output.md#the-catalog). The [`.settings.lock`](#lock-scopes) does not cover it: a lock serializes two writers to one path, and cannot tell that they are unrelated sessions.
+**A complete entry is never rewritten.** Generation checks whether the settings path exists. If it does, and the sidecar agrees, both files are already correct by construction and the run composes nothing. If neither exists, the wrapper composes, writes the settings by [the atomic sequence](#the-sequence), then writes the provenance the same way. If exactly one member of the pair exists the entry is incomplete and nothing about it can be verified — a settings file without its provenance carries no digest to compare, so adopting it would turn the guarantee above back into a probability. The wrapper composes and writes **both** members, replacing the survivor with one this run's inputs produced. Two concurrent runs of one profile compute identical bytes, so a lost update is invisible — which is why neither file takes a lock.
 
 ## Filesystem security
 
@@ -133,7 +110,7 @@ Two hazards, two mechanisms, and neither substitutes for the other ([ADR-0060](.
 | Torn read   | A reader parses half-old, half-new bytes  | Atomic rename |
 | Lost update | A complete but wrong file survives a race | Advisory lock |
 
-**Every** wrapper-owned file whose partial content would be misread is written by atomic rename: `auth-mode.json` and `oauth-token`, generated settings and composition provenance, session metadata, and the last-used marker. The child-owned `.credentials.json` is excluded.
+**Every** wrapper-owned file whose partial content would be misread is written by atomic rename: `auth-mode.json` and `oauth-token`, composed settings and composition provenance, and the last-used marker. The child-owned `.credentials.json` is excluded.
 
 ### The sequence
 
@@ -149,6 +126,8 @@ Two hazards, two mechanisms, and neither substitutes for the other ([ADR-0060](.
 | 8    | `fsync` the directory                      | The **name change** is on the disk; step 5 alone does not survive power loss                  |
 | 9    | Release                                    | Or exit, which releases it just as completely                                                 |
 
+Steps 1–3 and 9 belong to the [lock scopes](#lock-scopes) below and to nothing else. A **lock-free** write — composed settings, composition provenance, the last-used marker — performs steps 4 through 8 and no others: there is no scope to acquire, so there is nothing to release.
+
 Steps 5 and 8 are the two points at which the wrapper promises the bytes have reached the disk, and they promise different things: without step 8 a crash can resurrect the old file, or leave a zero-length one at the final name.
 
 The temporary is created with `O_CREAT | O_EXCL`. Its name makes an abandoned one recognizable to [the sweep](#cleanup-and-recovery), and two processes cannot share a process id, so an existing file of that name is an orphan by construction and is removed and recreated once.
@@ -157,12 +136,11 @@ The temporary is created with `O_CREAT | O_EXCL`. Its name makes an abandoned on
 
 A lock exists only where a write is **not** a function of the files it reads, or where two files carry one invariant:
 
-| Scope                                  | Guards                                             | Because                                                                        |
-| -------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `accounts/<account>/.credentials.lock` | `oauth-token` and `auth-mode.json`                 | Each login mints a new secret, so a reordered rename can persist a revoked one |
-| `.../groups/<group>/.settings.lock`    | `settings.json` and `.claude-session-compose.json` | Provenance claiming freshness over stale settings is a state nothing corrects  |
+| Scope                                  | Guards                             | Because                                                                        |
+| -------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
+| `accounts/<account>/.credentials.lock` | `oauth-token` and `auth-mode.json` | Each login mints a new secret, so a reordered rename can persist a revoked one |
 
-Session metadata and the last-used marker take no lock. Both are recomputed from their inputs, or are a selection where the most recent write is the right answer.
+Composed settings, composition provenance, the last-used marker, and every other wrapper-owned write take no lock. Each is recomputed from its inputs, or is a selection where the most recent write is the right answer. Composed settings and their provenance carry one invariant, and it is expressed in the name: both files are named by the same input digest, so provenance can never describe settings other than the ones beside it.
 
 **The lock file is never deleted.** Unlinking it lets one holder destroy the file another is about to lock. A permanent empty file is the design, and because it carries no claim, a kill leaves nothing for the next run to break.
 
@@ -174,7 +152,7 @@ Two `account login` runs against one account still end with one token on disk. T
 
 ## Cleanup and recovery
 
-**A normal exit removes nothing.** Every artifact in the table outlives the run that wrote it by design: configuration is the user's, the account and group trees are the point of the program, and the log is rotated rather than deleted. The one file a run creates without intending to keep is an atomic-write temporary, and that is consumed by its own rename rather than by a cleanup step. [Post-flight](./process-runtime.md#post-flight) therefore deletes nothing, and that is the contract rather than an omission.
+**A normal exit removes nothing.** Every artifact in the table outlives the run that wrote it by design: configuration is the user's, the account tree and the composed-settings store are the point of the program, and the log is rotated rather than deleted. The one file a run creates without intending to keep is an atomic-write temporary, and that is consumed by its own rename rather than by a cleanup step. [Post-flight](./process-runtime.md#post-flight) therefore deletes nothing, and that is the contract rather than an omission.
 
 **A kill leaves exactly two things**, and neither can fail the next run ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)):
 
@@ -189,18 +167,12 @@ There is no half-written durable state to repair. A reader sees the old complete
 
 **The sweep** removes an orphaned temporary from any wrapper-managed directory the invocation already walks for [its security checks](#filesystem-security). A temporary whose embedded process id belongs to a live process is left alone, so a concurrent writer's rename can never be broken by a sweep; the cost is that a temporary from a previous boot whose id has since been reused lingers, which nothing depends on. Lock files are never swept.
 
-Stale-group pruning is conservative:
+Composed settings entries are permanent. Each is immutable and named by its inputs, so one accumulates only when a profile or a piece actually changes — a growth curve set by how often the user edits configuration, not by how many terminals they open. Nothing earns an age policy, a prune verb, or a liveness check at that rate ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); removing a store the user no longer wants is `rm`. The orphan-temporary sweep above is the only thing the wrapper deletes.
 
-- only directories below `groups/` are candidates;
-- symbolic links are never followed;
-- a possibly active group is retained, decided by age;
-- pruning is opt-in and reported;
-- account-wide `config/`, mode metadata, and token storage are never pruned.
-
-`account remove` removes the local account tree, including child-owned config and all groups. It stops local use but does not claim to revoke a token upstream.
+`account remove` removes the local account tree, including child-owned config. Composed settings are not account state and are not removed with it. It stops local use but does not claim to revoke a token upstream.
 
 ## Diagnostics
 
-`doctor` reports resolved base directories, environment-versus-default provenance, selected account and group paths, and the five [security checks](#filesystem-security) named in the table above. Child credential content is never inspected or emitted.
+`doctor` reports resolved base directories, environment-versus-default provenance, the selected account path and the resolved composed-settings entry path, and the five [security checks](#filesystem-security) named in the table above. Child credential content is never inspected or emitted.
 
 Config-base artifacts, the log file, and lock files carry no security check. Configuration is user-authored and `0644` by design, so there is no unsafe state to report; a log or a lock that cannot be opened must not stop a passthrough run ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)), and lock contention already has [`LockBusy`](./exit-codes.md#wrapper-matrix).

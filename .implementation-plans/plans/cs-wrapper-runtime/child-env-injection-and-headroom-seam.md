@@ -4,11 +4,11 @@
 
 ## Context
 
-`claude-session` points the child at its account's configuration directory through `CLAUDE_CONFIG_DIR`, scrubs its own internal env namespace so the child sees a clean environment, and hands the group's composed settings through a wrapper-owned argv prefix rather than through that variable. An external proxy (e.g. headroom) fronts `claude` through `ANTHROPIC_BASE_URL`, which the wrapper delivers by **inheriting it untouched** — there is no injection mechanism to build ([ADR-0057](../../../docs/decisions/ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md)). This round builds the typed child invocation/env and the argv-prefix seam, and adds end-to-end passthrough integration tests. After this round, `claude-session <native args>` runs the real `claude` against the resolved account configuration, optionally fronted by a proxy the user exported.
+`claude-session` points the child at its account's configuration directory through `CLAUDE_CONFIG_DIR`, scrubs its own internal env namespace so the child sees a clean environment, and hands the profile's composed settings through a wrapper-owned argv prefix rather than through that variable. An external proxy (e.g. headroom) fronts `claude` through `ANTHROPIC_BASE_URL`, which the wrapper delivers by **inheriting it untouched** — there is no injection mechanism to build ([ADR-0057](../../../docs/decisions/ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md)). This round builds the typed child invocation/env and the argv-prefix seam, and adds end-to-end passthrough integration tests. After this round, `claude-session <native args>` runs the real `claude` against the resolved account configuration, optionally fronted by a proxy the user exported.
 
 ## Previous Rounds
 
-This plan round 1: `Spawner` trait, child resolution, recursion guard. Round 2: `spawn_and_wait`, signal forwarding, exit-code mapping. `cs-isolation`: `AppContext` exposes the resolved per-account/per-group session dir. Expect all to exist and compile.
+This plan round 1: `Spawner` trait, child resolution, recursion guard. Round 2: `spawn_and_wait`, signal forwarding, exit-code mapping. `cs-isolation`: `AppContext` exposes the resolved account directory and composed-settings entry. Expect all to exist and compile.
 
 ## Scope of This Round
 
@@ -22,7 +22,7 @@ This plan round 1: `Spawner` trait, child resolution, recursion guard. Round 2: 
 - `src/domain.rs` (+ `src/domain/`) — add `child_invocation.rs`.
 - `src/commands/pass_through.rs` — build the isolated `ChildInvocation`.
 - `src/adapters/spawner.rs` — `spawn_and_wait` consumes `ChildInvocation`.
-- `src/context.rs` — provides the resolved session dir.
+- `src/context.rs` — provides the resolved account directory and composed-settings entry.
 
 ### Existing Patterns
 

@@ -71,4 +71,4 @@ Add `MergeError` (type-conflict at a path, naming the piece). Unit-test scalar l
 
 ## Next Round
 
-Round 3 (`generate-settings`) writes the merged value as the native `settings.json` atomically into the resolved group directory, validates it, checks freshness, writes a provenance sidecar, and supplies the file to the child through the `--settings` prefix.
+Round 3 (`generate-settings`) writes the merged value as the native `settings.json` atomically into the composed-settings store under its input-digest name, validates it, writes a provenance sidecar, and supplies the file to the child through the `--settings` prefix.

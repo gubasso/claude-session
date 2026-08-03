@@ -8,11 +8,11 @@ With composition implemented, `claude-session` exposes the user-facing `config` 
 
 ## Previous Rounds
 
-This plan R1: layout + models. R2: merge engine + provenance. R3: generation + freshness + sidecar + trust state. `cs-foundation`: clap skeleton + `config` stub + `Ui`. Expect all to exist.
+This plan R1: layout + models. R2: merge engine + provenance. R3: generation + entry key + sidecar + trust state. `cs-foundation`: clap skeleton + `config` stub + `Ui`. Expect all to exist.
 
 ## Scope of This Round
 
-- IN scope: the bare `config` and `profile` verbs per the four-edit rule (`cli/config.rs` + `cli/profile.rs`, `cli.rs` enum variants replacing the `config` stub, `commands/config.rs` + `commands/profile.rs` free `run` handlers, the `commands/dispatch.rs` match arms); `--json` output via `Ui`; `config` runs the engine in preview mode and reports the resolved wrapper configuration with per-key **provenance**, the consulted files, the active profile with resolved pieces, generated-`settings.json` freshness, and unknown-key warnings; `config` exits on a structural or type defect per [exit codes](../../../docs/reference/exit-codes.md#inspection-verbs-and-assertion-verbs); wire the same config-scoped probe subset into `doctor`.
+- IN scope: the bare `config` and `profile` verbs per the four-edit rule (`cli/config.rs` + `cli/profile.rs`, `cli.rs` enum variants replacing the `config` stub, `commands/config.rs` + `commands/profile.rs` free `run` handlers, the `commands/dispatch.rs` match arms); `--json` output via `Ui`; `config` runs the engine in preview mode and reports the resolved wrapper configuration with per-key **provenance**, the consulted files, the active profile with resolved pieces, the resolved entry path and whether it exists, and unknown-key warnings; `config` exits on a structural or type defect per [exit codes](../../../docs/reference/exit-codes.md#inspection-verbs-and-assertion-verbs); wire the same config-scoped probe subset into `doctor`.
 - OUT of scope: new composition machinery (done R1–R3); accounts (`cs-accounts-auth`); docs/headroom (`cs-docs-hardening`).
 
 ## Current State
@@ -62,7 +62,7 @@ Add the `commands/dispatch.rs` match arms; `assert_cmd`-test `config` and `profi
 ## Acceptance Criteria
 
 - [ ] Every command in the table in `docs/reference/configuration.md` works via the four-edit rule with verb-level `--json`, and no subcommand outside it exists — in particular `config` accepts none.
-- [ ] One `config` invocation reports the resolved configuration with per-key provenance, consulted files, active profile with resolved pieces, freshness, and unknown-key warnings.
+- [ ] One `config` invocation reports the resolved configuration with per-key provenance, consulted files, active profile with resolved pieces, the resolved entry path and whether it exists, and unknown-key warnings.
 - [ ] `config` exits `0` on warnings and with the mapped code on a structural or type defect.
 - [ ] `doctor` and `config` share one probe implementation and report config health without aborting.
 - [ ] `assert_cmd` tests pass.

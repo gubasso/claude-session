@@ -8,7 +8,7 @@
 
 ## Previous Rounds
 
-`cs-foundation`: crate, figment `Config` (`deny_unknown_fields`, XDG paths), error/ui. `cs-isolation`: the session dir the output later lands in. Expect these to exist.
+`cs-foundation`: crate, figment `Config` (`deny_unknown_fields`, XDG paths), error/ui. `cs-isolation`: the composed-settings store the output later lands in. Expect these to exist.
 
 ## Scope of This Round
 

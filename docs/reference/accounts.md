@@ -16,7 +16,7 @@ Each account contains `auth-mode.json`. This metadata is part of that account, n
 
 The wrapper owns account selection, mode metadata, and any stored token. The child owns everything below the account's `config/`, including `.credentials.json`. The wrapper never reads, copies, writes, refreshes, synchronizes, or fingerprints a child credential, and caches no child authentication state. `account status` may `stat` the credential path on demand.
 
-Account identifiers follow the group-identifier rules in [XDG storage](./xdg-storage.md).
+Account identifiers follow [the identifier rules](./xdg-storage.md#identifiers).
 
 ## Selection
 
@@ -116,9 +116,9 @@ All accept `--json`. Data goes to standard output; diagnostics and warnings go t
 
 ## Removal
 
-`remove` deletes the account directory and everything beneath it. Stale-group pruning never removes account-wide config. Removal confirms unless `--yes` is present.
+`remove` deletes the account directory and everything beneath it. Composed settings are not account state and survive removal. Removal confirms unless `--yes` is present.
 
-Before prompting, standard error warns when the account is selected or any group directory may still be active. The [confirmation contract](./cli-surface.md#the-exchange) owns the exchange and its exit status; declining reports that nothing was removed, as `removed: false` under `--json`. Removing the selected account clears the last-used marker.
+Before prompting, standard error warns when the account is selected. The [confirmation contract](./cli-surface.md#the-exchange) owns the exchange and its exit status; declining reports that nothing was removed, as `removed: false` under `--json`. Removing the selected account clears the last-used marker.
 
 Local token deletion is not upstream revocation. Child-owned login revocation remains a child operation.
 

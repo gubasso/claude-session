@@ -45,7 +45,7 @@ Codes 126 and 127 are shell conventions rather than `sysexits` values, and they 
 
 `Auth` and `Permission` share code 77. They are separate `err.kind` values because their fixes differ — re-authenticate versus repair a path — and the kind string is what a script should match on. The line between them is the **subject**, not the severity: `Auth` is about a credential's validity, `Permission` about a path's ownership, type, or mode. A credential file with the wrong owner is `Permission`, because the credential may be perfectly valid and what is wrong is where it sits.
 
-**`LockBusy` is the one code that tells a caller to try again.** Every other failure in the matrix is a standing condition a retry reproduces. It fires only where the wrapper genuinely contends — the [write locks](./xdg-storage.md#lock-scopes) guarding a minted credential or a two-file invariant ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)) — and never on a lock left behind by a killed run, because the kernel releases those.
+**`LockBusy` is the one code that tells a caller to try again.** Every other failure in the matrix is a standing condition a retry reproduces. It fires only where the wrapper genuinely contends — the [write lock](./xdg-storage.md#lock-scopes) guarding a minted credential ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)) — and never on a lock left behind by a killed run, because the kernel releases those.
 
 `OsError` and `Internal` are both "the wrapper's fault" from a distance and must not be merged. `Internal` is a bug and belongs in an issue report; `OsError` means the machine refused — a process-table limit, memory pressure — and the wrapper is working correctly. `sysexits` draws exactly this line, reserving 70 for "non-operating system related errors as possible". A wrapper whose one job is `fork` and `exec` needs the distinction more than most programs do.
 
@@ -141,7 +141,7 @@ A verb that exits non-zero because the answer was unwelcome cannot be used in a 
 | ---------------------------------------- | ---- | ------------------------------------------------------------------------ |
 | `config`, structurally sound             | `0`  | The assertion holds                                                      |
 | `config`, unknown-key warnings only      | `0`  | Warnings are advisory by design; see [configuration](./configuration.md) |
-| `config`, stale generated settings       | `0`  | Reported state, and the next launch regenerates                          |
+| `config`, entry not yet written          | `0`  | Reported state, and the next launch writes it                            |
 | `config`, structural or type defect      | code | `DataFormat` or `Config`, by which defect it was                         |
 | `doctor`, soft check failing             | `0`  | A degraded optional feature does not stop the wrapper working            |
 | `doctor`, soft check failing, `--strict` | `1`  | The caller moved the threshold                                           |
@@ -159,6 +159,8 @@ Both draw the same line in the same place: a defect the subject can still functi
 | A resolved name has no `profiles/<name>.yaml`            | `66` | `NoInput`, whichever layer named it                           |
 | A resolved profile names a piece that does not exist     | `66` | `NoInput`; the error names the profile and the path           |
 | A resolved profile is malformed or has an empty `layers` | `65` | `DataFormat`; it parsed and is semantically wrong             |
+| A resolved name fails the identifier rules               | `64` | `Usage`, whichever layer named it                             |
+| A materialized entry disagrees with its recomputed key   | `65` | `DataFormat`; it is neither opened nor overwritten            |
 | `profile` with no `profiles/` directory, or an empty one | `0`  | An empty list is the answer, not a failure — it is inspection |
 
 ## Error architecture

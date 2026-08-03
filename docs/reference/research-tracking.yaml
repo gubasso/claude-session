@@ -502,22 +502,26 @@ facts:
       Re-check whether relative and empty values are still discarded, and
       whether the crate has documented the behaviour so it can be relied on.
 
-  - id: multiplexer-terminal-identity
+  - id: derived-artifact-addressing
     fact: >-
-      A multiplexer pane keeps its own pseudo-terminal across client detach and
-      reattach, so the pane's controlling terminal is stable while the client's
-      is not. tmux exposes the two separately as pane_tty and client_tty.
-    owner: docs/decisions/ADR-0062-derive-the-group-from-the-controlling-terminal.md
+      Mature tools name a derived artifact by its inputs and make it immutable,
+      and name a user-selected context by the name the user chose. Nix store
+      paths pair a digest with a symbolic name; the Go module cache makes
+      extracted directories read-only; Chromium needs a singleton lock only
+      because a profile directory is mutable live state.
+    owner: docs/decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md
     dependents:
-      - docs/explanation/session-isolation.md
-      - docs/reference/xdg-storage.md
       - docs/reference/prior-art.md
+      - docs/reference/xdg-storage.md
+      - docs/explanation/session-isolation.md
     cadence: semiannual
     last_checked: 2026-08-03
     source:
-      - https://man.archlinux.org/man/tmux.1
-      - https://man7.org/linux/man-pages/man1/screen.1.html
-      - https://man7.org/linux/man-pages/man7/credentials.7.html
+      - https://nix.dev/manual/nix/latest/store/store-path.html
+      - https://go.dev/ref/mod
+      - https://chromium.googlesource.com/chromium/src/+/main/docs/user_data_dir.md
     revalidate: >-
-      Re-check that pane and client terminals remain distinct, and that no
-      widely used multiplexer reassigns a pane's terminal on reattach.
+      Re-check that Nix store paths and the Go module cache remain
+      input-addressed and immutable, that Chromium still documents a profile
+      directory as mutable live state needing a singleton lock, and that no
+      widely used tool has moved a derived artifact onto a caller-derived key.

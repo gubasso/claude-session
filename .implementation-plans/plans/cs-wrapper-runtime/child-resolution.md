@@ -4,11 +4,11 @@
 
 ## Context
 
-`claude-session` must reliably locate and validate the native `claude` binary before spawning it, and must never re-invoke itself (a shim/recursion risk if installed under a colliding name or via PATH ordering). This round defines the `Spawner` port and the child-binary resolution ladder with both recursion guards, and finalizes the `version` verb (our version plus the resolved child path and version). `cs-foundation` provides the crate, `AppContext`, `AppError`, `Ui`, and a minimal inherited-env spawn in `pass_through.rs` that this plan will harden. `cs-isolation` provides the resolved session dir (consumed in round 3).
+`claude-session` must reliably locate and validate the native `claude` binary before spawning it, and must never re-invoke itself (a shim/recursion risk if installed under a colliding name or via PATH ordering). This round defines the `Spawner` port and the child-binary resolution ladder with both recursion guards, and finalizes the `version` verb (our version plus the resolved child path and version). `cs-foundation` provides the crate, `AppContext`, `AppError`, `Ui`, and a minimal inherited-env spawn in `pass_through.rs` that this plan will harden. `cs-isolation` provides the resolved account directory and composed-settings entry (consumed in round 3).
 
 ## Previous Rounds
 
-`cs-foundation`: crate tree, plumbing, clap passthrough skeleton with a minimal spawn and a `version` stub; `which` may already be a dep. `cs-isolation`: secure dirs, group identity, `session_dir`. Expect these to exist and compile.
+`cs-foundation`: crate tree, plumbing, clap passthrough skeleton with a minimal spawn and a `version` stub; `which` may already be a dep. `cs-isolation`: secure dirs, validated identifiers, the composed-settings entry key. Expect these to exist and compile.
 
 ## Scope of This Round
 

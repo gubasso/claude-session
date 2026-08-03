@@ -37,4 +37,6 @@ Login-scoped identity is rejected for granularity — it is shared by every pane
 
 ## Status
 
-Accepted
+Superseded
+
+Superseded by [ADR-0065](./ADR-0065-retire-the-terminal-group.md) — settings are keyed by profile and input digest under [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md), so the group has no consumer left to derive.

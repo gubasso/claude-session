@@ -4,7 +4,7 @@ Two distinct things share the word "configuration" in this project, and keeping 
 
 **The wrapper's own configuration** controls `claude-session`: which child to run, which account to use, how verbose to be. It is a layered value resolved at startup.
 
-**The child's settings** are what `claude` reads from its account-wide configuration directory and an additional per-group document. `claude-session` generates the latter by composing user-authored pieces.
+**The child's settings** are what `claude` reads from its account-wide configuration directory and an additional per-profile document. `claude-session` generates the latter by composing user-authored pieces.
 
 **The child's authentication precedence** is separate from wrapper configuration precedence. It determines whether ambient cloud, API, helper, injected subscription-token, or saved-login authentication wins. [Accounts](./accounts.md#stored-modes-and-launch-behavior) owns that operational contract.
 
@@ -40,8 +40,6 @@ A missing file at any layer is **not an error**. An unreadable or malformed file
 A **single** underscore is part of a key name, not a level separator. `CLAUDE_SESSION_CHILD_BIN` therefore sets the flat key `child_bin` — the child-binary override in [process runtime](./process-runtime.md) — and not a nested `child.bin`.
 
 Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are **not** configuration keys. What reaches the child is [process runtime](./process-runtime.md#child-environment)'s to say.
-
-`CLAUDE_SESSION_GROUP` is also not a configuration key, though the user sets it. It is a rung of [the group derivation ladder](./xdg-storage.md#the-derivation-ladder), read directly, because a group identity is a property of one terminal and no configuration file — user or project — can hold a different value per terminal. A file that could would apply one group to every terminal that reads it, which is the mode the group exists to prevent.
 
 ### Future token-helper boundary
 
@@ -113,7 +111,7 @@ For each key, the wrapper tracks which layer supplied the winning value. This is
 
 ## Composing the child's settings
 
-The child may own `config/settings.json` in the account-wide configuration directory as its base layer. The user authors wrapper **pieces** and a **profile**; the wrapper composes them into `groups/<group>/settings.json`, supplied as an additional native `--settings` layer under [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
+The child may own `config/settings.json` in the account-wide configuration directory as its base layer. The user authors wrapper **pieces** and a **profile**; the wrapper composes them into an entry in the [composed-settings store](./xdg-storage.md#composed-settings-entries), supplied as an additional native `--settings` layer under [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
 
 ### Inputs
 
@@ -145,6 +143,8 @@ One name, four layers, everywhere the concept appears ([ADR-0050](../decisions/A
 
 A name that _is_ resolved must exist. `profiles/<name>.yaml` missing is `NoInput`, whichever layer supplied the name: a profile the user asked for and did not get is the silent-wrong-settings bug the unknown-key rule exists to prevent. See [exit codes](./exit-codes.md#inspection-verbs-and-assertion-verbs).
 
+A profile name becomes a path component in the composed-settings store, so it must satisfy [the identifier rules](./xdg-storage.md#identifiers); a name that does not exits `Usage`, whichever layer supplied it.
+
 ### Merge semantics
 
 Pieces are folded left to right into one document:
@@ -161,19 +161,21 @@ Array strategy is the one genuinely contested decision. Replace is the default b
 
 A **type conflict** — one piece making a key an object and another a string — is an error, not a silent overwrite. It names the key path, both pieces, and both types.
 
-Merging is **deterministic**: the same inputs produce byte-identical output, with object keys in a stable order. A generated file that reshuffles on every run defeats the freshness check and makes diffs useless.
+Merging is **deterministic**: the same inputs produce byte-identical output, with object keys in a stable order. It is what lets an entry be named by its inputs at all, and it makes diffs useful.
 
 ### Provenance sidecar
 
-Alongside the generated settings, the wrapper writes a sidecar recording the profile used, the ordered pieces with their resolved paths, and, for every leaf key, which piece set it.
+Alongside the composed settings, the wrapper writes a sidecar recording the profile used, the ordered pieces with their resolved paths, the full [input digest](./xdg-storage.md#composed-settings-entries), and, for every leaf key, which piece set it.
+
+Two input sets that happen to render identical settings still get separate entries, because provenance is a function of the inputs rather than of the output.
 
 This is the difference between "the setting is wrong" and "the setting is wrong _because_ this piece overrode that one". `config` surfaces it.
 
-### Generation and freshness
+### Generation
 
-Generation resolves the profile, loads the pieces, merges, validates, and writes atomically to `accounts/<account>/groups/<group>/settings.json`.
+Generation resolves the profile, loads the pieces, computes [the entry key](./xdg-storage.md#composed-settings-entries), and stops if that entry already exists and its sidecar agrees. Otherwise it merges, validates, and writes the settings and its provenance atomically.
 
-The freshness check compares the modification time of the generated file against **the profile and every referenced piece**. Checking only the profile is a real bug: editing a piece without touching the profile leaves stale settings in place, and the symptom — an edit that appears to do nothing — is genuinely hard to diagnose.
+Existence is the whole freshness answer. Because the key covers the profile and every referenced piece by content, editing a piece names a different entry — stronger than the modification-time comparison it replaces, and without the "an edit that appears to do nothing" bug that comparison existed to catch.
 
 ### Validation
 
@@ -191,10 +193,10 @@ Trust, onboarding, project history, and other native state remain child-owned in
 
 Two verbs, neither with subcommands ([ADR-0049](../decisions/ADR-0049-collapse-config-inspection-into-one-verb.md), [ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
-| Command   | Reports                                                                                                                                                                                                     |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config`  | The resolved wrapper configuration with per-key provenance; which files were consulted and which existed; the active profile, its resolved pieces, and generated-settings freshness; and every defect found |
-| `profile` | The profiles available to `--profile`                                                                                                                                                                       |
+| Command   | Reports                                                                                                                                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`  | The resolved wrapper configuration with per-key provenance; which files were consulted and which existed; the active profile, its resolved pieces, and the resolved entry path with whether it exists; and every defect found |
+| `profile` | The profiles available to `--profile`                                                                                                                                                                                         |
 
 Both accept `--json`, and both write data to standard output and diagnostics to standard error; see [logging and output](./logging-and-output.md). `config` reports one profile's ordered layers and resolved paths when given `--profile <name>`.
 

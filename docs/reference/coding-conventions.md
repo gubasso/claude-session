@@ -11,7 +11,7 @@ This describes normative design. The crate is pre-implementation.
 | Parse-shape argument struct  | `<Verb>Args`            | `AccountArgs`                    |
 | Runtime-shape request        | `<Verb>Request`         | `ComposeRequest`                 |
 | Per-layer error enum         | `<Layer>Error`          | `DomainError`, `FsAdapterError`  |
-| Validated newtype            | The concept, singular   | `AccountId`, `GroupId`           |
+| Validated newtype            | The concept, singular   | `AccountId`, `ProfileId`         |
 | Adapter trait                | The role it plays       | `Spawner`, `Filesystem`, `Clock` |
 | Command handler              | `run`                   | One per `commands/<verb>.rs`     |
 | Constructor returning `Self` | `new`                   |                                  |
@@ -82,7 +82,7 @@ Everything else returns a typed error. In particular, a missing file, a malforme
 
 **Parse, don't validate.** Convert unvalidated input into a type that cannot be invalid, once, at the boundary. Downstream code then takes the validated type and needs no defensive checks. A function taking `&str` where it means an account identifier has pushed validation onto every caller.
 
-**Newtypes for identifiers.** Account and group identifiers, paths with meaning, and anything else where passing the wrong string type-checks but misbehaves. Validation lives in the constructor.
+**Newtypes for identifiers.** Account identifiers and profile names, paths with meaning, and anything else where passing the wrong string type-checks but misbehaves. Validation lives in the constructor.
 
 **`FromStr` for anything parsed from a flag or a file**, so the parser and the configuration loader share one implementation.
 

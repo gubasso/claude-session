@@ -89,15 +89,15 @@ Resolution is an explicit ladder — a configured override, then a path search �
 
 Two independent guards prevent self-invocation. A marker variable is set in the child's environment, so a wrapper that finds itself as the child sees the marker and refuses. And the resolved child is compared against the wrapper's own executable by file identity, which catches the link case the marker cannot. Both, because either alone has a hole: the marker is defeated by a scrubbed environment, and the identity check is defeated by a copy rather than a link.
 
-## Account selection and group settings
+## Account selection and composed settings
 
 The wrapper selects an account-wide configuration directory through `CLAUDE_CONFIG_DIR`; the child owns its saved login and other native state inside it. The wrapper never reads, copies, refreshes, fingerprints, or synchronizes that credential.
 
-Per-group composition leaves through one declared wrapper-added argv pair: `--settings <absolute group settings path>`. That pair precedes an opaque, verbatim user suffix. The wrapper preserves every user token and does not parse duplicate settings flags; see [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
+Composition leaves through one declared wrapper-added argv pair: `--settings <absolute composed-settings path>`. That pair precedes an opaque, verbatim user suffix. The wrapper preserves every user token and does not parse duplicate settings flags; see [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md).
 
-The child keeps only the last `--settings` it is given, so a user who passes one replaces the group's composed document rather than adding to it. The wrapper accepts that precedence instead of repairing it: the alternative is inspecting the suffix, which is the coupling this whole model exists to avoid. The consequence is stated where a user meets it, in [the child argument vector](../reference/process-runtime.md#child-argument-vector).
+The child keeps only the last `--settings` it is given, so a user who passes one replaces the wrapper's composed document rather than adding to it. The wrapper accepts that precedence instead of repairing it: the alternative is inspecting the suffix, which is the coupling this whole model exists to avoid. The consequence is stated where a user meets it, in [the child argument vector](../reference/process-runtime.md#child-argument-vector).
 
-Account selection and terminal-group derivation are separate axes, explained in [session isolation](./session-isolation.md).
+Account selection and profile selection are separate axes, explained in [session isolation](./session-isolation.md).
 
 The child's environment is otherwise inherited, with the wrapper's own `CLAUDE_SESSION_*` variables scrubbed out and the recursion marker then set back. A child should never be able to observe the wrapper's internal state by reading its environment, both because it is none of the child's business and because a nested invocation would inherit stale values — and the marker is the deliberate exception, because a nested invocation seeing it is exactly how the guard fires.
 

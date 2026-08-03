@@ -32,3 +32,5 @@ Chosen option: **one bare `config` verb**. It reports the resolved wrapper confi
 Accepted
 
 Amended by [ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md) — `profile list` collapses to `profile`, and the rule this record applied once is named there.
+
+Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — `config` reports the resolved composed-settings entry and whether it exists, rather than an mtime freshness verdict. The one-verb decision is unchanged.

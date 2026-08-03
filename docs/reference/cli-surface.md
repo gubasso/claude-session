@@ -21,17 +21,16 @@ This table is the denylist. Every flag on it is intercepted by the wrapper **in 
 
 The child-status column is measured, not assumed. It is the intersection audited by [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md), taken from `claude` 2.1.220 on 2026-07-31; the `child-flag-and-verb-inventory` fact in [research tracking](./research-tracking.yaml) owns its freshness.
 
-| Flag               | Meaning                                              | Why the wrapper claims it                                                                                                   | Child status                                 |
-| ------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `--verbose`        | Increase diagnostic verbosity; repeatable            | The wrapper's own diagnostics need a control separate from the child's                                                      | Collides: the child has `--verbose` too      |
-| `--quiet`, `-q`    | Suppress all diagnostics below error                 | Pairs with `--verbose`; required for scripted use                                                                           | Free                                         |
-| `--config <path>`  | Override the wrapper's own configuration file        | Needed before configuration is loaded, so it cannot itself come from configuration                                          | Free                                         |
-| `--account <name>` | Select the account and stored authentication context | The wrapper owns account selection; the child owns its credential                                                           | Free                                         |
-| `--session <id>`   | Override the derived session group identity          | The wrapper owns session identity; see [session isolation](../explanation/session-isolation.md)                             | Free; the child's own flag is `--session-id` |
-| `--profile <name>` | Select the settings profile to compose               | The wrapper owns composition; declared on the launch and on `config` only, per [configuration](./configuration.md#commands) | Free                                         |
-| `--dry-run`        | Resolve and report what would happen; spawn nothing  | A wrapper-level rehearsal has no child equivalent                                                                           | Free                                         |
-| `--version`, `-V`  | Print the wrapper's version and the resolved child's | Must report both, which the child cannot do                                                                                 | `--version` collides by design; `-V` free    |
-| `--help`, `-h`     | Print the wrapper's help                             | Must describe the wrapper's grammar, not the child's                                                                        | Collides by design                           |
+| Flag               | Meaning                                              | Why the wrapper claims it                                                                                                   | Child status                              |
+| ------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `--verbose`        | Increase diagnostic verbosity; repeatable            | The wrapper's own diagnostics need a control separate from the child's                                                      | Collides: the child has `--verbose` too   |
+| `--quiet`, `-q`    | Suppress all diagnostics below error                 | Pairs with `--verbose`; required for scripted use                                                                           | Free                                      |
+| `--config <path>`  | Override the wrapper's own configuration file        | Needed before configuration is loaded, so it cannot itself come from configuration                                          | Free                                      |
+| `--account <name>` | Select the account and stored authentication context | The wrapper owns account selection; the child owns its credential                                                           | Free                                      |
+| `--profile <name>` | Select the settings profile to compose               | The wrapper owns composition; declared on the launch and on `config` only, per [configuration](./configuration.md#commands) | Free                                      |
+| `--dry-run`        | Resolve and report what would happen; spawn nothing  | A wrapper-level rehearsal has no child equivalent                                                                           | Free                                      |
+| `--version`, `-V`  | Print the wrapper's version and the resolved child's | Must report both, which the child cannot do                                                                                 | `--version` collides by design; `-V` free |
+| `--help`, `-h`     | Print the wrapper's help                             | Must describe the wrapper's grammar, not the child's                                                                        | Collides by design                        |
 
 Three properties of this table are contractual:
 
@@ -58,7 +57,7 @@ Documentation and examples use the `--flag=<value>` form, because it is unambigu
 
 Repetition: `--verbose` is repeatable by repeating the whole spelling, and `--quiet` is idempotent. Every other wrapper flag is accepted at most once, and a repeat is a `Usage` error. What each verbosity level means, and why `--verbose` with `--quiet` is rejected, is in [logging and output](./logging-and-output.md#verbosity).
 
-Value types split on whether the value is a path or a name. `--config` takes a path, so its value is an OS string and bytes that are not valid UTF-8 are accepted — a Unix path is a byte string. `--account`, `--session`, and `--profile` name things the wrapper constructs directory components from and prints into `--json` documents and log records, so each requires valid UTF-8 and a value that is not exits `Usage`.
+Value types split on whether the value is a path or a name. `--config` takes a path, so its value is an OS string and bytes that are not valid UTF-8 are accepted — a Unix path is a byte string. `--account` and `--profile` name things the wrapper constructs directory components from and prints into `--json` documents and log records, so each requires valid UTF-8 and a value that is not exits `Usage`. Each must also satisfy [the identifier rules](./xdg-storage.md#identifiers); a value that does not exits `Usage`.
 
 ### Machine output is not on this table
 
@@ -80,7 +79,7 @@ Three things reach the child's own spelling:
 | -------------------- | -------------------------------- | ------------------------------------------------------- |
 | The sentinel         | `claude-session -- --verbose`    | `--verbose`                                             |
 | Any earlier token    | `claude-session -p hi --verbose` | `-p hi --verbose` — recognition already stopped at `-p` |
-| A different spelling | `claude-session --session-id X`  | `--session-id X` — a near-miss is not claimed           |
+| A different spelling | `claude-session --account-id X`  | `--account-id X` — a near-miss is not claimed           |
 
 `--` is unconditional. Everything after it is child argument territory even if it spells a wrapper flag or verb, and **a second `--` after the boundary is an ordinary child argument** — the wrapper consumes the first and never inspects, strips, or counts the rest.
 
@@ -129,7 +128,7 @@ Forwarding is **verbatim**. Specifically:
 
 Standard input, standard output, and standard error are inherited by the child unmodified. The wrapper writes nothing to standard output during a passthrough invocation; see [logging and output](./logging-and-output.md).
 
-For an account-backed group, [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md) narrowly authorizes one wrapper-owned prefix, `--settings <absolute group settings path>`. Every user-supplied token remains an untouched suffix with order, bytes, count, and `--` sentinel preserved. The wrapper does not parse or normalize that suffix. What the child sees in `argv[0]`, and how the prefix itself is typed, are in [process runtime](./process-runtime.md#child-argument-vector).
+For a resolved profile, [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md) narrowly authorizes one wrapper-owned prefix, `--settings <absolute composed-settings path>`. Every user-supplied token remains an untouched suffix with order, bytes, count, and `--` sentinel preserved. The wrapper does not parse or normalize that suffix. What the child sees in `argv[0]`, and how the prefix itself is typed, are in [process runtime](./process-runtime.md#child-argument-vector).
 
 ## Parser shape
 

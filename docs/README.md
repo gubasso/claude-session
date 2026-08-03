@@ -25,10 +25,10 @@ A topic directory, when volume ever demands one, goes **inside** a zone. It is n
 
 - [Architecture](./explanation/architecture.md) — the crate's shape, the invocation lifecycle, and what each module may and may not do.
 - [Wrapper model](./explanation/wrapper-model.md) — what it means to wrap `claude`, and why the wrapper's grammar stays small and the child stays opaque.
-- [Session isolation](./explanation/session-isolation.md) — what a session is, how its identity is derived, and why redirecting the child's configuration directory is the isolation mechanism.
+- [Session isolation](./explanation/session-isolation.md) — the two isolation scopes, what each owns, and why composed settings are keyed by profile.
 - [Testing strategy](./explanation/testing-strategy.md) — how this project tests a process-spawning wrapper, and the anti-patterns review rejects.
 
-The zone carries cross-cutting models, not one page per subsystem. Accounts have none by design: [session isolation](./explanation/session-isolation.md) owns the account-to-group relationship, and [accounts](./reference/accounts.md) opens with the model its contract rests on — a third page could only restate them ([ADR-0012](./decisions/ADR-0012-docs-architecture.md)).
+The zone carries cross-cutting models, not one page per subsystem. Accounts have none by design: [session isolation](./explanation/session-isolation.md) owns the account-to-profile relationship, and [accounts](./reference/accounts.md) opens with the model its contract rests on — a third page could only restate them ([ADR-0012](./decisions/ADR-0012-docs-architecture.md)).
 
 ## Reference
 

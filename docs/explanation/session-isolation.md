@@ -1,41 +1,31 @@
 # Session isolation
 
-`claude-session` separates two scopes. An account supplies durable native identity, authentication, configuration, projects, history, and trust state. A terminal group supplies composed settings, provenance, and session metadata. This page explains that split and how the group is identified.
+`claude-session` separates two scopes. An account supplies durable native identity, authentication, configuration, projects, history, and trust state. A profile supplies the composed settings the child is launched with, and their provenance. This page explains that split.
 
 Exact paths, modes, and writers are in [XDG storage](../reference/xdg-storage.md). Launch injection is in [the wrapper model](./wrapper-model.md).
 
 ## What a session is
 
-A wrapper session is an **account plus a group**:
+A wrapper session is an **account plus a profile**:
 
 - The account selects one shared child `config/` directory and one stored authentication mode.
-- The group selects one per-terminal `settings.json`, composition-provenance sidecar, and metadata document.
+- The profile selects one composed `settings.json` and its provenance sidecar.
 
-Every run of one account uses the same `CLAUDE_CONFIG_DIR`. The child exclusively owns its saved login and other native state there. The wrapper passes the group's settings through the native `--settings` flag.
+Every run of one account uses the same `CLAUDE_CONFIG_DIR`. The child exclusively owns its saved login and other native state there. The wrapper passes the profile's composed document through the native `--settings` flag. The two selections are independent: an account can be selected without a profile, and a profile without an account.
 
 Sessions are not conversations. Runs of one account intentionally share the child's projects, history, onboarding, and trust state. A caller needing conversation separation uses the child's own session identifier.
 
-## Deriving the group without knowing multiplexers
+## Why the profile is the key
 
-The wrapper identifies terminal context without recognizing tmux, screen, or any other multiplexer. Tool-specific variables fail in plain terminals, omit future multiplexers, and expand the wrapper's environment grammar.
+The composed document is a pure function of the profile, its ordered pieces, and their contents. Nothing about the terminal, the working directory, or the project enters it. Keying it by any of those is the error of keying a build artifact by who ran the build: two runs that should share an artifact get two, and two runs that should not share one get one.
 
-The controlling terminal is the general key: interactive tabs, splits, and panes have distinct pseudo-terminals regardless of the program that created them. Derivation is first-hit-wins over five rungs ([ADR-0062](../decisions/ADR-0062-derive-the-group-from-the-controlling-terminal.md)); the exact inputs and the identifier they produce are in [XDG storage](../reference/xdg-storage.md#group-identifiers).
+Two profiles launched from one terminal are the case that decides it. They must never meet, and under an input-addressed key they cannot: each names its own entry, and an entry is written once and never rewritten. The converse holds too — identical inputs from different terminals, or from different accounts, name one entry, which is correct because the bytes are identical. A wrapper of this same shape was observed keying composed child configuration by terminal instead, so that a second profile in one terminal overwrote the first and unlinked files a live child depended on; that is the failure this split exists to make unrepresentable.
 
-Two properties of that ladder are worth understanding rather than looking up.
-
-**It survives detach and reattach.** A multiplexer creates a pane's pseudo-terminal once, in its server, when the pane is spawned. Detaching disconnects a client and leaves that terminal alone, so a run before a detach and a run after reattaching — possibly from a different machine — land in the same group. Everything an emulator or multiplexer exports about a window describes the _client_ instead, which is exactly the thing reattaching changes. That is the concrete reason those variables are rejected, rather than a preference for kernel interfaces.
-
-**It never fails, and the rung it reached is reportable.** The last rung is random, so it is honest: the group is new, will not be rediscovered, and says so. A headless pipeline that reaches the session-leader rung above it is not warned, because there the identity is correct and stable.
-
-## The container edge
-
-A controlling-terminal name is unique only within one kernel view. Several containers that bind-mount one state directory derive identical terminal names, and a group silently shared between two sessions merges their settings and metadata with no error.
-
-Two mechanisms answer that, and [ADR-0063](../decisions/ADR-0063-claim-a-group-by-its-derivation-fingerprint.md) records both. A host discriminator prefixes the identifier, so the ordinary case does not collide; it is always applied and names no container tool. A recorded derivation fingerprint, compared before a group is used, is what makes the guarantee unconditional — including where the discriminator itself is cloned along with a container image. A run that meets a group whose fingerprint is not its own never opens that group's settings.
+Whole-root-per-profile isolation was rejected: it would split the login, history, and trust that one account exists to share. Exact names and the write rule are in [XDG storage](../reference/xdg-storage.md#composed-settings-entries); why, in [ADR-0064](../decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md).
 
 ## Why both scopes are state
 
-Account config and group artifacts are durable program-written state that may survive reboot. They are not:
+Account config and composed settings are durable program-written state that may survive reboot. They are not:
 
 - user-authored Configuration;
 - safely disposable Cache.
@@ -46,8 +36,7 @@ The Runtime base is unused: the wrapper opens no socket, and its [write locks](.
 
 - The child writes account `config/`, including its saved login, projects, history, and trust state.
 - The account subsystem writes `auth-mode.json`, any local OAuth token, and the last-used marker.
-- The composition subsystem writes group settings and provenance.
-- The session subsystem writes group metadata.
+- The composition subsystem writes composed settings and their provenance.
 
 The wrapper never reads, copies, fingerprints, or synchronizes the child credential. Wrapper-owned files use atomic write-then-rename; directory creation is idempotent.
 
@@ -61,12 +50,10 @@ The child-owned credential is validated only as a path when presence matters. Th
 
 ## Cleanup
 
-Group directories accumulate and are pruned conservatively by age. A possibly active group is retained. Automatic pruning never removes account-wide config or authentication state; only explicit account removal deletes that tree.
+Composed settings entries are immutable and permanent; the wrapper ships no pruning. Automatic cleanup removes nothing but an orphaned atomic temporary, and only explicit account removal deletes an account tree — which leaves composed settings alone, because they are not account state.
 
 ## Further reading
 
 - [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir/latest/)
 - [`directories`](https://docs.rs/directories/)
 - [`xdg-ninja`](https://github.com/b3nj5m1n/xdg-ninja)
-- [`credentials(7)`](https://man7.org/linux/man-pages/man7/credentials.7.html) — sessions, process groups, and the controlling terminal
-- [Linux devpts documentation](https://www.kernel.org/doc/html/latest/filesystems/devpts.html) — why a pty index is namespace-local

@@ -29,4 +29,6 @@ The fingerprint is what makes the guarantee unconditional, including where the d
 
 ## Status
 
-Accepted
+Superseded
+
+Superseded by [ADR-0065](./ADR-0065-retire-the-terminal-group.md) — with settings keyed by profile and input digest under [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md), the fingerprint guards nothing and the metadata that carried it describes nothing.

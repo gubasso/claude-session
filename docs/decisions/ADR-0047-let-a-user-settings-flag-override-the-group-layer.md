@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-[ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md) prepends `--settings <group settings path>` and left duplicate-flag behaviour explicitly unverified. Measured against `claude` 2.1.220 on 2026-07-31, the child keeps only the **last** occurrence: an earlier settings file is not merged, not validated, and not read at all. Since the wrapper's pair is a prefix, a user's own `--settings` always wins, silently discarding the group's composed layer.
+[ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md) prepends `--settings <composed settings path>` and left duplicate-flag behaviour explicitly unverified. Measured against `claude` 2.1.220 on 2026-07-31, the child keeps only the **last** occurrence: an earlier settings file is not merged, not validated, and not read at all. Since the wrapper's pair is a prefix, a user's own `--settings` always wins, silently discarding the wrapper's composed layer.
 
 ## Considered Options
 
@@ -16,7 +16,7 @@ Chosen option: **accept the child's precedence** — the losing layer is the wra
 
 Appending the pair after the user suffix was rejected because tokens after `--` are the child's positional territory, so a suffix would corrupt exactly the invocations the sentinel exists to protect. Parsing to deduplicate is the coupling [ADR-0002](./ADR-0002-verbatim-argv-passthrough.md) and [ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md) both reject.
 
-The behaviour is documented where a user meets it, in [the child argument vector](../reference/process-runtime.md#child-argument-vector) and [configuration](../reference/configuration.md): passing `--settings` yourself replaces the group's composed document rather than adding to it. Users who want both compose them into one file and pass that.
+The behaviour is documented where a user meets it, in [the child argument vector](../reference/process-runtime.md#child-argument-vector) and [configuration](../reference/configuration.md): passing `--settings` yourself replaces the wrapper's composed document rather than adding to it. Users who want both compose them into one file and pass that.
 
 ## Consequences
 
@@ -30,3 +30,5 @@ The behaviour is documented where a user meets it, in [the child argument vector
 Accepted
 
 Amends [ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md).
+
+Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — what this record's title calls the group layer is the profile's composed layer. The precedence decision is unchanged.
