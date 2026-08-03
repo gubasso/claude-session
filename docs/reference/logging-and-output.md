@@ -134,28 +134,60 @@ A guard that fails emits its check's remediation **verbatim** — not a paraphra
 
 Each check has a stable kebab-case **id**, a **scope**, a **severity**, and the `err.kind` a failure of it exits with.
 
-| Id                          | Scope   | Severity | `err.kind`           | Passes when                                                                           |
-| --------------------------- | ------- | -------- | -------------------- | ------------------------------------------------------------------------------------- |
-| `base-dirs-resolve`         | Host    | Hard     | `Unavailable`        | Config and state resolve to absolute, usable paths                                    |
-| `runtime-dir-present`       | Host    | Soft     | `Unavailable`        | Present; absent is reported, not failed                                               |
-| `wrapper-config-parses`     | Host    | Hard     | `Config`             | Parses, with no unknown keys                                                          |
-| `child-binary-resolves`     | Host    | Hard     | `ChildNotFound`      | Found via the ladder in [process runtime](./process-runtime.md)                       |
-| `child-is-executable`       | Host    | Hard     | `ChildNotExecutable` | Executable by the current user                                                        |
-| `child-version-floor`       | Host    | Soft     | `Unavailable`        | At or above the documented minimum                                                    |
-| `session-root-security`     | Session | Hard     | `Permission`         | Not a symlink, owned by the user, mode `0700`                                         |
-| `session-identity-derives`  | Session | Soft     | `Unavailable`        | Derives above the process-id fallback rung                                            |
-| `account-registry-readable` | Session | Soft     | `Io`                 | Account directories, auth-mode metadata, and selected storage are readable and secure |
-| `credentials-usable`        | Session | Soft     | `Auth`               | The current account's selected login or token mode is usable                          |
-| `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                  |
-| `settings-fresh`            | Session | Soft     | `DataFormat`         | The generated settings are not stale                                                  |
+| Id                          | Scope   | Severity | `err.kind`           | Passes when                                                                         |
+| --------------------------- | ------- | -------- | -------------------- | ----------------------------------------------------------------------------------- |
+| `base-dirs-resolve`         | Host    | Hard     | `Unavailable`        | Config and state resolve to absolute, usable paths                                  |
+| `runtime-dir-present`       | Host    | Soft     | `Unavailable`        | Present; absent is reported, not failed                                             |
+| `wrapper-config-parses`     | Host    | Hard     | `Config`             | Parses, with no unknown keys                                                        |
+| `child-binary-resolves`     | Host    | Hard     | `ChildNotFound`      | Found via the ladder in [process runtime](./process-runtime.md)                     |
+| `child-is-executable`       | Host    | Hard     | `ChildNotExecutable` | Executable by the current user                                                      |
+| `child-version-floor`       | Host    | Soft     | `Unavailable`        | At or above the documented minimum                                                  |
+| `storage-paths-no-symlinks` | Session | Hard     | `Permission`         | No existing wrapper-managed path component is a symbolic link                       |
+| `storage-paths-owned`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path component is owned by the current user          |
+| `storage-paths-typed`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path has the file type the artifact table assigns it |
+| `storage-directory-modes`   | Session | Hard     | `Permission`         | Every wrapper-managed directory has mode `0700`, after automatic correction         |
+| `storage-secret-modes`      | Session | Hard     | `Permission`         | Every wrapper-owned file assigned mode `0600` has that mode, after correction       |
+| `session-identity-derives`  | Session | Soft     | `Unavailable`        | Derives above the process-id fallback rung                                          |
+| `account-registry-readable` | Session | Soft     | `Io`                 | Account directories and auth-mode metadata are readable and parse                   |
+| `credentials-usable`        | Session | Soft     | `Auth`               | The current account's selected login or token mode is usable                        |
+| `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                |
+| `settings-fresh`            | Session | Soft     | `DataFormat`         | The generated settings are not stale                                                |
 
 **Hard** means the wrapper cannot function. **Soft** means a feature is degraded.
 
+The five `storage-*` checks are five ids rather than one because each [storage condition](./xdg-storage.md#filesystem-security) has a different remedy, and a check owns exactly one remediation. Collapsing them would leave one id owning three unrelated instructions, which is the drift the verbatim rule exists to prevent.
+
 Ids are **public API**. Scripts match them and messages cite them, so renaming one is a breaking change and the table grows by appending — the same contract `err.kind` carries in [exit codes](./exit-codes.md). Severity is the only waiver lever: a check that could legitimately be ignored is soft _by definition_, which is why there is no per-invocation ignore flag and a hard check stays an unconditional guarantee.
+
+### Remediations
+
+Each failing check owns **one** remediation template. It is the **Hint** of the [error shape](./exit-codes.md#error-message-shape); What, Where, and Why are computed from the failure. `{path}`, `{expected_type}`, `{actual_type}`, `{expected_mode}`, and `{account}` are substituted without changing the surrounding wording — "verbatim" means the same template and the same substitution rules at both call sites, not that a runtime path cannot be inserted.
+
+Where one command fixes the condition, the remedy **is** that command, on its own line, in the form `git` uses for dubious ownership. Where no single command is safe, it is not invented: a bad remedy is worse than a precise description, which is why `storage-paths-owned` below does not print a `chown`.
+
+| Check                       | Remediation                                                                                                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storage-paths-no-symlinks` | Move the symbolic link at `{path}` aside and recreate the expected `{expected_type}` there, restoring only content you trust.                                                                     |
+| `storage-paths-owned`       | `{path}` is owned by another user, which usually means a restored backup or a file created under `sudo`. Do not change its owner in place — move it aside and let the wrapper recreate it as you. |
+| `storage-paths-typed`       | `{path}` is a `{actual_type}` and this location must be a `{expected_type}`. Move it aside and let the wrapper recreate it; nothing under this path is unrecoverable except an account login.     |
+| `storage-directory-modes`   | Could not restrict `{path}` to mode `{expected_mode}`. Check that it is on a filesystem supporting Unix permissions and was created by the current user.                                          |
+| `storage-secret-modes`      | Could not restrict `{path}` to mode `{expected_mode}`. Move the file to storage that supports Unix permissions before using it again.                                                             |
+| `base-dirs-resolve`         | `XDG_CONFIG_HOME` and `XDG_STATE_HOME` must be absolute paths, or unset so the defaults apply. Run `claude-session doctor` to see what each resolved to.                                          |
+| `account-registry-readable` | The account registry under `{path}` could not be read. Check that it exists and is readable; if it is missing entirely, `claude-session account login {account}` recreates it.                    |
+
+On a **credential path** — `oauth-token`, `auth-mode.json`, or the child's `.credentials.json` — the `storage-paths-no-symlinks` template appends one clause, because a link there means something else may have read the secret:
+
+> Anything holding that link may have read this account's credential. Treat it as exposed: run `claude-session account login {account}` for a fresh one, and revoke the old one at the provider.
+
+It appends nowhere else. Claiming exposure over a link on an ordinary metadata path would be crying wolf.
+
+The remaining checks take their remediation from the subsystem that owns them, and a corrected mode has none at all — see below.
 
 ### Results and exit
 
 A check reports `pass`, `warn`, `fail`, or `skipped`.
+
+A mode check that **corrects** drift reports `pass`, recording the old and new modes in its detail. It reports `fail` only when the correction cannot be applied, or validation still fails after it. A repair is not an unhealthy state, and `doctor --strict` does not fail on one: the distinction is `fsck(8)`'s, which separates exit `1` "Filesystem errors corrected" from exit `4` "Filesystem errors left uncorrected" rather than inventing a second check. This is why mode is a pass condition **after correction** in the catalog above and "correct, then proceed" in [XDG storage](./xdg-storage.md#filesystem-security) — one rule, stated from both ends.
 
 A soft check that is inert — a feature the user does not use — reports `skipped` with a reason and **never gates**. Failing `doctor` because the user has not configured accounts they do not want punishes them for not using a feature. Session-scope checks are skipped when no session context applies. **Skips never affect the exit code.**
 
@@ -188,7 +220,7 @@ Checks are grouped by scope in catalog order, and each line carries its status a
       "kind": "ChildNotFound"
     }
   ],
-  "summary": { "total": 12, "passed": 12, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0 },
+  "summary": { "total": 16, "passed": 16, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0 },
   "schema_version": 1
 }
 ```

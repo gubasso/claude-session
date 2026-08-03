@@ -483,3 +483,21 @@ facts:
     revalidate: >-
       Re-check the stable version, schema, generated filename and trigger,
       supported targets, runners, and generated action versions.
+
+  - id: directories-relative-value-handling
+    fact: >-
+      The directories crate discards a relative or empty XDG_* value in favour
+      of the specification default, matching the XDG requirement. Verified in
+      source; not stated in the crate's rendered documentation, so it is
+      behaviour rather than a contract.
+    owner: docs/reference/xdg-storage.md
+    dependents:
+      - docs/reference/dependencies.md
+    cadence: semiannual
+    last_checked: 2026-08-03
+    source:
+      - https://docs.rs/directories/latest/directories/struct.BaseDirs.html
+      - https://specifications.freedesktop.org/basedir/latest/
+    revalidate: >-
+      Re-check whether relative and empty values are still discarded, and
+      whether the crate has documented the behaviour so it can be relied on.

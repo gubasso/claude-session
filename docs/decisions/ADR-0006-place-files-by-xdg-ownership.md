@@ -34,3 +34,5 @@ Accepted
 Amended by [ADR-0050](./ADR-0050-name-the-profile-surface-once.md) — the profile artifact moves from `manifests/` to `profiles/`; the ownership rule placing it is unchanged.
 
 Amended by [ADR-0060](./ADR-0060-lock-the-writes-that-are-not-derivable.md) — the runtime base has no artifact, since a lock lives beside the file it guards, so its absence is no longer a degradation to report; the ownership rule is unchanged.
+
+Amended by [ADR-0061](./ADR-0061-protect-storage-from-accidental-local-drift.md) — the mode and ownership checks this record names gain a recorded scope, so what they cost is measured against what they defend; the ownership rule is unchanged.

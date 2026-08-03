@@ -33,7 +33,7 @@ Every variant of the error type maps to exactly one code. There is **no catch-al
 | `Io`                 | 74   | `EX_IOERR`       | An I/O operation failed for a reason not covered more specifically                                                |
 | `LockBusy`           | 75   | `EX_TEMPFAIL`    | A write lock was still held by another run when the acquisition deadline expired                                  |
 | `Auth`               | 77   | `EX_NOPERM`      | Credentials are missing, expired, or refused                                                                      |
-| `Permission`         | 77   | `EX_NOPERM`      | A filesystem ownership or mode check failed                                                                       |
+| `Permission`         | 77   | `EX_NOPERM`      | A filesystem ownership, type, or symlink check failed, or a mode could not be corrected                           |
 | `Config`             | 78   | `EX_CONFIG`      | Configuration is malformed, contains an unknown key, or is internally inconsistent                                |
 | `ChildRecursion`     | 78   | `EX_CONFIG`      | Resolution produced the wrapper itself; see [process runtime](./process-runtime.md#recursion-guard)               |
 | `ChildNotExecutable` | 126  | —                | The child binary was found but is not executable                                                                  |
@@ -43,7 +43,7 @@ Codes 126 and 127 are shell conventions rather than `sysexits` values, and they 
 
 **`ChildRecursion` is `Config`, not 127.** Resolution succeeded — it produced the wrong binary. 127 would send the user hunting for an uninstalled `claude` when the actual fault is a `PATH` entry or a symlink pointing back at the wrapper, which is exactly the "found in a misconfigured state" that 78 names. Grouping it with the other two child failures would buy one greppable family at the cost of the remedy being wrong.
 
-`Auth` and `Permission` share code 77. They are separate `err.kind` values because their fixes differ — re-authenticate versus repair a file mode — and the kind string is what a script should match on. The line between them is the **subject**, not the severity: `Auth` is about a credential's validity, `Permission` about a path's ownership or mode. A credential file with the wrong owner is `Permission`, because the credential may be perfectly valid and the fix is `chmod`.
+`Auth` and `Permission` share code 77. They are separate `err.kind` values because their fixes differ — re-authenticate versus repair a path — and the kind string is what a script should match on. The line between them is the **subject**, not the severity: `Auth` is about a credential's validity, `Permission` about a path's ownership, type, or mode. A credential file with the wrong owner is `Permission`, because the credential may be perfectly valid and what is wrong is where it sits.
 
 **`LockBusy` is the one code that tells a caller to try again.** Every other failure in the matrix is a standing condition a retry reproduces. It fires only where the wrapper genuinely contends — the [write locks](./xdg-storage.md#lock-scopes) guarding a minted credential or a two-file invariant ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)) — and never on a lock left behind by a killed run, because the kernel releases those.
 
@@ -53,7 +53,7 @@ Codes 126 and 127 are shell conventions rather than `sysexits` values, and they 
 
 Two mappings depart from the header's own guidance, deliberately. Both are recorded here so a reader checking against the source does not "correct" them:
 
-- **`Permission` uses 77**, which the header says is "not intended for file system problems, which should use `NOINPUT` or `CANTCREAT`, but rather for higher level permissions." The wrapper's filesystem checks are higher-level permissions: `session-root-security` fails on a directory the wrapper can read perfectly well and **refuses** because its mode or owner is wrong. That is a policy decision, not a denied `open`. A genuine denied `open` on a user-named file is `NoInput` (66), as the header intends.
+- **`Permission` uses 77**, which the header says is "not intended for file system problems, which should use `NOINPUT` or `CANTCREAT`, but rather for higher level permissions." The wrapper's filesystem checks are higher-level permissions: `storage-paths-owned` fails on a directory the wrapper can read perfectly well and **refuses** because its owner is wrong. That is a policy decision, not a denied `open`. A genuine denied `open` on a user-named file is `NoInput` (66), as the header intends.
 - **126 and 127 are shell conventions**, not `sysexits` values, for the reason given above the matrix.
 
 Five codes are deliberately unused: `NoUser` (67) and `NoHost` (68) are mail-transport concepts; `OsFile` (72) is for critical system files, which the wrapper never reads; `CantCreat` (73) is for a _user-specified_ output file, and every file the wrapper creates is wrapper-owned, so those failures are `Io` (74). `Protocol` (76) is for a remote protocol exchange — a child that returns unparsable output is `DataFormat` (65), because the child is a local process and its output is data.

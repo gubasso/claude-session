@@ -91,7 +91,8 @@ Each of these locks down a contract that is otherwise decorative:
 | Environment isolation     | The stub sees the injected config directory and **exactly one** `CLAUDE_SESSION_*` key, the marker | [Process runtime](./process-runtime.md)       |
 | Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                 | [Process runtime](./process-runtime.md)       |
 | Symlink rejection         | A session path that is a symlink is refused                                                        | [XDG storage](./xdg-storage.md)               |
-| Mode enforcement          | An over-permissive directory is corrected or refused                                               | [XDG storage](./xdg-storage.md)               |
+| Mode enforcement          | An over-permissive directory is corrected, and the check reports `pass`, not `fail`                | [XDG storage](./xdg-storage.md)               |
+| Unmanaged ancestors       | A `0755` `$HOME` or `.local` is never checked or corrected                                         | [XDG storage](./xdg-storage.md)               |
 | Interrupted write         | An abandoned temporary leaves the previous complete file readable at the final path                | [XDG storage](./xdg-storage.md)               |
 | Sweep safety              | An orphaned temporary is removed, and one whose process id is live is kept                         | [XDG storage](./xdg-storage.md)               |
 | Cross-process exclusion   | A second writer of a locked scope waits, then exits `LockBusy` at its deadline                     | [XDG storage](./xdg-storage.md)               |

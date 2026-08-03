@@ -15,7 +15,9 @@ This describes normative design. The crate is pre-implementation.
 
 Every path is namespaced under `claude-session` inside its base.
 
-A relative XDG value is invalid and treated as unset, with a debug diagnostic.
+A relative XDG value is invalid and treated as unset, with a debug diagnostic. The specification requires it: _"All paths set in these environment variables must be absolute. If an implementation encounters a relative path in any of these variables it should consider the path invalid and ignore it."_ Resolving one against the working directory would put a user's durable state in a different tree on every invocation, which is the same reason a relative `child_bin` is rejected ([process runtime](./process-runtime.md#child-resolution)). An empty value is the unset case, per the same specification's per-variable defaults.
+
+The `0700` on wrapper-managed directories is the specification's own default rather than a wrapper invention: _"If, when attempting to write a file, the destination directory is non-existent an attempt should be made to create it with permission `0700`."_
 
 `XDG_RUNTIME_DIR` is not used. A lock lives beside the file it guards, so it is reachable wherever that file is ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)), and the one base with no portable default is also the one base with nothing to put in it. Durable state never falls back to it or to a shared temporary directory.
 
@@ -58,17 +60,29 @@ Invalid derived identifiers are rejected, never truncated or rewritten. Account 
 
 ## Filesystem security
 
-Checks run on every invocation.
+Checks run on every invocation. What they defend against is recorded in [ADR-0061](../decisions/ADR-0061-protect-storage-from-accidental-local-drift.md): accident — permission drift, a restored backup under the wrong owner, a sync tool that replaced a path with a link — and not a process running as this user, which can read the credential without racing anything.
 
-| Check                 | Applied to                                                             | On failure               |
-| --------------------- | ---------------------------------------------------------------------- | ------------------------ |
-| Not a symbolic link   | Every wrapper-managed path component                                   | Refuse with `Permission` |
-| Owned by current user | Every wrapper-managed path component                                   | Refuse with `Permission` |
-| Expected file type    | Every wrapper-managed path                                             | Refuse with `Permission` |
-| Mode `0700`           | Wrapper-managed directories                                            | Correct, then proceed    |
-| Mode `0600`           | Wrapper-owned secret, metadata, settings, provenance, and marker files | Correct, then proceed    |
+A **wrapper-managed component** begins at the `claude-session` namespace directory inside an XDG base. Ancestors supplied by the operating system or the user — `$HOME`, `.config`, `.local/state` — are outside this policy and are never checked or corrected.
 
-Metadata checks do not follow symbolic links and validate each component. Managed-directory creation is idempotent.
+| Check                 | Applied to                                                             | On failure               | Reported by                 |
+| --------------------- | ---------------------------------------------------------------------- | ------------------------ | --------------------------- |
+| Not a symbolic link   | Every wrapper-managed path component                                   | Refuse with `Permission` | `storage-paths-no-symlinks` |
+| Owned by current user | Every wrapper-managed path component                                   | Refuse with `Permission` | `storage-paths-owned`       |
+| Expected file type    | Every wrapper-managed path                                             | Refuse with `Permission` | `storage-paths-typed`       |
+| Mode `0700`           | Wrapper-managed directories                                            | Correct, then proceed    | `storage-directory-modes`   |
+| Mode `0600`           | Wrapper-owned secret, metadata, settings, provenance, and marker files | Correct, then proceed    | `storage-secret-modes`      |
+
+Each condition is reported by exactly one [catalog check](./logging-and-output.md#the-catalog), which is what lets a guard and `doctor` describe one problem in one wording ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)).
+
+### How a path is validated
+
+Immediately before using a wrapper-managed path, the wrapper validates each existing component with metadata operations that **do not follow symbolic links**, then performs the ordinary path-based operation. A validation result is never cached across operations, because the check is only meaningful against the state the operation will meet.
+
+A wrapper-owned secret that is read is opened once, validated again from that open handle, and read from the same handle. Where the wrapper holds a descriptor it also corrects the mode through it, since a path-based `chmod(2)` dereferences a symbolic link and the symlink-safe form is out of reach — `AT_SYMLINK_NOFOLLOW` on `fchmodat(2)` needs glibc 2.32 and Linux 6.5.
+
+The wrapper does **not** confine traversal through an `openat(2)` descriptor walk. These checks detect accidental drift and foreign artifacts; they are not a boundary against a process running as this user, which [ADR-0061](../decisions/ADR-0061-protect-storage-from-accidental-local-drift.md) places out of scope. This is the reasoning [ADR-0056](../decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md) used to reject `fexecve`, applied to the same shape of race.
+
+Managed-directory creation is idempotent, and a directory the wrapper creates is created `0700` rather than created and then corrected.
 
 The wrapper validates the child-owned `.credentials.json` path before relying on its presence, but never changes its mode, rewrites it, or follows it to read credential content.
 
@@ -149,4 +163,6 @@ Stale-group pruning is conservative:
 
 ## Diagnostics
 
-`doctor` reports resolved base directories, environment-versus-default provenance, selected account and group paths, and wrapper-managed security checks. Child credential content is never inspected or emitted.
+`doctor` reports resolved base directories, environment-versus-default provenance, selected account and group paths, and the five [security checks](#filesystem-security) named in the table above. Child credential content is never inspected or emitted.
+
+Config-base artifacts, the log file, and lock files carry no security check. Configuration is user-authored and `0644` by design, so there is no unsafe state to report; a log or a lock that cannot be opened must not stop a passthrough run ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)), and lock contention already has [`LockBusy`](./exit-codes.md#wrapper-matrix).
