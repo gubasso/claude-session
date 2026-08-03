@@ -41,6 +41,8 @@ A **single** underscore is part of a key name, not a level separator. `CLAUDE_SE
 
 Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are **not** configuration keys. What reaches the child is [process runtime](./process-runtime.md#child-environment)'s to say.
 
+`CLAUDE_SESSION_GROUP` is also not a configuration key, though the user sets it. It is a rung of [the group derivation ladder](./xdg-storage.md#the-derivation-ladder), read directly, because a group identity is a property of one terminal and no configuration file — user or project — can hold a different value per terminal. A file that could would apply one group to every terminal that reads it, which is the mode the group exists to prevent.
+
 ### Future token-helper boundary
 
 A future `token_helper` setting may select an argv-based helper process. Its settled boundary is:

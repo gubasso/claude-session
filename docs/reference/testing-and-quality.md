@@ -90,6 +90,9 @@ Each of these locks down a contract that is otherwise decorative:
 | Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`                                | [Process runtime](./process-runtime.md)       |
 | Environment isolation     | The stub sees the injected config directory and **exactly one** `CLAUDE_SESSION_*` key, the marker | [Process runtime](./process-runtime.md)       |
 | Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                 | [Process runtime](./process-runtime.md)       |
+| Group derivation source   | With a pipe on stdin and a controlling terminal present, the group derives from the terminal       | [XDG storage](./xdg-storage.md)               |
+| Group derivation fallback | With no controlling terminal, the group derives from the session leader and warns only below that  | [XDG storage](./xdg-storage.md)               |
+| Group claim conflict      | A group whose recorded fingerprint is another session's is never opened, and the run gets its own  | [XDG storage](./xdg-storage.md)               |
 | Symlink rejection         | A session path that is a symlink is refused                                                        | [XDG storage](./xdg-storage.md)               |
 | Mode enforcement          | An over-permissive directory is corrected, and the check reports `pass`, not `fail`                | [XDG storage](./xdg-storage.md)               |
 | Unmanaged ancestors       | A `0755` `$HOME` or `.local` is never checked or corrected                                         | [XDG storage](./xdg-storage.md)               |

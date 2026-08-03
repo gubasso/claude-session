@@ -19,23 +19,19 @@ Sessions are not conversations. Runs of one account intentionally share the chil
 
 The wrapper identifies terminal context without recognizing tmux, screen, or any other multiplexer. Tool-specific variables fail in plain terminals, omit future multiplexers, and expand the wrapper's environment grammar.
 
-The controlling terminal is the general key: interactive tabs, splits, and panes have distinct pseudo-terminals regardless of the program that created them.
+The controlling terminal is the general key: interactive tabs, splits, and panes have distinct pseudo-terminals regardless of the program that created them. Derivation is first-hit-wins over five rungs ([ADR-0062](../decisions/ADR-0062-derive-the-group-from-the-controlling-terminal.md)); the exact inputs and the identifier they produce are in [XDG storage](../reference/xdg-storage.md#group-identifiers).
 
-Derivation is first-hit-wins:
+Two properties of that ladder are worth understanding rather than looking up.
 
-1. Explicit wrapper flag.
-2. Explicit environment variable.
-3. Controlling terminal, sanitized as a filesystem-safe identifier.
-4. Parent process plus start time when no controlling terminal exists.
-5. Current process id, with a visible warning.
+**It survives detach and reattach.** A multiplexer creates a pane's pseudo-terminal once, in its server, when the pane is spawned. Detaching disconnects a client and leaves that terminal alone, so a run before a detach and a run after reattaching — possibly from a different machine — land in the same group. Everything an emulator or multiplexer exports about a window describes the _client_ instead, which is exactly the thing reattaching changes. That is the concrete reason those variables are rejected, rather than a preference for kernel interfaces.
 
-The last rung creates an invocation-specific group that will not be rediscovered. It is valid for a headless pipeline and warning-worthy elsewhere. Derivation never crashes the wrapper. Identifier rules live in [XDG storage](../reference/xdg-storage.md#group-identifiers).
+**It never fails, and the rung it reached is reportable.** The last rung is random, so it is honest: the group is new, will not be rediscovered, and says so. A headless pipeline that reaches the session-leader rung above it is not warned, because there the identity is correct and stable.
 
 ## The container edge
 
-A controlling-terminal name is unique only within one kernel view. If several containers bind-mount the same state directory, identical terminal names can collide.
+A controlling-terminal name is unique only within one kernel view. Several containers that bind-mount one state directory derive identical terminal names, and a group silently shared between two sessions merges their settings and metadata with no error.
 
-Support for that scenario may namespace the group with one neutral host or container discriminator: machine identity, hostname, or control-group identity. It remains off by default and does not recognize a specific container tool.
+Two mechanisms answer that, and [ADR-0063](../decisions/ADR-0063-claim-a-group-by-its-derivation-fingerprint.md) records both. A host discriminator prefixes the identifier, so the ordinary case does not collide; it is always applied and names no container tool. A recorded derivation fingerprint, compared before a group is used, is what makes the guarantee unconditional — including where the discriminator itself is cloned along with a container image. A run that meets a group whose fingerprint is not its own never opens that group's settings.
 
 ## Why both scopes are state
 
@@ -72,3 +68,5 @@ Group directories accumulate and are pruned conservatively by age. A possibly ac
 - [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir/latest/)
 - [`directories`](https://docs.rs/directories/)
 - [`xdg-ninja`](https://github.com/b3nj5m1n/xdg-ninja)
+- [`credentials(7)`](https://man7.org/linux/man-pages/man7/credentials.7.html) — sessions, process groups, and the controlling terminal
+- [Linux devpts documentation](https://www.kernel.org/doc/html/latest/filesystems/devpts.html) — why a pty index is namespace-local

@@ -501,3 +501,23 @@ facts:
     revalidate: >-
       Re-check whether relative and empty values are still discarded, and
       whether the crate has documented the behaviour so it can be relied on.
+
+  - id: multiplexer-terminal-identity
+    fact: >-
+      A multiplexer pane keeps its own pseudo-terminal across client detach and
+      reattach, so the pane's controlling terminal is stable while the client's
+      is not. tmux exposes the two separately as pane_tty and client_tty.
+    owner: docs/decisions/ADR-0062-derive-the-group-from-the-controlling-terminal.md
+    dependents:
+      - docs/explanation/session-isolation.md
+      - docs/reference/xdg-storage.md
+      - docs/reference/prior-art.md
+    cadence: semiannual
+    last_checked: 2026-08-03
+    source:
+      - https://man.archlinux.org/man/tmux.1
+      - https://man7.org/linux/man-pages/man1/screen.1.html
+      - https://man7.org/linux/man-pages/man7/credentials.7.html
+    revalidate: >-
+      Re-check that pane and client terminals remain distinct, and that no
+      widely used multiplexer reassigns a pane's terminal on reattach.

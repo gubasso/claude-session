@@ -49,14 +49,52 @@ Credentials are state, not data or cache: they are durable, machine-specific, an
 
 ## Group identifiers
 
-| Property        | Rule                                                         |
-| --------------- | ------------------------------------------------------------ |
-| Character set   | `[a-z0-9_-]` only                                            |
-| First character | Lowercase ASCII letter or digit                              |
-| Maximum length  | 32 bytes                                                     |
-| Derivation      | See [session isolation](../explanation/session-isolation.md) |
+| Property        | Rule                            |
+| --------------- | ------------------------------- |
+| Character set   | `[a-z0-9_-]` only               |
+| First character | Lowercase ASCII letter or digit |
+| Maximum length  | 32 bytes                        |
 
-Invalid derived identifiers are rejected, never truncated or rewritten. Account identifiers use the same rules.
+Account identifiers use the same rules. Why the group is derived this way is in [session isolation](../explanation/session-isolation.md#deriving-the-group-without-knowing-multiplexers) and [ADR-0062](../decisions/ADR-0062-derive-the-group-from-the-controlling-terminal.md).
+
+### The derivation ladder
+
+First hit wins.
+
+| # | Input                                                 | Identifier                    |
+| - | ----------------------------------------------------- | ----------------------------- |
+| 0 | `--session <id>`                                      | The value, unchanged          |
+| 1 | `CLAUDE_SESSION_GROUP`                                | The value, unchanged          |
+| 2 | `ttyname_r(3)` on a descriptor opened from `/dev/tty` | `<disc>-pts-3`, `<disc>-tty1` |
+| 3 | `getsid(0)` and that process's start time             | `<disc>-s-<sid>-<start>`      |
+| 4 | 64 bits of operating-system randomness                | `<disc>-r-<hex>`              |
+
+Rung 2 opens `/dev/tty`; nothing consults `isatty(0)`, so a piped invocation still derives from the terminal it has ([ADR-0053](../decisions/ADR-0053-read-a-confirmation-from-the-controlling-terminal.md)). Its identifier is the device path with `/dev/` stripped and `/` replaced by `-`. Rung 3 reads `/proc/<sid>/stat` field 22 on Linux; the start time is what makes a reused process id a different identity. Rung 4 emits one warning; the rungs above it emit none.
+
+`<disc>` is the host discriminator from [ADR-0063](../decisions/ADR-0063-claim-a-group-by-its-derivation-fingerprint.md): six hex characters of a keyed hash of `/etc/machine-id`, or of the hostname when that file is absent or empty. It is always present. The machine identity itself is never stored or printed.
+
+### Rejection is not fallthrough
+
+The two rules differ by who supplied the value, because the useful answer differs:
+
+| Source                     | A value failing the rules      |
+| -------------------------- | ------------------------------ |
+| Rung 0 or 1, user-supplied | Exits `Usage`                  |
+| Rung 2 or 3, derived       | Falls through to the next rung |
+
+Neither is ever truncated or rewritten. A user who typed a bad identifier wants to know; an exotic device name is the wrapper's problem to route around, and failing the run over one would make a working terminal unusable.
+
+### Claiming a group
+
+A group's `session-meta.json` records the full derivation fingerprint — the rung, the terminal path, its `st_rdev` and `(st_dev, st_ino)`, the session leader and start time, and the pid and mount namespace ids. Before a group is used:
+
+| State               | Action                                                    |
+| ------------------- | --------------------------------------------------------- |
+| No directory        | Create it and claim it                                    |
+| Fingerprint matches | Reuse it                                                  |
+| Fingerprint differs | Never open its settings; derive a suffixed group and warn |
+
+This is what makes "two separate sessions never share a group" a check rather than a probability, and it is reported by [`session-group-claim`](./logging-and-output.md#the-catalog). The [`.settings.lock`](#lock-scopes) does not cover it: a lock serializes two writers to one path, and cannot tell that they are unrelated sessions.
 
 ## Filesystem security
 
