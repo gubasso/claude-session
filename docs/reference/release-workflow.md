@@ -88,14 +88,9 @@ An SPDX `license` expression does not make an `include` allowlist automatically 
 
 ## Binary distribution
 
-Source publication and binary distribution are orthogonal. Cargo-dist 0.32.0 builds:
+Source publication and binary distribution are orthogonal. Cargo-dist 0.32.0 builds one artifact, `x86_64-unknown-linux-gnu`, with a shell installer — the supported platform and nothing else ([ADR-0066](../decisions/ADR-0066-ship-one-linux-artifact.md)). No other architecture, no PowerShell installer, and no Homebrew tap.
 
-- `x86_64-unknown-linux-gnu`
-- `aarch64-unknown-linux-gnu`
-- `x86_64-apple-darwin`
-- `aarch64-apple-darwin`
-
-It generates shell and PowerShell installers. Windows targets and a Homebrew tap are not configured. The App-authored release tag retriggers generated `release.yml`; its GitHub Release assets are consumable by cargo-binstall. [ADR-0038](../decisions/ADR-0038-distribute-binaries-with-cargo-dist.md) owns this choice.
+The generated `release.yml` reads its build matrix from `dist plan` at run time and names no target, so changing `dist-workspace.toml` does not by itself require regenerating it. The App-authored release tag retriggers that workflow; its GitHub Release assets are consumable by cargo-binstall. [ADR-0038](../decisions/ADR-0038-distribute-binaries-with-cargo-dist.md) owns the choice of generator.
 
 ## Helper scripts
 

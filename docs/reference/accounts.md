@@ -99,10 +99,6 @@ It never reports the token, token prefix, or any child-credential content or fin
 
 Rotation is transactional: stage, verify, replace, then discard staging. Failure leaves the old token and metadata intact. `account remove` deletes local use but cannot revoke a token upstream; its report says so.
 
-## Platform boundary
-
-On Linux and Windows, the child stores its ordinary login under `CLAUDE_CONFIG_DIR`; this wrapper remains Unix-only. On macOS, ordinary login persists in Keychain, but Keychain namespacing by config directory is unverified. Token mode is therefore the supported per-process multi-account design on macOS.
-
 ## Commands
 
 | Command                 | Arguments                                                                          | Reports                                                                                     |

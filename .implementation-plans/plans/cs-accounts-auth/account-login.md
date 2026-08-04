@@ -34,7 +34,7 @@ Four constraints are absolute and none of them has a verbosity escape hatch. Tok
 
 Rotation is transactional because a half-replaced token is worse than an expired one: stage, verify, replace, discard staging, and leave the previous token and metadata intact on any failure.
 
-**Where the child stores credentials is a perishable, externally-owned fact** — a file inside its configuration directory on Linux, a system keychain elsewhere — tracked in `docs/reference/research-tracking.yaml`. Consume it defensively: an unexpected result is a reported failure with a hint, never a panic and never a silent success.
+**Where the child stores credentials is a perishable, externally-owned fact** — a file inside its configuration directory — tracked in `docs/reference/research-tracking.yaml`. Consume it defensively: an unexpected result is a reported failure with a hint, never a panic and never a silent success.
 
 Neither mode falls back to the other, and the two are never mixed within one invocation.
 

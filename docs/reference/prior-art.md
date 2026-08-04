@@ -115,8 +115,7 @@ The owning operational contracts are [accounts](./accounts.md), [configuration](
 | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | Auth precedence includes ambient cloud/API/helper credentials, then `CLAUDE_CODE_OAUTH_TOKEN`, then saved login | Documented                                                     |
 | `setup-token` produces a long-lived subscription token for `CLAUDE_CODE_OAUTH_TOKEN`                            | Documented; presentation format deliberately not consumed      |
-| `CLAUDE_CONFIG_DIR` relocates configuration and saved-login storage on Linux/Windows                            | Documented                                                     |
-| Ordinary macOS login uses Keychain                                                                              | Documented; per-config-directory namespacing unverified        |
+| `CLAUDE_CONFIG_DIR` relocates configuration and saved-login storage                                             | Documented                                                     |
 | Processes sharing one saved login coordinate refresh from 2.1.211                                               | Documented and load-bearing                                    |
 | `--settings` accepts an additional settings document                                                            | Documented                                                     |
 | Given repeated `--settings`, only the last is read                                                              | Measured on 2.1.220; earlier files are not merged or validated |

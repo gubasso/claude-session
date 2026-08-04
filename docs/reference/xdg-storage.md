@@ -25,23 +25,23 @@ The `0700` on wrapper-managed directories is the specification's own default rat
 
 Every artifact has one writer.
 
-| Artifact                 | Base   | Path within base                                               | Writer                                               | Mode                           | Lifetime                              |
-| ------------------------ | ------ | -------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------------------------------- |
-| Wrapper configuration    | Config | `config.toml`                                                  | User                                                 | `0644`                         | Until changed                         |
-| Settings pieces          | Config | `settings/<piece>.json`                                        | User                                                 | `0644`                         | Until changed                         |
-| Profiles                 | Config | `profiles/<profile>.yaml`                                      | User                                                 | `0644`                         | Until changed                         |
-| Account directory        | State  | `accounts/<account>/`                                          | Account subsystem                                    | `0700`                         | Until account removal                 |
-| Auth-mode metadata       | State  | `accounts/<account>/auth-mode.json`                            | Account subsystem                                    | `0600`                         | Until mode replacement                |
-| Local OAuth token        | State  | `accounts/<account>/oauth-token`                               | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
-| Native account config    | State  | `accounts/<account>/config/`                                   | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
-| Native saved login       | State  | `accounts/<account>/config/.credentials.json` on Linux/Windows | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |
-| Composed settings        | State  | `composed/profile-<name>-<digest>.json`                        | Composition subsystem                                | `0600`                         | Permanent                             |
-| Composition provenance   | State  | `composed/profile-<name>-<digest>.compose.json`                | Composition subsystem                                | `0600`                         | Permanent                             |
-| Last-used account marker | State  | `state/last-account`                                           | Account subsystem                                    | `0600`                         | Until selection changes               |
-| Write lock               | State  | `.<scope>.lock` beside the files it guards                     | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
-| Log file                 | State  | `claude-session.log`                                           | Logging subsystem                                    | `0600`                         | Rotated                               |
+| Artifact                 | Base   | Path within base                                | Writer                                               | Mode                           | Lifetime                              |
+| ------------------------ | ------ | ----------------------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------------------------------- |
+| Wrapper configuration    | Config | `config.toml`                                   | User                                                 | `0644`                         | Until changed                         |
+| Settings pieces          | Config | `settings/<piece>.json`                         | User                                                 | `0644`                         | Until changed                         |
+| Profiles                 | Config | `profiles/<profile>.yaml`                       | User                                                 | `0644`                         | Until changed                         |
+| Account directory        | State  | `accounts/<account>/`                           | Account subsystem                                    | `0700`                         | Until account removal                 |
+| Auth-mode metadata       | State  | `accounts/<account>/auth-mode.json`             | Account subsystem                                    | `0600`                         | Until mode replacement                |
+| Local OAuth token        | State  | `accounts/<account>/oauth-token`                | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
+| Native account config    | State  | `accounts/<account>/config/`                    | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
+| Native saved login       | State  | `accounts/<account>/config/.credentials.json`   | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |
+| Composed settings        | State  | `composed/profile-<name>-<digest>.json`         | Composition subsystem                                | `0600`                         | Permanent                             |
+| Composition provenance   | State  | `composed/profile-<name>-<digest>.compose.json` | Composition subsystem                                | `0600`                         | Permanent                             |
+| Last-used account marker | State  | `state/last-account`                            | Account subsystem                                    | `0600`                         | Until selection changes               |
+| Write lock               | State  | `.<scope>.lock` beside the files it guards      | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
+| Log file                 | State  | `claude-session.log`                            | Logging subsystem                                    | `0600`                         | Rotated                               |
 
-The child may create other files and directories below `config/`; it owns their names, contents, modes, and lifecycle. On macOS, the child stores ordinary login material in Keychain rather than the relocated credential path; see [accounts](./accounts.md#platform-boundary).
+The child may create other files and directories below `config/`; it owns their names, contents, modes, and lifecycle.
 
 Credentials are state, not data or cache: they are durable, machine-specific, and unsafe to lose silently. Generated settings are state because removing them during a run changes child behavior.
 

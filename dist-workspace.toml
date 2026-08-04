@@ -4,13 +4,8 @@ members = ["cargo:."]
 
 [dist]
 ci = "github"
-installers = ["shell", "powershell"]
-targets = [
-  "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
-  "aarch64-unknown-linux-gnu",
-  "x86_64-unknown-linux-gnu",
-]
+installers = ["shell"]
+targets = ["x86_64-unknown-linux-gnu"]
 cargo-dist-version = "0.32.0"
 install-path = "CARGO_HOME"
 install-updater = false

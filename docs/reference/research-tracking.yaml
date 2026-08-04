@@ -31,7 +31,7 @@ facts:
   - id: child-config-dir-var
     fact: >-
       CLAUDE_CONFIG_DIR selects one account-wide child configuration directory
-      and relocates saved-login storage on Linux and Windows.
+      and relocates saved-login storage.
     owner: docs/reference/process-runtime.md
     dependents:
       - docs/explanation/session-isolation.md
@@ -49,8 +49,7 @@ facts:
 
   - id: child-credential-file-layout
     fact: >-
-      The child stores its saved login inside the configuration directory on
-      Linux and Windows, while macOS uses Keychain.
+      The child stores its saved login inside the configuration directory.
     owner: docs/reference/xdg-storage.md
     dependents:
       - docs/reference/accounts.md
@@ -60,9 +59,9 @@ facts:
     source:
       - https://code.claude.com/docs/en/authentication
     revalidate: >-
-      Check current authentication and environment-variable documentation.
-      Authenticate into an isolated config directory on Linux and Windows and
-      confirm the file location; inspect documented macOS Keychain behavior.
+      Check current authentication and environment-variable documentation, then
+      authenticate into an isolated config directory and confirm the file
+      location.
 
   - id: child-settings-schema
     fact: >-
@@ -233,22 +232,6 @@ facts:
     revalidate: >-
       Measure redacted timestamps from a fresh saved login and compare with
       current authentication documentation; never record token values.
-
-  - id: child-macos-keychain-scope
-    fact: >-
-      Whether macOS Keychain login is namespaced by CLAUDE_CONFIG_DIR is
-      unverified.
-    owner: docs/reference/accounts.md
-    dependents:
-      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
-    cadence: monthly
-    last_checked: 2026-07-30
-    source:
-      - https://code.claude.com/docs/en/authentication
-    revalidate: >-
-      On macOS, authenticate two temporary configuration directories with
-      separate accounts and observe non-secret account identity and Keychain
-      item scope without exporting credential material.
 
   - id: child-tui-login-config-dir
     fact: >-
