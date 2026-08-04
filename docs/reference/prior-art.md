@@ -111,20 +111,24 @@ Container-tool context layouts, and the selection mechanics of rustup, pyenv, nv
 
 The owning operational contracts are [accounts](./accounts.md), [configuration](./configuration.md), and [process runtime](./process-runtime.md). Freshness and revalidation procedures live in [research tracking](./research-tracking.yaml).
 
-| Behavior                                                                                                        | Verification status                                            |
-| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Auth precedence includes ambient cloud/API/helper credentials, then `CLAUDE_CODE_OAUTH_TOKEN`, then saved login | Documented                                                     |
-| `setup-token` produces a long-lived subscription token for `CLAUDE_CODE_OAUTH_TOKEN`                            | Documented; presentation format deliberately not consumed      |
-| `CLAUDE_CONFIG_DIR` relocates configuration and saved-login storage                                             | Documented                                                     |
-| Processes sharing one saved login coordinate refresh from 2.1.211                                               | Documented and load-bearing                                    |
-| `--settings` accepts an additional settings document                                                            | Documented                                                     |
-| Given repeated `--settings`, only the last is read                                                              | Measured on 2.1.220; earlier files are not merged or validated |
-| `--settings` is top-level only and is rejected after a subcommand                                               | Measured on 2.1.220; why the wrapper's pair is a prefix        |
-| `--verbose` is a native flag, and `-v` is the native `--version`                                                | Measured on 2.1.220                                            |
-| `auth` and `doctor` are native subcommands                                                                      | Measured on 2.1.220                                            |
-| `auth status --json` is available for status probing                                                            | Documented; injected-token reporting details tracked           |
-| In-TUI `/login` honors relocated config, and its token-mode behavior                                            | Unverified                                                     |
-| Exact access-token and refresh-grant lifetimes                                                                  | Observed, not guaranteed                                       |
+| Behavior                                                                                                        | Verification status                                                                   |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Auth precedence includes ambient cloud/API/helper credentials, then `CLAUDE_CODE_OAUTH_TOKEN`, then saved login | Documented                                                                            |
+| `setup-token` produces a long-lived subscription token for `CLAUDE_CODE_OAUTH_TOKEN`                            | Documented; presentation format deliberately not consumed                             |
+| `CLAUDE_CONFIG_DIR` relocates configuration and saved-login storage                                             | Documented                                                                            |
+| Processes sharing one saved login coordinate refresh from 2.1.211                                               | Documented and load-bearing                                                           |
+| `--settings` accepts an additional settings document, or an inline JSON string                                  | Documented                                                                            |
+| `--settings` requires a regular file no larger than 2 MiB                                                       | Documented                                                                            |
+| Settings precedence is managed, then command-line, then local, then project, then user                          | Documented; managed cannot be overridden                                              |
+| Across the child's own scopes, array-valued settings concatenate and de-duplicate                               | Documented; the inverse of the wrapper's piece default                                |
+| `--setting-sources` selects which of `user,project,local` load                                                  | Documented; deliberately unclaimed by the wrapper                                     |
+| Given repeated `--settings`, only the last is read                                                              | Measured on 2.1.220; earlier files are not merged or validated                        |
+| `--settings` is accepted at top level and on `agents`; not on every subcommand                                  | Documented for `agents`; the 2.1.220 measurement said top-level only, so this drifted |
+| `--verbose` is a native flag, and `-v` is the native `--version`                                                | Measured on 2.1.220                                                                   |
+| `auth` and `doctor` are native subcommands                                                                      | Measured on 2.1.220                                                                   |
+| `auth status --json` is available for status probing                                                            | Documented; injected-token reporting details tracked                                  |
+| In-TUI `/login` honors relocated config, and its token-mode behavior                                            | Unverified                                                                            |
+| Exact access-token and refresh-grant lifetimes                                                                  | Observed, not guaranteed                                                              |
 
 The design floor is child version 2.1.211, enforced at launch by [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md). Everything measured above was measured on Linux against 2.1.220, the documentation baseline set by [ADR-0046](../decisions/ADR-0046-support-linux-and-a-single-child-baseline.md).
 

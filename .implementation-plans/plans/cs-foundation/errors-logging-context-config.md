@@ -31,7 +31,9 @@ The exit-code matrix is specified in `docs/reference/exit-codes.md` — implemen
 
 The stream contract, verbosity ladder, colour precedence, and log record schema are specified in `docs/reference/logging-and-output.md`: stdout carries the result only, `RUST_LOG` overrides the flag-derived level, and one record is one structured line. Credentials are never logged. Resolve the log path in `main` BEFORE installing the subscriber; the path itself comes from `docs/reference/xdg-storage.md`.
 
-Config precedence, the env prefix and nesting, unknown-key rejection, and provenance are specified in `docs/reference/configuration.md`. Note the direction: `defaults < user < project < env < cli`, so the flag wins.
+Config precedence, the env prefix, unknown-key rejection, and provenance are specified in `docs/reference/configuration.md`. Note the direction: `defaults < user < project < env < cli`, so the flag wins.
+
+The key set is exactly three — `child_bin`, `default_account`, `default_profile` — all optional and all defaulting to unset; § Keys carries each one's environment spelling and eligible layers. Every key is flat, so there is no nesting separator to implement yet. The project layer is `.claude-session.toml`, found by walking up to the enclosing repository root without invoking git (ADR-0070), and it may set `default_profile` only — the other two are rejected there with `Config`, not ignored (ADR-0071). An unknown key anywhere exits `Config` naming the key, its file, and the near miss.
 
 ## Implementation Steps
 

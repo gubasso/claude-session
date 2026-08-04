@@ -28,6 +28,7 @@ Every artifact has one writer.
 | Artifact                 | Base   | Path within base                                | Writer                                               | Mode                           | Lifetime                              |
 | ------------------------ | ------ | ----------------------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------------------------------- |
 | Wrapper configuration    | Config | `config.toml`                                   | User                                                 | `0644`                         | Until changed                         |
+| Project configuration    | none   | `.claude-session.toml` at a repository root     | User                                                 | `0644`                         | Until changed                         |
 | Settings pieces          | Config | `settings/<piece>.json`                         | User                                                 | `0644`                         | Until changed                         |
 | Profiles                 | Config | `profiles/<profile>.yaml`                       | User                                                 | `0644`                         | Until changed                         |
 | Account directory        | State  | `accounts/<account>/`                           | Account subsystem                                    | `0700`                         | Until account removal                 |
@@ -40,6 +41,8 @@ Every artifact has one writer.
 | Last-used account marker | State  | `state/last-account`                            | Account subsystem                                    | `0600`                         | Until selection changes               |
 | Write lock               | State  | `.<scope>.lock` beside the files it guards      | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
 | Log file                 | State  | `claude-session.log`                            | Logging subsystem                                    | `0600`                         | Rotated                               |
+
+The project configuration file is the one artifact with no XDG base: it lives in the user's repository because that is what makes it per-repository, and it is listed here so the table stays the whole inventory. [Configuration](./configuration.md#project-file-discovery) owns how it is found and what it may set.
 
 The child may create other files and directories below `config/`; it owns their names, contents, modes, and lifecycle.
 

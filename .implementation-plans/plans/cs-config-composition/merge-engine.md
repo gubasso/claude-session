@@ -35,6 +35,8 @@ $base * $tmpl                                   # scalars: last-wins (recursive 
 
 Documented rule: "mounts arrays are concatenated; containerEnv/postCreateCommand/remoteEnv objects are merged by key; scalar fields use last-wins." Improve on it: default array strategy = `replace`, opt-in `concat`/`merge-by-key` per key; record provenance per key.
 
+Two things the specification fixes that this round predates. The strategy table is the profile's optional `array_strategies` map, **keyed by RFC 6901 JSON Pointer** rather than a dotted path, because the child renders nested settings keys dotted and a dotted strategy key stops being addressable the moment a settings key contains a dot. A non-canonical pointer, one naming a non-array, one matching no key, and duplicate merge-key values are each `DataFormat` — a strategy that silently applies to nothing is the bug the unknown-key rule exists to prevent. And provenance is **not winner-only**: where more than one piece touched a key the record carries the ordered chain, `overrode` for a scalar and `contributors` plus `strategy` for a merged array, because "the setting is wrong because this piece overrode that one" is the answer the sidecar exists to give. `docs/reference/configuration.md` §§ Declaring a strategy and Provenance sidecar own both.
+
 ## Implementation Steps
 
 ### First Step: Mark this round as started
@@ -47,7 +49,7 @@ In `services/config_compose/merge.rs`, implement the recursive `serde_json::Valu
 
 ### Step 2: Per-key strategies
 
-Add a strategy table (default `replace`; opt-in `concat`/`merge-by-key`) sourced from optional profile policy; apply per JSON path/key.
+Add the strategy table (default `replace`; opt-in `concat`/`merge-by-key`) from the profile's optional `array_strategies`, keyed by RFC 6901 pointer. `replace` is never written — it is what an unlisted array does.
 
 ### Step 3: Provenance
 
@@ -64,9 +66,10 @@ Add `MergeError` (type-conflict at a path, naming the piece). Unit-test scalar l
 ## Acceptance Criteria
 
 - [ ] The merge folds ordered pieces: scalars last-wins, objects merge-by-key, arrays per the configured strategy (default `replace`, opt-in `concat`/`merge-by-key`).
-- [ ] Per-key provenance correctly attributes each leaf key to the piece that set it.
+- [ ] Per-key provenance attributes each leaf key to the winning piece, and carries the ordered chain wherever more than one piece touched it.
 - [ ] A type-conflict surfaces a `MergeError` naming the piece + path.
-- [ ] Unit tests cover all strategies + provenance.
+- [ ] A non-canonical pointer, a pointer naming a non-array, a pointer matching no key, and duplicate merge-key values each surface as `DataFormat`.
+- [ ] Unit tests cover all strategies + provenance, including the chain and each pointer error.
 - [ ] This plan's `queue-rounds.yaml` shows round `merge-engine` as `done`.
 
 ## Next Round

@@ -202,19 +202,46 @@ facts:
 
   - id: child-settings-flag
     fact: >-
-      The native settings flag accepts an additional settings document.
+      The native settings flag accepts an additional settings document, or an
+      inline JSON string, and requires a regular file no larger than 2 MiB. It
+      is accepted at top level and on the agents subcommand, not on every
+      subcommand.
     owner: docs/reference/configuration.md
     dependents:
       - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
       - docs/reference/process-runtime.md
+      - docs/reference/prior-art.md
     cadence: monthly
-    last_checked: 2026-07-30
+    last_checked: 2026-08-04
     source:
       - https://code.claude.com/docs/en/cli-reference
       - https://code.claude.com/docs/en/settings
     revalidate: >-
       Check current CLI and settings documentation, then launch with one
       temporary settings file and verify its non-secret setting is applied.
+      Confirm the size cap and the regular-file requirement still hold; a
+      composed entry that exceeds either becomes a wrapper-side check.
+
+  - id: child-settings-scope-precedence
+    fact: >-
+      Settings resolve managed, then command-line, then local project, then
+      shared project, then user; managed cannot be overridden. Across those
+      scopes array-valued settings concatenate and de-duplicate, which is the
+      inverse of the wrapper's replace-by-default rule for pieces. A
+      setting-sources flag selects which of user, project, and local load.
+    owner: docs/reference/configuration.md
+    dependents:
+      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
+      - docs/reference/prior-art.md
+    cadence: monthly
+    last_checked: 2026-08-04
+    source:
+      - https://code.claude.com/docs/en/settings
+      - https://code.claude.com/docs/en/cli-reference
+    revalidate: >-
+      Re-read the settings precedence section. A composed document that starts
+      outranking a managed file, or an array rule that changes direction,
+      changes what the composition boundary can promise.
 
   - id: child-settings-duplicate-flag
     fact: >-

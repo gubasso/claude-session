@@ -31,6 +31,12 @@ Three rules carry the weight. The write is **atomic** — a temporary file in th
 
 Validation is pragmatic: validate the structure the wrapper owns and the well-formedness of the whole, but do **not** reject unknown keys in the child's schema. That schema is externally owned and evolves; it is tracked in `docs/reference/research-tracking.yaml`.
 
+The sidecar's exact field set is `docs/reference/configuration.md` § Provenance sidecar: `profile`, `profile_path`, `digest`, `pieces[]`, and a `keys` map addressed by RFC 6901 pointer that carries the ordered contributor chain wherever more than one piece touched a key. It has **no version field** — the digest preimage's domain tag versions the format — and a `path_b64` sibling appears beside a path only where the lossy display form is not byte-exact.
+
+Composition ends at that one file. The child places it in the command-line-arguments tier, above local, project, and user settings but **below managed settings**, and the working directory's own `.claude/settings*.json` still load beneath it — the wrapper passes no `--setting-sources`. Nothing here should report the composed entry as what the child will run; `docs/reference/configuration.md` § Where composition stops owns the boundary.
+
+The four generated example artifacts under `docs/reference/examples/` are repository documentation with no runtime behaviour: do not add a freshness probe for them. Composed-entry freshness is a separate mechanism and is the one described above.
+
 The wrapper writes the generated settings document and its sidecar, and nothing else. Project trust, history, and onboarding are child-owned state inside the account's `config/`; the wrapper does not seed, copy, or sync them back — `docs/decisions/ADR-0025-share-one-native-login-per-account.md` removed that obligation, and `docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md` is amended accordingly.
 
 ## Implementation Steps

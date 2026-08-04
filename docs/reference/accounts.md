@@ -23,7 +23,7 @@ Account identifiers follow [the identifier rules](./xdg-storage.md#identifiers).
 The account for an invocation is resolved by the [configuration precedence ladder](./configuration.md#precedence), with one rung appended below it:
 
 1. `--account <name>` — see [the CLI surface](./cli-surface.md#wrapper-owned-flags).
-2. The environment, then project configuration, then user configuration.
+2. [`default_account`](./configuration.md#keys), from the environment then user configuration. A project file cannot supply it ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
 3. The last-used marker, written whenever an account-backed run completes.
 4. Nothing. Verbs that need an account fail; verbs that do not proceed.
 

@@ -28,7 +28,11 @@
 
 The composition model — read-only JSON pieces plus one ordered YAML profile — is specified in `docs/reference/configuration.md` and recorded in `docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md`. Piece and profile paths come from the artifact table in `docs/reference/xdg-storage.md`; both are user-authored and **read-only to the wrapper**.
 
-A profile's sole required field is an ordered, non-empty list of piece names. Unknown fields are rejected and an empty list is rejected. A missing referenced piece is an error naming **both** the profile and the resolved path it looked for — the concrete-value rule from `docs/reference/coding-conventions.md`.
+A profile's sole required field is an ordered, non-empty list of piece names. Its one optional field is `array_strategies`, keyed by RFC 6901 JSON Pointer — `docs/reference/configuration.md` § Declaring a strategy has the syntax and the error rows. Unknown fields are rejected and an empty list is rejected. A missing referenced piece is an error naming **both** the profile and the resolved path it looked for — the concrete-value rule from `docs/reference/coding-conventions.md`.
+
+The wrapper's own configuration is three keys — `child_bin`, `default_account`, `default_profile` — with `docs/reference/configuration.md` § Keys as the exact table, including each key's environment spelling and which layers may set it. The project layer is `.claude-session.toml`, discovered by walking up to the enclosing repository root (ADR-0070), and may set `default_profile` only; `child_bin` or `default_account` in a project file is `Config`, not a silent ignore (ADR-0071). That restriction is a security boundary, not a style rule: the project file arrives with a cloned repository.
+
+Generated artifacts live under `docs/reference/examples/`, not a top-level `examples/`.
 
 Use `serde_yaml_ng`, not `serde_yaml`, which is deprecated; see the ruled-out list in `docs/reference/dependencies.md`. Add it with `cargo add`.
 
@@ -60,7 +64,9 @@ Unit-test profile parsing (reject unknown fields / empty layers) and piece resol
 
 ## Acceptance Criteria
 
-- [ ] A YAML profile with ordered `layers` parses; unknown fields / empty layers are rejected with a clear error.
+- [ ] A YAML profile with ordered `layers` and optional `array_strategies` parses; unknown fields / empty layers are rejected with a clear error.
+- [ ] The wrapper config accepts exactly `child_bin`, `default_account`, `default_profile`; an unknown key exits `Config` naming the file and suggesting the near miss.
+- [ ] A project `.claude-session.toml` is found by walking up to the repository root and is not consulted outside one; `child_bin` or `default_account` in it exits `Config`.
 - [ ] JSON pieces load as `serde_json::Value` retaining path + layer name for diagnostics.
 - [ ] A missing referenced piece produces an error naming the profile and the path.
 - [ ] Tests pass with fixtures.
