@@ -75,7 +75,7 @@ An in-TUI `/login` inherits the launch environment and is expected to address th
 1. Without `--stdin`, run `claude setup-token` with inherited standard streams, then read one line from the controlling terminal with echo disabled.
 2. With `--stdin`, read one line from standard input and never prompt.
 3. Reject empty or multi-line input. Do not parse a prefix or infer token lifetime.
-4. Stage the token in private storage, probe it through the child's documented `auth status --json` command, then atomically replace the old token and mode metadata.
+4. Probe the candidate through the child's documented `auth status --json` command, then write the token and mode metadata by [the atomic sequence](./xdg-storage.md#lock-scopes), which owns their order.
 
 `--minted-at` corrects the time used for age and estimated-expiry reporting when a pasted token was minted earlier. Without it, `recorded_at` is the ingest time. Estimated expiry is that time plus 365 days and is always labeled an estimate.
 
@@ -97,7 +97,9 @@ The default store is the private `oauth-token` file. An explicitly selected `tok
 
 It never reports the token, token prefix, or any child-credential content or fingerprint.
 
-Rotation is transactional: stage, verify, replace, then discard staging. Failure leaves the old token and metadata intact. `account remove` deletes local use but cannot revoke a token upstream; its report says so.
+Rotation verifies the candidate before it writes anything, and [the metadata rename commits it](./xdg-storage.md#lock-scopes). A failure before that rename leaves a usable account; a crash between the two renames leaves the new token described by stale metadata, so the recorded fingerprint no longer matches. `status` reports that mismatch and withholds age and estimated expiry rather than computing them from a mint time that is not the token's; launch proceeds, since the token itself was proven to work. The next `account login` repairs the pair.
+
+`account remove` deletes local use but cannot revoke a token upstream; its report says so.
 
 ## Commands
 

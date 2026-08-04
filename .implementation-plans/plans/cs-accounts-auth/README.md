@@ -13,7 +13,7 @@ Four rounds. R1 builds the account store — directory discovery, `auth-mode.jso
 ## Rounds
 
 1. `account-discovery.md` — account directories, mode metadata, last-used marker, hardened I/O, selection resolver.
-2. `account-login.md` — `account login` in login mode and token mode, with transactional rotation.
+2. `account-login.md` — `account login` in login mode and token mode, with ordered rotation.
 3. `launch-auth-and-precedence.md` — launch-time mode resolution, child environment, precedence warnings, version floor.
 4. `account-commands.md` — the `account` verb tree, machine output, redaction, doctor catalog entries.
 

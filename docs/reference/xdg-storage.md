@@ -140,6 +140,8 @@ A lock exists only where a write is **not** a function of the files it reads, or
 | -------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
 | `accounts/<account>/.credentials.lock` | `oauth-token` and `auth-mode.json` | Each login mints a new secret, so a reordered rename can persist a revoked one |
 
+Within that scope the pair is written in one order: `oauth-token` first, then `auth-mode.json`, whose rename commits the rotation ([ADR-0067](../decisions/ADR-0067-commit-a-token-rotation-with-the-metadata-rename.md)). A new token is verified before the lock is taken, so the lock is never held across a child spawn, and the sequence gains no step: verification is not a write.
+
 Composed settings, composition provenance, the last-used marker, and every other wrapper-owned write take no lock. Each is recomputed from its inputs, or is a selection where the most recent write is the right answer. Composed settings and their provenance carry one invariant, and it is expressed in the name: both files are named by the same input digest, so provenance can never describe settings other than the ones beside it.
 
 **The lock file is never deleted.** Unlinking it lets one holder destroy the file another is about to lock. A permanent empty file is the design, and because it carries no claim, a kill leaves nothing for the next run to break.
@@ -167,9 +169,9 @@ There is no half-written durable state to repair. A reader sees the old complete
 
 **The sweep** removes an orphaned temporary from any wrapper-managed directory the invocation already walks for [its security checks](#filesystem-security). A temporary whose embedded process id belongs to a live process is left alone, so a concurrent writer's rename can never be broken by a sweep; the cost is that a temporary from a previous boot whose id has since been reused lingers, which nothing depends on. Lock files are never swept.
 
-Composed settings entries are permanent. Each is immutable and named by its inputs, so one accumulates only when a profile or a piece actually changes — a growth curve set by how often the user edits configuration, not by how many terminals they open. Nothing earns an age policy, a prune verb, or a liveness check at that rate ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); removing a store the user no longer wants is `rm`. The orphan-temporary sweep above is the only thing the wrapper deletes.
+Composed settings entries are permanent. Each is immutable and named by its inputs, so one accumulates only when a profile or a piece actually changes — a growth curve set by how often the user edits configuration, not by how many terminals they open. Nothing earns an age policy, a prune verb, or a liveness check at that rate ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); removing a store the user no longer wants is `rm`. The orphan-temporary sweep above is the only thing the wrapper deletes unbidden.
 
-`account remove` removes the local account tree, including child-owned config. Composed settings are not account state and are not removed with it. It stops local use but does not claim to revoke a token upstream.
+`account remove` removes the local account tree, including child-owned config. Composed settings are not account state and are not removed with it. It stops local use but does not claim to revoke a token upstream. A failed first [`account login`](./accounts.md#logging-in) removes the account directory that same run created. Both are deletions a user asked for, which is what separates them from a sweep.
 
 ## Diagnostics
 

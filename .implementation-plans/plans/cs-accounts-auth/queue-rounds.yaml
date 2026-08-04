@@ -10,7 +10,7 @@ rounds:
     depends_on:
       - account-discovery
     prompt: /prex -ar .implementation-plans/plans/cs-accounts-auth/account-login.md
-    notes: account login in login mode and token mode, with transactional rotation.
+    notes: account login in login mode and token mode, with ordered rotation.
   - item: launch-auth-and-precedence
     status: todo
     depends_on:
