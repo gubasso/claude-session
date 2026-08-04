@@ -20,7 +20,7 @@ just hooks-install
 Verify the baseline before changing anything:
 
 ```bash
-pre-commit run --all-files
+just hooks
 ```
 
 A red baseline means an unrelated problem exists. Fix or report it first, so that later failures are attributable to your work.
@@ -91,11 +91,10 @@ just audit
 
 Read [the testing strategy](../explanation/testing-strategy.md) once, then use [testing and quality](./../reference/testing-and-quality.md) as the lookup.
 
-1. Choose the kind. Pure logic gets a unit test beside the code. A seam between components gets an integration test in `tests/`. Anything needing the real `claude` is end-to-end and belongs in continuous integration only.
-2. Make it hermetic: a fresh temporary directory, a **cleared** child environment rather than an inherited one, every base directory variable pointed inside the temporary directory, no network, no real clock.
-3. Never mutate the test process's own environment or working directory. Both are shared across the parallel runner and will corrupt unrelated tests.
-4. For anything involving the child, use the recording stub rather than the real binary.
-5. If your change touches a contract in the mandatory-test table, extend that test rather than adding a parallel one.
+1. Choose the kind. The lane is derived from what the test needs, not declared — see [what each lane may admit](./../reference/testing-and-quality.md#what-each-lane-may-admit).
+2. Make it hermetic. Every requirement is in [hermetic fixtures](./../reference/testing-and-quality.md#hermetic-fixtures); the row that catches people is the last one, on the test process's own globals.
+3. For anything involving the child, use the recording stub rather than the real binary.
+4. If your change touches a contract in the mandatory-test table, extend that test rather than adding a parallel one.
 
 Verify:
 
@@ -168,9 +167,9 @@ Configure the forge through [the enforcement contract](../reference/release-work
 ## Before proposing a change
 
 ```bash
-pre-commit run --all-files
+just hooks
 ```
 
-This is the single command that reproduces the project's verdict. Fix everything it reports; do not bypass a hook. Expect the markdown formatter to unwrap paragraphs to one physical line and the linter to renumber ordered lists — accept those rewrites and re-run until clean.
+This is the single command that reproduces the project's verdict, and it runs **both** hook stages — `pre-commit run --all-files` alone skips every push-stage hook ([the gate](../reference/testing-and-quality.md#the-gate)). Fix everything it reports; do not bypass a hook. Expect the markdown formatter to unwrap paragraphs to one physical line and the linter to renumber ordered lists — accept those rewrites and re-run until clean.
 
 If a hook is wrong, fix its configuration in a separate change with a reason. Do not add a suppression to get past it.

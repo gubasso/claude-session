@@ -28,7 +28,6 @@ The child-status column is measured, not assumed. It is the intersection audited
 | `--config <path>`  | Override the wrapper's own configuration file        | Needed before configuration is loaded, so it cannot itself come from configuration                                          | Free                                      |
 | `--account <name>` | Select the account and stored authentication context | The wrapper owns account selection; the child owns its credential                                                           | Free                                      |
 | `--profile <name>` | Select the settings profile to compose               | The wrapper owns composition; declared on the launch and on `config` only, per [configuration](./configuration.md#commands) | Free                                      |
-| `--dry-run`        | Resolve and report what would happen; spawn nothing  | A wrapper-level rehearsal has no child equivalent                                                                           | Free                                      |
 | `--version`, `-V`  | Print the wrapper's version and the resolved child's | Must report both, which the child cannot do                                                                                 | `--version` collides by design; `-V` free |
 | `--help`, `-h`     | Print the wrapper's help                             | Must describe the wrapper's grammar, not the child's                                                                        | Collides by design                        |
 
@@ -36,7 +35,9 @@ Three properties of this table are contractual:
 
 **Long-form and distinctive.** Short forms are used only where the convention is universal (`-q`, `-V`, `-h`). Claiming a short flag that the child later wants is a collision the wrapper wins and the user loses, so the set stays small. `-v` is deliberately absent: the child spells it `--version`, so claiming it for verbosity would change a token's meaning rather than shadow it ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
 
-**Append-only in spirit.** Adding a flag to this table removes a flag from the child's reachable surface. That is a passthrough-contract change, and it requires a decision record — see [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md).
+**Append-only in spirit.** Adding a flag to this table removes a flag from the child's reachable surface. That is a passthrough-contract change, and it requires a decision record — see [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md). Removal takes a record for the same reason, in the other direction: [ADR-0072](../decisions/ADR-0072-retire-the-dry-run-flag.md) retired `--dry-run` and returned that spelling to the child.
+
+**Every row has a contract.** A flag appears here only once its behaviour, its output, and its failures are specified on some page. A claimed spelling with nothing behind it costs the child a token in exchange for nothing, and makes the denylist-membership test assert a row that means nothing.
 
 **Audited, not asserted.** An intersection between this table and the child's inventory that is not named in the child-status column fails the build. The mechanism is the collision-audit test in [testing and quality](./testing-and-quality.md#mandatory-tests).
 
@@ -89,16 +90,16 @@ Discovering a new collision is a procedure, not a note. Rebuild the child's inve
 
 Verbs are top-level rather than nested under a namespace verb. Nesting would add a token to every wrapper invocation to solve a collision problem that the closed, documented verb list already solves.
 
-| Verb         | Purpose                                                                   | Grammar specified in                          |
-| ------------ | ------------------------------------------------------------------------- | --------------------------------------------- |
-| `account`    | Manage accounts: login, list, status, remove                              | [accounts](./accounts.md)                     |
-| `config`     | Resolve, validate, and report the wrapper's configuration; no subcommands | [configuration](./configuration.md#commands)  |
-| `profile`    | List the available settings profiles; no subcommands                      | [configuration](./configuration.md#commands)  |
-| `doctor`     | Diagnose every subsystem, then run the child's own `doctor`               | [logging and output](./logging-and-output.md) |
-| `completion` | Emit shell completions for the wrapper's grammar                          | [Help](#help)                                 |
-| `man`        | Emit man pages generated from the wrapper's grammar                       | [Help](#help)                                 |
-| `version`    | Print the wrapper's version and the resolved child's path and version     | [Version output](#version-output)             |
-| `help`       | Print the wrapper's help, or one verb's                                   | [Help](#help)                                 |
+| Verb         | Purpose                                                                   | Grammar specified in                         |
+| ------------ | ------------------------------------------------------------------------- | -------------------------------------------- |
+| `account`    | Manage accounts: login, list, status, remove                              | [accounts](./accounts.md)                    |
+| `config`     | Resolve, validate, and report the wrapper's configuration; no subcommands | [configuration](./configuration.md#commands) |
+| `profile`    | List the available settings profiles; no subcommands                      | [configuration](./configuration.md#commands) |
+| `doctor`     | Diagnose every subsystem, then run the child's own `doctor`               | [doctor](./doctor.md)                        |
+| `completion` | Emit shell completions for the wrapper's grammar                          | [Help](#help)                                |
+| `man`        | Emit man pages generated from the wrapper's grammar                       | [Help](#help)                                |
+| `version`    | Print the wrapper's version and the resolved child's path and version     | [Version output](#version-output)            |
+| `help`       | Print the wrapper's help, or one verb's                                   | [Help](#help)                                |
 
 Two verb names overlap the child's, measured against `claude` 2.1.220 on 2026-07-31, and each resolves differently:
 
@@ -126,7 +127,7 @@ Forwarding is **verbatim**. Specifically:
 
 **There is no argv normalization step.** A change that adds one is a change to the passthrough contract and requires a decision record before it requires code.
 
-Standard input, standard output, and standard error are inherited by the child unmodified. The wrapper writes nothing to standard output during a passthrough invocation; see [logging and output](./logging-and-output.md).
+Standard input, standard output, and standard error are inherited by the child unmodified, under [the stream contract](./logging-and-output.md#the-stream-contract).
 
 For a resolved profile, [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md) narrowly authorizes one wrapper-owned prefix, `--settings <absolute composed-settings path>`. Every user-supplied token remains an untouched suffix with order, bytes, count, and `--` sentinel preserved. The wrapper does not parse or normalize that suffix. What the child sees in `argv[0]`, and how the prefix itself is typed, are in [process runtime](./process-runtime.md#child-argument-vector).
 

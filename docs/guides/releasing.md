@@ -7,11 +7,13 @@ This is the sole release and publishing runbook. Exact values and invariants liv
 - Repository administrator access.
 - `develop` pushed and intended as the GitHub default branch.
 - Conventional Commits on changes entering `develop`.
-- A green `pre-commit run --all-files`.
+- A green `just hooks`.
 - The release-plz, cargo-dist, workflow, and helper artifacts named in the reference are present.
 - [ADR-0022](../decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md)'s passthrough criteria are satisfied before the first publish.
 
 ## Bootstrap release automation once
+
+Every step in this section runs **once, ever**. A routine release repeats none of them: it never touches forge settings, never creates a crates.io token, never registers a publisher, and never creates `master` — it fast-forwards a `master` that already exists. Step 5's ordering is the one that cannot be rearranged; see [forge enforcement](../reference/release-workflow.md#forge-enforcement).
 
 1. Validate metadata and package contents with `./scripts/publish-dry`.
 2. Push `develop` and make it the GitHub default branch.
@@ -66,18 +68,22 @@ These commands prepare or simulate a release; none publishes:
 
 Local publishing uses a crates.io token; it does not use OIDC.
 
-## Yank and fix forward
+## Recover from a bad release
 
-1. Yank the affected version with `cargo yank --version X.Y.Z`.
+**Releasing a new version is the recovery. Yanking is containment and fixes nothing on its own** — it de-indexes the version so no new resolution picks it up, and every existing lockfile keeps resolving to it. See [version and recovery policy](../reference/release-workflow.md#version-and-recovery-policy).
+
+1. Yank the affected version with `cargo yank --version X.Y.Z`, to stop new consumers reaching it.
 2. Fix the defect on `develop`.
-3. Release a new compatible version through the routine automated path.
+3. Release a new compatible version through the routine automated path. This is the step that fixes it for anyone already on the bad version.
 4. If the yank was mistaken, undo it with `cargo yank --version X.Y.Z --undo`.
+
+If the bad release leaked a secret, rotate that secret now. A yank does not remove the published package and does not un-leak anything in it.
 
 ## Verify
 
 1. Confirm `cargo package --list` contains only the intended source package.
 2. Confirm the `vX.Y.Z` tag exists and crates.io serves that version.
 3. Confirm `master` resolves to the release tag's commit.
-4. Confirm the GitHub Release contains all four target archives and generated installers.
+4. Confirm the GitHub Release contains the single Linux archive, its checksum, the shell installer, and `dist-manifest.json` — [the published set](../reference/release-workflow.md#what-a-release-publishes), and nothing beyond it.
 5. Confirm the tag, cargo-dist run, and promotion use the GitHub App-authored chain.
 6. Confirm Trusted Publishing and forge ruleset enforcement remain enabled.

@@ -64,7 +64,7 @@ The parser exits `2` on a malformed invocation by default. That default is **ove
 
 ### The one code outside the taxonomy
 
-`1` is not in the matrix, because it is not a failure of the wrapper. It is emitted by `doctor --strict` alone, when the catalog completed and a soft check reported `warn` that the caller asked to treat as fatal. It carries no `err.kind` and no diagnostic, because nothing went wrong; see [ADR-0034](../decisions/ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) and [the report](./logging-and-output.md#the-report).
+`1` is not in the matrix, because it is not a failure of the wrapper. It is emitted by `doctor --strict` alone, when the catalog completed and a soft check reported `warn` that the caller asked to treat as fatal. It carries no `err.kind` and no diagnostic, because nothing went wrong; see [ADR-0034](../decisions/ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) and [the report](./doctor.md#the-report).
 
 Every other bare `1` is a bug.
 
@@ -73,6 +73,21 @@ Every other bare `1` is a bug.
 `101` is Rust's panic status. It is **not** in the matrix and is never mapped to deliberately: reaching it means the wrapper panicked, which [coding conventions](./coding-conventions.md#panics) forbids outside test code. It is documented here because a script author who sees it deserves to know it means "report this", not "retry" or "fix your configuration".
 
 It is deliberately **not** converted to `Internal` (70). A panic and a handled internal error need to stay distinguishable — 70 says the wrapper detected a broken invariant and reported it properly, 101 says it did not. Collapsing them would hide the second behind the first, and 101 is already the ecosystem-wide signal. A panic hook may improve the _message_; it must not change the status.
+
+### Statuses the wrapper never mints
+
+A status already owned by something else is never assigned to a wrapper failure, however well it seems to fit. Each is settled elsewhere on this page; this is the single place to look them up:
+
+| Status                       | Owner                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `1`                          | `doctor --strict` alone, and nothing else — [above](#the-one-code-outside-the-taxonomy)                                   |
+| `2`                          | The parser's default, deliberately overridden to `Usage` — [above](#where-this-diverges-from-sysexits)                    |
+| `67`, `68`, `72`, `73`, `76` | `sysexits` categories with no condition in this program — [above](#where-this-diverges-from-sysexits)                     |
+| `101`                        | The Rust runtime — [above](#the-code-the-language-owns)                                                                   |
+| `129`–`165`                  | Signal death. The wrapper reproduces it by re-raising rather than encoding `128 + N` — [below](#child-status-passthrough) |
+| `255`                        | The clamp target of that fallback, never a code in its own right                                                          |
+
+`126` and `127` are the exception that proves the rule: they are shell conventions and the wrapper claims them **on purpose**, for the reason given above the matrix. Every status in the table is reachable from a wrapper run — but only as the child's, or as the language's, never as a wrapper error's.
 
 ## Child status passthrough
 
@@ -113,6 +128,8 @@ After the prefix come four parts, in this order:
 
 For example, in substance rather than exact wording: the child binary is not executable; at the resolved absolute path; because the file mode denies execute for the current user; try making it executable or set the override variable to a different binary.
 
+**Where the failure came from a catalog check, Hint _is_ that check's [remediation](./doctor.md#remediations) template, verbatim.** This is what makes the four-part shape and the one-remediation-per-check rule ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)) one rule rather than two: a user who hits a command guard and a user who ran `doctor` read the same sentence.
+
 Diagnostics go to standard error. Never to standard output; see [logging and output](./logging-and-output.md).
 
 ## Stability
@@ -129,9 +146,16 @@ Consumers branch on `0` versus non-zero, or on a documented code. A consumer tha
 
 Changing an existing mapping requires a decision record superseding [ADR-0005](../decisions/ADR-0005-exit-code-taxonomy.md).
 
-## Inspection verbs and assertion verbs
+## Exit regimes by verb
 
-Read-only verbs split into two kinds, and the split decides the exit.
+Every invocation belongs to exactly one of four regimes, and the regime decides the exit. The first is the boundary [above](#two-regimes); the other three are all wrapper-owned, and they differ in what the exit is _about_.
+
+| Regime      | Invocations                                                    | The exit answers                   |
+| ----------- | -------------------------------------------------------------- | ---------------------------------- |
+| Passthrough | The bare launch                                                | Nothing — it is the child's status |
+| Inspection  | `profile`, `account list`, `account status`, `version`         | Did the verb run?                  |
+| Assertion   | `config`, `doctor`                                             | Does the property hold?            |
+| Operation   | `account login`, `account remove`, `completion`, `man`, `help` | Did the operation complete?        |
 
 **Inspection** — `profile`, `account list`, `account status`, `version`. These exit `0` when they ran, **whatever they found**. The state reported is data, not the verb's own outcome: `version` against an unresolvable child, or `account status` with nothing selected, is a produced answer. They exit non-zero only when **the wrapper itself** failed — it could not read the file it was asked to inspect, or could not resolve a base directory.
 
@@ -150,6 +174,8 @@ A verb that exits non-zero because the answer was unwelcome cannot be used in a 
 | `doctor`, hard check failing             | code | The wrapper genuinely cannot function                                    |
 
 Both draw the same line in the same place: a defect the subject can still function with is advisory and exits `0`, one it cannot is fatal. `--strict` exists so a caller who disagrees about where that line sits can move it without the verb having to guess.
+
+**Operation** — `account login`, `account remove`, `completion`, `man`, `help`. These change something or produce something rather than reporting on state, so neither of the two rules above applies: there is no finding to exit `0` over and no property to assert. They exit `0` when the operation completed and a matrix code when **the wrapper's own** handling failed. A `remove` the user declined exits `0` because the exchange completed as designed, not because it inspected anything ([the CLI surface](./cli-surface.md#the-exchange) owns the exchange). Where one of them ran the child as a subroutine, [ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md) still governs the attribution.
 
 ### Resolving a profile name
 

@@ -7,10 +7,10 @@ A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 ## Design contract
 
 - **Never break native `claude` passthrough.** Anything the wrapper does not own is forwarded to `claude` unchanged, including arguments, stdin/stdout, and exit codes.
-- **XDG-compliant.** Configuration, state, and cache live under the standard XDG base directories.
-- **Self-contained.** The tool depends on nothing outside the repository and the `claude` binary itself.
+- **XDG-compliant.** Every file the wrapper writes goes to its [XDG base directory](./docs/reference/xdg-storage.md).
+- **Self-contained.** At runtime the tool needs nothing but itself and the `claude` binary. Building it needs the pinned devShell.
 
-These three bullets are a summary. The normative sources are [AGENTS.md](./AGENTS.md) for the contracts themselves and [docs/decisions/](./docs/decisions/) for the recorded decisions behind them.
+These three bullets are a summary. [Project governance](./docs/reference/project-governance.md#rule-ownership-and-enforcement) maps each binding rule to the document that owns it and the mechanism that rejects a violation.
 
 ## Documentation
 
@@ -31,7 +31,7 @@ There is no published release, and installing from a checkout today installs the
 git clone https://github.com/gubasso/claude-session.git
 cd claude-session
 
-# Build and install the binary into ~/.cargo/bin
+# Build and install. Cargo owns the destination; the wrapper writes nothing there.
 cargo install --path .
 ```
 
@@ -55,6 +55,7 @@ Common tasks run through the project task runner:
 just lint    # run linters and formatters
 just test    # run the test suite
 just build   # build the project
+just hooks   # the full gate, both hook stages — this is the verdict
 ```
 
 ## License
@@ -70,4 +71,4 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 ## Contributing
 
-Contributions are welcome. Please open an issue to discuss substantial changes before submitting a pull request, and ensure `just lint` and `just test` pass.
+Contributions are welcome. Please open an issue to discuss substantial changes before submitting a pull request, and run the full gate first — [the development workflow](./docs/guides/development-workflow.md) has the procedure.

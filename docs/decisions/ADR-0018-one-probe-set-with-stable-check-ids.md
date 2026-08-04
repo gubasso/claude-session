@@ -20,7 +20,7 @@ Identifiers are **public API**, on the same footing as `err.kind` in [ADR-0005](
 
 Severity is the only waiver lever. A check that could legitimately be ignored is soft by definition, so there is no per-invocation ignore flag and a hard check stays an unconditional guarantee.
 
-The catalog itself lives in [logging and output](../reference/logging-and-output.md).
+The catalog itself lives in [doctor](../reference/doctor.md#the-catalog).
 
 ## Consequences
 

@@ -13,11 +13,22 @@
 # Fields:
 #   id          stable identifier, referenced from a review or an issue
 #   fact        one line: what is being tracked, not the full statement
-#   owner       the document that states the fact normatively
+#   owner       the document that states the fact normatively. Always a
+#               document — never a directory, and never a configuration file
+#               that merely embodies the fact.
 #   dependents  what breaks or needs revisiting if the fact changes
-#   cadence     how often to re-check
+#   cadence     how often to re-check. Either a fixed interval (monthly,
+#               quarterly, semiannual, annual), which expires on the clock
+#               from last_checked, or an event (on-implementation,
+#               on-major-upgrade), which never expires and fires only when the
+#               named event occurs. A fact may carry both, spelled as prose in
+#               this one field; a second field for the kind would only restate
+#               what the value already says.
 #   last_checked  ISO date of the last verification
 #   revalidate  concretely how to re-check it
+#   trigger_round  optional; for an event cadence only, the queued plan or
+#               round that runs into the question, so the trigger has an
+#               addressable consumer. A clock cadence needs none.
 #   source      optional; the upstream page(s) revalidation reads. A link here
 #               is a starting point for the re-check, not a statement of the
 #               fact — the owning document still states it.
@@ -39,13 +50,18 @@ facts:
       - docs/decisions/ADR-0025-share-one-native-login-per-account.md
       - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
     cadence: monthly
-    last_checked: 2026-07-30
+    last_checked: 2026-08-04
     source:
-      - https://code.claude.com/docs/en/env-vars
+      - https://code.claude.com/docs/en/claude-directory
+      - https://code.claude.com/docs/en/authentication
+      - https://code.claude.com/docs/en/debug-your-config
     revalidate: >-
-      Check the current environment-variable documentation, then run the child
-      on Linux with the variable pointed at an empty account config directory
-      and confirm configuration and login state are written there.
+      Read the pages above, then run the child on Linux with the variable
+      pointed at an empty account config directory and confirm configuration
+      and login state are written there. The variable moved off the
+      environment-variable reference page without changing behaviour, so a
+      re-check that finds it missing from one page has not found it retired —
+      confirm by running the child before concluding anything.
 
   - id: child-credential-file-layout
     fact: >-
@@ -65,19 +81,22 @@ facts:
 
   - id: child-settings-schema
     fact: >-
-      The child's settings schema evolves independently, which is why
-      composition validates structure but does not reject unknown keys.
+      A published settings schema now exists, but upstream states it is updated
+      periodically and may omit settings added in recent releases, and it
+      permits additional properties. Composition therefore still validates
+      structure without rejecting unknown keys.
     owner: docs/reference/configuration.md
     dependents:
       - docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md
     cadence: quarterly
-    last_checked: 2026-07-28
+    last_checked: 2026-08-04
     source:
       - https://code.claude.com/docs/en/settings
+      - https://json.schemastore.org/claude-code-settings.json
     revalidate: >-
-      Compare the documented settings keys against the last recorded set. A
-      maintained published schema would let validation tighten; check whether
-      one now exists.
+      Re-read the schema note on the settings page. Validation may tighten only
+      when the published schema stops lagging releases and stops permitting
+      additional properties; both were still true on 2026-08-04.
 
   - id: child-version-floor
     fact: >-
@@ -286,9 +305,10 @@ facts:
     dependents:
       - docs/decisions/ADR-0025-share-one-native-login-per-account.md
     cadence: monthly
-    last_checked: 2026-07-30
+    last_checked: 2026-08-04
     source:
-      - https://code.claude.com/docs/en/env-vars
+      - https://code.claude.com/docs/en/claude-directory
+      - https://code.claude.com/docs/en/authentication
     revalidate: >-
       Launch the child with an empty temporary configuration directory, use
       in-TUI login, and confirm only by file metadata and non-secret status
@@ -313,17 +333,21 @@ facts:
   - id: proxy-base-url-var
     fact: >-
       ANTHROPIC_BASE_URL redirects the child's API endpoint; it is the basis
-      of the proxy seam.
+      of the proxy seam. Pointing it at a non-first-party host now also
+      disables MCP tool search unless a companion variable is set, and
+      disables remote control.
     owner: docs/reference/process-runtime.md
     dependents:
       - docs/explanation/wrapper-model.md
     cadence: quarterly
-    last_checked: 2026-07-28
+    last_checked: 2026-08-04
     source:
       - https://code.claude.com/docs/en/env-vars
     revalidate: >-
-      Confirm against the current upstream documentation, and confirm no
-      additional variable is now required alongside it.
+      Confirm against the current upstream documentation, and confirm which
+      companion variables the non-first-party-host case now requires. The seam
+      is inheritance, so each new companion is one more variable the wrapper
+      passes through untouched rather than one it sets.
 
   - id: clap-external-subcommand-limits
     fact: >-
@@ -334,11 +358,18 @@ facts:
       - docs/explanation/wrapper-model.md
       - docs/decisions/ADR-0002-verbatim-argv-passthrough.md
     cadence: on-major-upgrade
-    last_checked: 2026-07-28
+    last_checked: 2026-08-04
+    trigger_round: cs-foundation/clap-passthrough-and-minimal-spawn
+    source:
+      - https://docs.rs/clap/latest/clap/_derive/_cookbook/git_derive/index.html
     revalidate: >-
       On a major parser upgrade, retry the leading-unknown-flag invocation
       without the pre-split. If the parser handles it, the pre-split may be
-      simplifiable — but the golden-argv tests stay either way.
+      simplifiable — but the golden-argv tests stay either way. The trigger has
+      not fired: the parser is still on the major this was recorded against.
+      The positional half is corroborated by the upstream cookbook example; the
+      leading-unknown-flag half is measured, not quoted, so measure it rather
+      than citing a page.
 
   - id: child-flag-and-verb-inventory
     fact: >-
@@ -363,7 +394,10 @@ facts:
       not exhaustive, so the fixture is the authority and the published page
       is the corroboration. Record a new shadowing overlap in the child-status
       column; an overlap that would change a token's meaning forces the
-      wrapper spelling to be dropped or renamed under a new record.
+      wrapper spelling to be dropped or renamed under a new record. The
+      fixture does not exist yet, so until the round that writes it lands,
+      the authority is the measurement recorded in the source list above and
+      revalidation means re-measuring rather than diffing.
 
   - id: signal-forwarding-model
     fact: >-
@@ -374,11 +408,16 @@ facts:
       - docs/explanation/wrapper-model.md
       - docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md
     cadence: on-implementation
-    last_checked: 2026-07-28
+    last_checked: 2026-08-04
+    trigger_round: cs-wrapper-runtime/spawn-signals-exitcodes
+    source:
+      - https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap11.html
     revalidate: >-
       Verify empirically once the spawn path exists: send an interrupt to the
-      group and confirm the child observes exactly one. This is design-derived
-      until measured.
+      group and confirm the child observes exactly one. The specification half
+      is confirmed — the terminal sends the signal to every process in the
+      foreground process group — so what remains unmeasured is this wrapper's
+      own behaviour, not the platform's.
 
   - id: xdg-runtime-absence
     fact: >-
@@ -389,10 +428,16 @@ facts:
       - docs/explanation/session-isolation.md
       - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md
     cadence: annual
-    last_checked: 2026-07-28
+    last_checked: 2026-08-04
+    source:
+      - https://specifications.freedesktop.org/basedir/latest/
     revalidate: >-
       Re-read the base directory specification for any change, and confirm the
-      degrade-explicitly path still holds in a container.
+      degrade-explicitly path still holds in a container. The specification
+      half is confirmed: it is the one base with no default defined, and it
+      directs applications to fall back and warn. Where it is actually absent
+      is an environment claim this project has not measured, so treat the
+      container, cron, and remote-login list as unverified until it is.
 
   - id: switcher-landscape
     fact: >-
@@ -401,10 +446,14 @@ facts:
     owner: docs/reference/prior-art.md
     dependents: []
     cadence: semiannual
-    last_checked: 2026-07-28
+    last_checked: 2026-08-04
     revalidate: >-
       Re-survey. Confirm each project is still maintained, and check whether
-      any has solved a problem this project has open.
+      any has solved a problem this project has open. The field is now much
+      larger than the two originally cited and turns over quickly, so a survey
+      that finds only the projects already on the page has not been run
+      properly. One cited project did not surface in the 2026-08-04 survey;
+      confirm it still exists before relying on its row.
 
   - id: upstream-native-multi-account
     fact: >-
@@ -414,11 +463,14 @@ facts:
     dependents:
       - docs/explanation/session-isolation.md
     cadence: quarterly
-    last_checked: 2026-07-28
+    last_checked: 2026-08-04
     revalidate: >-
-      Check the upstream feature request and the changelog. If it ships,
-      re-evaluate the isolation layer; the composition and supervision layers
-      are unaffected.
+      Check the upstream feature requests and the changelog. Still absent on
+      2026-08-04: the requests are open and there is no account catalog or
+      switching surface. A per-account configuration directory is not that —
+      it is the mechanism this wrapper already builds on. If native switching
+      ships, re-evaluate the isolation layer; composition and supervision are
+      unaffected.
 
   - id: dependency-currency
     fact: >-
@@ -429,16 +481,20 @@ facts:
     cadence: semiannual
     last_checked: 2026-07-31
     revalidate: >-
-      Check each named crate for maintenance status and for a successor. The
-      page carries no version numbers, so only names and rulings need review.
+      Check each named crate for maintenance status and for a successor, one
+      at a time. The page carries no version numbers, so only names and rulings
+      need review. A spot-check of the prominent crates is not this check: the
+      2026-08-04 pass confirmed several and could not complete the rest, so the
+      blanket "nothing superseded" claim stays unverified until every named
+      crate has been looked at individually.
 
   - id: pinned-action-currency
     fact: >-
       The GitHub Actions the workflows pin by tag are still maintained, and no
       pin has been superseded or left behind by a security release.
-    owner: .github/workflows/
+    owner: docs/guides/development-workflow.md
     dependents:
-      - docs/guides/development-workflow.md
+      - .github/workflows/
     cadence: quarterly
     last_checked: 2026-07-30
     revalidate: >-
@@ -500,9 +556,9 @@ facts:
     fact: >-
       cargo-dist stable version, configuration schema, generated workflow
       filename and trigger, supported targets, runners, and actions.
-    owner: dist-workspace.toml
+    owner: docs/reference/release-workflow.md
     dependents:
-      - docs/reference/release-workflow.md
+      - dist-workspace.toml
       - .github/workflows/release.yml
     cadence: quarterly
     last_checked: 2026-07-30

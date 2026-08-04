@@ -31,6 +31,18 @@ The unit lane is wired to **both** the commit and push hooks. It is nearly free,
 
 The time budget is one number: **the commit hook stays under one second of test time.** A commit hook slow enough to notice is a commit hook people bypass.
 
+### What each lane may admit
+
+A lane is defined by the evidence it is allowed to look at, which is what keeps a slow test from drifting into a fast lane:
+
+| Lane        | Admissible evidence                                                                                                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit        | The return value of a function called in-process. No process, no filesystem, no clock, no environment.                                                                              |
+| Integration | The compiled binary's exit status, its standard output and standard error as bytes, and the three raw-byte files [the recording stub](#the-recording-stub) wrote. Never host state. |
+| End-to-end  | Observations of the real `claude`. The only lane that may, and it may never run in a hook.                                                                                          |
+
+**The lane of a mandatory test is derived, never declared:** a test needing the recording stub or a temporary tree is integration, one needing the real child is end-to-end, and everything else is unit. That rule is total over the table below, which is why no test carries a lane column — a column would be a second source of truth over forty-odd rows, and the first row to disagree with the rule would be a defect nobody could see.
+
 ## Tools
 
 | Tool            | Role                                                                           |
@@ -76,49 +88,66 @@ The stub is what makes passthrough assertions mechanical: not "the command looke
 
 Each of these locks down a contract that is otherwise decorative:
 
-| Test                      | Locks                                                                                              | Owning document                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Golden argv table         | The whole vector: `argv[0]`, the wrapper prefix, and a suffix preserved in order, count, and bytes | [CLI surface](./cli-surface.md)               |
-| Exit-code matrix          | Every error variant maps to its documented code, no catch-all                                      | [Exit codes](./exit-codes.md)                 |
-| Child exit fidelity       | A stub exiting with N produces N                                                                   | [Exit codes](./exit-codes.md)                 |
-| Child signal fidelity     | A signal-killed stub produces signal death, or the documented fallback                             | [Exit codes](./exit-codes.md)                 |
-| `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                                          | [CLI surface](./cli-surface.md)               |
-| Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session                         | [Process runtime](./process-runtime.md)       |
-| Recursion guard, identity | A **hard-linked** wrapper is caught, which path equality would miss                                | [Process runtime](./process-runtime.md)       |
-| Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`                    | [Process runtime](./process-runtime.md)       |
-| `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126                        | [Process runtime](./process-runtime.md)       |
-| Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`                                | [Process runtime](./process-runtime.md)       |
-| Environment isolation     | The stub sees the injected config directory and **exactly one** `CLAUDE_SESSION_*` key, the marker | [Process runtime](./process-runtime.md)       |
-| Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                 | [Process runtime](./process-runtime.md)       |
-| Profile isolation         | Two profiles launched from one terminal and one account get different entry paths and bytes        | [XDG storage](./xdg-storage.md)               |
-| Entry key determinism     | Changing a piece's content, resolved path, order, or the strategy table names a different entry    | [XDG storage](./xdg-storage.md)               |
-| Terminal independence     | Identical inputs under different terminal state and different accounts name the same entry         | [XDG storage](./xdg-storage.md)               |
-| Entry immutability        | An existing entry is never rewritten, and a run that finds a matching one composes nothing         | [XDG storage](./xdg-storage.md)               |
-| Sidecar mismatch refusal  | An entry whose recorded digest disagrees with the recomputed one is neither opened nor overwritten | [XDG storage](./xdg-storage.md)               |
-| Partial pair recovery     | With exactly one member present, both are written from this run's inputs, never the survivor kept  | [XDG storage](./xdg-storage.md)               |
-| Symlink rejection         | A wrapper-managed path that is a symlink is refused                                                | [XDG storage](./xdg-storage.md)               |
-| Mode enforcement          | An over-permissive directory is corrected, and the check reports `pass`, not `fail`                | [XDG storage](./xdg-storage.md)               |
-| Unmanaged ancestors       | A `0755` `$HOME` or `.local` is never checked or corrected                                         | [XDG storage](./xdg-storage.md)               |
-| Interrupted write         | An abandoned temporary leaves the previous complete file readable at the final path                | [XDG storage](./xdg-storage.md)               |
-| Sweep safety              | An orphaned temporary is removed, and one whose process id is live is kept                         | [XDG storage](./xdg-storage.md)               |
-| Cross-process exclusion   | A second writer of a locked scope waits, then exits `LockBusy` at its deadline                     | [XDG storage](./xdg-storage.md)               |
-| In-process exclusion      | Two threads writing one scope serialize, which the file lock alone would not achieve               | [XDG storage](./xdg-storage.md)               |
-| Lock release on death     | A holder killed by `SIGKILL` leaves the next acquisition uncontended                               | [XDG storage](./xdg-storage.md)               |
-| Unknown configuration key | A typo is rejected, naming the key and file                                                        | [Configuration](./configuration.md)           |
-| Merge determinism         | The same pieces produce byte-identical output                                                      | [Configuration](./configuration.md)           |
-| Freshness on piece change | Editing a piece without the profile names a new entry and leaves the old one untouched             | [Configuration](./configuration.md)           |
-| Example round-trip        | Every generated example parses through the real loader                                             | [Configuration](./configuration.md)           |
-| Undocumented field        | A public config field without a description fails generation                                       | [Configuration](./configuration.md)           |
-| Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                                 | [Logging and output](./logging-and-output.md) |
-| Help snapshot             | Generated help does not change unnoticed                                                           | [CLI surface](./cli-surface.md)               |
-| Denylist membership       | The spellings the pre-split claims are exactly the documented table                                | [CLI surface](./cli-surface.md)               |
-| Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms                    | [CLI surface](./cli-surface.md)               |
-| Leading-position scope    | A claimed flag after any other token reaches the child                                             | [CLI surface](./cli-surface.md)               |
-| Malformed wrapper flag    | A claimed flag missing its value exits `Usage`; a near-miss forwards                               | [CLI surface](./cli-surface.md)               |
-| Collision audit           | The claimed set meets the child's inventory only where documented                                  | [CLI surface](./cli-surface.md)               |
-| Child version floor       | A `login`-mode launch below the floor fails before spawn; `token` mode does not                    | [Process runtime](./process-runtime.md)       |
-| Confirmation predicate    | A piped invocation with a controlling terminal still prompts                                       | [CLI surface](./cli-surface.md)               |
-| Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable`                  | [CLI surface](./cli-surface.md)               |
+| Test                      | Locks                                                                                              | Owning document                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Golden argv table         | The whole vector: `argv[0]`, the wrapper prefix, and a suffix preserved in order, count, and bytes | [CLI surface](./cli-surface.md)         |
+| Exit-code matrix          | Every error variant maps to its documented code, no catch-all                                      | [Exit codes](./exit-codes.md)           |
+| Child exit fidelity       | A stub exiting with N produces N                                                                   | [Exit codes](./exit-codes.md)           |
+| Child signal fidelity     | A signal-killed stub produces signal death, or the documented fallback                             | [Exit codes](./exit-codes.md)           |
+| `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                                          | [CLI surface](./cli-surface.md)         |
+| Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session                         | [Process runtime](./process-runtime.md) |
+| Recursion guard, identity | A **hard-linked** wrapper is caught, which path equality would miss                                | [Process runtime](./process-runtime.md) |
+| Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`                    | [Process runtime](./process-runtime.md) |
+| `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126                        | [Process runtime](./process-runtime.md) |
+| Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`                                | [Process runtime](./process-runtime.md) |
+| Environment isolation     | The stub sees the injected config directory and **exactly one** `CLAUDE_SESSION_*` key, the marker | [Process runtime](./process-runtime.md) |
+| Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                 | [Process runtime](./process-runtime.md) |
+| Profile isolation         | Two profiles launched from one terminal and one account get different entry paths and bytes        | [XDG storage](./xdg-storage.md)         |
+| Entry key determinism     | Changing a piece's content, resolved path, order, or the strategy table names a different entry    | [XDG storage](./xdg-storage.md)         |
+| Terminal independence     | Identical inputs under different terminal state and different accounts name the same entry         | [XDG storage](./xdg-storage.md)         |
+| Entry immutability        | An existing entry is never rewritten, and a run that finds a matching one composes nothing         | [XDG storage](./xdg-storage.md)         |
+| Sidecar mismatch refusal  | An entry whose recorded digest disagrees with the recomputed one is neither opened nor overwritten | [XDG storage](./xdg-storage.md)         |
+| Partial pair recovery     | With exactly one member present, both are written from this run's inputs, never the survivor kept  | [XDG storage](./xdg-storage.md)         |
+| Symlink rejection         | A wrapper-managed path that is a symlink is refused                                                | [XDG storage](./xdg-storage.md)         |
+| Mode enforcement          | An over-permissive directory is corrected, and the check reports `pass`, not `fail`                | [XDG storage](./xdg-storage.md)         |
+| Unmanaged ancestors       | A `0755` `$HOME` or `.local` is never checked or corrected                                         | [XDG storage](./xdg-storage.md)         |
+| Interrupted write         | An abandoned temporary leaves the previous complete file readable at the final path                | [XDG storage](./xdg-storage.md)         |
+| Sweep safety              | An orphaned temporary is removed, and one whose process id is live is kept                         | [XDG storage](./xdg-storage.md)         |
+| Cross-process exclusion   | A second writer of a locked scope waits, then exits `LockBusy` at its deadline                     | [XDG storage](./xdg-storage.md)         |
+| In-process exclusion      | Two threads writing one scope serialize, which the file lock alone would not achieve               | [XDG storage](./xdg-storage.md)         |
+| Lock release on death     | A holder killed by `SIGKILL` leaves the next acquisition uncontended                               | [XDG storage](./xdg-storage.md)         |
+| Unknown configuration key | A typo is rejected, naming the key and file                                                        | [Configuration](./configuration.md)     |
+| Merge determinism         | The same pieces produce byte-identical output                                                      | [Configuration](./configuration.md)     |
+| Freshness on piece change | Editing a piece without the profile names a new entry and leaves the old one untouched             | [Configuration](./configuration.md)     |
+| Example round-trip        | Every generated example parses through the real loader                                             | [Configuration](./configuration.md)     |
+| Undocumented field        | A public config field without a description fails generation                                       | [Configuration](./configuration.md)     |
+| Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                                 | [Doctor](./doctor.md)                   |
+| Help snapshot             | Generated help does not change unnoticed                                                           | [CLI surface](./cli-surface.md)         |
+| Denylist membership       | The spellings the pre-split claims are exactly the documented table                                | [CLI surface](./cli-surface.md)         |
+| Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms                    | [CLI surface](./cli-surface.md)         |
+| Leading-position scope    | A claimed flag after any other token reaches the child                                             | [CLI surface](./cli-surface.md)         |
+| Malformed wrapper flag    | A claimed flag missing its value exits `Usage`; a near-miss forwards                               | [CLI surface](./cli-surface.md)         |
+| Collision audit           | The claimed set meets the child's inventory only where documented                                  | [CLI surface](./cli-surface.md)         |
+| Child version floor       | A `login`-mode launch below the floor fails before spawn; `token` mode does not                    | [Process runtime](./process-runtime.md) |
+| Confirmation predicate    | A piped invocation with a controlling terminal still prompts                                       | [CLI surface](./cli-surface.md)         |
+| Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable`                  | [CLI surface](./cli-surface.md)         |
+
+### Naming the implementation a test rejects
+
+**A mandatory test names the wrong implementation it rejects only where a naive implementation would pass the obvious assertion.** Most rows do not need one: a test that asserts the documented behaviour already fails everything else. Spelling out a rejected implementation for all of them would be table-completeness rather than coverage, and each sentence would then have to be maintained against code that does not exist yet.
+
+These are the rows where the naive implementation passes and the contract still breaks:
+
+| Test                      | Passes naively, but is wrong                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Child signal fidelity     | `exit(128 + N)` where re-raise was available. A shell reports the same number either way; the wait-status macros do not.                                 |
+| Recursion guard, identity | Comparing canonical paths. A hard link to the wrapper is a different path and the same file.                                                             |
+| Spawn-failure classes     | Classifying a child removed between the pre-flight check and the spawn as `OsError`. The pre-flight check is advisory, so the spawn's own errno decides. |
+| Mode enforcement          | Reporting `fail` on a mode that was **corrected**. A repair is not an unhealthy state, so `doctor --strict` must not fail on one.                        |
+| Partial pair recovery     | Keeping the surviving member of a half-written pair. Both are rewritten from this run's inputs, because the survivor's provenance is unknown.            |
+| In-process exclusion      | Relying on the file lock alone. An advisory lock is held per open file description and cannot exclude a second thread of the same process.               |
+
+The three tables below apply that rule at length, because each covers an obligation split across several assertions.
 
 The golden argv table is the proof of [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md), so its legs are named rather than left to judgement:
 
@@ -142,7 +171,7 @@ The five flag-recognition tests are one obligation split by what each rejects, a
 | Malformed wrapper flag | `--config` bare exits `Usage`; `--configg` forwards verbatim and the run exits with the stub's status.                                          |
 | Collision audit        | The claimed flag and verb sets are intersected with a checked-in, version-labelled inventory fixture and compared with the documented overlaps. |
 
-The collision audit reads the fixture, never the network and never a locally installed child; refreshing the fixture is the `child-flag-and-verb-inventory` revalidation, not a test run.
+The collision audit reads the fixture, never the network and never a locally installed child; refreshing the fixture is the `child-flag-and-verb-inventory` revalidation, not a test run. **The fixture does not exist yet**, so the audit is specified and unbacked: it is written in the round that writes the flag table it audits, and until then the mechanism [research tracking](./research-tracking.yaml) calls the authority is a design, not a file.
 
 The two confirmation tests exist to reject one specific wrong implementation — `stdin().is_terminal()`, which passes a naive suite and fails only where the two predicates disagree ([ADR-0053](../decisions/ADR-0053-read-a-confirmation-from-the-controlling-terminal.md)):
 
@@ -161,46 +190,76 @@ Five of these have teeth beyond their own assertion. The exit-code matrix, writt
 
 ## The gate
 
-`pre-commit run --all-files` is the single local command that reproduces the project's verdict. Hooks are the source of truth; task-runner gate recipes delegate to them, while inner-loop recipes stay raw `cargo`.
+Hooks are the source of truth; task-runner gate recipes delegate to them, while inner-loop recipes stay raw `cargo`.
+
+**`just hooks` is the single local command that reproduces the project's verdict.** It runs both stages:
+
+```bash
+pre-commit run --all-files --hook-stage pre-commit
+pre-commit run --all-files --hook-stage pre-push
+```
+
+`pre-commit run --all-files` on its own is **not** the gate. `--all-files` selects files, not stages, so it runs the commit stage alone and silently omits the push-stage half of the table below — the integration tests, the doctests, and every advisory and secret scan.
 
 Run it inside the devShell. Several hooks take their binary from the shell rather than building one, so outside it they fail at exec rather than reporting on content ([ADR-0040](../decisions/ADR-0040-provision-hook-binaries-from-the-devshell.md)).
 
-| Hook                                   | Stage        | Enforces                                       |
-| -------------------------------------- | ------------ | ---------------------------------------------- |
-| `cargo fmt`                            | commit       | Canonical formatting                           |
-| `clippy` auto-fix, then gate           | commit       | Lint clean, warnings as errors                 |
-| `cargo nextest` (`pre-commit` profile) | commit, push | Unit tests                                     |
-| `cargo nextest` (`pre-push` profile)   | push         | Integration tests                              |
-| `cargo test --doc`                     | push         | Doctests, guarded on a library target existing |
-| `taplo`                                | commit       | TOML formatting                                |
-| `typos`                                | commit       | Spelling                                       |
-| `ripsecrets`                           | commit       | Fast secret scan                               |
-| `gitleaks`                             | push         | Full secret scan                               |
-| `cargo audit`                          | push         | Advisories                                     |
-| `cargo deny`                           | push         | Advisories, bans, sources, licences            |
-| `cargo machete`                        | push         | Unused dependencies                            |
-| `cargo xtask gen-config`               | commit       | Generated examples match the config types      |
-| `dprint`                               | commit       | Markdown and JSON formatting                   |
-| `markdownlint-cli2`                    | commit       | Markdown structure and link integrity          |
-| `shellcheck`, `shfmt`                  | commit       | Shell scripts                                  |
-| `nixfmt`, `statix`, `deadnix`          | commit       | Nix sources                                    |
-| `committed`                            | commit-msg   | Conventional Commits                           |
+The **Backing** column says whether the hook exists today. `deferred` means the row is a specification the repository does not yet enforce; it is closed by the round that builds the mechanism, never by deleting the row.
+
+| Hook                                   | Stage        | Enforces                                       | Backing                                                                   |
+| -------------------------------------- | ------------ | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `cargo fmt`                            | commit       | Canonical formatting                           | present                                                                   |
+| `clippy` auto-fix, then gate           | commit       | Lint clean, warnings as errors                 | present                                                                   |
+| `cargo nextest` (`pre-commit` profile) | commit, push | Unit tests                                     | present                                                                   |
+| `cargo nextest` (`pre-push` profile)   | push         | Integration tests                              | present                                                                   |
+| `cargo test --doc`                     | push         | Doctests, guarded on a library target existing | present                                                                   |
+| `taplo`                                | commit       | TOML formatting                                | present                                                                   |
+| `typos`                                | commit       | Spelling                                       | present                                                                   |
+| `ripsecrets`                           | commit       | Fast secret scan                               | present                                                                   |
+| `gitleaks`                             | push         | Full secret scan                               | present                                                                   |
+| `cargo audit`                          | push         | Advisories                                     | present                                                                   |
+| `cargo deny`                           | push         | Advisories, bans, sources, licences            | partial — see [dependencies](./dependencies.md#lockfile-and-supply-chain) |
+| `cargo machete`                        | push         | Unused dependencies                            | present                                                                   |
+| `cargo xtask gen-config`               | commit       | Generated examples match the config types      | deferred — no `xtask` member yet                                          |
+| `dprint`                               | commit       | Markdown and JSON formatting                   | present                                                                   |
+| `markdownlint-cli2`                    | commit       | Markdown structure and link integrity          | present                                                                   |
+| `shellcheck`, `shfmt`                  | commit       | Shell scripts                                  | present                                                                   |
+| `nixfmt`, `statix`, `deadnix`          | commit       | Nix sources                                    | present                                                                   |
+| `committed`                            | commit-msg   | Conventional Commits                           | present                                                                   |
+
+This table lists the gates the specifications depend on, not every hook configured. The file-hygiene hooks — private-key detection, symlink and large-file checks, JSON5 and editorconfig validation — are configured and depend on no specification, so they carry no row.
 
 Fast, autofixing checks run at commit; slow and network-dependent ones at push. Do not bypass a hook. A hook that is wrong should be fixed in its configuration.
 
+**Continuous integration runs a subset, not the whole gate.** `ci.yml` invokes the task-runner recipes — formatting, clippy, the `ci` test profile, a release build, docs, `cargo audit`, `cargo deny`, and `nix flake check` — and never invokes `pre-commit`. Everything else in the table is enforced locally only and can therefore reach a green pull request unrun. Closing that is a workflow change, and until it lands this page does not claim the two are equivalent.
+
 ## Boundary lints
 
-Four architectural rules are structural and are enforced by grep rather than by the compiler:
+Four architectural rules are structural rather than type-checked. Two ban a Rust API and are enforced by clippy configuration; two are module-graph and manifest facts that no lint can express ([ADR-0074](../decisions/ADR-0074-enforce-boundary-rules-with-clippy-configuration.md)).
+
+| Rule                 | Mechanism                                                          | Backing  |
+| -------------------- | ------------------------------------------------------------------ | -------- |
+| Output ownership     | `clippy.toml` `disallowed-macros`                                  | deferred |
+| Environment typing   | `clippy.toml` `disallowed-methods`, replacement `std::env::var_os` | deferred |
+| Dependency direction | grep over `src/`                                                   | deferred |
+| Tooling isolation    | grep, plus `cargo-deny` `bans` for the manifest half               | deferred |
+
+**Output ownership.** No print macro appears in `src/` outside the output module and the entry point. See [logging and output](./logging-and-output.md#the-stream-contract).
+
+**Environment typing.** `std::env::var` and `std::env::vars` are banned under `src/`; the `_os` forms only. Both panic on an environment that is not valid UTF-8, which would turn a legal environment into a wrapper crash — the same conversion the [types rule](./coding-conventions.md#types) forbids on argv, in the place a type cannot catch it.
 
 **Dependency direction.** `domain/` imports nothing from `adapters/` or `services/`. A violation means pure code has acquired an I/O dependency, and the type system will not catch it.
 
-**Output ownership.** No print macro appears in `src/` outside the output module and the entry point. See [logging and output](./logging-and-output.md).
-
 **Tooling isolation.** Nothing under `src/` imports from `xtask`, and the wrapper's own manifest does not list a development-tooling crate. The dependency runs one way, and the whole reason `xtask` exists is that its dependencies stay out of the shipped binary; see [dependencies](./dependencies.md).
 
-**Environment typing.** No `std::env::vars(` or `std::env::var(` under `src/`; the `_os` forms only. Both panic on an environment that is not valid UTF-8, which would turn a legal environment into a wrapper crash — the same conversion the [types rule](./coding-conventions.md#types) forbids on argv, in the place a type cannot catch it.
+Scope all but tooling isolation to `src/`. The two clippy rules resolve paths, so they neither fire inside a `///` example nor miss an aliased import — which is the whole reason they are not greps. The two that remain greps carry that hazard and must be written to tolerate it.
 
-Scope all but tooling isolation to `src/`, and be aware that doc comments and test code produce false positives — the output-ownership check must not fire on an example inside a `///` block.
+**No boundary lint is wired today.** All four are specified and none is configured, so the rejecting mechanism for these rules is review until the round that adds `clippy.toml` and the two greps lands.
+
+## Protected branches
+
+**The gate refuses a commit made directly on `master`, and takes no position on `develop`.** `master` is written by the installed GitHub App alone ([release workflow](./release-workflow.md#branch-and-release-invariant)), so a local commit there has no legitimate case and the hook rejects that class with no false positives.
+
+`develop` is deliberately excluded. Its real policy is a reviewed pull request with green continuous integration, which a client-side hook cannot approximate and would only imitate — and it has one legitimate direct-commit case, during [release bootstrap](../guides/releasing.md#bootstrap-release-automation-once). The forge ruleset is its authority. The general rule: local hooks validate content, forge rules enforce branch topology.
 
 ## Markdown
 

@@ -12,7 +12,7 @@ This plan R1: layout + models. R2: merge engine + provenance. R3: generation + e
 
 ## Scope of This Round
 
-- IN scope: the bare `config` and `profile` verbs per the four-edit rule (`cli/config.rs` + `cli/profile.rs`, `cli.rs` enum variants replacing the `config` stub, `commands/config.rs` + `commands/profile.rs` free `run` handlers, the `commands/dispatch.rs` match arms); `--json` output via `Ui`; `config` runs the engine in preview mode and reports the resolved wrapper configuration with per-key **provenance**, the consulted files, the active profile with resolved pieces, the resolved entry path and whether it exists, and unknown-key warnings; `config` exits on a structural or type defect per [exit codes](../../../docs/reference/exit-codes.md#inspection-verbs-and-assertion-verbs); wire the same config-scoped probe subset into `doctor`.
+- IN scope: the bare `config` and `profile` verbs per the four-edit rule (`cli/config.rs` + `cli/profile.rs`, `cli.rs` enum variants replacing the `config` stub, `commands/config.rs` + `commands/profile.rs` free `run` handlers, the `commands/dispatch.rs` match arms); `--json` output via `Ui`; `config` runs the engine in preview mode and reports the resolved wrapper configuration with per-key **provenance**, the consulted files, the active profile with resolved pieces, the resolved entry path and whether it exists, and unknown-key warnings; `config` exits on a structural or type defect per [exit codes](../../../docs/reference/exit-codes.md#exit-regimes-by-verb); wire the same config-scoped probe subset into `doctor`.
 - OUT of scope: new composition machinery (done R1–R3); accounts (`cs-accounts-auth`); docs/headroom (`cs-docs-hardening`).
 
 ## Current State

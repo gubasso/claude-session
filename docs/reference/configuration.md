@@ -85,14 +85,16 @@ No other key earns a row. Verbosity is invocation-scoped, colour is `NO_COLOR` (
 
 The wrapper never writes the user's configuration ([ADR-0006](../decisions/ADR-0006-place-files-by-xdg-ownership.md)), so it cannot scaffold a starter file. It ships one to **copy** instead, generated from the config types so it cannot drift ([ADR-0013](../decisions/ADR-0013-generate-config-examples-from-types.md)).
 
-Four artifacts live under `docs/reference/examples/`, and which are generated follows from whether a type describes them:
+Four artifacts belong under `docs/reference/examples/`, and which are generated follows from whether a type describes them:
 
-| Artifact               | Rendered from                                      | Kind                |
-| ---------------------- | -------------------------------------------------- | ------------------- |
-| `config.example.toml`  | the wrapper's configuration type                   | Generated           |
-| `config.schema.json`   | the wrapper's configuration type                   | Generated           |
-| `profile.example.yaml` | the profile type — `layers` and `array_strategies` | Generated           |
-| `piece.example.json`   | nothing — a piece is the child's own format        | **Hand-maintained** |
+| Artifact               | Rendered from                                      | Kind                | Present |
+| ---------------------- | -------------------------------------------------- | ------------------- | ------- |
+| `config.example.toml`  | the wrapper's configuration type                   | Generated           | No      |
+| `config.schema.json`   | the wrapper's configuration type                   | Generated           | No      |
+| `profile.example.yaml` | the profile type — `layers` and `array_strategies` | Generated           | No      |
+| `piece.example.json`   | nothing — a piece is the child's own format        | **Hand-maintained** | Yes     |
+
+**Only the hand-maintained one exists today.** The three generated artifacts arrive with the generator that renders them, which arrives with the [`xtask` member](../explanation/architecture.md#one-shipped-crate-plus-xtask) that hosts it. Until then the freshness rule below has nothing to compare and the `gen-config` gate row is marked deferred in [the gate](./testing-and-quality.md#the-gate).
 
 A piece has no type to reflect over, because its shape is the child's and evolves on the child's schedule. It therefore ships as an authored file under the _same_ discipline as the generated ones: a header, fake values, and copied rather than scaffolded. The only difference is what keeps it correct.
 
@@ -160,7 +162,7 @@ The flag is `--profile <name>`; the configuration key and its environment spelli
 
 With nothing set and no `--profile`, no name is resolved, so nothing is composed and no `--settings` layer is passed — an empty config tree launches the child unchanged, which the passthrough contract requires.
 
-A name that _is_ resolved must exist. `profiles/<name>.yaml` missing is `NoInput`, whichever layer supplied the name: a profile the user asked for and did not get is the silent-wrong-settings bug the unknown-key rule exists to prevent. See [exit codes](./exit-codes.md#inspection-verbs-and-assertion-verbs).
+A name that _is_ resolved must exist. `profiles/<name>.yaml` missing is `NoInput`, whichever layer supplied the name: a profile the user asked for and did not get is the silent-wrong-settings bug the unknown-key rule exists to prevent. See [exit codes](./exit-codes.md#exit-regimes-by-verb).
 
 A profile name becomes a path component in the composed-settings store, so it must satisfy [the identifier rules](./xdg-storage.md#identifiers); a name that does not exits `Usage`, whichever layer supplied it.
 
@@ -291,9 +293,9 @@ Both accept `--json`, and both write data to standard output and diagnostics to 
 
 `--profile` is declared on the two invocations that act on it — the bare launch, which composes that profile's settings for the child, and `config`, which resolves and reports it. It is not a global flag, because on every other verb it would name a value nothing reads ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
-`config` **validates**, so it is an assertion verb: a structural defect or type conflict exits with that defect's code, while unknown-piece-key warnings stay advisory at `0`. The exact table is in [exit codes](./exit-codes.md#inspection-verbs-and-assertion-verbs).
+`config` **validates**, so it is an assertion verb: a structural defect or type conflict exits with that defect's code, while unknown-piece-key warnings stay advisory at `0`. The exact table is in [exit codes](./exit-codes.md#exit-regimes-by-verb).
 
-The checks it runs are the config-scoped subset of the one probe catalog `doctor` runs in full, so the two cannot disagree and quote one remediation wording ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)). `doctor` reports health and never renders configuration.
+The checks it runs are the config-scoped subset of [the one probe catalog](./doctor.md#the-catalog) `doctor` runs in full, so the two cannot disagree and quote one remediation wording ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)). `doctor` reports health and never renders configuration.
 
 ## Further reading
 

@@ -162,10 +162,10 @@ The [exit-code matrix](./exit-codes.md) owns mappings.
 | Child resolution or execution fails                         | `ChildNotFound`, `ChildNotExecutable` | `login`                       |
 | The credential lock is still held at the deadline           | `LockBusy`                            | `remove`                      |
 
-`list` and `status` are [inspection verbs](./exit-codes.md#inspection-verbs-and-assertion-verbs): they exit `0` whatever they find, including no accounts at all, nothing selected, and unusable authentication. A child answer is data in their reports and never their exit; an invocation that tries to _use_ that authentication is what fails.
+`list` and `status` are [inspection verbs](./exit-codes.md#exit-regimes-by-verb): they exit `0` whatever they find, including no accounts at all, nothing selected, and unusable authentication. A child answer is data in their reports and never their exit; an invocation that tries to _use_ that authentication is what fails.
 
 `login` is the one subcommand that spawns the child, and it keeps its own code from the matrix rather than the child's — it is the child's caller, not its passthrough ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)). Where the child produced the failure, the diagnostic names that command and its status, and the JSON error document carries `child_exit`.
 
 ## Diagnostics
 
-The stable `account-registry-readable` and `credentials-usable` checks cover account directories, mode metadata, selected storage, and mode-aware usability. Both are soft and skipped when no account exists. See [logging and output](./logging-and-output.md#the-catalog).
+The stable `account-registry-readable` and `credentials-usable` checks cover account directories, mode metadata, selected storage, and mode-aware usability. Both are soft and skipped when no account exists. See [the probe catalog](./doctor.md#the-catalog).

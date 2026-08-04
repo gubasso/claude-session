@@ -14,7 +14,7 @@
 
 Chosen option: **one bare `config` verb**. It reports the resolved wrapper configuration with per-key provenance, the active profile and its resolved pieces, generated-settings freshness, and every structural defect and unknown-key warning — one command, one answer, `--json` for machines.
 
-`config` is an **assertion** verb, alongside `doctor` in [exit codes](../reference/exit-codes.md#inspection-verbs-and-assertion-verbs): it validates, so a defect it cannot function with exits with that defect's code rather than reporting failure at `0`.
+`config` is an **assertion** verb, alongside `doctor` in [exit codes](../reference/exit-codes.md#exit-regimes-by-verb): it validates, so a defect it cannot function with exits with that defect's code rather than reporting failure at `0`.
 
 `doctor` stays a pure checker and is not a configuration renderer. The two do not duplicate logic: under [ADR-0018](./ADR-0018-one-probe-set-with-stable-check-ids.md) there is one probe catalog, `config` runs its config-scoped subset, `doctor` runs the whole of it, and both quote the same remediation verbatim.
 

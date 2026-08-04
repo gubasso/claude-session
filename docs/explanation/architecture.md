@@ -90,7 +90,9 @@ The design intent was one binary crate and no workspace, with migration deferred
 - `cargo check` gets slow enough to hurt the inner loop.
 - The crate approaches roughly eight thousand lines.
 
-**The first trigger has fired**, for exactly the reason it was written down. The configuration-example generator ([configuration](../reference/configuration.md)) has to reflect over the wrapper's own configuration types, and a binary-only crate cannot export them. So the repository is a two-member workspace: the crate gains a library target exposing what the tooling needs, and `xtask/` is a second binary depending on it by path ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)).
+**The first trigger has fired**, for exactly the reason it was written down. The configuration-example generator ([configuration](../reference/configuration.md)) has to reflect over the wrapper's own configuration types, and a binary-only crate cannot export them. The repository therefore **becomes** a two-member workspace: the crate gains a library target exposing what the tooling needs, and `xtask/` is a second binary depending on it by path ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)).
+
+The conversion has not happened. `Cargo.toml` declares no workspace and there is no `xtask/` on disk; ADR-0014 is `Accepted`, which means the choice governs and not that it is built ([decision status](../reference/project-governance.md#decision-status)). The round that writes the generator performs the conversion, and everything below describes the shape it produces.
 
 `xtask` is **development tooling and never shipped surface**. It is invoked as `cargo xtask <chore>`, it is not installed, and it is not on the CLI grammar in [the CLI surface](../reference/cli-surface.md). Its dependencies — the schema and rendering crates — live in its own manifest and never enter the binary a user installs. Nothing in `xtask/` may be imported by the wrapper; the dependency runs one way, as everywhere else here.
 

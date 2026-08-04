@@ -90,7 +90,7 @@ A **wrapper-managed component** begins at the `claude-session` namespace directo
 | Mode `0700`           | Wrapper-managed directories                                            | Correct, then proceed    | `storage-directory-modes`   |
 | Mode `0600`           | Wrapper-owned secret, metadata, settings, provenance, and marker files | Correct, then proceed    | `storage-secret-modes`      |
 
-Each condition is reported by exactly one [catalog check](./logging-and-output.md#the-catalog), which is what lets a guard and `doctor` describe one problem in one wording ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)).
+Each condition is reported by exactly one [catalog check](./doctor.md#the-catalog), which is what lets a guard and `doctor` describe one problem in one wording ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)).
 
 ### How a path is validated
 

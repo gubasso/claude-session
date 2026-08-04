@@ -84,7 +84,7 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 
 ### Development tooling — `xtask` only
 
-These are dependencies of the `xtask` workspace member ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)) and **never enter the shipped binary's dependency graph**. That separation is the reason the generator lives in `xtask` at all, so adding one of these to the wrapper's own manifest defeats the point.
+These belong to the `xtask` workspace member ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)) — which [does not exist yet](../explanation/architecture.md#one-shipped-crate-plus-xtask) — and **never enter the shipped binary's dependency graph**. That separation is the reason the generator lives in `xtask` at all, so adding one of these to the wrapper's own manifest defeats the point.
 
 | Crate                   | Why                                                                              |
 | ----------------------- | -------------------------------------------------------------------------------- |
@@ -151,16 +151,18 @@ The states are distinct: **reviewed** authorizes consideration, not installation
 
 `Cargo.lock` is **committed**. This is a binary, not a library: reproducible builds are the point, and a lockfile is how a bug report from six months ago is reproducible.
 
-| Gate                          | Enforces                                                                  |
-| ----------------------------- | ------------------------------------------------------------------------- |
-| `cargo deny check advisories` | No known-vulnerable dependency                                            |
-| `cargo deny check bans`       | No wildcard version requirement; no banned crate; no gratuitous duplicate |
-| `cargo deny check sources`    | Every crate comes from a known registry                                   |
-| `cargo deny check licenses`   | Every licence is on the allow-list                                        |
-| `cargo audit`                 | Independent advisory check                                                |
-| `cargo machete`               | No declared-but-unused dependency                                         |
+| Gate                          | Enforces                                                                  | Backing                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `cargo deny check advisories` | No known-vulnerable dependency                                            | fails the build                                                                                                       |
+| `cargo deny check bans`       | No wildcard version requirement; no banned crate; no gratuitous duplicate | warns — `wildcards` and `multiple-versions` are not set to deny, and the ruled-out list below is not in `[bans].deny` |
+| `cargo deny check sources`    | Every crate comes from a known registry                                   | warns — `unknown-registry` and `unknown-git` are not set to deny                                                      |
+| `cargo deny check licenses`   | Every licence is on the allow-list                                        | fails the build                                                                                                       |
+| `cargo audit`                 | Independent advisory check                                                | fails the build                                                                                                       |
+| `cargo machete`               | No declared-but-unused dependency                                         | fails the build                                                                                                       |
 
 The project is dual-licensed MIT or Apache-2.0, and the allow-list is compatible with both.
+
+**Three of these report rather than reject today**, which is a gap between `deny.toml` and the rule above it, not a softer rule. The manifest has no dependencies yet, so tightening costs nothing and is done in the round that adds the first one: set `wildcards` and the two `sources` keys to `deny`, and move the [ruled-out crates](#ruled-out) into `[bans].deny` with a `reason` each, so the prose ruling becomes the mechanism. `multiple-versions` stays a warning, because a duplicate is a judgement about a transitive graph the project does not control.
 
 ## Further reading
 
