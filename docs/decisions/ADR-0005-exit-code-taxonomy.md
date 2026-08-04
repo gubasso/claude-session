@@ -30,4 +30,4 @@ Two properties make it usable. The mapping is **exhaustive over a closed error e
 
 Accepted
 
-Amended by [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) — a new failure class now takes an unused number rather than one already in the table. Amended by [ADR-0034](./ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) — `doctor --strict` exits a bare `1`, the one code that names no category. Realized by [ADR-0035](./ADR-0035-convert-the-typed-error-to-a-code-once.md).
+Amended by [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) — a new failure class now takes an unused number rather than one already in the table. Amended by [ADR-0034](./ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) — `doctor --strict` exits a bare `1`, the one code that names no category. Amended by [ADR-0068](./ADR-0068-spawn-the-child-as-a-subroutine.md) — the successful-spawn boundary governs the passthrough launch; a verb that spawns the child as a subroutine keeps its own code. Realized by [ADR-0035](./ADR-0035-convert-the-typed-error-to-a-code-once.md).

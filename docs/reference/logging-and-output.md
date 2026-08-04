@@ -18,7 +18,7 @@ The test is whether a user could pipe the command into another program. If a byt
 | Warnings                | stderr                                  |                                                                                                                                                                                                                  |
 | Errors                  | stderr                                  | Four-part shape; see [exit codes](./exit-codes.md)                                                                                                                                                               |
 | Log records             | Log file, optionally mirrored to stderr | See below                                                                                                                                                                                                        |
-| The child's output      | Inherited                               | The wrapper never intercepts it                                                                                                                                                                                  |
+| The child's output      | Inherited                               | The wrapper never intercepts it. A [subroutine child](./exit-codes.md#two-regimes) under `--json` inherits stderr in place of stdout, which the verb's document has claimed.                                     |
 
 **During a passthrough invocation the wrapper writes nothing to standard output.** Not a banner, not a progress line, not a "launching claude" notice. The child's standard output is the user's data stream and the wrapper is not entitled to a byte of it. Wrapper diagnostics during a passthrough go to standard error, where they are already interleaved with the child's.
 
@@ -37,6 +37,8 @@ Errors in JSON mode still go to standard error, and are themselves a JSON object
 ```
 
 This is the **one** document shape that is not the verb's to choose. A caller asking for JSON asked for it on both streams, and a failure is the case where falling back to prose is least useful.
+
+It carries one optional field beyond the four parts: **`child_exit`**, an integer, present only when a [subroutine child](./exit-codes.md#two-regimes) produced the failure and it ran ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)). Presence is how a script tells a wrapper-originated failure from one the child returned; absence means the wrapper's own handling failed.
 
 Three rules apply to every document, whichever verb emits it:
 

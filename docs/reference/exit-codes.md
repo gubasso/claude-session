@@ -12,7 +12,9 @@ There are exactly two, and confusing them is the classic wrapper bug.
 
 **Once the child is running**, the wrapper's exit status is the child's, reproduced as faithfully as the process model allows. The wrapper contributes nothing. A wrapper that translates a child's exit code into its own scheme breaks every script that wraps it.
 
-The boundary is the successful spawn. If the wrapper reached the point of having a live child, the child owns the answer.
+The boundary is the successful spawn of a **passthrough launch**. If the wrapper reached the point of having a live child that owns the invocation, the child owns the answer.
+
+A verb that spawns the child as a **subroutine** — `account login`, `doctor`, `version` — is not that case. It asked the child a question and reports its own conclusion, so it keeps its own code from the matrix and its own standard output, and attributes the child instead ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)).
 
 ## Wrapper matrix
 
@@ -45,7 +47,7 @@ Codes 126 and 127 are shell conventions rather than `sysexits` values, and they 
 
 `Auth` and `Permission` share code 77. They are separate `err.kind` values because their fixes differ — re-authenticate versus repair a path — and the kind string is what a script should match on. The line between them is the **subject**, not the severity: `Auth` is about a credential's validity, `Permission` about a path's ownership, type, or mode. A credential file with the wrong owner is `Permission`, because the credential may be perfectly valid and what is wrong is where it sits.
 
-**`LockBusy` is the one code that tells a caller to try again.** Every other failure in the matrix is a standing condition a retry reproduces. It fires only where the wrapper genuinely contends — the [write lock](./xdg-storage.md#lock-scopes) guarding a minted credential ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)) — and never on a lock left behind by a killed run, because the kernel releases those.
+**`LockBusy` is the one code that tells a caller to try again.** Every other failure in the matrix is a standing condition a retry reproduces. It fires only where the wrapper genuinely contends — the [credential scope](./xdg-storage.md#lock-scopes), whether the contending run is minting a token ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)) or removing the account ([ADR-0069](../decisions/ADR-0069-destroy-the-credential-lock-with-its-scope.md)) — and never on a lock left behind by a killed run, because the kernel releases those.
 
 `OsError` and `Internal` are both "the wrapper's fault" from a distance and must not be merged. `Internal` is a bug and belongs in an issue report; `OsError` means the machine refused — a process-table limit, memory pressure — and the wrapper is working correctly. `sysexits` draws exactly this line, reserving 70 for "non-operating system related errors as possible". A wrapper whose one job is `fork` and `exec` needs the distinction more than most programs do.
 
@@ -102,12 +104,12 @@ The prefix is present at every verbosity, including `--quiet`: suppressing it wo
 
 After the prefix come four parts, in this order:
 
-| Part      | Content                                                                                            |
-| --------- | -------------------------------------------------------------------------------------------------- |
-| **What**  | What failed, in the user's vocabulary. Not the name of the internal function.                      |
-| **Where** | The specific path, key, flag, or account involved. Always the concrete value, never a placeholder. |
-| **Why**   | The underlying cause, including the operating system's message where there is one.                 |
-| **Hint**  | A concrete next action. Omitted only when there genuinely is none.                                 |
+| Part      | Content                                                                                                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **What**  | What failed, in the user's vocabulary. Not the name of the internal function.                                                                                                        |
+| **Where** | The specific path, key, flag, or account involved. Always the concrete value, never a placeholder.                                                                                   |
+| **Why**   | The underlying cause, including the operating system's message where there is one. Where a [subroutine child](#two-regimes) produced it, Why opens with that command and its status. |
+| **Hint**  | A concrete next action. Omitted only when there genuinely is none.                                                                                                                   |
 
 For example, in substance rather than exact wording: the child binary is not executable; at the resolved absolute path; because the file mode denies execute for the current user; try making it executable or set the override variable to a different binary.
 

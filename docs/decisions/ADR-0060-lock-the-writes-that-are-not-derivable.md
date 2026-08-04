@@ -16,7 +16,7 @@ Chosen option: **an advisory lock around the atomic write**. The kernel releases
 
 `std::fs::File::lock` is stable since Rust 1.89 against an MSRV of 1.97, so this costs no dependency.
 
-Two properties are load-bearing. The lock file is **never deleted**, because unlinking it lets one holder destroy the file another is locking. And a `flock` is held per open file description rather than per process, so an in-process mutex sits above it or two threads in one wrapper defeat it.
+Two properties are load-bearing, and [the lock scopes](../reference/xdg-storage.md#lock-scopes) state both: the lock file outlives the runs that take it, and a `flock` is held per open file description, so an in-process mutex must sit above it.
 
 Scope is the writes that need it — the account credential pair and the settings-and-provenance pair. A write derived from its inputs stays lock-free.
 
@@ -34,3 +34,5 @@ Accepted
 Supersedes [ADR-0059](./ADR-0059-coordinate-concurrent-runs-by-atomic-rename.md) — the atomic rename and its temporary naming carry forward unchanged; only "no wrapper write has a critical section" is withdrawn. The runtime base stays unused, since a lock lives beside the file it guards.
 
 Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — the settings-and-provenance scope is withdrawn: both files carry the same input digest, so the two-file invariant is expressed in the name. The credential scope and the criterion are unchanged.
+
+Amended by [ADR-0069](./ADR-0069-destroy-the-credential-lock-with-its-scope.md) — the never-deleted rule holds while the scope exists; `account remove` destroys the scope and its lock together.

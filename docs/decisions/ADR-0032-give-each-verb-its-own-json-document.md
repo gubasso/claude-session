@@ -30,3 +30,5 @@ The **error** document is the exception and is uniform across verbs, because a c
 ## Status
 
 Accepted
+
+Amended by [ADR-0068](./ADR-0068-spawn-the-child-as-a-subroutine.md) — the shared error document gains one optional field, `child_exit`, present only when a spawned child produced the failure.

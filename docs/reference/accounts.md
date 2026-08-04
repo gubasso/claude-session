@@ -99,26 +99,50 @@ It never reports the token, token prefix, or any child-credential content or fin
 
 Rotation verifies the candidate before it writes anything, and [the metadata rename commits it](./xdg-storage.md#lock-scopes). A failure before that rename leaves a usable account; a crash between the two renames leaves the new token described by stale metadata, so the recorded fingerprint no longer matches. `status` reports that mismatch and withholds age and estimated expiry rather than computing them from a mint time that is not the token's; launch proceeds, since the token itself was proven to work. The next `account login` repairs the pair.
 
-`account remove` deletes local use but cannot revoke a token upstream; its report says so.
+`account remove` deletes local use but cannot revoke a token upstream; [its report says so](#removal).
 
 ## Commands
 
 | Command                 | Arguments                                                                          | Reports                                                                                     |
 | ----------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `account login [name]`  | optional account; `--token`, `--stdin`, and token-time correction where applicable | Selected mode, account path, and success without credential material                        |
-| `account list`          | —                                                                                  | Every account's mode, local-state usability, last use, and current selection                |
+| `account list`          | —                                                                                  | Every account's mode and local-state usability, and which one is currently selected         |
 | `account status [name]` | named account or selected account                                                  | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing |
-| `account remove <name>` | account; `--yes`                                                                   | Whether local state was removed and, for token mode, that upstream revocation did not occur |
+| `account remove <name>` | account; `--yes`                                                                   | Whether local state was removed, and that upstream revocation did not occur                 |
 
-All accept `--json`. Data goes to standard output; diagnostics and warnings go to standard error, and a confirmation prompt goes to [the controlling terminal](./cli-surface.md#the-predicate). **No subcommand ever prints a credential**, at any verbosity or in any format. See [logging and output](./logging-and-output.md).
+Each declares its own `--json`, as [every verb that produces data does](./logging-and-output.md#machine-output). Data goes to standard output; diagnostics and warnings go to standard error, and a confirmation prompt goes to [the controlling terminal](./cli-surface.md#the-predicate). **No subcommand ever prints a credential**, at any verbosity or in any format.
+
+## Reports
+
+The [shared document rules](./logging-and-output.md#machine-output) hold for all four: one document per invocation, an absent optional field omitted rather than `null`, and no `schema_version`. Timestamps are RFC 3339 UTC. The human report carries the same fields as labelled lines.
+
+| Subcommand | Always present                                        | Present when applicable                                                                                                                          |
+| ---------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `login`    | `account`, `mode`, `path`, `recorded_at`              | `fingerprint`, `estimated_expiry` — token mode only                                                                                              |
+| `list`     | `accounts[]` of `name`, `mode`, `usable`              | `selected` on the one entry; `selection_source` at the top level                                                                                 |
+| `status`   | `account`, `selected`, `mode`, `usable`, `warnings[]` | `selection_source`, `recorded_at`, `age_seconds`, `estimated_expiry`, `fingerprint`, `metadata_consistent`, `child_login_present`, `child_probe` |
+| `remove`   | `account`, `path`, `removed`                          | `mode`, `marker_cleared` — when something was removed                                                                                            |
+
+Four rules the table does not carry:
+
+- **`accounts` is present even when empty**, because an empty list is the answer rather than an absent field.
+- **`list` never spawns the child.** `usable` is local state alone: the directory passes [the security checks](./xdg-storage.md#filesystem-security), `auth-mode.json` parses, and the mode's stored artifact is present. One probe per account would be one child per account, and `status` is the verb that was asked about a credential.
+- **`status` is the only subcommand carrying `warnings` as data**, because shadowing is its subject. Everywhere else a warning is prose on standard error. Where `metadata_consistent` is `false`, `age_seconds` and `estimated_expiry` are omitted rather than computed from a mint time that is not the token's.
+- **No field reports upstream revocation.** It would be `false` in both modes forever, discriminating nothing ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); the fact is a sentence on standard error.
+
+`selection_source` names the rung of [the ladder](#selection) that answered: `flag`, `environment`, `project-config`, `user-config`, `marker`, or `none`. `child_probe` is `{ status, exit_code }` where `status` is `ok`, `failed`, or `unavailable`, and `exit_code` is present only when a child ran.
 
 ## Removal
 
-`remove` deletes the account directory and everything beneath it. Composed settings are not account state and survive removal. Removal confirms unless `--yes` is present.
+`remove` deletes the account directory and everything beneath it, and nothing else; [XDG storage](./xdg-storage.md#cleanup-and-recovery) owns the inventory of what goes and what stays. Removal confirms unless `--yes` is present.
 
 Before prompting, standard error warns when the account is selected. The [confirmation contract](./cli-surface.md#the-exchange) owns the exchange and its exit status; declining reports that nothing was removed, as `removed: false` under `--json`. Removing the selected account clears the last-used marker.
 
-Local token deletion is not upstream revocation. Child-owned login revocation remains a child operation.
+Removal takes [the account's credential lock](./xdg-storage.md#lock-scopes), so it cannot interleave with a concurrent `account login`; past the acquisition deadline it exits `LockBusy` having changed nothing. It does not look for a running child and cannot stop one. A session already using the account keeps working, because an unlinked file stays valid through the descriptors already holding it, and standard error says so:
+
+> A session already running on this account keeps working until it exits. Its next start will fail.
+
+Local deletion is not upstream revocation, in either mode: a stored token keeps working wherever else it is used, and a child-owned saved login is not ended by deleting it. Standard error says that unconditionally whenever something was removed, names which of the two is still live, and directs the user to the provider — without naming a page or a URL, since the wrapper cannot verify one. To have the child end its own session first, `claude-session --account <name> -- auth logout` is plain passthrough and costs the wrapper no surface.
 
 ## Failure modes
 
@@ -128,7 +152,7 @@ The [exit-code matrix](./exit-codes.md) owns mappings.
 | ----------------------------------------------------------- | ------------------------------------- | ----------------------------- |
 | Invalid account name or option combination                  | `Usage`                               | all applicable                |
 | No subcommand, or an unrecognized one                       | `Usage`                               | bare `account`                |
-| No name and no selected account                             | `Usage`                               | `login`, `status`             |
+| No name and no selected account                             | `Usage`                               | `login`                       |
 | Named account does not exist                                | `NoInput`                             | `status`, `remove`            |
 | Required terminal is unavailable                            | `Unavailable`                         | interactive `login`, `remove` |
 | Child login, token validation, or liveness probe fails      | `Auth`                                | `login`                       |
@@ -136,8 +160,11 @@ The [exit-code matrix](./exit-codes.md) owns mappings.
 | Symlink, owner, or mode validation fails                    | `Permission`                          | all                           |
 | Account-tree or helper I/O fails                            | `Io`                                  | all                           |
 | Child resolution or execution fails                         | `ChildNotFound`, `ChildNotExecutable` | `login`                       |
+| The credential lock is still held at the deadline           | `LockBusy`                            | `remove`                      |
 
-`list` with no accounts exits `0`. `status` reports unusable authentication and exits `0`; an invocation that tries to use it fails.
+`list` and `status` are [inspection verbs](./exit-codes.md#inspection-verbs-and-assertion-verbs): they exit `0` whatever they find, including no accounts at all, nothing selected, and unusable authentication. A child answer is data in their reports and never their exit; an invocation that tries to _use_ that authentication is what fails.
+
+`login` is the one subcommand that spawns the child, and it keeps its own code from the matrix rather than the child's — it is the child's caller, not its passthrough ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)). Where the child produced the failure, the diagnostic names that command and its status, and the JSON error document carries `child_exit`.
 
 ## Diagnostics
 

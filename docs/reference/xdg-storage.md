@@ -144,9 +144,11 @@ Within that scope the pair is written in one order: `oauth-token` first, then `a
 
 Composed settings, composition provenance, the last-used marker, and every other wrapper-owned write take no lock. Each is recomputed from its inputs, or is a selection where the most recent write is the right answer. Composed settings and their provenance carry one invariant, and it is expressed in the name: both files are named by the same input digest, so provenance can never describe settings other than the ones beside it.
 
-**The lock file is never deleted.** Unlinking it lets one holder destroy the file another is about to lock. A permanent empty file is the design, and because it carries no claim, a kill leaves nothing for the next run to break.
+**The lock file is never deleted while its scope exists.** Unlinking it lets one holder destroy the file another is about to lock. A permanent empty file is the design, and because it carries no claim, a kill leaves nothing for the next run to break. [`account remove`](./accounts.md#removal) is the one exception, because it destroys the scope itself: it holds the lock, deletes the tree with the lock inside it, and a racer blocked on acquisition wakes on an unlinked inode and fails its rename with `Io` ([ADR-0069](../decisions/ADR-0069-destroy-the-credential-lock-with-its-scope.md)).
 
-Acquisition blocks, up to a deadline; past it the run exits [`TempFail`](./exit-codes.md#wrapper-matrix).
+`account remove` is also the scope's second writer. It takes the lock before deleting anything, which is what stops a concurrent `account login` writing into a tree being removed. A launch takes no lock — it only reads — so removal excludes no running child and does not look for one.
+
+Acquisition blocks, up to a deadline; past it the run exits [`LockBusy`](./exit-codes.md#wrapper-matrix).
 
 ### What this does not promise
 
@@ -171,7 +173,11 @@ There is no half-written durable state to repair. A reader sees the old complete
 
 Composed settings entries are permanent. Each is immutable and named by its inputs, so one accumulates only when a profile or a piece actually changes — a growth curve set by how often the user edits configuration, not by how many terminals they open. Nothing earns an age policy, a prune verb, or a liveness check at that rate ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); removing a store the user no longer wants is `rm`. The orphan-temporary sweep above is the only thing the wrapper deletes unbidden.
 
-`account remove` removes the local account tree, including child-owned config. Composed settings are not account state and are not removed with it. It stops local use but does not claim to revoke a token upstream. A failed first [`account login`](./accounts.md#logging-in) removes the account directory that same run created. Both are deletions a user asked for, which is what separates them from a sweep.
+`account remove` removes the local account tree and nothing else. Under the [credential lock](#lock-scopes), it unlinks `auth-mode.json` first — an account without its mode metadata is not an account, so that unlink is the commit, inverting [the rotation order](#lock-scopes) — then `oauth-token`, then the child-owned `config/` and every other artifact beneath the account directory, then `.credentials.lock` and the directory itself. `state/last-account` is unlinked only when it names the removed account.
+
+Everything else survives, and the list is exhaustive because silence is what makes users delete by hand: composed settings and their provenance, which are keyed by profile and input digest and carry no account component ([ADR-0064](../decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md)); the log file; the whole config base, which is user-authored and never wrapper-written — a configuration layer naming the removed account produces a warning on standard error naming the file and the key, and no edit; every other account; the `accounts/` directory itself, even when the last account goes.
+
+It stops local use but does not claim to revoke a token upstream. A failed first [`account login`](./accounts.md#logging-in) removes the account directory that same run created. Both are deletions a user asked for, which is what separates them from a sweep.
 
 ## Diagnostics
 

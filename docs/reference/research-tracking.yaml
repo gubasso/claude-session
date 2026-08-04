@@ -155,17 +155,35 @@ facts:
   - id: child-auth-status-json
     fact: >-
       The documented auth status JSON command can probe selected authentication
-      without exposing credential material.
+      without exposing credential material, and reports the outcome in its exit
+      status as well as its document.
     owner: docs/reference/accounts.md
     dependents:
       - docs/reference/logging-and-output.md
+      - docs/reference/exit-codes.md
     cadence: quarterly
-    last_checked: 2026-07-30
+    last_checked: 2026-08-04
     source:
       - https://code.claude.com/docs/en/cli-reference
     revalidate: >-
       Check current CLI documentation and run auth status --json with login and
-      injected-token modes, recording only schema and status behavior.
+      injected-token modes, recording only schema, status behavior, and the
+      exit status of each outcome.
+
+  - id: child-auth-logout-verb
+    fact: >-
+      The child has its own logout verb, which clears the saved login in the
+      configuration directory it was pointed at.
+    owner: docs/reference/accounts.md
+    dependents:
+      - docs/reference/xdg-storage.md
+    cadence: quarterly
+    last_checked: 2026-08-04
+    source:
+      - https://code.claude.com/docs/en/cli-reference
+    revalidate: >-
+      Run it against a scratch configuration directory and confirm the saved
+      login is gone afterwards, without reading the credential itself.
 
   - id: child-login-expiry-warning
     fact: >-
