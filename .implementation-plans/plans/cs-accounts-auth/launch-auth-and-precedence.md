@@ -35,9 +35,9 @@ Three rules govern the design, and each is a rule about what **not** to do.
 
 **The floor is scoped to what depends on it.** A below-floor child hard-fails a `login`-mode launch, because shared-login correctness rests on the child's cross-process refresh coordination. Token mode and a passthrough with no selected account are never blocked by it, and `doctor` reports the same condition as a warning rather than a failure — the same fact, two severities, because only one of them is a precondition.
 
-Selection reads the configuration key `default_account` (`CLAUDE_SESSION_DEFAULT_ACCOUNT` in the environment) below `--account` and above the last-used marker. **A project `.claude-session.toml` cannot supply it** — a cloned repository must not choose which stored credential runs (ADR-0071). `docs/reference/configuration.md` § Keys is the exact table.
+Selection reads the configuration key `default_account` (`CLAUDE_SESSION_DEFAULT_ACCOUNT` in the environment) below `--account` and above the last-used marker. **A project `.claude-session.toml` cannot supply it** — a cloned repository must not choose which stored credential runs, per `docs/decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md`. `docs/reference/configuration.md` § Keys is the exact table.
 
-`CLAUDE_CONFIG_DIR` stays account-wide and never becomes per-profile: it relocates the child's whole tree including the saved login, and it would land a per-profile document in the child's lowest settings tier. The composed profile reaches the child through `--settings` instead. See `docs/reference/configuration.md` § Where composition stops.
+`CLAUDE_CONFIG_DIR` stays account-wide and never becomes per-profile: it relocates the child's whole tree including the saved login, and it would land a per-profile document in the child's lowest settings tier. The composed profile reaches the child through `--settings` instead, which is the boundary `docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md` fixes. See `docs/reference/configuration.md` § Where composition stops.
 
 A passthrough with no selected account receives neither wrapper authentication variable.
 

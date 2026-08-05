@@ -16,7 +16,7 @@ Chosen option: **a binding rule** — YAGNI, stated in [`AGENTS.md` § Scope](..
 
 A flag, subcommand, configuration key, or abstraction earns its place by a use the project has today. Symmetry with a sibling, completeness of a table, and a use someone might have later are not needs. The test is a present caller.
 
-The cost being avoided is not the writing. Every surface has to be specified to the [completeness rubric](../reference/project-governance.md), tested, documented, and kept working across every later passthrough and XDG change — and a pre-implementation project pays that cost in specification effort before it ever pays it in code.
+The cost being avoided is not the writing. Every surface has to be specified to the [completeness rubric](../reference/project-governance.md#completeness-rubric), tested, documented, and kept working across every later passthrough and XDG change — and a pre-implementation project pays that cost in specification effort before it ever pays it in code.
 
 A need that is real but not yet present is recorded as a `Rejected` option in the ADR that considered it, so it is not re-debated, rather than shipped early. That is what keeps this rule from erasing the reasoning behind a cut.
 

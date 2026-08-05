@@ -224,6 +224,7 @@ The **Backing** column says whether the hook exists today. `deferred` means the 
 | `markdownlint-cli2`                    | commit       | Markdown structure and link integrity          | present                                                                   |
 | `shellcheck`, `shfmt`                  | commit       | Shell scripts                                  | present                                                                   |
 | `nixfmt`, `statix`, `deadnix`          | commit       | Nix sources                                    | present                                                                   |
+| `no-commit-to-branch`                  | commit       | No direct commit on `master`                   | deferred — commented out in the hook config                               |
 | `committed`                            | commit-msg   | Conventional Commits                           | present                                                                   |
 
 This table lists the gates the specifications depend on, not every hook configured. The file-hygiene hooks — private-key detection, symlink and large-file checks, JSON5 and editorconfig validation — are configured and depend on no specification, so they carry no row.
@@ -260,6 +261,61 @@ Scope all but tooling isolation to `src/`. The two clippy rules resolve paths, s
 **The gate refuses a commit made directly on `master`, and takes no position on `develop`.** `master` is written by the installed GitHub App alone ([release workflow](./release-workflow.md#branch-and-release-invariant)), so a local commit there has no legitimate case and the hook rejects that class with no false positives.
 
 `develop` is deliberately excluded. Its real policy is a reviewed pull request with green continuous integration, which a client-side hook cannot approximate and would only imitate — and it has one legitimate direct-commit case, during [release bootstrap](../guides/releasing.md#bootstrap-release-automation-once). The forge ruleset is its authority. The general rule: local hooks validate content, forge rules enforce branch topology.
+
+**The hook is specified and not yet enabled.** `no-commit-to-branch` is commented out in the hook configuration, so this rule is enforced by review until it is uncommented. Enabling it before the bootstrap is done would reject the direct commits the release guide requires, so its precondition is a published `develop` and a closed bootstrap window.
+
+It must carry `args: [--branch, master]`. The hook's default set is `master` and `main`; only `master` is protected here, and the explicit argument keeps the hook from asserting a branch this project's model does not name.
+
+## Documentation sweeps
+
+Six checks over the documentation and the queue. **No hook runs them.** They are the rejecting mechanism [project governance](./project-governance.md#rule-ownership-and-enforcement) names for rules no formatter can see, and a reader runs them during review. Run them from the repository root.
+
+| Sweep                                   | Rejects                                                                                                               |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| ADR status is a bare exact value        | A status line carrying prose, which defeats every status read                                                         |
+| No ADR over 450 words                   | A record past the [ADR-0041](../decisions/ADR-0041-budget-adr-length-with-a-margin.md) trim line                      |
+| Plan-cited ADRs resolve and are current | A round taking a current rule from a historical record                                                                |
+| Registered perishable facts             | An externally owned fact asserted without a cadence                                                                   |
+| No personal or home-relative path       | A load-bearing dependency on something outside the repository ([ADR-0001](../decisions/ADR-0001-self-containment.md)) |
+| No unresolved marker under `docs/`      | A contract left as a promise to specify it later                                                                      |
+
+```bash
+# Status is one of the six values, alone on the first nonblank line.
+for f in docs/decisions/ADR-*.md; do
+  s="$(sed -n '/^## Status/,$p' "$f" | grep -v '^## \|^$' | head -1)"
+  case "$s" in
+    Proposed|Accepted|Implemented|Superseded|Deprecated|Rejected) ;;
+    *) printf '%-58s %s\n' "$(basename "$f")" "$s" ;;
+  esac
+done
+
+# ADR-0041 measures the whole file; only a record past 450 needs an edit.
+for f in docs/decisions/ADR-*.md; do
+  n="$(wc -w < "$f")"
+  [ "$n" -gt 450 ] && printf 'TRIM %-58s %s\n' "$(basename "$f")" "$n"
+done
+
+# Every ADR a round cites resolves and is current authority.
+grep -rhoE 'docs/decisions/ADR-[0-9]{4}-[a-z0-9-]+\.md' .implementation-plans | sort -u \
+  | while read -r f; do
+      [ -e "$f" ] || { echo "DANGLING: $f"; continue; }
+      s="$(sed -n '/^## Status/,$p' "$f" | grep -v '^## \|^$' | head -1)"
+      case "$s" in Accepted|Implemented) ;; *) echo "$s: $f" ;; esac
+    done
+
+grep -c '^  - id:' docs/reference/research-tracking.yaml
+
+# The bracket classes stop the pattern matching this file.
+rg -n '(/h[o]me/|/U[s]ers/|~[/]|file:/{2})' docs/ AGENTS.md README.md .implementation-plans/
+
+rg -n -i '\b(TOD[O]|TB[D]|FIXM[E]|XX[X])\b' docs/ --glob '!research-tracking.yaml'
+```
+
+Three sweeps have declared exceptions, and a hit matching one is not a defect. `cs-accounts-auth/README.md` cites Superseded [ADR-0011](../decisions/ADR-0011-isolate-credentials-by-seed-and-session.md) as the model that was superseded, which is history and not authority. The marker sweep matches the queue status value in [the development workflow](../guides/development-workflow.md), which names a status and not a marker. The personal-path sweep matches the rendered sidecar in [configuration](./configuration.md#provenance-sidecar), where an absolute path under a home directory is what the field actually holds; it otherwise permits only quotations of the XDG specification's own home-relative defaults.
+
+What a sweep proves is that a reference resolves. Whether the resolved contract is complete is a [completeness-rubric](./project-governance.md#completeness-rubric) read.
+
+Counting rule: never combine `grep -c` with `-o`. Count occurrences with `grep -ohE PATTERN FILE | sort -u | wc -l`, which de-duplicates and behaves the same on every host.
 
 ## Markdown
 

@@ -29,7 +29,7 @@ What an account is, what `auth-mode.json` records, and the selection ladder are 
 
 **There is no registry index**, and that is the load-bearing property: a second source of truth for "which accounts exist" drifts from the filesystem the first time a directory is created or removed outside the wrapper. Discovery reads the directory every time.
 
-The ownership boundary is the other rule this round must not blur. The wrapper owns account selection, mode metadata, and any stored token. The child owns everything below the account's `config/`, including `.credentials.json`. **The wrapper never reads, copies, writes, refreshes, synchronizes, or fingerprints a child credential**, and caches no child authentication state — `status` may `stat` the path, and that is all.
+The ownership boundary is the other rule this round must not blur, and `docs/decisions/ADR-0025-share-one-native-login-per-account.md` is the decision behind it. The wrapper owns account selection, mode metadata, and any stored token. The child owns everything below the account's `config/`, including `.credentials.json`. **The wrapper never reads, copies, writes, refreshes, synchronizes, or fingerprints a child credential**, and caches no child authentication state — `status` may `stat` the path, and that is all.
 
 `AccountId` validation reuses the newtype from `cs-isolation`: charset `[a-z0-9_-]`, a lowercase-ASCII or digit first character, at most 32 bytes, and a value that fails validation is rejected rather than truncated.
 

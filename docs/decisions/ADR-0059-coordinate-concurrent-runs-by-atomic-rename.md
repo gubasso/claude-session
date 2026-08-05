@@ -25,4 +25,6 @@ Conservative group pruning does not need it either: "possibly active" is decided
 
 ## Status
 
+Superseded
+
 Superseded by [ADR-0060](./ADR-0060-lock-the-writes-that-are-not-derivable.md) — a minted credential and a two-file invariant are critical sections this record did not see, so the lock returns as an advisory `flock` the kernel releases on death. The atomic rename this record established is unchanged and still carries every write.

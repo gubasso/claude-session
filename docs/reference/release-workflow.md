@@ -104,6 +104,8 @@ Source publication and binary distribution are orthogonal. Cargo-dist 0.32.0 bui
 
 The generated `release.yml` reads its build matrix from `dist plan` at run time and names no target, so changing `dist-workspace.toml` does not by itself require regenerating it. The App-authored release tag retriggers that workflow; its GitHub Release assets are consumable by cargo-binstall. [ADR-0038](../decisions/ADR-0038-distribute-binaries-with-cargo-dist.md) owns the choice of generator.
 
+That retrigger constrains every tag-driven job added later: an App-authored tag push fires them, so a new job carries both a `needs:` on the release job and an `if:` on its outputs, as `promote` does. A standalone tag job runs on a tag it was never meant to see.
+
 ## Helper scripts
 
 | Script                | Boundary                                                           |
@@ -140,6 +142,8 @@ This is external state the repository cannot assert. Every row below is **requir
 **Ordering is load-bearing: the App bypass actor exists before any ruleset does.** A ruleset created first locks the App out of the branch it is the only writer of, and recovering means an administrator relaxing the rule they just made. [The bootstrap procedure](../guides/releasing.md#bootstrap-release-automation-once) performs these in that order.
 
 Rulesets are used rather than classic branch protection: they compose, they are readable by non-admins, they cover tags as well as branches, and they express a bypass actor explicitly — which is the whole mechanism `master` depends on.
+
+The bypass actor must be the installed App. Naming `github-actions[bot]` instead fails with HTTP 422 from the ruleset API, because a personal account cannot use it as a bypass actor ([ADR-0039](../decisions/ADR-0039-use-a-github-app-for-release-automation.md)).
 
 **Not adopted: OpenSSF Scorecard.** Deferred until after the first tagged release, with the trigger and the reasoning in [ADR-0073](../decisions/ADR-0073-defer-openssf-scorecard-until-the-first-release.md).
 

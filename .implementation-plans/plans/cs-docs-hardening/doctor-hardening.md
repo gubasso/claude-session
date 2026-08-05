@@ -4,7 +4,7 @@
 
 ## Context
 
-`doctor` is the user's self-diagnostic, and it must report every subsystem's health without one bad subsystem aborting the rest. This round hardens it across every subsystem now that they exist, against the catalog in `docs/reference/logging-and-output.md`. `cs-foundation` provided the `doctor` stub; later plans added their own catalog entries incrementally — this round makes the whole set complete and uniform.
+`doctor` is the user's self-diagnostic, and it must report every subsystem's health without one bad subsystem aborting the rest. This round hardens it across every subsystem now that they exist, against the catalog in `docs/reference/doctor.md`. `cs-foundation` provided the `doctor` stub; later plans added their own catalog entries incrementally — this round makes the whole set complete and uniform.
 
 ## Previous Rounds
 
@@ -12,7 +12,7 @@
 
 ## Scope of This Round
 
-- IN scope: a comprehensive `commands/doctor.rs` running **every** entry in the catalog table in `docs/reference/logging-and-output.md`, each independently and without aborting; the full verb grammar that page specifies — `--json`, `--list`, and `--strict`, all verb-level and combinable; the report shape and the JSON document that page specifies; the exit rule it specifies, including the bare `1` that `--strict` produces.
+- IN scope: a comprehensive `commands/doctor.rs` running **every** entry in the catalog table in `docs/reference/doctor.md`, each independently and without aborting; the full verb grammar that page specifies — `--json`, `--list`, and `--strict`, all verb-level and combinable; the report shape and the JSON document that page specifies; the exit rule it specifies, including the bare `1` that `--strict` produces.
 - OUT of scope: completions/man pages (round 3); ADR/release (round 4). The catalog's contents, ids, severities, and the checked version floor are **not** decided here — that table owns them.
 
 ## Current State
@@ -25,7 +25,9 @@
 
 ### Existing Patterns
 
-The full check catalog, its ids, scopes, hard-versus-soft classification, the `err.kind` each failure exits with, the report shape, and the JSON document are all specified in `docs/reference/logging-and-output.md`. Implement that page; do not restate it here and do not add a check the catalog does not list. There is exactly **one** probe set, and a command guard reads the same one — `docs/decisions/ADR-0018-one-probe-set-with-stable-check-ids.md`.
+The full check catalog, its ids, scopes, hard-versus-soft classification, the `err.kind` each failure exits with, the remediation templates, the report shape, and the JSON document are all specified in `docs/reference/doctor.md`. Implement that page; do not restate it here and do not add a check the catalog does not list. There is exactly **one** probe set, and a command guard reads the same one — `docs/decisions/ADR-0018-one-probe-set-with-stable-check-ids.md`. The stream each byte leaves on remains `docs/reference/logging-and-output.md`.
+
+The child's own health output is folded into the report rather than replacing it, under `docs/decisions/ADR-0045-compose-doctor-with-the-child-report.md`.
 
 Three rules govern the design. **Every check runs independently and one failure never aborts the rest** — a `doctor` that stops at the first problem is useless exactly when it is needed, because the first problem is often a consequence of the third. **An inert soft check reports `skipped` with a reason and never gates**, since failing `doctor` over a feature the user has not configured punishes them for not using it, and a skip never touches the exit code. And **check ids are public API**: scripts match them, so the table grows by appending and a rename is a breaking change.
 
@@ -45,7 +47,7 @@ Add a read-only probe for every catalog entry not yet implemented by an earlier 
 
 ### Step 2: Report and machine output
 
-Emit the human report and the `--json` document exactly as `docs/reference/logging-and-output.md` specifies them, including the bracketed status words, the indented hint line, the summary line, and the document's field-omission rules.
+Emit the human report and the `--json` document exactly as `docs/reference/doctor.md` specifies them, including the bracketed status words, the indented hint line, the summary line, and the document's field-omission rules.
 
 ### Step 3: Grammar and exit
 
@@ -61,7 +63,7 @@ Wire `--list` (print the catalog without running anything) and `--strict`. Imple
 
 ## Acceptance Criteria
 
-- [ ] Every catalog entry in `docs/reference/logging-and-output.md` runs, by its documented id, and no check outside that table exists.
+- [ ] Every catalog entry in `docs/reference/doctor.md` runs, by its documented id, and no check outside that table exists.
 - [ ] One broken subsystem is reported (with a four-part message + hint) without aborting the others.
 - [ ] The `--json` document matches the specified shape, and the report matches the specified text form.
 - [ ] `--list` prints the catalog without running it; `--strict` promotes a warning to `1` and nothing else.

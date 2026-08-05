@@ -27,7 +27,7 @@ With the full flag/verb surface settled, `claude-session` finalizes its shell co
 
 `clap_complete` and `clap_mangen` are on the reviewed list in `docs/reference/dependencies.md` as deferred crates unlocked by exactly this round; add them with `cargo add`.
 
-The rule that decides the scope of both artifacts is in `docs/reference/cli-surface.md`: **completions and man pages cover the wrapper's grammar only.** Child arguments stay opaque, because tracking the child's flag list is precisely the coupling the passthrough contract exists to avoid. Both are generated from the same parser definition as `--help`; a hand-maintained flag table is forbidden.
+The rule that decides the scope of both artifacts is in `docs/reference/cli-surface.md`: **completions and man pages cover the wrapper's grammar only.** Child arguments stay opaque, because tracking the child's flag list is precisely the coupling the passthrough contract exists to avoid. Both are generated from the same parser definition as `--help`; a hand-maintained flag table is forbidden. Shipping the man pages at all, and the sections they occupy, are decided by `docs/decisions/ADR-0016-ship-man-pages.md`.
 
 ## Implementation Steps
 

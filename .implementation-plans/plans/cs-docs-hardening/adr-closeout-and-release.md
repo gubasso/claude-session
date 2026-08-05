@@ -21,17 +21,21 @@ All `cs-` feature plans + this plan R1 (docs), R2 (doctor), R3 (completions/man)
 ### Key Files
 
 - `docs/decisions/` — ADRs to transition to `Implemented`.
-- `README.md` — write the user-facing intro (currently none).
+- `README.md` — update the existing file for shipped behaviour.
 - `deny.toml`, `.pre-commit-config.yaml` — supply-chain gates.
 - `tests/` — final cross-subsystem integration test.
 
 ### Existing Patterns
 
-The ADR lifecycle is specified in `AGENTS.md` under Documentation Maintenance: statuses are `Proposed`, `Accepted`, `Implemented`, `Superseded`, and `Rejected`; a record is **never deleted**; a changed decision is superseded with a forward link; a partly-changed one keeps its status and gains an `Amended by ADR-NNNN` line.
+The status vocabulary, what each value means, and which values are current authority are specified in `docs/reference/project-governance.md` § Decision status. Read that table rather than the summary in `AGENTS.md`; a record is **never deleted**, a changed decision is superseded with a forward link, and a partly-changed one keeps its status and gains an `Amended by ADR-NNNN` line. Transitioning a record also has to satisfy the exact-value sweep in `docs/reference/testing-and-quality.md` § Documentation sweeps: the status value stands alone on the first nonblank line, with any evidence in the paragraph below it.
+
+The release decisions this round closes against are `docs/decisions/ADR-0020-adopt-a-two-branch-release-model.md`, `docs/decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md`, `docs/decisions/ADR-0066-ship-one-linux-artifact.md`, and `docs/decisions/ADR-0073-defer-openssf-scorecard-until-the-first-release.md`.
 
 `README.md` already exists and carries the install, development-shell, task, licence, and contribution sections, plus a design-contract summary explicitly marked as a summary of the normative sources. This round **updates** it for shipped behaviour rather than writing it: replace the pre-implementation warning, add the quick start and the account/profile/isolation model, and link the docs index. Do not duplicate the paths table or the exit-code matrix — link `docs/reference/xdg-storage.md` and `docs/reference/exit-codes.md`, or the two copies will drift.
 
-Release gates are already wired; see `docs/reference/testing-and-quality.md`. Confirm they are clean rather than re-adding them.
+Release gates are already wired; see `docs/reference/testing-and-quality.md`. Confirm they are clean rather than re-adding them. The gate is `just hooks`, which runs both hook stages; `pre-commit run --all-files` selects files rather than stages and silently omits the push half.
+
+This round's release work depends on operator actions the repository cannot perform or observe: a published `develop`, the installed GitHub App with its two secrets, and the rulesets created in the order `docs/reference/release-workflow.md` § Forge enforcement requires. They are steps 2, 4, and 5 of `docs/guides/releasing.md` § Bootstrap release automation once. Verify they are done before treating a release as reachable.
 
 ## Implementation Steps
 
@@ -49,7 +53,7 @@ Write the top-level `README.md` (intro, quick start, account/profile/isolation m
 
 ### Step 3: Release hardening
 
-Ensure `cargo deny check` + `cargo audit` clean, `Cargo.lock` committed, `pre-commit run --all-files` green.
+Ensure `cargo deny check` + `cargo audit` clean, `Cargo.lock` committed, `just hooks` green on both stages.
 
 ### Step 4: Final integration pass
 
@@ -64,8 +68,7 @@ Add/confirm a cross-subsystem integration test (passthrough + isolation + a mana
 
 - [ ] Implemented ADRs are transitioned to `Implemented`; no ADR is deleted; new decisions get ADRs.
 - [ ] A user-facing `README.md` exists (intro, quick start, model, headroom pointer, paths, exit codes).
-- [ ] `cargo deny check` + `cargo audit` are clean; `Cargo.lock` committed; `pre-commit run
-      --all-files` is green.
+- [ ] `cargo deny check` + `cargo audit` are clean; `Cargo.lock` committed; `just hooks` is green on both stages.
 - [ ] A cross-subsystem integration test passes against a stubbed `claude`.
 - [ ] This plan's `queue-rounds.yaml` shows round `adr-closeout-and-release` as `done` and the top-level `queue-plans.yaml` shows `cs-docs-hardening` as `done`.
 

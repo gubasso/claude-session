@@ -26,11 +26,13 @@ This plan round 1: `adapters/spawner.rs` with `Spawner`/`StdSpawner`, `resolve_c
 
 ### Existing Patterns
 
-The process-group topology and the signal matrix are specified in `docs/reference/process-runtime.md`. **Read that matrix before writing any forwarding code — "forward every signal" is a bug here, not a safe default.**
+The process-group topology and the signal matrix are specified in `docs/reference/process-runtime.md`. **Read that matrix before writing any forwarding code — "forward every signal" is a bug here, not a safe default.** The supervision model itself — spawn the child, wait for it, own nothing else — is `docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md`, and a spawn that fails before the child exists is classified by cause under `docs/decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md`.
 
 The child **shares the wrapper's foreground process group**. A terminal-generated signal is therefore delivered by the kernel to every member, so the child already receives `SIGINT`, `SIGQUIT`, `SIGTSTP`, `SIGCONT`, and `SIGWINCH`. Forwarding those double-delivers, and a child that counts interrupts — one press to interrupt, two to quit — will read one keypress as two. The wrapper forwards only what the terminal does **not** broadcast: `SIGTERM`, `SIGHUP`, `SIGUSR1`, `SIGUSR2`.
 
-Two further rules from the same page. On `SIGTSTP`, wait for the child to stop and then re-raise `SIGSTOP` on the wrapper itself, or the shell sees a live foreground process and withholds its prompt. And after a signal kills the child, **reproduce the child's fate** by resetting the signal to its default action and re-raising it on the wrapper, rather than exiting with a translated code — `128 + N` is the documented fallback, not the first choice. See `docs/reference/exit-codes.md`.
+Two further rules from the same page. On `SIGTSTP`, wait for the child to stop and then re-raise `SIGSTOP` on the wrapper itself, or the shell sees a live foreground process and withholds its prompt. And after a signal kills the child, **reproduce the child's fate** by resetting the signal to its default action and re-raising it on the wrapper, rather than exiting with a translated code — `128 + N` is the documented fallback, not the first choice. Being indistinguishable from the child is the point, decided in `docs/decisions/ADR-0058-behave-as-stock-claude-by-default.md`.
+
+The status the wrapper exits with is owned by `docs/reference/exit-codes.md`, over three decisions: `docs/decisions/ADR-0005-exit-code-taxonomy.md` fixes the taxonomy, `docs/decisions/ADR-0033-append-fresh-exit-codes.md` governs how a new code joins it, and `docs/decisions/ADR-0035-convert-the-typed-error-to-a-code-once.md` puts the typed-error-to-status conversion at exactly one place. Do not translate an error into a number anywhere else.
 
 Handlers must be async-signal-safe: register a flag in the handler and do the work on a normal thread; never allocate, log, or lock inside one. Clear the published child process id **before** post-flight work, so a late signal cannot be forwarded to a reused process id.
 
