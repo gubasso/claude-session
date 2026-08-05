@@ -12,7 +12,7 @@
 
 ## Decision Outcome
 
-Chosen option: **a budget with a margin**. A record targets about 350 words and is measured by `wc -w` over the whole file, markup included, so the number is reproducible without a convention to remember.
+Chosen option: a budget with a margin. A record targets about 350 words and is measured by `wc -w` over the whole file, markup included, so the number is reproducible without a convention to remember.
 
 At or under 450 words the record is in budget: nothing to do, nothing to flag. Over 450 it is trimmed or split in the change that notices it — moving worked detail to the reference page that owns it — and never recorded as a task for someone else. The cap keeps its original job as a splitting signal; only the trigger point and the counter change.
 
@@ -26,6 +26,6 @@ At or under 450 words the record is in budget: nothing to do, nothing to flag. O
 
 ## Status
 
-Accepted
+Superseded
 
-Amends [ADR-0012](./ADR-0012-docs-architecture.md); its other content rules are unchanged.
+Superseded by [ADR-0076](./ADR-0076-cap-filled-adrs-at-350-words.md).

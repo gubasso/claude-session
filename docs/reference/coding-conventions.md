@@ -54,12 +54,12 @@ Errors are typed per layer and converge on one application error:
 
 Rules:
 
-- Every error carries the **concrete value** involved — the path, the key, the account. An error that says a file could not be read without saying which file has failed at its one job.
+- Every error carries the concrete value involved — the path, the key, the account. An error that says a file could not be read without saying which file has failed at its one job.
 - Conversions between layers are derived where the mapping is total, and written by hand where context must be added. A conversion that discards context is worse than none.
-- `AppError` is a **closed enum** with no catch-all variant. This is what makes the exit-code mapping exhaustive; see [exit codes](./exit-codes.md).
-- **A boxed trait-object error is never a return type** in this crate. It erases exactly the type information the exit-code mapping needs.
-- The boundary error type is used **only** in the entry point. It is the right tool for one place — assembling the final report — and the wrong tool everywhere else, because a function returning it tells the caller nothing about what can go wrong.
-- `main` returns `std::process::ExitCode`, and **`std::process::exit` is not called** — it skips destructors, and the non-blocking log sink is flushed by one. Reproducing a child's signal death is the single exception, because re-raising does not return; it lives in the entry point and nowhere else. Every code the process can produce is owned by one enum, hand-rolled rather than taken from a crate. See [ADR-0035](../decisions/ADR-0035-convert-the-typed-error-to-a-code-once.md) and [exit codes](./exit-codes.md).
+- `AppError` is a closed enum with no catch-all variant. This is what makes the exit-code mapping exhaustive; see [exit codes](./exit-codes.md).
+- A boxed trait-object error is never a return type in this crate. It erases exactly the type information the exit-code mapping needs.
+- The boundary error type is used only in the entry point. It is the right tool for one place — assembling the final report — and the wrong tool everywhere else, because a function returning it tells the caller nothing about what can go wrong.
+- `main` returns `std::process::ExitCode`, and `std::process::exit` is not called — it skips destructors, and the non-blocking log sink is flushed by one. Reproducing a child's signal death is the single exception, because re-raising does not return; it lives in the entry point and nowhere else. Every code the process can produce is owned by one enum, hand-rolled rather than taken from a crate. See [ADR-0035](../decisions/ADR-0035-convert-the-typed-error-to-a-code-once.md) and [exit codes](./exit-codes.md).
 
 ## Panics
 
@@ -74,33 +74,33 @@ The sanctioned exceptions:
 | A slice index proved in range by an immediately preceding check         | The proof is local and visible                        |
 | Test code                                                               | A panic is how a test fails                           |
 
-Everything else returns a typed error. In particular, a missing file, a malformed configuration, a failed system call, and absent input are all **ordinary** conditions, and panicking on any of them turns a diagnosable error into a stack trace.
+Everything else returns a typed error. In particular, a missing file, a malformed configuration, a failed system call, and absent input are all ordinary conditions, and panicking on any of them turns a diagnosable error into a stack trace.
 
 `panic!` appears nowhere outside test code. `unsafe` is forbidden crate-wide.
 
 ## Types
 
-**Parse, don't validate.** Convert unvalidated input into a type that cannot be invalid, once, at the boundary. Downstream code then takes the validated type and needs no defensive checks. A function taking `&str` where it means an account identifier has pushed validation onto every caller.
+Parse, don't validate. Convert unvalidated input into a type that cannot be invalid, once, at the boundary. Downstream code then takes the validated type and needs no defensive checks. A function taking `&str` where it means an account identifier has pushed validation onto every caller.
 
-**Newtypes for identifiers.** Account identifiers and profile names, paths with meaning, and anything else where passing the wrong string type-checks but misbehaves. Validation lives in the constructor.
+Newtypes for identifiers. Account identifiers and profile names, paths with meaning, and anything else where passing the wrong string type-checks but misbehaves. Validation lives in the constructor.
 
-**`FromStr` for anything parsed from a flag or a file**, so the parser and the configuration loader share one implementation.
+`FromStr` for anything parsed from a flag or a file, so the parser and the configuration loader share one implementation.
 
-**Prefer borrowed parameters.** Take `&str` and `&Path` rather than `String` and `PathBuf` unless ownership is genuinely needed.
+Prefer borrowed parameters. Take `&str` and `&Path` rather than `String` and `PathBuf` unless ownership is genuinely needed.
 
-**OS strings at the boundary.** Anything that came from or is going to the operating system — arguments, environment values, paths — stays an OS string until something genuinely needs text. Converting to UTF-8 for convenience is how the passthrough contract breaks; see [the CLI surface](./cli-surface.md).
+OS strings at the boundary. Anything that came from or is going to the operating system — arguments, environment values, paths — stays an OS string until something genuinely needs text. Converting to UTF-8 for convenience is how the passthrough contract breaks; see [the CLI surface](./cli-surface.md).
 
-**Enums over boolean pairs.** Two related booleans admit a state that cannot happen. An enum does not.
+Enums over boolean pairs. Two related booleans admit a state that cannot happen. An enum does not.
 
-**Prefer `LazyLock` to a runtime-initialized global**, and prefer passing the value to either.
+Prefer `LazyLock` to a runtime-initialized global, and prefer passing the value to either.
 
 ## Documentation comments
 
-Every module begins with a `//!` header stating what it is for **and what it is not for**. The second half is the useful one: it is what stops a module from accumulating everything adjacent to its topic.
+Every module begins with a `//!` header stating what it is for and what it is not for. The second half is the useful one: it is what stops a module from accumulating everything adjacent to its topic.
 
 Every `pub(crate)` item has a doc comment. A function's comment says what it does and what it returns on failure; it does not restate the signature.
 
-Comments inside a function are for **rationale**: why a surprising boundary exists, which invariant must hold, which external constraint forced the shape. A comment narrating what the next line does should be deleted, or replaced by a better name. The test is whether deleting the comment would leave a future maintainer confused; if not, it is noise.
+Comments inside a function are for rationale: why a surprising boundary exists, which invariant must hold, which external constraint forced the shape. A comment narrating what the next line does should be deleted, or replaced by a better name. The test is whether deleting the comment would leave a future maintainer confused; if not, it is noise.
 
 Where a decision record governs the code, the comment names it. That is the link that keeps rationale findable from the code.
 
@@ -118,9 +118,9 @@ Suppressing a lint requires a scoped attribute with a comment. A crate-wide supp
 
 Formatting and lint enforcement are in [testing and quality](./testing-and-quality.md).
 
-## Implementation-round boundaries
+## Implementation-slice boundaries
 
-Every implementation round inherits these boundaries even when its prose omits them. A round may narrow its scope but cannot weaken a durable contract.
+Every implementation slice inherits these boundaries even when its prose omits them. A slice may narrow its scope but cannot weaken a durable contract.
 
 | Boundary                                                                                                                                                          | Exact owner                                                                                                                                                                                                                                                                      | Rejecting check                                         |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
@@ -135,11 +135,11 @@ Every implementation round inherits these boundaries even when its prose omits t
 | Forbid crate-wide `unsafe` and production `panic!`; justify every `unwrap`, `expect`, and lint suppression locally.                                               | [Panics](#panics) and [Lints](#lints)                                                                                                                                                                                                                                            | Rust and Clippy gates                                   |
 | Preserve `xtask` isolation and export only the library surface its tooling needs.                                                                                 | [Architecture § One shipped crate, plus `xtask`](../explanation/architecture.md#one-shipped-crate-plus-xtask), [ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md), and [Dependencies § Development tooling](./dependencies.md#development-tooling--xtask-only) | Tooling-isolation lint and manifest review              |
 | Admit dependencies only through the dependency procedure; add nothing early.                                                                                      | [Dependencies § Adding a dependency](./dependencies.md#adding-a-dependency)                                                                                                                                                                                                      | `Cargo.lock`, deny, audit, machete, and review          |
-| Add or update a mandatory test whenever a round implements a documented contract; a marker or compile success alone is not closure.                               | [Testing and quality §§ Mandatory tests and The gate](./testing-and-quality.md#mandatory-tests)                                                                                                                                                                                  | Named test plus the full gate                           |
-| Treat `docs/` as normative pre-implementation design; when a round conflicts, correct the round, or change the owner and governing ADR first.                     | [Project governance § Rule ownership and enforcement](./project-governance.md#rule-ownership-and-enforcement)                                                                                                                                                                    | Source/round reconciliation                             |
-| At round completion, run the round acceptance commands and repository gate before changing its queue status; do not infer completion from files existing.         | [Implementation plans § The executor contract](../../.implementation-plans/README.md#the-executor-contract) and [Testing and quality § The gate](./testing-and-quality.md#the-gate)                                                                                              | Acceptance results plus the full gate                   |
+| Add or update a mandatory test whenever a slice implements a documented contract; a marker or compile success alone is not closure.                               | [Testing and quality §§ Mandatory tests and The gate](./testing-and-quality.md#mandatory-tests)                                                                                                                                                                                  | Named test plus the full gate                           |
+| Treat `docs/` as normative pre-implementation design; when a slice conflicts, correct the slice, or change the owner and governing ADR first.                     | [AGENTS.md § Decisions](../../AGENTS.md#decisions)                                                                                                                                                                                                                               | Owner and decision reconciliation                       |
+| At slice completion, run its acceptance commands and the repository gate before changing milestone status; do not infer completion from files existing.           | [Milestones](../plan/milestones.md) and [Testing and quality § The gate](./testing-and-quality.md#the-gate)                                                                                                                                                                      | Acceptance results plus the full gate                   |
 
-Before editing, resolve every cited ADR to a current status and read all named owners. During editing, stop when work would cross a listed boundary without an owning contract. Before marking done, run the named rejecting checks, read the result against the round acceptance criteria, and update only the queue YAML status.
+Before editing, resolve every cited ADR to a current status and read all `Governed by` owners. During editing, stop when work would cross a listed boundary without an owning contract. Before marking done, run the named checks, read them against slice acceptance, update the milestone row, and delete `tasks.md`.
 
 ## Further reading
 

@@ -13,11 +13,11 @@ The recursion guard's self-check compared the canonicalized resolved child path 
 
 ## Decision Outcome
 
-Chosen option: **device and inode** — it is the filesystem's own answer to "same file", and it catches the hard link that path equality misses.
+Chosen option: device and inode — it is the filesystem's own answer to "same file", and it catches the hard link that path equality misses.
 
-Self-identity comes from `std::env::current_exe`, which on the supported Linux target reads `/proc/self/exe`. The comparison's two blind spots — a byte-for-byte _copy_ of the wrapper, and a binary replaced on disk mid-run — are exactly what the marker variable covers, which is what makes "neither guard is sufficient alone" precise rather than asserted.
+Self-identity comes from `std::env::current_exe`, which on the supported Linux target reads `/proc/self/exe`. The comparison's two blind spots — a byte-for-byte copy of the wrapper, and a binary replaced on disk mid-run — are exactly what the marker variable covers, which is what makes "neither guard is sufficient alone" precise rather than asserted.
 
-`argv[0]` is rejected because this wrapper may legitimately be installed _as_ `claude`, so the name discriminates nothing. A counter is rejected because rustup tolerates legitimate proxy nesting and this wrapper does not: there is one child, any re-entry is a fault, and a bound would be a knob with no present need ([ADR-0048](./ADR-0048-build-for-a-present-need.md)).
+`argv[0]` is rejected because this wrapper may legitimately be installed as `claude`, so the name discriminates nothing. A counter is rejected because rustup tolerates legitimate proxy nesting and this wrapper does not: there is one child, any re-entry is a fault, and a bound would be a knob with no present need ([ADR-0048](./ADR-0048-build-for-a-present-need.md)).
 
 ## Consequences
 

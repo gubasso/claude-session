@@ -13,7 +13,7 @@ The child-resolution ladder said "the first candidate that exists wins" while it
 
 ## Decision Outcome
 
-Chosen option: **a present source is terminal** — falling through would run a different binary than the user named, which is the failure the ladder exists to prevent.
+Chosen option: a present source is terminal — falling through would run a different binary than the user named, which is the failure the ladder exists to prevent.
 
 Two rungs, not four. `child_bin` is one configuration key whose layering [configuration](../reference/configuration.md#precedence) already owns, so naming its environment and file layers separately was a second source of truth. The bundled rung is dropped: nothing ships a `claude`, and a rung that never fires discriminates nothing ([ADR-0048](./ADR-0048-build-for-a-present-need.md), [ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md)).
 

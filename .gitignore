@@ -15,5 +15,5 @@ rustc-ice-*.txt
 .direnv/
 /result
 # Drafts: a workshop, never shipped. Promotion out of .draft/ is a rewrite into
-# the owning doc, not a move. See docs/decisions/ADR-0012-docs-architecture.md.
+# the owning doc, not a move. See docs/decisions/ADR-0077-add-a-plan-zone-to-reader-need-docs.md.
 .draft/

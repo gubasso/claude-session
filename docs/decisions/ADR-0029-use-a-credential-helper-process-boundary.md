@@ -13,7 +13,7 @@ Long-lived subscription tokens need a persistent default store and an optional s
 
 ## Decision Outcome
 
-Chosen option: **an out-of-process argv-based helper seam** — the private file remains the default, and helper use is explicit.
+Chosen option: an out-of-process argv-based helper seam — the private file remains the default, and helper use is explicit.
 
 Neither direction silently falls back to the other. The helper protocol and configuration schema are deferred to later work; this record chooses only the architectural boundary.
 

@@ -6,13 +6,13 @@
 
 ## Considered Options
 
-- **A hidden verb** on the shipped binary.
-- **A second `[[bin]]`** in the same crate, gated behind a feature.
-- **An `xtask` workspace member**, invoked as `cargo xtask`.
+- A hidden verb on the shipped binary.
+- A second `[[bin]]` in the same crate, gated behind a feature.
+- An `xtask` workspace member, invoked as `cargo xtask`.
 
 ## Decision Outcome
 
-Chosen option: **an `xtask` workspace member**. [ADR-0007](./ADR-0007-layered-single-crate-architecture.md) defers a workspace until a trigger fires and names "a second binary" first among them. This is that trigger, arriving for the reason it was written down.
+Chosen option: an `xtask` workspace member. [ADR-0007](./ADR-0007-layered-single-crate-architecture.md) defers a workspace until a trigger fires and names "a second binary" first among them. This is that trigger, arriving for the reason it was written down.
 
 The crate gains a library target exporting the configuration types, and `xtask/` depends on it by path. Development-only dependencies stay in `xtask`'s manifest and never enter the shipped binary's dependency graph.
 

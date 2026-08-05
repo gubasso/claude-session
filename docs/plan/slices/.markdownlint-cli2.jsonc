@@ -1,0 +1,31 @@
+// Scoped markdownlint configuration for the plan zone's slice directories.
+//
+// The slice entry document has a fixed heading list (see AGENTS.md and
+// docs/decisions/ADR-0077-add-a-plan-zone-to-reader-need-docs.md). MD043 pins it so it cannot drift
+// into a second charter. markdownlint-cli2 has no per-glob override mechanism; per-directory
+// configuration is the supported way to scope a rule, and it merges with the repository-root
+// .markdownlint-cli2.jsonc rather than replacing it.
+//
+// `ignores` exempts tasks.md, which is a flat checklist with no heading structure and would
+// otherwise fail both MD043 and MD041. Verified against markdownlint-cli2 v0.22.1.
+{
+  "config": {
+    "MD043": {
+      "headings": [
+        "?",
+        "## Goal",
+        "## Appetite",
+        "## Core",
+        "## In scope",
+        "## Out of scope",
+        "## Governed by",
+        "## Acceptance",
+        "## Rabbit holes",
+        "## Done when",
+        "## Revisions"
+      ],
+      "match_case": true
+    }
+  },
+  "ignores": ["**/tasks.md"]
+}

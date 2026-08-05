@@ -13,7 +13,7 @@ One account must share a durable child configuration directory, while settings c
 
 ## Decision Outcome
 
-Chosen option: **prepend the native settings pair** — the account directory remains stable while each group supplies its composed settings document as an additional native layer.
+Chosen option: prepend the native settings pair — the account directory remains stable while each group supplies its composed settings document as an additional native layer.
 
 The wrapper-added pair precedes the untouched user argument vector. Order, bytes, count, and any `--` sentinel are preserved within that suffix. The wrapper does not parse, deduplicate, reorder, or reject user child flags.
 

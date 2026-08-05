@@ -12,7 +12,7 @@ A token-mode account is two files, `oauth-token` and `auth-mode.json`, and a rot
 
 ## Decision Outcome
 
-Chosen option: **verify, then rename `oauth-token`, then `auth-mode.json`, whose rename commits the rotation.** The candidate is probed by the child's own documented status command with the token in the child environment, so verification needs no file on disk and the credential lock is never held across a child spawn.
+Chosen option: verify, then rename `oauth-token`, then `auth-mode.json`, whose rename commits the rotation. The candidate is probed by the child's own documented status command with the token in the child environment, so verification needs no file on disk and the credential lock is never held across a child spawn.
 
 The order follows from which half-written state is survivable. Metadata first leaves a fingerprint describing a token that is not there, over a token the exchange may already have revoked. Token first inverts that: the account holds a credential just proven to work, described by stale metadata, which the recorded fingerprint makes detectable and the next `account login` repairs.
 
@@ -21,7 +21,6 @@ No durable staging artifact exists. The atomic-write temporary is consumed by it
 ## Consequences
 
 - Good: a failure at any point leaves the account usable, which is what rotation is for.
-- Good: the pair is written entirely by the existing sequence and lock scope; no new mechanism.
 - Bad: a crash between the renames leaves age and estimated expiry stale until repaired.
 
 ## Status

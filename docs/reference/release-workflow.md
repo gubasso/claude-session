@@ -4,11 +4,11 @@ This page owns exact release and publishing values and invariants. Operator task
 
 ## Branch and release invariant
 
-| Branch                       | Role                                                           | Writer                    |
-| ---------------------------- | -------------------------------------------------------------- | ------------------------- |
-| `develop`                    | Integration branch, GitHub default branch, and release trigger | Reviewed pull requests    |
-| `master`                     | Exact commit of the latest published release tag               | Installed GitHub App only |
-| `feat/*`, `fix/*`, `chore/*` | Short-lived work based on `develop`                            | Contributors              |
+| Branch                     | Role                                                           | Writer                    |
+| -------------------------- | -------------------------------------------------------------- | ------------------------- |
+| `develop`                  | Integration branch, GitHub default branch, and release trigger | Reviewed pull requests    |
+| `master`                   | Exact commit of the latest published release tag               | Installed GitHub App only |
+| `feat/`, `fix/`, `chore/*` | Short-lived work based on `develop`                            | Contributors              |
 
 ```text
 feature PR → develop → release PR → vX.Y.Z + crates.io → inline fast-forward to master
@@ -120,15 +120,15 @@ No helper validates or prints a token.
 
 Semantic Versioning applies to the CLI surface. Removing or renaming a wrapper command or flag, or changing a default, is breaking; while the version is `0.x`, a breaking CLI change requires a minor bump. Native `claude` passthrough must never break.
 
-**A version number is never reused, and that is the registry's rule rather than this project's.** A crates.io publish is permanent: the version cannot be overwritten and the code cannot be deleted.
+A version number is never reused, and that is the registry's rule rather than this project's. A crates.io publish is permanent: the version cannot be overwritten and the code cannot be deleted.
 
-**Recovery is a new version. Yank is containment, not recovery.** Yanking removes a version from the index so no new resolution picks it up; it deletes nothing, and every existing lockfile keeps working. So a yank stops the bleeding and changes nothing for anyone already affected — only a fix-forward release does that.
+Recovery is a new version. Yank is containment, not recovery. Yanking removes a version from the index so no new resolution picks it up; it deletes nothing, and every existing lockfile keeps working. So a yank stops the bleeding and changes nothing for anyone already affected — only a fix-forward release does that.
 
 A yank also cannot un-publish a leaked secret. If one reached the package, rotate it immediately and treat the yank as irrelevant to the exposure.
 
 ## Forge enforcement
 
-This is external state the repository cannot assert. Every row below is **required before the first release and currently unverified** — nothing in the gate reads the forge, so treat this as the target to apply, not a description of what is live.
+This is external state the repository cannot assert. Every row below is required before the first release and currently unverified — nothing in the gate reads the forge, so treat this as the target to apply, not a description of what is live.
 
 | Required state                                                              | Operator action                                                     |
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -139,13 +139,13 @@ This is external state the repository cannot assert. Every row below is **requir
 | `master` is App-only with linear history                                    | Create the `master` ruleset                                         |
 | `v*` release tags are protected                                             | Create the tag ruleset                                              |
 
-**Ordering is load-bearing: the App bypass actor exists before any ruleset does.** A ruleset created first locks the App out of the branch it is the only writer of, and recovering means an administrator relaxing the rule they just made. [The bootstrap procedure](../guides/releasing.md#bootstrap-release-automation-once) performs these in that order.
+Ordering is load-bearing: the App bypass actor exists before any ruleset does. A ruleset created first locks the App out of the branch it is the only writer of, and recovering means an administrator relaxing the rule they just made. [The bootstrap procedure](../guides/releasing.md#bootstrap-release-automation-once) performs these in that order.
 
 Rulesets are used rather than classic branch protection: they compose, they are readable by non-admins, they cover tags as well as branches, and they express a bypass actor explicitly — which is the whole mechanism `master` depends on.
 
 The bypass actor must be the installed App. Naming `github-actions[bot]` instead fails with HTTP 422 from the ruleset API, because a personal account cannot use it as a bypass actor ([ADR-0039](../decisions/ADR-0039-use-a-github-app-for-release-automation.md)).
 
-**Not adopted: OpenSSF Scorecard.** Deferred until after the first tagged release, with the trigger and the reasoning in [ADR-0073](../decisions/ADR-0073-defer-openssf-scorecard-until-the-first-release.md).
+Not adopted: OpenSSF Scorecard. Deferred until after the first tagged release, with the trigger and the reasoning in [ADR-0073](../decisions/ADR-0073-defer-openssf-scorecard-until-the-first-release.md).
 
 ## Further reading
 

@@ -12,16 +12,14 @@ A wrapper has two kinds of failure: its own, before the child runs, and the chil
 
 ## Decision Outcome
 
-Chosen option: **split at the spawn** — a wrapper that translates its child's exit code breaks every script wrapping it, and a wrapper with only generic codes for its own failures is undiagnosable.
+Chosen option: split at the spawn — a wrapper that translates its child's exit code breaks every script wrapping it, and a wrapper with only generic codes for its own failures is undiagnosable.
 
 Before the child runs, each failure class maps to a `sysexits` value, plus the shell conventions `126` for found-but-not-executable and `127` for not-found. Once the child runs, its status is reproduced: an exit code passes through unchanged, and signal death is reproduced by re-raising the signal on the wrapper itself, falling back to `128 + N`.
 
-Two properties make it usable. The mapping is **exhaustive over a closed error enum with no catch-all arm**, so adding a variant without a code fails the build. And every wrapper-originated failure carries a stable `err.kind` on standard error, which is what a script matches on. See [exit codes](../reference/exit-codes.md).
+Two properties make it usable. The mapping is exhaustive over a closed error enum with no catch-all arm, so adding a variant without a code fails the build. And every wrapper-originated failure carries a stable `err.kind` on standard error, which is what a script matches on. See [exit codes](../reference/exit-codes.md).
 
 ## Consequences
 
-- Good: a script wrapping this wrapper behaves as if `claude` had been run directly.
-- Good: the wrapper's own failures are distinguishable, and `126` and `127` mean what a shell user expects.
 - Good: the no-catch-all rule makes an unmapped variant a build failure rather than a silent generic error.
 - Bad: the two regimes share a numeric range — `64` is both a `sysexits` value and a legal child exit code — so a caller distinguishing them must read `err.kind` on standard error.
 - Bad: the matrix is append-only. Renaming an `err.kind` or remapping a code is breaking, and needs a superseding decision.
@@ -30,4 +28,4 @@ Two properties make it usable. The mapping is **exhaustive over a closed error e
 
 Accepted
 
-Amended by [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) — a new failure class now takes an unused number rather than one already in the table. Amended by [ADR-0034](./ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) — `doctor --strict` exits a bare `1`, the one code that names no category. Amended by [ADR-0068](./ADR-0068-spawn-the-child-as-a-subroutine.md) — the successful-spawn boundary governs the passthrough launch; a verb that spawns the child as a subroutine keeps its own code. Realized by [ADR-0035](./ADR-0035-convert-the-typed-error-to-a-code-once.md).
+Amended by [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) for unused numbers, [ADR-0034](./ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) for `doctor --strict`, and [ADR-0068](./ADR-0068-spawn-the-child-as-a-subroutine.md) for subroutine spawns. Realized by [ADR-0035](./ADR-0035-convert-the-typed-error-to-a-code-once.md).

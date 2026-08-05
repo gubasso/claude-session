@@ -15,9 +15,9 @@ This describes normative design. The crate is pre-implementation.
 
 Every path is namespaced under `claude-session` inside its base.
 
-A relative XDG value is invalid and treated as unset, with a debug diagnostic. The specification requires it: _"All paths set in these environment variables must be absolute. If an implementation encounters a relative path in any of these variables it should consider the path invalid and ignore it."_ Resolving one against the working directory would put a user's durable state in a different tree on every invocation, which is the same reason a relative `child_bin` is rejected ([process runtime](./process-runtime.md#child-resolution)). An empty value is the unset case, per the same specification's per-variable defaults.
+A relative XDG value is invalid and treated as unset, with a debug diagnostic. The specification requires it: "All paths set in these environment variables must be absolute. If an implementation encounters a relative path in any of these variables it should consider the path invalid and ignore it." Resolving one against the working directory would put a user's durable state in a different tree on every invocation, which is the same reason a relative `child_bin` is rejected ([process runtime](./process-runtime.md#child-resolution)). An empty value is the unset case, per the same specification's per-variable defaults.
 
-The `0700` on wrapper-managed directories is the specification's own default rather than a wrapper invention: _"If, when attempting to write a file, the destination directory is non-existent an attempt should be made to create it with permission `0700`."_
+The `0700` on wrapper-managed directories is the specification's own default rather than a wrapper invention: "If, when attempting to write a file, the destination directory is non-existent an attempt should be made to create it with permission `0700`."
 
 `XDG_RUNTIME_DIR` is not used. A lock lives beside the file it guards, so it is reachable wherever that file is ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)), and the one base with no portable default is also the one base with nothing to put in it. Durable state never falls back to it or to a shared temporary directory.
 
@@ -72,15 +72,15 @@ Each entry is a pure function of its inputs, so its name is computed from them (
 
 The input digest is SHA-256 over a versioned, unambiguously framed preimage: the literal domain tag `claude-session-composed-v1`, then the profile name, the profile file's resolved absolute path and the SHA-256 of its bytes, then for every piece in profile order its resolved absolute path and the SHA-256 of its bytes. Every field is length-prefixed, so no field value can imitate a field boundary. Paths are hashed as raw OS bytes, since a path is a byte string. The array-strategy table is a field of the profile file, so the profile's own content digest covers it.
 
-Twelve hex characters name the entry; the **full digest is recorded in the provenance sidecar**. Before an existing entry is reused, that recorded digest is compared against the one just computed — the inputs were read to compute the key, so the comparison costs nothing. A match reuses the entry. A mismatch is [`DataFormat`](./exit-codes.md#wrapper-matrix): the entry is neither opened nor overwritten. That is what makes "two profiles never share settings" a check rather than a probability, and it is why twelve characters is a naming choice rather than a safety margin.
+Twelve hex characters name the entry; the full digest is recorded in the provenance sidecar. Before an existing entry is reused, that recorded digest is compared against the one just computed — the inputs were read to compute the key, so the comparison costs nothing. A match reuses the entry. A mismatch is [`DataFormat`](./exit-codes.md#wrapper-matrix): the entry is neither opened nor overwritten. That is what makes "two profiles never share settings" a check rather than a probability, and it is why twelve characters is a naming choice rather than a safety margin.
 
-**A complete entry is never rewritten.** Generation checks whether the settings path exists. If it does, and the sidecar agrees, both files are already correct by construction and the run composes nothing. If neither exists, the wrapper composes, writes the settings by [the atomic sequence](#the-sequence), then writes the provenance the same way. If exactly one member of the pair exists the entry is incomplete and nothing about it can be verified — a settings file without its provenance carries no digest to compare, so adopting it would turn the guarantee above back into a probability. The wrapper composes and writes **both** members, replacing the survivor with one this run's inputs produced. Two concurrent runs of one profile compute identical bytes, so a lost update is invisible — which is why neither file takes a lock.
+A complete entry is never rewritten. Generation checks whether the settings path exists. If it does, and the sidecar agrees, both files are already correct by construction and the run composes nothing. If neither exists, the wrapper composes, writes the settings by [the atomic sequence](#the-sequence), then writes the provenance the same way. If exactly one member of the pair exists the entry is incomplete and nothing about it can be verified — a settings file without its provenance carries no digest to compare, so adopting it would turn the guarantee above back into a probability. The wrapper composes and writes both members, replacing the survivor with one this run's inputs produced. Two concurrent runs of one profile compute identical bytes, so a lost update is invisible — which is why neither file takes a lock.
 
 ## Filesystem security
 
 Checks run on every invocation. What they defend against is recorded in [ADR-0061](../decisions/ADR-0061-protect-storage-from-accidental-local-drift.md): accident — permission drift, a restored backup under the wrong owner, a sync tool that replaced a path with a link — and not a process running as this user, which can read the credential without racing anything.
 
-A **wrapper-managed component** begins at the `claude-session` namespace directory inside an XDG base. Ancestors supplied by the operating system or the user — `$HOME`, `.config`, `.local/state` — are outside this policy and are never checked or corrected.
+A wrapper-managed component begins at the `claude-session` namespace directory inside an XDG base. Ancestors supplied by the operating system or the user — `$HOME`, `.config`, `.local/state` — are outside this policy and are never checked or corrected.
 
 | Check                 | Applied to                                                             | On failure               | Reported by                 |
 | --------------------- | ---------------------------------------------------------------------- | ------------------------ | --------------------------- |
@@ -94,11 +94,11 @@ Each condition is reported by exactly one [catalog check](./doctor.md#the-catalo
 
 ### How a path is validated
 
-Immediately before using a wrapper-managed path, the wrapper validates each existing component with metadata operations that **do not follow symbolic links**, then performs the ordinary path-based operation. A validation result is never cached across operations, because the check is only meaningful against the state the operation will meet.
+Immediately before using a wrapper-managed path, the wrapper validates each existing component with metadata operations that do not follow symbolic links, then performs the ordinary path-based operation. A validation result is never cached across operations, because the check is only meaningful against the state the operation will meet.
 
 A wrapper-owned secret that is read is opened once, validated again from that open handle, and read from the same handle. Where the wrapper holds a descriptor it also corrects the mode through it, since a path-based `chmod(2)` dereferences a symbolic link and the symlink-safe form is out of reach — `AT_SYMLINK_NOFOLLOW` on `fchmodat(2)` needs glibc 2.32 and Linux 6.5.
 
-The wrapper does **not** confine traversal through an `openat(2)` descriptor walk. These checks detect accidental drift and foreign artifacts; they are not a boundary against a process running as this user, which [ADR-0061](../decisions/ADR-0061-protect-storage-from-accidental-local-drift.md) places out of scope. This is the reasoning [ADR-0056](../decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md) used to reject `fexecve`, applied to the same shape of race.
+The wrapper does not confine traversal through an `openat(2)` descriptor walk. These checks detect accidental drift and foreign artifacts; they are not a boundary against a process running as this user, which [ADR-0061](../decisions/ADR-0061-protect-storage-from-accidental-local-drift.md) places out of scope. This is the reasoning [ADR-0056](../decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md) used to reject `fexecve`, applied to the same shape of race.
 
 Managed-directory creation is idempotent, and a directory the wrapper creates is created `0700` rather than created and then corrected.
 
@@ -113,7 +113,7 @@ Two hazards, two mechanisms, and neither substitutes for the other ([ADR-0060](.
 | Torn read   | A reader parses half-old, half-new bytes  | Atomic rename |
 | Lost update | A complete but wrong file survives a race | Advisory lock |
 
-**Every** wrapper-owned file whose partial content would be misread is written by atomic rename: `auth-mode.json` and `oauth-token`, composed settings and composition provenance, and the last-used marker. The child-owned `.credentials.json` is excluded.
+Every wrapper-owned file whose partial content would be misread is written by atomic rename: `auth-mode.json` and `oauth-token`, composed settings and composition provenance, and the last-used marker. The child-owned `.credentials.json` is excluded.
 
 ### The sequence
 
@@ -126,10 +126,10 @@ Two hazards, two mechanisms, and neither substitutes for the other ([ADR-0060](.
 | 5    | `fsync` the temporary                      | The bytes are on the disk                                                                     |
 | 6    | Set the mode on the temporary              | The final name is never briefly world-readable                                                |
 | 7    | Rename onto the final name                 | The swap a reader can never observe half of                                                   |
-| 8    | `fsync` the directory                      | The **name change** is on the disk; step 5 alone does not survive power loss                  |
+| 8    | `fsync` the directory                      | The name change is on the disk; step 5 alone does not survive power loss                      |
 | 9    | Release                                    | Or exit, which releases it just as completely                                                 |
 
-Steps 1–3 and 9 belong to the [lock scopes](#lock-scopes) below and to nothing else. A **lock-free** write — composed settings, composition provenance, the last-used marker — performs steps 4 through 8 and no others: there is no scope to acquire, so there is nothing to release.
+Steps 1–3 and 9 belong to the [lock scopes](#lock-scopes) below and to nothing else. A lock-free write — composed settings, composition provenance, the last-used marker — performs steps 4 through 8 and no others: there is no scope to acquire, so there is nothing to release.
 
 Steps 5 and 8 are the two points at which the wrapper promises the bytes have reached the disk, and they promise different things: without step 8 a crash can resurrect the old file, or leave a zero-length one at the final name.
 
@@ -137,7 +137,7 @@ The temporary is created with `O_CREAT | O_EXCL`. Its name makes an abandoned on
 
 ### Lock scopes
 
-A lock exists only where a write is **not** a function of the files it reads, or where two files carry one invariant:
+A lock exists only where a write is not a function of the files it reads, or where two files carry one invariant:
 
 | Scope                                  | Guards                             | Because                                                                        |
 | -------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
@@ -147,7 +147,7 @@ Within that scope the pair is written in one order: `oauth-token` first, then `a
 
 Composed settings, composition provenance, the last-used marker, and every other wrapper-owned write take no lock. Each is recomputed from its inputs, or is a selection where the most recent write is the right answer. Composed settings and their provenance carry one invariant, and it is expressed in the name: both files are named by the same input digest, so provenance can never describe settings other than the ones beside it.
 
-**The lock file is never deleted while its scope exists.** Unlinking it lets one holder destroy the file another is about to lock. A permanent empty file is the design, and because it carries no claim, a kill leaves nothing for the next run to break. [`account remove`](./accounts.md#removal) is the one exception, because it destroys the scope itself: it holds the lock, deletes the tree with the lock inside it, and a racer blocked on acquisition wakes on an unlinked inode and fails its rename with `Io` ([ADR-0069](../decisions/ADR-0069-destroy-the-credential-lock-with-its-scope.md)).
+The lock file is never deleted while its scope exists. Unlinking it lets one holder destroy the file another is about to lock. A permanent empty file is the design, and because it carries no claim, a kill leaves nothing for the next run to break. [`account remove`](./accounts.md#removal) is the one exception, because it destroys the scope itself: it holds the lock, deletes the tree with the lock inside it, and a racer blocked on acquisition wakes on an unlinked inode and fails its rename with `Io` ([ADR-0069](../decisions/ADR-0069-destroy-the-credential-lock-with-its-scope.md)).
 
 `account remove` is also the scope's second writer. It takes the lock before deleting anything, which is what stops a concurrent `account login` writing into a tree being removed. A launch takes no lock — it only reads — so removal excludes no running child and does not look for one.
 
@@ -155,13 +155,13 @@ Acquisition blocks, up to a deadline; past it the run exits [`LockBusy`](./exit-
 
 ### What this does not promise
 
-Two `account login` runs against one account still end with one token on disk. The lock decides **which** — the last issued rather than an arbitrary one — and stock `claude` has the same race in its own credential store, so this is not a failure mode the wrapper adds ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)).
+Two `account login` runs against one account still end with one token on disk. The lock decides which — the last issued rather than an arbitrary one — and stock `claude` has the same race in its own credential store, so this is not a failure mode the wrapper adds ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)).
 
 ## Cleanup and recovery
 
-**A normal exit removes nothing.** Every artifact in the table outlives the run that wrote it by design: configuration is the user's, the account tree and the composed-settings store are the point of the program, and the log is rotated rather than deleted. The one file a run creates without intending to keep is an atomic-write temporary, and that is consumed by its own rename rather than by a cleanup step. [Post-flight](./process-runtime.md#post-flight) therefore deletes nothing, and that is the contract rather than an omission.
+A normal exit removes nothing. Every artifact in the table outlives the run that wrote it by design: configuration is the user's, the account tree and the composed-settings store are the point of the program, and the log is rotated rather than deleted. The one file a run creates without intending to keep is an atomic-write temporary, and that is consumed by its own rename rather than by a cleanup step. [Post-flight](./process-runtime.md#post-flight) therefore deletes nothing, and that is the contract rather than an omission.
 
-**A kill leaves exactly two things**, and neither can fail the next run ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)):
+A kill leaves exactly two things, and neither can fail the next run ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)):
 
 | Left behind                           | Why it is harmless                                                                                 |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -172,7 +172,7 @@ A held lock is not on that list. The kernel drops it when the holder's descripto
 
 There is no half-written durable state to repair. A reader sees the old complete file or the new one, never a partial one, which is the property the atomic rename is there to buy.
 
-**The sweep** removes an orphaned temporary from any wrapper-managed directory the invocation already walks for [its security checks](#filesystem-security). A temporary whose embedded process id belongs to a live process is left alone, so a concurrent writer's rename can never be broken by a sweep; the cost is that a temporary from a previous boot whose id has since been reused lingers, which nothing depends on. Lock files are never swept.
+The sweep removes an orphaned temporary from any wrapper-managed directory the invocation already walks for [its security checks](#filesystem-security). A temporary whose embedded process id belongs to a live process is left alone, so a concurrent writer's rename can never be broken by a sweep; the cost is that a temporary from a previous boot whose id has since been reused lingers, which nothing depends on. Lock files are never swept.
 
 Composed settings entries are permanent. Each is immutable and named by its inputs, so one accumulates only when a profile or a piece actually changes — a growth curve set by how often the user edits configuration, not by how many terminals they open. Nothing earns an age policy, a prune verb, or a liveness check at that rate ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); removing a store the user no longer wants is `rm`. The orphan-temporary sweep above is the only thing the wrapper deletes unbidden.
 

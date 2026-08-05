@@ -13,7 +13,7 @@ Pushes made with the default workflow token do not trigger tag workflows, and `g
 
 ## Decision Outcome
 
-Chosen option: **mint tokens for a least-privilege installed GitHub App** — one account-wide App has repository Contents and Pull requests write permission, is installed per repository, and is the `master` ruleset bypass actor. Workflows mint short-lived tokens from `RELEASE_PLZ_APP_ID` and `RELEASE_PLZ_APP_PRIVATE_KEY`.
+Chosen option: mint tokens for a least-privilege installed GitHub App — one account-wide App has repository Contents and Pull requests write permission, is installed per repository, and is the `master` ruleset bypass actor. Workflows mint short-lived tokens from `RELEASE_PLZ_APP_ID` and `RELEASE_PLZ_APP_PRIVATE_KEY`.
 
 ## Consequences
 

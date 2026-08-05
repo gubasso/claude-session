@@ -13,7 +13,7 @@ Three hooks — `typos`, `committed`, and `markdownlint-cli2` — installed clea
 
 ## Decision Outcome
 
-Chosen option: **take the binaries from the devShell** — the project already promises the devShell provides the surrounding tools, and nixpkgs carries `typos` and `committed` at the exact versions this repository had pinned.
+Chosen option: take the binaries from the devShell — the project already promises the devShell provides the surrounding tools, and nixpkgs carries `typos` and `committed` at the exact versions this repository had pinned.
 
 `typos` and `committed` become `repo: local` hooks with `language: system`, mirroring the upstream args so behaviour is unchanged. `markdownlint-cli2` stays an upstream hook pinned to `language_version: system`: pre-commit chooses system node on its own only when `node` and `npm` resolve outside `$HOME`, which a home-profile Nix install does not satisfy. npm still installs that hook's pure-JS custom rule, which nixpkgs does not package.
 

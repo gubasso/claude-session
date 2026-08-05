@@ -2,11 +2,11 @@
 
 Two distinct things share the word "configuration" in this project, and keeping them apart is the first thing to understand.
 
-**The wrapper's own configuration** controls `claude-session`: which child to run, which account to select, which profile to compose. It is a layered value resolved at startup. Verbosity is not among them — it is invocation-scoped, through [`--verbose` and `--quiet`](./cli-surface.md#wrapper-owned-flags).
+The wrapper's own configuration controls `claude-session`: which child to run, which account to select, which profile to compose. It is a layered value resolved at startup. Verbosity is not among them — it is invocation-scoped, through [`--verbose` and `--quiet`](./cli-surface.md#wrapper-owned-flags).
 
-**The child's settings** are what `claude` reads from its account-wide configuration directory and an additional per-profile document. `claude-session` generates the latter by composing user-authored pieces.
+The child's settings are what `claude` reads from its account-wide configuration directory and an additional per-profile document. `claude-session` generates the latter by composing user-authored pieces.
 
-**The child's authentication precedence** is separate from wrapper configuration precedence. It determines whether ambient cloud, API, helper, injected subscription-token, or saved-login authentication wins. [Accounts](./accounts.md#stored-modes-and-launch-behavior) owns that operational contract.
+The child's authentication precedence is separate from wrapper configuration precedence. It determines whether ambient cloud, API, helper, injected subscription-token, or saved-login authentication wins. [Accounts](./accounts.md#stored-modes-and-launch-behavior) owns that operational contract.
 
 Paths for both are in [XDG storage](./xdg-storage.md).
 
@@ -18,19 +18,19 @@ This describes normative design. The crate is pre-implementation.
 
 Later layers override earlier ones:
 
-1. **Built-in defaults** — compiled in. Every key has one, so a missing configuration file is never an error. Every key is optional, so every default is _unset_.
-2. **User configuration file** — under the config base directory.
-3. **Project configuration file** — `.claude-session.toml`, discovered by [walking up from the working directory](#project-file-discovery), for per-repository overrides. It may set [`default_profile`](#keys) and nothing else.
-4. **Environment variables** — see below.
-5. **Command-line flags** — highest. The user typed it just now.
+1. Built-in defaults — compiled in. Every key has one, so a missing configuration file is never an error. Every key is optional, so every default is unset.
+2. User configuration file — under the config base directory.
+3. Project configuration file — `.claude-session.toml`, discovered by [walking up from the working directory](#project-file-discovery), for per-repository overrides. It may set [`default_profile`](#keys) and nothing else.
+4. Environment variables — see below.
+5. Command-line flags — highest. The user typed it just now.
 
-A missing file at any layer is **not an error**. An unreadable or malformed file _is_ an error, reported with the path — the distinction is between "you did not configure this" and "you tried to and it did not work".
+A missing file at any layer is not an error. An unreadable or malformed file is an error, reported with the path — the distinction is between "you did not configure this" and "you tried to and it did not work".
 
 `--config <path>` replaces the user layer with an explicit file. Because it must be honoured before configuration exists, it is read from the raw argument vector rather than from the resolved value. It names one file, not a mode: project discovery still runs.
 
 #### Project file discovery
 
-The search starts at the working directory and walks upward. **The first `.claude-session.toml` found wins** — files are not unified across directories. The walk stops at the enclosing repository root, the directory holding a `.git` entry, which is a file for worktrees and submodules and a directory otherwise. Git itself is never invoked. Outside a repository there is no project layer at all.
+The search starts at the working directory and walks upward. The first `.claude-session.toml` found wins — files are not unified across directories. The walk stops at the enclosing repository root, the directory holding a `.git` entry, which is a file for worktrees and submodules and a directory otherwise. Git itself is never invoked. Outside a repository there is no project layer at all.
 
 The stop rule follows the layer's purpose: these are per-repository overrides, so the repository is the boundary. It needs no marker key, no ceiling variable, and no merge-many rule ([ADR-0070](../decisions/ADR-0070-discover-the-project-configuration-file-at-the-repository-root.md)). Nested repositories stop at the inner one.
 
@@ -44,7 +44,7 @@ The stop rule follows the layer's purpose: these are per-repository overrides, s
 
 Every key is flat, so an underscore is always part of a key name and never a level separator: `CLAUDE_SESSION_CHILD_BIN` sets `child_bin`, not a nested `child.bin`. The per-key spellings are in [the key table](#keys). A separator convention is specified when a nested key first exists, and not before ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
-Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are **not** configuration keys. What reaches the child is [process runtime](./process-runtime.md#child-environment)'s to say.
+Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are not configuration keys. What reaches the child is [process runtime](./process-runtime.md#child-environment)'s to say.
 
 ### Future token-helper boundary
 
@@ -68,54 +68,54 @@ Three keys. All optional; the default of each is unset.
 
 Identifiers follow [the identifier rules](./xdg-storage.md#identifiers); an absolute path is validated where it is used.
 
-**The project layer may set `default_profile` only.** A repository that could set `child_bin` would choose the executable that runs, and one that could set `default_account` would choose the credential it runs under — both before the user has read a line of it. Either key in a project file is `Config`, not a silent ignore ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
+The project layer may set `default_profile` only. A repository that could set `child_bin` would choose the executable that runs, and one that could set `default_account` would choose the credential it runs under — both before the user has read a line of it. Either key in a project file is `Config`, not a silent ignore ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
 
 No other key earns a row. Verbosity is invocation-scoped, colour is `NO_COLOR` ([logging and output](./logging-and-output.md)), and `token_helper` stays deferred by [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md). A key is a permanent contract, so it is added by a present need rather than by symmetry ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
 ### Schema
 
-- Unknown keys are **rejected**, not ignored. A typo in a configuration file is the single most common configuration bug, and silently ignoring it produces a program that does not do what its configuration says.
+- Unknown keys are rejected, not ignored. A typo in a configuration file is the single most common configuration bug, and silently ignoring it produces a program that does not do what its configuration says.
 - The rejection names the offending key, its file, and, where the distance is small, the key it was probably meant to be. It exits [`Config`](./exit-codes.md#wrapper-matrix), in the [four-part shape](./exit-codes.md#error-message-shape) every wrapper diagnostic takes.
-- The resolved value is **immutable**. It is built once and passed by shared reference. Nothing mutates configuration mid-run.
+- The resolved value is immutable. It is built once and passed by shared reference. Nothing mutates configuration mid-run.
 - Every key has a documented default, a type, and a one-line meaning. That description lives on the field itself, in the type, and is the source the artifacts below are rendered from — never a parallel doc that can rot.
 
 `claude-session config` prints the resolved value, including which files were consulted and which existed; see [Commands](#commands).
 
 ### Generated examples and schema
 
-The wrapper never writes the user's configuration ([ADR-0006](../decisions/ADR-0006-place-files-by-xdg-ownership.md)), so it cannot scaffold a starter file. It ships one to **copy** instead, generated from the config types so it cannot drift ([ADR-0013](../decisions/ADR-0013-generate-config-examples-from-types.md)).
+The wrapper never writes the user's configuration ([ADR-0006](../decisions/ADR-0006-place-files-by-xdg-ownership.md)), so it cannot scaffold a starter file. It ships one to copy instead, generated from the config types so it cannot drift ([ADR-0013](../decisions/ADR-0013-generate-config-examples-from-types.md)).
 
 Four artifacts belong under `docs/reference/examples/`, and which are generated follows from whether a type describes them:
 
-| Artifact               | Rendered from                                      | Kind                | Present |
-| ---------------------- | -------------------------------------------------- | ------------------- | ------- |
-| `config.example.toml`  | the wrapper's configuration type                   | Generated           | No      |
-| `config.schema.json`   | the wrapper's configuration type                   | Generated           | No      |
-| `profile.example.yaml` | the profile type — `layers` and `array_strategies` | Generated           | No      |
-| `piece.example.json`   | nothing — a piece is the child's own format        | **Hand-maintained** | Yes     |
+| Artifact               | Rendered from                                      | Kind            | Present |
+| ---------------------- | -------------------------------------------------- | --------------- | ------- |
+| `config.example.toml`  | the wrapper's configuration type                   | Generated       | No      |
+| `config.schema.json`   | the wrapper's configuration type                   | Generated       | No      |
+| `profile.example.yaml` | the profile type — `layers` and `array_strategies` | Generated       | No      |
+| `piece.example.json`   | nothing — a piece is the child's own format        | Hand-maintained | Yes     |
 
-**Only the hand-maintained one exists today.** The three generated artifacts arrive with the generator that renders them, which arrives with the [`xtask` member](../explanation/architecture.md#one-shipped-crate-plus-xtask) that hosts it. Until then the freshness rule below has nothing to compare and the `gen-config` gate row is marked deferred in [the gate](./testing-and-quality.md#the-gate).
+Only the hand-maintained one exists today. The three generated artifacts arrive with the generator that renders them, which arrives with the [`xtask` member](../explanation/architecture.md#one-shipped-crate-plus-xtask) that hosts it. Until then the freshness rule below has nothing to compare and the `gen-config` gate row is marked deferred in [the gate](./testing-and-quality.md#the-gate).
 
-A piece has no type to reflect over, because its shape is the child's and evolves on the child's schedule. It therefore ships as an authored file under the _same_ discipline as the generated ones: a header, fake values, and copied rather than scaffolded. The only difference is what keeps it correct.
+A piece has no type to reflect over, because its shape is the child's and evolves on the child's schedule. It therefore ships as an authored file under the same discipline as the generated ones: a header, fake values, and copied rather than scaffolded. The only difference is what keeps it correct.
 
 #### What a generated example contains
 
-- **Required keys active, optional keys commented out.** The uncommented file is a minimal valid configuration; uncommenting adds optional surface.
-- **Every key annotated with its own description**, taken from the field in the type.
-- **Placeholders that are obviously fake** — `REPLACE_ME`, `/path/to/thing`, the first enum variant. A placeholder that happens to be a valid live value invites accidental use.
-- **A header** naming the copy destination and stating that the wrapper never writes configuration.
+- Required keys active, optional keys commented out. The uncommented file is a minimal valid configuration; uncommenting adds optional surface.
+- Every key annotated with its own description, taken from the field in the type.
+- Placeholders that are obviously fake — `REPLACE_ME`, `/path/to/thing`, the first enum variant. A placeholder that happens to be a valid live value invites accidental use.
+- A header naming the copy destination and stating that the wrapper never writes configuration.
 
-Generation **fails** when a public field carries no description. That hard failure is the whole mechanism: it is what keeps the example self-documenting instead of a wall of bare keys, and it means adding a field without documenting it cannot pass review.
+Generation fails when a public field carries no description. That hard failure is the whole mechanism: it is what keeps the example self-documenting instead of a wall of bare keys, and it means adding a field without documenting it cannot pass review.
 
-The generated example **must round-trip through the real loader** in a test. An example the program itself would reject is worse than none; see [testing and quality](./testing-and-quality.md).
+The generated example must round-trip through the real loader in a test. An example the program itself would reject is worse than none; see [testing and quality](./testing-and-quality.md).
 
 #### Freshness
 
-Generated files rot silently unless something proves they still match the types. The generator renders every artifact in memory and **compares it byte for byte with what is on disk**; a file whose contents differ is stale, and a missing file is stale. The comparison is the whole trigger — there is no list of what causes regeneration, because such a list is the invalidation rule the next paragraph rejects.
+Generated files rot silently unless something proves they still match the types. The generator renders every artifact in memory and compares it byte for byte with what is on disk; a file whose contents differ is stale, and a missing file is stale. The comparison is the whole trigger — there is no list of what causes regeneration, because such a list is the invalidation rule the next paragraph rejects.
 
-**Nothing at run time depends on freshness.** These four are repository documentation: the installed binary never opens them, no probe checks them, and no exit code can report them. A stale artifact is a build-gate failure and nothing else.
+Nothing at run time depends on freshness. These four are repository documentation: the installed binary never opens them, no probe checks them, and no exit code can report them. A stale artifact is a build-gate failure and nothing else.
 
-This is deliberately **not a cache**. There is no hash file, no timestamp, and nothing to invalidate — rendering is deterministic, so identical types produce identical bytes, and a commit that changes no field is a natural no-op. A cache keyed on the model would add an artifact to commit, an invalidation rule to get wrong, and a failure mode where the cache says fresh and the file is not.
+This is deliberately not a cache. There is no hash file, no timestamp, and nothing to invalidate — rendering is deterministic, so identical types produce identical bytes, and a commit that changes no field is a natural no-op. A cache keyed on the model would add an artifact to commit, an invalidation rule to get wrong, and a failure mode where the cache says fresh and the file is not.
 
 Two modes, one command:
 
@@ -126,7 +126,7 @@ Two modes, one command:
 
 The default mode runs as a pre-commit hook, so a type change and its regenerated example land in the same commit; `--check` runs in CI. The hook passes no filenames and always runs, because an example's relationship is to the whole model rather than to any one changed file.
 
-One consequence is worth knowing before it bites: **generated files must be staged whole.** Partially staging one — `git commit -p` on a generated example — commits something the generator did not produce, and the gate cannot tell that apart from a stale file.
+One consequence is worth knowing before it bites: generated files must be staged whole. Partially staging one — `git commit -p` on a generated example — commits something the generator did not produce, and the gate cannot tell that apart from a stale file.
 
 The generator lives in an `xtask` workspace member rather than in the shipped binary, so schema machinery never reaches a user's install ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)).
 
@@ -136,13 +136,13 @@ For each key, the wrapper tracks which layer supplied the winning value. This is
 
 ## Composing the child's settings
 
-The user authors wrapper **pieces** and a **profile**; the wrapper composes them into an entry in the [composed-settings store](./xdg-storage.md#composed-settings-entries), supplied as a native `--settings` layer under [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md). That entry is one layer among the child's several, not the child's whole settings — [where composition stops](#where-composition-stops) says which.
+The user authors wrapper pieces and a profile; the wrapper composes them into an entry in the [composed-settings store](./xdg-storage.md#composed-settings-entries), supplied as a native `--settings` layer under [ADR-0028](../decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md). That entry is one layer among the child's several, not the child's whole settings — [where composition stops](#where-composition-stops) says which.
 
 ### Inputs
 
-**Pieces** are partial settings documents in the child's own format, JSON, under `settings/` in the config base. Each is a fragment: a piece that only sets one key contains only that key. Pieces are read-only to the wrapper.
+Pieces are partial settings documents in the child's own format, JSON, under `settings/` in the config base. Each is a fragment: a piece that only sets one key contains only that key. Pieces are read-only to the wrapper.
 
-**Profiles** are the named sets. One YAML file per profile under `profiles/`, whose sole required field is an ordered, non-empty list of piece names:
+Profiles are the named sets. One YAML file per profile under `profiles/`, whose sole required field is an ordered, non-empty list of piece names:
 
 ```yaml
 # profiles/work.yaml
@@ -162,7 +162,7 @@ The flag is `--profile <name>`; the configuration key and its environment spelli
 
 With nothing set and no `--profile`, no name is resolved, so nothing is composed and no `--settings` layer is passed — an empty config tree launches the child unchanged, which the passthrough contract requires.
 
-A name that _is_ resolved must exist. `profiles/<name>.yaml` missing is `NoInput`, whichever layer supplied the name: a profile the user asked for and did not get is the silent-wrong-settings bug the unknown-key rule exists to prevent. See [exit codes](./exit-codes.md#exit-regimes-by-verb).
+A name that is resolved must exist. `profiles/<name>.yaml` missing is `NoInput`, whichever layer supplied the name: a profile the user asked for and did not get is the silent-wrong-settings bug the unknown-key rule exists to prevent. See [exit codes](./exit-codes.md#exit-regimes-by-verb).
 
 A profile name becomes a path component in the composed-settings store, so it must satisfy [the identifier rules](./xdg-storage.md#identifiers); a name that does not exits `Usage`, whichever layer supplied it.
 
@@ -174,13 +174,13 @@ Pieces are folded left to right into one document:
 | --------------------- | ------------------------------------------------------------------------- |
 | Object                | Merged key by key, recursively                                            |
 | Scalar                | Last writer wins                                                          |
-| Array                 | **Replace** by default                                                    |
+| Array                 | Replace by default                                                        |
 | Array, `concat`       | Elements appended in layer order                                          |
 | Array, `merge-by-key` | Elements matched on a named field and merged; unmatched elements appended |
 
-Array strategy is the one genuinely contested decision. Replace is the default because it is predictable: what the last piece says is what you get. Concatenation is what you want for additive lists — extra permitted paths, extra tools — and it is opt-in **per key** through a strategy table in the profile, because a global concat setting is wrong for roughly half of any real settings file.
+Array strategy is the one genuinely contested decision. Replace is the default because it is predictable: what the last piece says is what you get. Concatenation is what you want for additive lists — extra permitted paths, extra tools — and it is opt-in per key through a strategy table in the profile, because a global concat setting is wrong for roughly half of any real settings file.
 
-Worth knowing before it surprises a piece author: **the child merges arrays the other way.** Where one array-valued setting appears in several of the child's own scopes, the child concatenates and de-duplicates rather than replacing. The wrapper's pieces are not the child's scopes, and predictability wins inside the wrapper — but a `permissions.allow` split across two pieces behaves differently from the same list split across two of the child's files. The child's rule is tracked as [`child-settings-scope-precedence`](./research-tracking.yaml).
+Worth knowing before it surprises a piece author: the child merges arrays the other way. Where one array-valued setting appears in several of the child's own scopes, the child concatenates and de-duplicates rather than replacing. The wrapper's pieces are not the child's scopes, and predictability wins inside the wrapper — but a `permissions.allow` split across two pieces behaves differently from the same list split across two of the child's files. The child's rule is tracked as [`child-settings-scope-precedence`](./research-tracking.yaml).
 
 #### Declaring a strategy
 
@@ -211,9 +211,9 @@ A pointer, not a dotted path: the child renders nested settings keys dotted — 
 
 Matched objects merge recursively; unmatched elements append in layer order. A strategy that silently applies to nothing is the same silent-wrong-settings bug the [unknown-key rule](#schema) exists to prevent, which is why the third row is an error rather than a warning.
 
-A **type conflict** — one piece making a key an object and another a string — is an error, not a silent overwrite. It names the key path, both pieces, and both types.
+A type conflict — one piece making a key an object and another a string — is an error, not a silent overwrite. It names the key path, both pieces, and both types.
 
-Merging is **deterministic**: the same inputs produce byte-identical output, with object keys in a stable order. It is what lets an entry be named by its inputs at all, and it makes diffs useful.
+Merging is deterministic: the same inputs produce byte-identical output, with object keys in a stable order. It is what lets an entry be named by its inputs at all, and it makes diffs useful.
 
 ### Provenance sidecar
 
@@ -227,7 +227,7 @@ Alongside the composed settings, the wrapper writes a sidecar. It exists because
 | `pieces`       | The pieces in profile order, each `name` and resolved `path`               |
 | `keys`         | One entry per leaf key, addressed by [JSON Pointer](#declaring-a-strategy) |
 
-Each `keys` entry names the `piece` that supplied the winning value. Where more than one piece touched the key it also carries the ordered chain — `overrode` for a scalar, `contributors` and `strategy` for a merged array — because "the setting is wrong" and "the setting is wrong _because_ this piece overrode that one" are different answers and only the second is useful. A single-contributor key stays one line: an optional field absent is omitted, never null.
+Each `keys` entry names the `piece` that supplied the winning value. Where more than one piece touched the key it also carries the ordered chain — `overrode` for a scalar, `contributors` and `strategy` for a merged array — because "the setting is wrong" and "the setting is wrong because this piece overrode that one" are different answers and only the second is useful. A single-contributor key stays one line: an optional field absent is omitted, never null.
 
 ```json
 {
@@ -246,7 +246,7 @@ Each `keys` entry names the `piece` that supplied the winning value. Where more 
 }
 ```
 
-A path is an OS byte string and JSON is not ([process runtime](./process-runtime.md#child-argument-vector)). `path` and `profile_path` carry the lossy display form; a `path_b64` sibling appears beside either **only** where that form is not byte-exact.
+A path is an OS byte string and JSON is not ([process runtime](./process-runtime.md#child-argument-vector)). `path` and `profile_path` carry the lossy display form; a `path_b64` sibling appears beside either only where that form is not byte-exact.
 
 There is no version field. The digest preimage's domain tag already versions the format: changing the sidecar's shape bumps the tag, which renames every entry, which makes an old sidecar unreachable rather than misread. A field with one possible value discriminates nothing ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
@@ -262,19 +262,19 @@ Existence is the whole freshness answer. Because the key covers the profile and 
 
 Composition ends at one file. The wrapper hands it over as `--settings <absolute path>`, prepended to the child's argument vector ([process runtime](./process-runtime.md#child-argument-vector)), and resolves nothing beyond it.
 
-The child places that document in its command-line-arguments tier: above its local, shared-project, and user settings, and **below managed settings, which the composed document cannot override**. The wrapper passes no `--setting-sources`, so the working directory's own `.claude/settings*.json` still load beneath the composed layer. Neither is a defect to repair — the child owns its resolution — but both are invisible from inside the wrapper, so `config` reports the composed entry and never claims it is what the child will run.
+The child places that document in its command-line-arguments tier: above its local, shared-project, and user settings, and below managed settings, which the composed document cannot override. The wrapper passes no `--setting-sources`, so the working directory's own `.claude/settings*.json` still load beneath the composed layer. Neither is a defect to repair — the child owns its resolution — but both are invisible from inside the wrapper, so `config` reports the composed entry and never claims it is what the child will run.
 
-`CLAUDE_CONFIG_DIR` does not carry the composed file, for two reasons. It relocates the child's whole tree — settings, history, plugins, and the saved login — so making it per-profile would split the one credential store [accounts](./accounts.md) exists to keep whole, already rejected in [ADR-0064](../decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md). And it would land the composed document in the child's _lowest_ tier, where a repository's checked-in settings would outrank the profile the user explicitly asked for. The first reason is about credentials; the second is about the feature not working.
+`CLAUDE_CONFIG_DIR` does not carry the composed file, for two reasons. It relocates the child's whole tree — settings, history, plugins, and the saved login — so making it per-profile would split the one credential store [accounts](./accounts.md) exists to keep whole, already rejected in [ADR-0064](../decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md). And it would land the composed document in the child's lowest tier, where a repository's checked-in settings would outrank the profile the user explicitly asked for. The first reason is about credentials; the second is about the feature not working.
 
 A user's own `--settings` still replaces the wrapper's by last occurrence, accepted rather than repaired ([ADR-0047](../decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md)).
 
 ### Validation
 
-Validation is deliberately **pragmatic**. The wrapper validates the structure it owns and the well-formedness of the whole. It does not reject unknown keys in the child's settings, because the child's schema evolves on its own schedule and a wrapper that rejects a valid new setting is worse than one that passes it through.
+Validation is deliberately pragmatic. The wrapper validates the structure it owns and the well-formedness of the whole. It does not reject unknown keys in the child's settings, because the child's schema evolves on its own schedule and a wrapper that rejects a valid new setting is worse than one that passes it through.
 
 That is the opposite of the rule for the wrapper's own configuration, and the asymmetry is the point: strict about what we own, permissive about what we forward. It is the passthrough contract applied to configuration.
 
-Unknown _piece_ keys are surfaced as warnings with provenance rather than errors.
+Unknown piece keys are surfaced as warnings with provenance rather than errors.
 
 ### Child-owned account state
 
@@ -293,7 +293,7 @@ Both accept `--json`, and both write data to standard output and diagnostics to 
 
 `--profile` is declared on the two invocations that act on it — the bare launch, which composes that profile's settings for the child, and `config`, which resolves and reports it. It is not a global flag, because on every other verb it would name a value nothing reads ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
-`config` **validates**, so it is an assertion verb: a structural defect or type conflict exits with that defect's code, while unknown-piece-key warnings stay advisory at `0`. The exact table is in [exit codes](./exit-codes.md#exit-regimes-by-verb).
+`config` validates, so it is an assertion verb: a structural defect or type conflict exits with that defect's code, while unknown-piece-key warnings stay advisory at `0`. The exact table is in [exit codes](./exit-codes.md#exit-regimes-by-verb).
 
 The checks it runs are the config-scoped subset of [the one probe catalog](./doctor.md#the-catalog) `doctor` runs in full, so the two cannot disagree and quote one remediation wording ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)). `doctor` reports health and never renders configuration.
 

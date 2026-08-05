@@ -6,7 +6,7 @@ This describes normative design. The crate is pre-implementation.
 
 ## The stream contract
 
-**Standard output carries the result and nothing else.** Standard error carries everything else.
+Standard output carries the result and nothing else. Standard error carries everything else.
 
 The test is whether a user could pipe the command into another program. If a byte would corrupt that pipe, it does not belong on standard output.
 
@@ -20,15 +20,15 @@ The test is whether a user could pipe the command into another program. If a byt
 | Log records             | Log file, optionally mirrored to stderr | See below                                                                                                                                                                                                        |
 | The child's output      | Inherited                               | The wrapper never intercepts it. A [subroutine child](./exit-codes.md#two-regimes) under `--json` inherits stderr in place of stdout, which the verb's document has claimed.                                     |
 
-**During a passthrough invocation the wrapper writes nothing to standard output.** Not a banner, not a progress line, not a "launching claude" notice. The child's standard output is the user's data stream and the wrapper is not entitled to a byte of it. Wrapper diagnostics during a passthrough go to standard error, where they are already interleaved with the child's.
+During a passthrough invocation the wrapper writes nothing to standard output. Not a banner, not a progress line, not a "launching claude" notice. The child's standard output is the user's data stream and the wrapper is not entitled to a byte of it. Wrapper diagnostics during a passthrough go to standard error, where they are already interleaved with the child's.
 
-Every terminal write goes through **one output writer**, owned by the context. Direct print macros are forbidden outside that writer and the entry point, and a lint enforces it; see [testing and quality](./testing-and-quality.md). One writer is what makes JSON mode, `--quiet`, and colour handling work uniformly instead of being reimplemented per command.
+Every terminal write goes through one output writer, owned by the context. Direct print macros are forbidden outside that writer and the entry point, and a lint enforces it; see [testing and quality](./testing-and-quality.md). One writer is what makes JSON mode, `--quiet`, and colour handling work uniformly instead of being reimplemented per command.
 
 ## Machine output
 
 `--json` makes a wrapper verb emit a single JSON document on standard output. It is a mode, not a decoration: in JSON mode, no human-oriented text appears on standard output at all.
 
-The flag is **verb-level** and every verb that produces data declares its own; there is no global `--format`. The reasoning is in [the CLI surface](./cli-surface.md#machine-output-is-not-on-this-table) and [ADR-0024](../decisions/ADR-0024-machine-output-is-a-per-verb-flag.md). One writer still renders every document, so the mode behaves identically across verbs even though the flag is declared per verb.
+The flag is verb-level and every verb that produces data declares its own; there is no global `--format`. The reasoning is in [the CLI surface](./cli-surface.md#machine-output-is-not-on-this-table) and [ADR-0024](../decisions/ADR-0024-machine-output-is-a-per-verb-flag.md). One writer still renders every document, so the mode behaves identically across verbs even though the flag is declared per verb.
 
 Errors in JSON mode still go to standard error, and are themselves a JSON object — the four parts of the [error shape](./exit-codes.md#error-message-shape) as fields, plus the `err.kind` a script branches on:
 
@@ -36,17 +36,17 @@ Errors in JSON mode still go to standard error, and are themselves a JSON object
 { "kind": "ChildNotExecutable", "what": "…", "where": "…", "why": "…", "hint": "…" }
 ```
 
-This is the **one** document shape that is not the verb's to choose. A caller asking for JSON asked for it on both streams, and a failure is the case where falling back to prose is least useful.
+This is the one document shape that is not the verb's to choose. A caller asking for JSON asked for it on both streams, and a failure is the case where falling back to prose is least useful.
 
-It carries one optional field beyond the four parts: **`child_exit`**, an integer, present only when a [subroutine child](./exit-codes.md#two-regimes) produced the failure and it ran ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)). Presence is how a script tells a wrapper-originated failure from one the child returned; absence means the wrapper's own handling failed.
+It carries one optional field beyond the four parts: `child_exit`, an integer, present only when a [subroutine child](./exit-codes.md#two-regimes) produced the failure and it ran ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)). Presence is how a script tells a wrapper-originated failure from one the child returned; absence means the wrapper's own handling failed.
 
 Three rules apply to every document, whichever verb emits it:
 
-- **One document per invocation**, and no envelope shared across verbs. Each verb's top-level object is its own shape, so a document can grow without an agreement every other verb has to honour. See [ADR-0032](../decisions/ADR-0032-give-each-verb-its-own-json-document.md).
-- **An absent optional field is omitted, never `null`.** A consumer tests for presence, which is one branch rather than two.
-- **`schema_version` appears only where the document is itself a contract a script matches against** — today that is [`doctor`](./doctor.md#the-report) alone, whose check ids are public API. Adding it everywhere would promise a versioning guarantee the other verbs do not make.
+- One document per invocation, and no envelope shared across verbs. Each verb's top-level object is its own shape, so a document can grow without an agreement every other verb has to honour. See [ADR-0032](../decisions/ADR-0032-give-each-verb-its-own-json-document.md).
+- An absent optional field is omitted, never `null`. A consumer tests for presence, which is one branch rather than two.
+- `schema_version` appears only where the document is itself a contract a script matches against — today that is [`doctor`](./doctor.md#the-report) alone, whose check ids are public API. Adding it everywhere would promise a versioning guarantee the other verbs do not make.
 
-**The error document above is the only shape fixed across every verb.** Everything else — the top-level object, its fields, and whether `schema_version` appears at all — belongs to the verb that emits it and is specified on that verb's own page ([ADR-0032](../decisions/ADR-0032-give-each-verb-its-own-json-document.md)). That is the whole fixed-versus-variable boundary; an index of per-verb documents here would be a second home for every one of them.
+The error document above is the only shape fixed across every verb. Everything else — the top-level object, its fields, and whether `schema_version` appears at all — belongs to the verb that emits it and is specified on that verb's own page ([ADR-0032](../decisions/ADR-0032-give-each-verb-its-own-json-document.md)). That is the whole fixed-versus-variable boundary; an index of per-verb documents here would be a second home for every one of them.
 
 ## Verbosity
 
@@ -62,15 +62,15 @@ Verbosity repeats by repeating the whole spelling, and `-vv` is not a wrapper to
 
 A fourth `--verbose` is not an error; the level is clamped at trace. `--quiet` and `--verbose` together is a usage error, not a silent precedence rule.
 
-`RUST_LOG` is honoured and, when set, **overrides** the flag-derived level. This is deliberate: the flag is the user's coarse control, and the environment variable is the developer's fine one, which needs per-module filtering the flags cannot express. No `CLAUDE_SESSION_LOG` variable is invented — reusing the ecosystem-standard name means existing knowledge transfers.
+`RUST_LOG` is honoured and, when set, overrides the flag-derived level. This is deliberate: the flag is the user's coarse control, and the environment variable is the developer's fine one, which needs per-module filtering the flags cannot express. No `CLAUDE_SESSION_LOG` variable is invented — reusing the ecosystem-standard name means existing knowledge transfers.
 
-Verbosity governs the **stderr mirror** and nothing else. **The file sink is fixed at `debug`**, unconditionally: `--quiet`, `--verbose`, and `RUST_LOG` do not move it. A level that tracked the terminal would leave the file useless in exactly the case it exists for — a bug report from a user who ran with no flags. `trace` is deliberately not the fixed level, because trace is where child arguments are logged and always-on argument capture on a wrapper that forwards prompts is a standing redaction hazard.
+Verbosity governs the stderr mirror and nothing else. The file sink is fixed at `debug`, unconditionally: `--quiet`, `--verbose`, and `RUST_LOG` do not move it. A level that tracked the terminal would leave the file useless in exactly the case it exists for — a bug report from a user who ran with no flags. `trace` is deliberately not the fixed level, because trace is where child arguments are logged and always-on argument capture on a wrapper that forwards prompts is a standing redaction hazard.
 
 ## Log records
 
 Exactly one subscriber is installed, from the entry point, before anything else runs. Installing a second is a bug.
 
-The default sink is a file under the state base directory, written non-blocking and rotated. It is a file rather than the terminal because a wrapper's diagnostics interleaved with an interactive child's output are unreadable, and because the log's value is in being there _after_ something went wrong.
+The default sink is a file under the state base directory, written non-blocking and rotated. It is a file rather than the terminal because a wrapper's diagnostics interleaved with an interactive child's output are unreadable, and because the log's value is in being there after something went wrong.
 
 The stderr mirror is opt-in, driven by verbosity.
 
@@ -92,7 +92,7 @@ Each record is one line, with a stable field set:
 
 One line per record, with structured fields rather than interpolated prose, because both a human with `grep` and a program with a parser can then use it.
 
-**Credentials, tokens, API keys, and helper output are never emitted**, at any level or in any field. This covers human output, prompts, every `--json` document, logs, diagnostics, errors, and the diagnostic `where` clause. A concrete secret error location is its non-secret path, never its content.
+Credentials, tokens, API keys, and helper output are never emitted, at any level or in any field. This covers human output, prompts, every `--json` document, logs, diagnostics, errors, and the diagnostic `where` clause. A concrete secret error location is its non-secret path, never its content.
 
 The only secret-derived value permitted is `sha256[..8]` of a wrapper-owned OAuth token where [accounts](./accounts.md#token-lifecycle) requires it. Token prefixes and every hash or fingerprint of a child-owned credential are prohibited. Non-secret paths, modes, timestamps, and mode metadata remain reportable.
 
@@ -108,7 +108,7 @@ Applied to stderr text and to stdout only in human format. Never in JSON mode. R
 4. The target stream is not a terminal — off.
 5. Otherwise — on.
 
-There is deliberately **no wrapper flag** for colour. `NO_COLOR` is the established convention and costs the child nothing, whereas claiming `--no-color` would take that spelling away from the child for good — a passthrough-contract change needing its own decision record, per [the CLI surface](./cli-surface.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md).
+There is deliberately no wrapper flag for colour. `NO_COLOR` is the established convention and costs the child nothing, whereas claiming `--no-color` would take that spelling away from the child for good — a passthrough-contract change needing its own decision record, per [the CLI surface](./cli-surface.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md).
 
 Colour never carries meaning by itself. Anything colour indicates is also stated in the text, because a redirected stream, a colour-blind reader, and a screen reader all lose it.
 

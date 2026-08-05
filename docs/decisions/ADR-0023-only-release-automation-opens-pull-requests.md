@@ -12,7 +12,7 @@ The gate detects but never proposes: `cargo-audit` and `cargo-deny` report advis
 
 ## Decision Outcome
 
-Chosen option: **only release automation opens pull requests** — `release-plz` opens the release pull request, and nothing else opens one. Machine-proposed bumps move the dependency set on a schedule the project did not choose, and a stream of generated pull requests is reviewed less carefully than the deliberate change ADR-0009 asks for.
+Chosen option: only release automation opens pull requests — `release-plz` opens the release pull request, and nothing else opens one. Machine-proposed bumps move the dependency set on a schedule the project did not choose, and a stream of generated pull requests is reviewed less carefully than the deliberate change ADR-0009 asks for.
 
 An upgrade is therefore an ordinary human change: run `cargo update` or edit the pin, target `develop`, and let the gate decide whether it lands.
 

@@ -12,7 +12,7 @@
 
 ## Decision Outcome
 
-Chosen option: **Linux and `2.1.220` or newer** — the supported surface is exactly the surface the project measures, and widening it is a decision with its own evidence rather than an omission.
+Chosen option: Linux and `2.1.220` or newer — the supported surface is exactly the surface the project measures, and widening it is a decision with its own evidence rather than an omission.
 
 Linux is the supported target. Other Unix systems are neither claimed nor deliberately broken: the contracts rest on process groups, POSIX signals, controlling terminals, and Unix file modes, so they are expected to hold, but nothing asserts it and no gate proves it. Windows remains out of scope for the reason it always was — the signal and process-group model has no direct equivalent.
 

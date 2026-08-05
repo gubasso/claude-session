@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-Two wrapper verbs need the user's agreement: `account remove` destroys credentials, and `account add` runs a browser login. Both can be invoked from a script, a pipeline, or a container where standard input is not a terminal. A prompt written to a stream nobody reads hangs forever; skipping the prompt silently destroys something. The wrapper needs one rule for both.
+Confirming verbs may run from scripts, pipelines, or containers where standard input is not a terminal. An unread prompt hangs; skipping it can destroy credentials.
 
 ## Considered Options
 
@@ -12,16 +12,15 @@ Two wrapper verbs need the user's agreement: `account remove` destroys credentia
 
 ## Decision Outcome
 
-Chosen option: **fail closed, with a verb-level `--yes`** — absence of a terminal is absence of a user, not agreement from one, and reading it as consent makes a destructive verb silent under a pipe.
+Chosen option: fail closed, with a verb-level `--yes` — absence of a terminal is absence of a user, not agreement from one, and reading it as consent makes a destructive verb silent under a pipe.
 
-With no terminal and no escape, a confirming verb fails **before any side effect**, exiting `Unavailable` — a kind that already covers a missing controlling terminal, so [exit codes](../reference/exit-codes.md) gains nothing. `--yes` is the escape where a yes/no answer is the whole interaction, as in `account remove`. Where the interaction is a browser login no flag can substitute, so `account add`'s headless escape is the API-token path instead.
+With no terminal and no escape, a confirming verb fails before side effects with `Unavailable`. `--yes` is the escape when a yes/no answer is the whole interaction. Browser login has no flag substitute; token mode is its headless path.
 
-`--yes` is scoped to the verb rather than to the top level. A top-level flag is intercepted before the passthrough split and is therefore subtracted from the child's reachable surface permanently ([ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md)); a verb-level flag is parsed inside an invocation the child never sees, so it costs nothing. No `--non-interactive` flag is added — detection already produces that behaviour, so the flag buys nothing. The per-verb table is in [the CLI surface](../reference/cli-surface.md).
+`--yes` is verb-level. A top-level flag permanently subtracts a spelling from the child ([ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md)); a verb-level flag is parsed only after the wrapper verb is chosen. No `--non-interactive` is added because detection already provides that behavior. See [the CLI surface](../reference/cli-surface.md).
 
 ## Consequences
 
 - Good: no invocation hangs on an unread prompt, and no script is ever silently destructive.
-- Good: the claimed top-level flag set is unchanged, so this is not a passthrough-contract change.
 - Bad: a verb-level flag does not appear in top-level help, so users must read the verb's help to find it.
 - Bad: the rule is applied per verb rather than enforced centrally, so a new confirming verb can forget it and no lint will notice.
 
@@ -29,6 +28,4 @@ With no terminal and no escape, a confirming verb fails **before any side effect
 
 Accepted
 
-Amended by [ADR-0027](./ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md) and [ADR-0030](./ADR-0030-use-account-login-for-wrapper-authentication.md): `account login --token [--stdin]` and long-lived subscription-token terminology replace the historical planned `account add` and API-token wording.
-
-Amended by [ADR-0053](./ADR-0053-read-a-confirmation-from-the-controlling-terminal.md): "no terminal" is opening the controlling terminal and failing, not `isatty(0)`. The outcome above is unchanged; only the predicate is now stated.
+Amended by [ADR-0027](./ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md) and [ADR-0030](./ADR-0030-use-account-login-for-wrapper-authentication.md) for token terminology, and by [ADR-0053](./ADR-0053-read-a-confirmation-from-the-controlling-terminal.md) for the controlling-terminal predicate.

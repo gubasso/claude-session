@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-The wrapper must run the child and be transparent about it. Replacing its own process image with the child's is the cheapest way to be transparent: no signal forwarding, no exit-status translation, no extra process. But the wrapper also owns work that can only run _after_ the child exits — syncing credential and project-trust state out of the isolated session directory.
+The wrapper must run the child and be transparent about it. Replacing its own process image with the child's is the cheapest way to be transparent: no signal forwarding, no exit-status translation, no extra process. But the wrapper also owns work that can only run after the child exits — syncing credential and project-trust state out of the isolated session directory.
 
 ## Considered Options
 
@@ -12,11 +12,11 @@ The wrapper must run the child and be transparent about it. Replacing its own pr
 
 ## Decision Outcome
 
-Chosen option: **spawn and wait** — `exec` never returns, so post-flight sync-back would never run, and that work cannot move earlier because it depends on what the child did.
+Chosen option: spawn and wait — `exec` never returns, so post-flight sync-back would never run, and that work cannot move earlier because it depends on what the child did.
 
-Having chosen to stay alive, the wrapper must be **behaviourally indistinguishable** from `exec` in everything observable: the same exit status, terminal behaviour, and response to an interrupt.
+Having chosen to stay alive, the wrapper must be behaviourally indistinguishable from `exec` in everything observable: the same exit status, terminal behaviour, and response to an interrupt.
 
-That is met by a specific topology. The child **shares the wrapper's foreground process group**, so a terminal-generated signal reaches both and the wrapper must **not** forward it — forwarding double-delivers, and a child counting interrupts misreads one keypress as two. Forwarding is deliberately partial: only what the terminal does not broadcast. See [process runtime](../reference/process-runtime.md).
+That is met by a specific topology. The child shares the wrapper's foreground process group, so a terminal-generated signal reaches both and the wrapper must not forward it — forwarding double-delivers, and a child counting interrupts misreads one keypress as two. Forwarding is deliberately partial: only what the terminal does not broadcast. See [process runtime](../reference/process-runtime.md).
 
 ## Consequences
 

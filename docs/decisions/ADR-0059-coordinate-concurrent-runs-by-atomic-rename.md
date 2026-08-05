@@ -12,13 +12,12 @@ The artifact table declared a `locks/<name>.lock` under the Runtime base, and [A
 
 ## Decision Outcome
 
-Chosen option: **drop the lock** — every wrapper-owned write is either an atomic rename, where the loser of a race is overwritten by a complete file rather than corrupting one, or an idempotent directory creation. Neither has a critical section to protect, so mutual exclusion has no present subject ([ADR-0048](./ADR-0048-build-for-a-present-need.md)).
+Chosen option: drop the lock — every wrapper-owned write is either an atomic rename, where the loser of a race is overwritten by a complete file rather than corrupting one, or an idempotent directory creation. Neither has a critical section to protect, so mutual exclusion has no present subject ([ADR-0048](./ADR-0048-build-for-a-present-need.md)).
 
 Conservative group pruning does not need it either: "possibly active" is decided by age, not by a held lock.
 
 ## Consequences
 
-- Good: the stale-lock refusal stops existing rather than being detected and repaired, so the kill path has one less artifact class.
 - Good: the Runtime base loses its only user and is removed, taking with it the "absent in containers, cron, and remote logins" degradation path and its report.
 - Bad: `TempFail` (75) loses its only producer and leaves the matrix, so the availability argument in ADR-0033 no longer has a subject.
 - Bad: a real need for mutual exclusion re-opens this, and arrives as a superseding record that names the write it protects.

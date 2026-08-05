@@ -10,7 +10,7 @@ This page names crates and never versions. Versions are resolved by `cargo add` 
 
 ## Reviewed candidates
 
-These crates have been assessed as appropriate for this project. **Being on this list does not put a crate in the manifest.** A crate is added when a specific piece of work needs it, and not before — an unused dependency is compile time, audit surface, and supply-chain risk bought for nothing. A lint catches unused dependencies; see [testing and quality](./testing-and-quality.md).
+These crates have been assessed as appropriate for this project. Being on this list does not put a crate in the manifest. A crate is added when a specific piece of work needs it, and not before — an unused dependency is compile time, audit surface, and supply-chain risk bought for nothing. A lint catches unused dependencies; see [testing and quality](./testing-and-quality.md).
 
 ### Command line
 
@@ -67,9 +67,9 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 
 ### Asynchrony
 
-| Crate                | Why                                     | Skip if                                                                                                                                                                   |
-| -------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tokio` (rt, macros) | Only if concurrency is genuinely needed | **Probably skip.** A wrapper that spawns one child and waits has no need for an async runtime. Add it only when a specific requirement demands it, and record the reason. |
+| Crate                | Why                                     | Skip if                                                                                                                                                               |
+| -------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tokio` (rt, macros) | Only if concurrency is genuinely needed | Probably skip. A wrapper that spawns one child and waits has no need for an async runtime. Add it only when a specific requirement demands it, and record the reason. |
 
 ### Testing
 
@@ -84,7 +84,7 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 
 ### Development tooling — `xtask` only
 
-These belong to the `xtask` workspace member ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)) — which [does not exist yet](../explanation/architecture.md#one-shipped-crate-plus-xtask) — and **never enter the shipped binary's dependency graph**. That separation is the reason the generator lives in `xtask` at all, so adding one of these to the wrapper's own manifest defeats the point.
+These belong to the `xtask` workspace member ([ADR-0014](../decisions/ADR-0014-xtask-workspace-for-dev-tooling.md)) — which [does not exist yet](../explanation/architecture.md#one-shipped-crate-plus-xtask) — and never enter the shipped binary's dependency graph. That separation is the reason the generator lives in `xtask` at all, so adding one of these to the wrapper's own manifest defeats the point.
 
 | Crate                   | Why                                                                              |
 | ----------------------- | -------------------------------------------------------------------------------- |
@@ -145,11 +145,11 @@ Follow this admission procedure in order:
 cargo add clap --features derive,env,wrap_help
 ```
 
-The states are distinct: **reviewed** authorizes consideration, not installation; **deferred** names the trigger; the manifest records present use; the lockfile records resolution; **ruled out** records a rejected approach. They are not interchangeable statuses.
+The states are distinct: reviewed authorizes consideration, not installation; deferred names the trigger; the manifest records present use; the lockfile records resolution; ruled out records a rejected approach. They are not interchangeable statuses.
 
 ## Lockfile and supply chain
 
-`Cargo.lock` is **committed**. This is a binary, not a library: reproducible builds are the point, and a lockfile is how a bug report from six months ago is reproducible.
+`Cargo.lock` is committed. This is a binary, not a library: reproducible builds are the point, and a lockfile is how a bug report from six months ago is reproducible.
 
 | Gate                          | Enforces                                                                  | Backing                                                                                                               |
 | ----------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -162,7 +162,7 @@ The states are distinct: **reviewed** authorizes consideration, not installation
 
 The project is dual-licensed MIT or Apache-2.0, and the allow-list is compatible with both.
 
-**Three of these report rather than reject today**, which is a gap between `deny.toml` and the rule above it, not a softer rule. The manifest has no dependencies yet, so tightening costs nothing and is done in the round that adds the first one: set `wildcards` and the two `sources` keys to `deny`, and move the [ruled-out crates](#ruled-out) into `[bans].deny` with a `reason` each, so the prose ruling becomes the mechanism. `multiple-versions` stays a warning, because a duplicate is a judgement about a transitive graph the project does not control.
+Three of these report rather than reject today, which is a gap between `deny.toml` and the rule above it, not a softer rule. The manifest has no dependencies yet, so tightening costs nothing and is done in the round that adds the first one: set `wildcards` and the two `sources` keys to `deny`, and move the [ruled-out crates](#ruled-out) into `[bans].deny` with a `reason` each, so the prose ruling becomes the mechanism. `multiple-versions` stays a warning, because a duplicate is a judgement about a transitive graph the project does not control.
 
 ## Further reading
 

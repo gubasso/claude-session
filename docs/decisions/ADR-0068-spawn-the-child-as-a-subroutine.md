@@ -12,15 +12,14 @@
 
 ## Decision Outcome
 
-Chosen option: **scope the rule to the passthrough launch**. A verb that spawns the child as a subroutine keeps its own code from the matrix, because it was asked whether it provisioned an account rather than what `claude` thinks; and it keeps its own standard output, because it promised a document there.
+Chosen option: scope the rule to the passthrough launch. A verb that spawns the child as a subroutine keeps its own code from the matrix, because it was asked whether it provisioned an account rather than what `claude` thinks; and it keeps its own standard output, because it promised a document there.
 
-Attribution is what replaces adoption. The diagnostic's **Why** opens with the child command and its status, and the JSON error document carries an optional `child_exit`, whose presence is the origin discriminator. In JSON mode a subroutine child's inherited output goes to standard error.
+Attribution is what replaces adoption. The diagnostic's Why opens with the child command and its status, and the JSON error document carries an optional `child_exit`, whose presence is the origin discriminator. In JSON mode a subroutine child's inherited output goes to standard error.
 
 A new exit code was rejected: the matrix already distinguishes `Auth`, `ChildNotFound`, and `ChildNotExecutable`, and an origin is not a failure class.
 
 ## Consequences
 
-- Good: every wrapper verb answers in one numbering, so a script branches on `err.kind` alone.
 - Good: `--json` is honest on both streams for verbs that spawn a child.
 - Bad: the error document gains a field, so the one shape ADR-0032 reserved is no longer fixed.
 - Bad: "the child owns the answer" now needs its scope stated wherever it is quoted.
@@ -29,6 +28,4 @@ A new exit code was rejected: the matrix already distinguishes `Auth`, `ChildNot
 
 Accepted
 
-Amends [ADR-0005](./ADR-0005-exit-code-taxonomy.md) — the successful-spawn boundary governs the passthrough launch; a subroutine child owns neither status nor standard output.
-
-Amends [ADR-0032](./ADR-0032-give-each-verb-its-own-json-document.md) — the shared error document gains one optional field, `child_exit`.
+Amends [ADR-0005](./ADR-0005-exit-code-taxonomy.md) for the passthrough-only spawn boundary and [ADR-0032](./ADR-0032-give-each-verb-its-own-json-document.md) for optional `child_exit`.

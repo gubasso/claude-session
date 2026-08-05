@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-[ADR-0059](./ADR-0059-coordinate-concurrent-runs-by-atomic-rename.md) dropped the lock on the grounds that no wrapper write has a critical section. That holds for a write recomputed from on-disk inputs: two runs produce identical bytes, so last-writer-wins is invisible. It fails twice. `oauth-token` and `auth-mode.json` are minted by an external exchange rather than derived, so renames landing out of issue order persist an already-revoked credential. Generated settings and their provenance are two files carrying one invariant. An atomic rename buys integrity — no reader sees a partial file — never preservation.
+[ADR-0059](./ADR-0059-coordinate-concurrent-runs-by-atomic-rename.md) dropped locks because derived writes have no critical section: concurrent runs produce identical bytes. Minted `oauth-token` and `auth-mode.json` do not; reversed renames can persist a revoked credential. Atomic rename prevents partial reads, not reordering.
 
 ## Considered Options
 
@@ -12,18 +12,16 @@
 
 ## Decision Outcome
 
-Chosen option: **an advisory lock around the atomic write**. The kernel releases a `flock` when the holder dies for any reason, `SIGKILL` included, so the stale-lock refusal [ADR-0058](./ADR-0058-behave-as-stock-claude-by-default.md) forbids cannot arise — the objection that removed the lock in ADR-0059, answered rather than avoided. Git's `O_EXCL` lockfile has no such release and needs the exit handlers a killed process never runs.
+Chosen option: an advisory lock around the atomic write. The kernel releases `flock` on holder death, including `SIGKILL`, so the stale-lock refusal [ADR-0058](./ADR-0058-behave-as-stock-claude-by-default.md) forbids cannot arise. An `O_EXCL` lockfile needs cleanup a killed process cannot run.
 
 `std::fs::File::lock` is stable since Rust 1.89 against an MSRV of 1.97, so this costs no dependency.
 
-Two properties are load-bearing, and [the lock scopes](../reference/xdg-storage.md#lock-scopes) state both: the lock file outlives the runs that take it, and a `flock` is held per open file description, so an in-process mutex must sit above it.
+The permanent lock file outlives its holders. Because `flock` is per open file description, an in-process mutex sits above it. See [lock scopes](../reference/xdg-storage.md#lock-scopes).
 
 Scope is the writes that need it — the account credential pair and the settings-and-provenance pair. A write derived from its inputs stays lock-free.
 
 ## Consequences
 
-- Good: `TempFail` (75) regains the producer [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) anticipated — an acquisition past its deadline.
-- Good: settings-before-provenance ordering becomes one critical section rather than a rule to remember.
 - Bad: a permanent zero-byte lock file per scope, and a deadline to choose.
 - Bad: `flock` is unreliable over NFS, where a state directory is already ill-advised.
 
@@ -31,8 +29,4 @@ Scope is the writes that need it — the account credential pair and the setting
 
 Accepted
 
-Supersedes [ADR-0059](./ADR-0059-coordinate-concurrent-runs-by-atomic-rename.md) — the atomic rename and its temporary naming carry forward unchanged; only "no wrapper write has a critical section" is withdrawn. The runtime base stays unused, since a lock lives beside the file it guards.
-
-Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — the settings-and-provenance scope is withdrawn: both files carry the same input digest, so the two-file invariant is expressed in the name. The credential scope and the criterion are unchanged.
-
-Amended by [ADR-0069](./ADR-0069-destroy-the-credential-lock-with-its-scope.md) — the never-deleted rule holds while the scope exists; `account remove` destroys the scope and its lock together.
+Supersedes [ADR-0059](./ADR-0059-coordinate-concurrent-runs-by-atomic-rename.md); atomic rename remains. Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) to withdraw the settings scope and [ADR-0069](./ADR-0069-destroy-the-credential-lock-with-its-scope.md) to destroy an account lock with its scope.

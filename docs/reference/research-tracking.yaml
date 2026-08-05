@@ -1,611 +1,207 @@
-# Perishable facts registry.
+# Perishable artifact registry.
 #
-# The documents under docs/ rest on some facts this project does not control:
-# the behaviour of the wrapped `claude` binary, the API surface of third-party
-# crates, and the state of comparable open-source projects. Those facts expire.
-#
-# This file records each one, which document depends on it, how to re-check it,
-# and when it was last verified. It is NOT a second home for the facts
-# themselves — the owning document states the fact, and this file only tracks
-# its freshness. If you find yourself explaining a rule here, it belongs in the
-# owning document instead.
-#
-# Fields:
-#   id          stable identifier, referenced from a review or an issue
-#   fact        one line: what is being tracked, not the full statement
-#   owner       the document that states the fact normatively. Always a
-#               document — never a directory, and never a configuration file
-#               that merely embodies the fact.
-#   dependents  what breaks or needs revisiting if the fact changes
-#   cadence     how often to re-check. Either a fixed interval (monthly,
-#               quarterly, semiannual, annual), which expires on the clock
-#               from last_checked, or an event (on-implementation,
-#               on-major-upgrade), which never expires and fires only when the
-#               named event occurs. A fact may carry both, spelled as prose in
-#               this one field; a second field for the kind would only restate
-#               what the value already says.
-#   last_checked  ISO date of the last verification
-#   revalidate  concretely how to re-check it
-#   trigger_round  optional; for an event cadence only, the queued plan or
-#               round that runs into the question, so the trigger has an
-#               addressable consumer. A clock cadence needs none.
-#   source      optional; the upstream page(s) revalidation reads. A link here
-#               is a starting point for the re-check, not a statement of the
-#               fact — the owning document still states it.
-#
-# Stable rationale (an ADR's reasoning, a design principle) is NOT tracked here.
-# It does not expire on a schedule; it is superseded by a decision.
+# Each entry tracks one owning artifact whose externally controlled inputs can
+# drift. The owning document states the facts; this file records freshness and
+# revalidation only. The former per-fact `id` keys were deliberately dropped.
+# Distinct revalidation procedures from the 31 earlier records are preserved
+# inside each artifact's `revalidate` field.
 
-version: 1
-
-facts:
-  - id: child-config-dir-var
-    fact: >-
-      CLAUDE_CONFIG_DIR selects one account-wide child configuration directory
-      and relocates saved-login storage.
-    owner: docs/reference/process-runtime.md
-    dependents:
-      - docs/explanation/session-isolation.md
-      - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md
-      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
-      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
-    cadence: monthly
-    last_checked: 2026-08-04
-    source:
-      - https://code.claude.com/docs/en/claude-directory
-      - https://code.claude.com/docs/en/authentication
-      - https://code.claude.com/docs/en/debug-your-config
-    revalidate: >-
-      Read the pages above, then run the child on Linux with the variable
-      pointed at an empty account config directory and confirm configuration
-      and login state are written there. The variable moved off the
-      environment-variable reference page without changing behaviour, so a
-      re-check that finds it missing from one page has not found it retired —
-      confirm by running the child before concluding anything.
-
-  - id: child-credential-file-layout
-    fact: >-
-      The child stores its saved login inside the configuration directory.
-    owner: docs/reference/xdg-storage.md
-    dependents:
-      - docs/reference/accounts.md
-      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
-    cadence: monthly
+tracked:
+  - path: .github/workflows/ci.yml
     last_checked: 2026-07-30
-    source:
-      - https://code.claude.com/docs/en/authentication
-    revalidate: >-
-      Check current authentication and environment-variable documentation, then
-      authenticate into an isolated config directory and confirm the file
-      location.
-
-  - id: child-settings-schema
-    fact: >-
-      A published settings schema now exists, but upstream states it is updated
-      periodically and may omit settings added in recent releases, and it
-      permits additional properties. Composition therefore still validates
-      structure without rejecting unknown keys.
-    owner: docs/reference/configuration.md
-    dependents:
-      - docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md
     cadence: quarterly
-    last_checked: 2026-08-04
-    source:
-      - https://code.claude.com/docs/en/settings
-      - https://json.schemastore.org/claude-code-settings.json
+    why: Pinned action tags and the code they resolve to can move independently of this repository.
     revalidate: >-
-      Re-read the schema note on the settings page. Validation may tighten only
-      when the published schema stops lagging releases and stops permitting
-      additional properties; both were still true on 2026-08-04.
+      Compare every action tag in this workflow with the action's current
+      release and security advisories. Record a changed or superseded pin; an
+      unchanged `uses:` line is not evidence that its mutable tag is unchanged.
+    dependents:
+      - docs/reference/testing-and-quality.md
 
-  - id: child-version-floor
-    fact: >-
-      The minimum child version this wrapper is designed against; baseline
-      2.1.211.
-    owner: docs/reference/process-runtime.md
+  - path: .github/workflows/release-plz.yml
+    last_checked: 2026-07-30
+    cadence: quarterly
+    why: Publishing identities, action contracts, tag pins, and forge token behavior are externally controlled.
+    revalidate: >-
+      Compare every action tag with current releases and advisories. Re-check
+      crates.io Trusted Publishing identity fields, supported triggers,
+      enforcement, and first-publish requirements. Re-check release-plz
+      commands, default-branch behavior, OIDC authentication, outputs, and tag
+      shape. Re-check GitHub default-token retriggering, the installed-App token
+      action's inputs and behavior, and personal-account ruleset bypass actors.
+      Use the current public crates.io, release-plz, GitHub Actions, action, and
+      ruleset documentation.
+    dependents:
+      - docs/guides/releasing.md
+      - docs/reference/release-workflow.md
+      - release-plz.toml
+
+  - path: .github/workflows/release.yml
+    last_checked: 2026-07-30
+    cadence: quarterly
+    why: Generated distribution workflow contracts and pinned action tags can drift upstream.
+    revalidate: >-
+      Compare every action tag with current releases and advisories. Re-check
+      cargo-dist's stable version, configuration schema, generated workflow
+      filename and trigger, supported targets and runners, and generated action
+      versions against its public documentation.
+    dependents:
+      - dist-workspace.toml
+      - docs/reference/release-workflow.md
+
+  - path: docs/reference/accounts.md
+    last_checked: 2026-07-30
+    cadence: monthly
+    why: Child authentication commands, precedence, refresh coordination, credential lifetimes, and TUI behavior are externally owned.
+    revalidate: >-
+      Read current public authentication, CLI, directory, troubleshooting, and
+      changelog material. Run two concurrent children against one isolated
+      configuration directory across refresh and confirm one coordinated
+      renewal without recording credentials (slice 005; Q-002). Run
+      `setup-token` with redacted output and confirm the token is accepted only
+      through its documented environment variable. Test redacted combinations
+      of saved login, injected OAuth token, API key, auth token, helper, and
+      cloud selectors to confirm precedence. Run auth status JSON in login and
+      token modes, recording only schema, outcome, and exit status. Run logout
+      against scratch state and verify disappearance by metadata only. Observe
+      redacted saved-login expiry and token-mode status. Measure credential
+      lifetimes from non-secret timestamps. In isolated scratch accounts,
+      verify whether in-TUI login honors the chosen configuration directory and
+      what it does while a token is injected (slice 005; Q-004). Never record a
+      credential value or child-owned fingerprint.
     dependents:
       - docs/decisions/ADR-0025-share-one-native-login-per-account.md
-      - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
-    cadence: monthly
-    last_checked: 2026-07-30
-    source:
-      - https://code.claude.com/docs/en/troubleshoot-install
-      - https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
-    revalidate: >-
-      Check the current troubleshooting documentation and changelog for the
-      minimum version attached to shared-login refresh coordination. Confirm
-      the child still reports its version in a parseable form: the launch
-      check fails closed when it does not, so a presentation change here
-      blocks login mode.
-
-  - id: child-cross-process-refresh-lock
-    fact: >-
-      Processes sharing one saved login coordinate refresh from child version
-      2.1.211.
-    owner: docs/reference/accounts.md
-    dependents:
-      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
-      - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
-    cadence: monthly
-    last_checked: 2026-07-30
-    source:
-      - https://code.claude.com/docs/en/troubleshoot-install
-      - https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
-    revalidate: >-
-      Check current troubleshooting documentation and changelog, then run two
-      concurrent child processes against one config directory across a refresh
-      boundary and confirm one coordinated renewal without login revocation.
-
-  - id: child-setup-token-contract
-    fact: >-
-      setup-token mints a long-lived subscription token consumed through
-      CLAUDE_CODE_OAUTH_TOKEN and does not provide a wrapper-owned output format.
-    owner: docs/reference/accounts.md
-    dependents:
       - docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md
       - docs/decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md
-    cadence: quarterly
-    last_checked: 2026-07-30
-    source:
-      - https://code.claude.com/docs/en/authentication
-      - https://code.claude.com/docs/en/cli-reference
-    revalidate: >-
-      Check current authentication and CLI documentation, then run setup-token
-      with redacted output and confirm the token works only through the
-      documented environment variable. Do not codify presentation text.
-
-  - id: child-auth-precedence
-    fact: >-
-      Ambient cloud, API, and helper authentication can shadow an injected
-      subscription token, which in turn shadows a saved login.
-    owner: docs/reference/accounts.md
-    dependents:
-      - docs/reference/process-runtime.md
-      - docs/reference/logging-and-output.md
-    cadence: monthly
-    last_checked: 2026-07-30
-    source:
-      - https://code.claude.com/docs/en/authentication#authentication-precedence
-    revalidate: >-
-      Compare the current authentication-precedence documentation and test
-      redacted combinations of saved login, OAuth-token injection, API key,
-      auth token, helper, and each cloud-provider selector.
-
-  - id: child-auth-status-json
-    fact: >-
-      The documented auth status JSON command can probe selected authentication
-      without exposing credential material, and reports the outcome in its exit
-      status as well as its document.
-    owner: docs/reference/accounts.md
-    dependents:
-      - docs/reference/logging-and-output.md
+      - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
       - docs/reference/exit-codes.md
-    cadence: quarterly
-    last_checked: 2026-08-04
-    source:
-      - https://code.claude.com/docs/en/cli-reference
-    revalidate: >-
-      Check current CLI documentation and run auth status --json with login and
-      injected-token modes, recording only schema, status behavior, and the
-      exit status of each outcome.
-
-  - id: child-auth-logout-verb
-    fact: >-
-      The child has its own logout verb, which clears the saved login in the
-      configuration directory it was pointed at.
-    owner: docs/reference/accounts.md
-    dependents:
-      - docs/reference/xdg-storage.md
-    cadence: quarterly
-    last_checked: 2026-08-04
-    source:
-      - https://code.claude.com/docs/en/cli-reference
-    revalidate: >-
-      Run it against a scratch configuration directory and confirm the saved
-      login is gone afterwards, without reading the credential itself.
-
-  - id: child-login-expiry-warning
-    fact: >-
-      The child reports approaching saved-login expiry but does not provide the
-      same warning surface for injected long-lived tokens.
-    owner: docs/reference/accounts.md
-    dependents:
       - docs/reference/logging-and-output.md
-    cadence: quarterly
-    last_checked: 2026-07-30
-    source:
-      - https://code.claude.com/docs/en/authentication
-    revalidate: >-
-      Check current authentication and status documentation, then observe
-      redacted status output near login expiry and in injected-token mode.
-
-  - id: child-settings-flag
-    fact: >-
-      The native settings flag accepts an additional settings document, or an
-      inline JSON string, and requires a regular file no larger than 2 MiB. It
-      is accepted at top level and on the agents subcommand, not on every
-      subcommand.
-    owner: docs/reference/configuration.md
-    dependents:
-      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
       - docs/reference/process-runtime.md
-      - docs/reference/prior-art.md
-    cadence: monthly
-    last_checked: 2026-08-04
-    source:
-      - https://code.claude.com/docs/en/cli-reference
-      - https://code.claude.com/docs/en/settings
-    revalidate: >-
-      Check current CLI and settings documentation, then launch with one
-      temporary settings file and verify its non-secret setting is applied.
-      Confirm the size cap and the regular-file requirement still hold; a
-      composed entry that exceeds either becomes a wrapper-side check.
+      - docs/reference/xdg-storage.md
 
-  - id: child-settings-scope-precedence
-    fact: >-
-      Settings resolve managed, then command-line, then local project, then
-      shared project, then user; managed cannot be overridden. Across those
-      scopes array-valued settings concatenate and de-duplicate, which is the
-      inverse of the wrapper's replace-by-default rule for pieces. A
-      setting-sources flag selects which of user, project, and local load.
-    owner: docs/reference/configuration.md
-    dependents:
-      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
-      - docs/reference/prior-art.md
-    cadence: monthly
-    last_checked: 2026-08-04
-    source:
-      - https://code.claude.com/docs/en/settings
-      - https://code.claude.com/docs/en/cli-reference
-    revalidate: >-
-      Re-read the settings precedence section. A composed document that starts
-      outranking a managed file, or an array rule that changes direction,
-      changes what the composition boundary can promise.
-
-  - id: child-settings-duplicate-flag
-    fact: >-
-      Given more than one settings flag the child keeps the last occurrence
-      only; earlier files are not merged, not validated, and not read.
-    owner: docs/reference/process-runtime.md
-    dependents:
-      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
-      - docs/decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md
-      - docs/explanation/wrapper-model.md
-    cadence: monthly
+  - path: docs/reference/cli-surface.md
     last_checked: 2026-07-31
-    source:
-      - https://code.claude.com/docs/en/cli-reference
-      - measured against claude 2.1.220 on linux, 2026-07-31
+    cadence: monthly and on every adopted child or parser major release
+    why: Child spellings and parser treatment of unknown leading flags can change across releases.
     revalidate: >-
-      Run the current child's doctor with two settings paths where exactly one
-      holds malformed JSON, in both orders; the invalid-settings section names
-      the last path only. Order-independent reporting or an error means the
-      precedence changed and ADR-0047 must be revisited.
-
-  - id: child-credential-lifetimes
-    fact: >-
-      Exact access-token and refresh-grant lifetimes are observed rather than
-      documented guarantees.
-    owner: docs/reference/accounts.md
+      Rebuild the child's top-level and per-subcommand inventory from its own
+      help and diff the version-labelled fixture; until the fixture exists in
+      slice 001, re-measure directly. Corroborate with the public CLI reference,
+      record new overlaps, and drop or rename any wrapper spelling whose meaning
+      would change. On a parser major upgrade, retry a leading unknown flag
+      without the pre-split using the upstream external-subcommand cookbook;
+      keep the golden argv tests regardless of outcome.
     dependents:
-      - docs/reference/logging-and-output.md
-    cadence: quarterly
-    last_checked: 2026-07-30
-    source:
-      - https://code.claude.com/docs/en/authentication
-    revalidate: >-
-      Measure redacted timestamps from a fresh saved login and compare with
-      current authentication documentation; never record token values.
-
-  - id: child-tui-login-config-dir
-    fact: >-
-      Whether in-TUI login honors the launch-time configuration directory is
-      unverified.
-    owner: docs/reference/accounts.md
-    dependents:
-      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
-    cadence: monthly
-    last_checked: 2026-08-04
-    source:
-      - https://code.claude.com/docs/en/claude-directory
-      - https://code.claude.com/docs/en/authentication
-    revalidate: >-
-      Launch the child with an empty temporary configuration directory, use
-      in-TUI login, and confirm only by file metadata and non-secret status
-      that the selected directory received the login.
-
-  - id: child-token-mode-tui-login
-    fact: >-
-      The child's behavior when in-TUI login is invoked while an injected
-      subscription token is active is unverified.
-    owner: docs/reference/accounts.md
-    dependents:
-      - docs/reference/logging-and-output.md
-    cadence: monthly
-    last_checked: 2026-07-30
-    source:
-      - https://code.claude.com/docs/en/authentication
-    revalidate: >-
-      In an isolated test account, launch with a redacted injected token and
-      invoke in-TUI login; record whether it is offered, refused, or accepted
-      and shadowed, without recording credential content.
-
-  - id: proxy-base-url-var
-    fact: >-
-      ANTHROPIC_BASE_URL redirects the child's API endpoint; it is the basis
-      of the proxy seam. Pointing it at a non-first-party host now also
-      disables MCP tool search unless a companion variable is set, and
-      disables remote control.
-    owner: docs/reference/process-runtime.md
-    dependents:
-      - docs/explanation/wrapper-model.md
-    cadence: quarterly
-    last_checked: 2026-08-04
-    source:
-      - https://code.claude.com/docs/en/env-vars
-    revalidate: >-
-      Confirm against the current upstream documentation, and confirm which
-      companion variables the non-first-party-host case now requires. The seam
-      is inheritance, so each new companion is one more variable the wrapper
-      passes through untouched rather than one it sets.
-
-  - id: clap-external-subcommand-limits
-    fact: >-
-      External-subcommand handling captures an unexpected positional, not a
-      leading unknown flag — which is why argv is pre-split before parsing.
-    owner: docs/reference/cli-surface.md
-    dependents:
-      - docs/explanation/wrapper-model.md
       - docs/decisions/ADR-0002-verbatim-argv-passthrough.md
-    cadence: on-major-upgrade
-    last_checked: 2026-08-04
-    trigger_round: cs-foundation/clap-passthrough-and-minimal-spawn
-    source:
-      - https://docs.rs/clap/latest/clap/_derive/_cookbook/git_derive/index.html
-    revalidate: >-
-      On a major parser upgrade, retry the leading-unknown-flag invocation
-      without the pre-split. If the parser handles it, the pre-split may be
-      simplifiable — but the golden-argv tests stay either way. The trigger has
-      not fired: the parser is still on the major this was recorded against.
-      The positional half is corroborated by the upstream cookbook example; the
-      leading-unknown-flag half is measured, not quoted, so measure it rather
-      than citing a page.
-
-  - id: child-flag-and-verb-inventory
-    fact: >-
-      The child's top-level flag and subcommand spellings, and which of them
-      the wrapper-owned table and verb table overlap.
-    owner: docs/reference/cli-surface.md
-    dependents:
-      - docs/explanation/wrapper-model.md
       - docs/decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md
       - docs/decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md
       - docs/decisions/ADR-0045-compose-doctor-with-the-child-report.md
-      - docs/reference/testing-and-quality.md
-    cadence: monthly, and on every child release the project adopts
-    last_checked: 2026-07-31
-    source:
-      - https://code.claude.com/docs/en/cli-reference
-      - the checked-in inventory fixture, labelled with the version it was taken from
-      - measured against claude 2.1.220 on linux, 2026-07-31
-    revalidate: >-
-      Rebuild the inventory from the child's own help, top level and every
-      subcommand, and diff it against the fixture. Upstream documentation is
-      not exhaustive, so the fixture is the authority and the published page
-      is the corroboration. Record a new shadowing overlap in the child-status
-      column; an overlap that would change a token's meaning forces the
-      wrapper spelling to be dropped or renamed under a new record. The
-      fixture does not exist yet, so until the round that writes it lands,
-      the authority is the measurement recorded in the source list above and
-      revalidation means re-measuring rather than diffing.
-
-  - id: signal-forwarding-model
-    fact: >-
-      In a shared foreground process group the terminal delivers signals to
-      every member, so forwarding those signals double-delivers.
-    owner: docs/reference/process-runtime.md
-    dependents:
       - docs/explanation/wrapper-model.md
-      - docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md
-    cadence: on-implementation
+      - docs/reference/testing-and-quality.md
+
+  - path: docs/reference/configuration.md
     last_checked: 2026-08-04
-    trigger_round: cs-wrapper-runtime/spawn-signals-exitcodes
-    source:
-      - https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap11.html
+    cadence: monthly
+    why: The native settings schema, flag constraints, and scope precedence evolve outside this repository.
     revalidate: >-
-      Verify empirically once the spawn path exists: send an interrupt to the
-      group and confirm the child observes exactly one. The specification half
-      is confirmed — the terminal sends the signal to every process in the
-      foreground process group — so what remains unmeasured is this wrapper's
-      own behaviour, not the platform's.
-
-  - id: xdg-runtime-absence
-    fact: >-
-      XDG_RUNTIME_DIR has no portable default and is genuinely absent in
-      containers, under cron, and over some remote logins.
-    owner: docs/reference/xdg-storage.md
+      Read the current public settings and CLI references and the published
+      schema. Record whether the schema still lags releases or permits
+      additional properties; tighten validation only when both conditions end
+      (slice 004; Q-003). Launch with a temporary settings file and confirm the
+      setting, regular-file rule, 2 MiB cap, and accepted command positions.
+      Re-read managed, command-line, local-project, shared-project, and user
+      precedence; verify array concatenation/de-duplication and the
+      setting-sources selector. A changed size rule, managed precedence, or
+      array direction changes the composition boundary.
     dependents:
-      - docs/explanation/session-isolation.md
-      - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md
-    cadence: annual
-    last_checked: 2026-08-04
-    source:
-      - https://specifications.freedesktop.org/basedir/latest/
-    revalidate: >-
-      Re-read the base directory specification for any change, and confirm the
-      degrade-explicitly path still holds in a container. The specification
-      half is confirmed: it is the one base with no default defined, and it
-      directs applications to fall back and warn. Where it is actually absent
-      is an environment claim this project has not measured, so treat the
-      container, cron, and remote-login list as unverified until it is.
-
-  - id: switcher-landscape
-    fact: >-
-      The comparable account-switcher projects and what each was inspected
-      for.
-    owner: docs/reference/prior-art.md
-    dependents: []
-    cadence: semiannual
-    last_checked: 2026-08-04
-    revalidate: >-
-      Re-survey. Confirm each project is still maintained, and check whether
-      any has solved a problem this project has open. The field is now much
-      larger than the two originally cited and turns over quickly, so a survey
-      that finds only the projects already on the page has not been run
-      properly. One cited project did not surface in the 2026-08-04 survey;
-      confirm it still exists before relying on its row.
-
-  - id: upstream-native-multi-account
-    fact: >-
-      Whether the wrapped tool has gained native multi-account support, which
-      would make the isolation layer redundant.
-    owner: docs/reference/prior-art.md
-    dependents:
-      - docs/explanation/session-isolation.md
-    cadence: quarterly
-    last_checked: 2026-08-04
-    revalidate: >-
-      Check the upstream feature requests and the changelog. Still absent on
-      2026-08-04: the requests are open and there is no account catalog or
-      switching surface. A per-account configuration directory is not that —
-      it is the mechanism this wrapper already builds on. If native switching
-      ships, re-evaluate the isolation layer; composition and supervision are
-      unaffected.
-
-  - id: dependency-currency
-    fact: >-
-      The reviewed crate set in the dependencies reference is still the right
-      set, and nothing on it has been deprecated or superseded.
-    owner: docs/reference/dependencies.md
-    dependents: []
-    cadence: semiannual
-    last_checked: 2026-07-31
-    revalidate: >-
-      Check each named crate for maintenance status and for a successor, one
-      at a time. The page carries no version numbers, so only names and rulings
-      need review. A spot-check of the prominent crates is not this check: the
-      2026-08-04 pass confirmed several and could not complete the rest, so the
-      blanket "nothing superseded" claim stays unverified until every named
-      crate has been looked at individually.
-
-  - id: pinned-action-currency
-    fact: >-
-      The GitHub Actions the workflows pin by tag are still maintained, and no
-      pin has been superseded or left behind by a security release.
-    owner: docs/guides/development-workflow.md
-    dependents:
-      - .github/workflows/
-    cadence: quarterly
-    last_checked: 2026-07-30
-    revalidate: >-
-      Compare each pinned tag against the action's current release and its
-      advisories. A tag is mutable, so an unchanged workflow file is not
-      evidence that the code it runs is unchanged.
-
-  - id: crates-io-trusted-publishing
-    fact: >-
-      crates.io Trusted Publishing identity, supported triggers, enforcement,
-      and first-publish requirements.
-    owner: docs/reference/release-workflow.md
-    dependents:
-      - docs/guides/releasing.md
-      - .github/workflows/release-plz.yml
-    cadence: quarterly
-    last_checked: 2026-07-30
-    source:
-      - https://crates.io/docs/trusted-publishing
-    revalidate: >-
-      Re-check publisher identity fields, supported workflow triggers,
-      enforcement behavior, and the first-publish requirement.
-
-  - id: release-plz-action-contract
-    fact: >-
-      release-plz action commands, default-branch behavior, OIDC support,
-      release outputs, and default tag shape.
-    owner: docs/reference/release-workflow.md
-    dependents:
-      - .github/workflows/release-plz.yml
-      - release-plz.toml
-    cadence: quarterly
-    last_checked: 2026-07-30
-    source:
-      - https://release-plz.dev/docs
-    revalidate: >-
-      Re-check commands, default-branch behavior, OIDC authentication, action
-      outputs, and the default release tag.
-
-  - id: github-release-app-token-behavior
-    fact: >-
-      GitHub default-token retrigger behavior, installed-App token inputs, and
-      personal-account ruleset bypass support.
-    owner: docs/reference/release-workflow.md
-    dependents:
-      - .github/workflows/release-plz.yml
-      - docs/guides/releasing.md
-    cadence: quarterly
-    last_checked: 2026-07-30
-    source:
-      - https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-when-your-workflow-runs/triggering-a-workflow
-      - https://github.com/actions/create-github-app-token
-      - https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
-    revalidate: >-
-      Re-check default-token workflow retriggering, App action behavior and
-      inputs, and personal-account bypass actors.
-
-  - id: cargo-dist-generator-contract
-    fact: >-
-      cargo-dist stable version, configuration schema, generated workflow
-      filename and trigger, supported targets, runners, and actions.
-    owner: docs/reference/release-workflow.md
-    dependents:
-      - dist-workspace.toml
-      - .github/workflows/release.yml
-    cadence: quarterly
-    last_checked: 2026-07-30
-    source:
-      - https://opensource.axo.dev/cargo-dist/
-    revalidate: >-
-      Re-check the stable version, schema, generated filename and trigger,
-      supported targets, runners, and generated action versions.
-
-  - id: directories-relative-value-handling
-    fact: >-
-      The directories crate discards a relative or empty XDG_* value in favour
-      of the specification default, matching the XDG requirement. Verified in
-      source; not stated in the crate's rendered documentation, so it is
-      behaviour rather than a contract.
-    owner: docs/reference/xdg-storage.md
-    dependents:
-      - docs/reference/dependencies.md
-    cadence: semiannual
-    last_checked: 2026-08-03
-    source:
-      - https://docs.rs/directories/latest/directories/struct.BaseDirs.html
-      - https://specifications.freedesktop.org/basedir/latest/
-    revalidate: >-
-      Re-check whether relative and empty values are still discarded, and
-      whether the crate has documented the behaviour so it can be relied on.
-
-  - id: derived-artifact-addressing
-    fact: >-
-      Mature tools name a derived artifact by its inputs and make it immutable,
-      and name a user-selected context by the name the user chose. Nix store
-      paths pair a digest with a symbolic name; the Go module cache makes
-      extracted directories read-only; Chromium needs a singleton lock only
-      because a profile directory is mutable live state.
-    owner: docs/decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md
-    dependents:
+      - docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md
+      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
       - docs/reference/prior-art.md
-      - docs/reference/xdg-storage.md
-      - docs/explanation/session-isolation.md
+      - docs/reference/process-runtime.md
+
+  - path: docs/reference/dependencies.md
+    last_checked: 2026-07-31
     cadence: semiannual
-    last_checked: 2026-08-03
-    source:
-      - https://nix.dev/manual/nix/latest/store/store-path.html
-      - https://go.dev/ref/mod
-      - https://chromium.googlesource.com/chromium/src/+/main/docs/user_data_dir.md
+    why: Reviewed crates can become unmaintained, deprecated, or superseded.
     revalidate: >-
-      Re-check that Nix store paths and the Go module cache remain
-      input-addressed and immutable, that Chromium still documents a profile
-      directory as mutable live state needing a singleton lock, and that no
-      widely used tool has moved a derived artifact onto a caller-derived key.
+      Inspect every named crate individually for maintenance status and a
+      successor. The page carries rulings rather than version numbers, so
+      review every name and ruling; a spot check is not sufficient.
+    dependents: []
+
+  - path: docs/reference/prior-art.md
+    last_checked: 2026-08-04
+    cadence: quarterly
+    why: Comparable projects change quickly and the child may gain native multi-account support.
+    revalidate: >-
+      Re-survey the account-switcher and session-wrapper landscape from public
+      project sources. Confirm each cited project still exists and is
+      maintained, and inspect new projects for solutions to this project's open
+      problems. Check upstream feature requests and the child changelog for a
+      native account catalog and switching surface. If native switching ships,
+      re-evaluate isolation; configuration directories alone do not qualify.
+    dependents:
+      - docs/explanation/session-isolation.md
+
+  - path: docs/reference/process-runtime.md
+    last_checked: 2026-07-30
+    cadence: monthly and on slice 003 implementation
+    why: Child directory, version, settings precedence, proxy environment, and Unix signal assumptions can drift.
+    revalidate: >-
+      Read current public child directory, authentication, debugging,
+      troubleshooting, changelog, CLI, and environment documentation. Run the
+      child with its configuration-directory variable pointed at empty scratch
+      state and confirm configuration and login placement. Re-check the
+      shared-login version floor and parseable version output (Q-002). Run the
+      child doctor with two settings paths in both orders, one malformed, and
+      confirm the last occurrence alone wins. Re-check the proxy base URL and
+      any companion variables required for non-first-party hosts; inheritance,
+      not wrapper injection, remains the seam. During slice 003, send one
+      interrupt to the shared foreground process group and confirm the child
+      observes exactly one, consistent with the current POSIX terminal model.
+    dependents:
+      - docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md
+      - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md
+      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
+      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
+      - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
+      - docs/decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md
+      - docs/explanation/session-isolation.md
+      - docs/explanation/wrapper-model.md
+
+  - path: docs/reference/release-workflow.md
+    last_checked: 2026-07-30
+    cadence: quarterly
+    why: Trusted Publishing, release automation, distribution, and forge-token contracts are externally controlled.
+    revalidate: >-
+      Re-check the current public crates.io Trusted Publishing identity,
+      triggers, enforcement, and first-publish rules; release-plz commands,
+      default branch, OIDC, outputs, and tags; GitHub default-token retriggering,
+      installed-App token inputs, and personal-account bypass actors; and
+      cargo-dist's stable schema, workflow trigger, targets, runners, and
+      generated actions. Reconcile any drift with the three workflow entries.
+    dependents:
+      - .github/workflows/release-plz.yml
+      - .github/workflows/release.yml
+      - docs/guides/releasing.md
+      - release-plz.toml
+
+  - path: docs/reference/xdg-storage.md
+    last_checked: 2026-07-30
+    cadence: monthly
+    why: Child credential placement, XDG runtime guarantees, and dependency handling of invalid XDG values are external facts.
+    revalidate: >-
+      Read current public child authentication and environment documentation,
+      then authenticate into an isolated configuration directory and confirm
+      credential location by metadata only. Re-read the XDG base-directory
+      specification for runtime guarantees and confirm explicit degradation in
+      a container; treat absence claims for cron and remote login as unverified
+      until measured. Re-check the directories crate's source and public docs
+      to confirm empty or relative XDG values are discarded in favor of the
+      specification default.
+    dependents:
+      - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md
+      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
+      - docs/explanation/session-isolation.md
+      - docs/reference/accounts.md
+      - docs/reference/dependencies.md

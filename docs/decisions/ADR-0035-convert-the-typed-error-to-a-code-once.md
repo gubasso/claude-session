@@ -12,7 +12,7 @@
 
 ## Decision Outcome
 
-Chosen option: **one hand-rolled enum, converted once**.
+Chosen option: one hand-rolled enum, converted once.
 
 `main` returns `std::process::ExitCode`. Every wrapper failure travels as a value to the entry point, is rendered there, and is converted through a single `From` implementation — which is what a test can assert the whole matrix against in one place.
 

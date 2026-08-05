@@ -6,13 +6,13 @@
 
 ## Considered Options
 
-- **Keep it for state and cache** — create directories, prime a registry, print where configuration would go.
-- **Keep it as a binding assistant** — read-only by default, persisting only under an explicit `--write`.
-- **Remove it.**
+- Keep it for state and cache — create directories, prime a registry, print where configuration would go.
+- Keep it as a binding assistant — read-only by default, persisting only under an explicit `--write`.
+- Remove it.
 
 ## Decision Outcome
 
-Chosen option: **remove it** — nothing is left for it to do.
+Chosen option: remove it — nothing is left for it to do.
 
 Every surviving purpose already has an owner. Configuration is optional, because every key has a compiled-in default, so there is no first-run setup to perform. Credentials belong to `account`. Session directories are created on demand by the run that needs them.
 

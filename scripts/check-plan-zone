@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ADR-0077 makes the milestone table the only status surface and fixes the
+# slice entry shape. This checker reads the whole zone so per-file hooks cannot
+# miss cross-file drift.
+
+milestones=docs/plan/milestones.md
+slices_root=docs/plan/slices
+found=0
+expected_headings=$'## Goal\n## Appetite\n## Core\n## In scope\n## Out of scope\n## Governed by\n## Acceptance\n## Rabbit holes\n## Done when\n## Revisions'
+status_re='^(shaped|active|done|cut|reshaped)$'
+declare -A row_status=()
+declare -A row_appetite=()
+declare -A row_dir=()
+declare -A row_count=()
+
+# Table cells hold English prose, so trimming must have no quoting semantics:
+# xargs would abort the whole run on an ordinary apostrophe in the note column.
+trim() {
+  local s=$1
+  s=${s#"${s%%[![:space:]]*}"}
+  REPLY=${s%"${s##*[![:space:]]}"}
+}
+
+while IFS='|' read -r _ id slice status appetite depends note _ || [[ -n ${id:-} ]]; do
+  trim "$id" && id=$REPLY
+  [[ $id =~ ^[0-9]{3}$ ]] || continue
+  # Counted before any other check so a duplicate is caught even when its row
+  # is otherwise malformed. Later rows overwrite the arrays below, so without
+  # this a second contradictory row for one id would be invisible.
+  row_count[$id]=$((${row_count[$id]:-0} + 1))
+  trim "$status" && status=$REPLY
+  trim "$appetite" && appetite=$REPLY
+  trim "$slice" && slice=$REPLY
+  trim "$depends" && depends=$REPLY
+  trim "$note" && note=$REPLY
+
+  if [[ ! $status =~ $status_re ]]; then
+    printf '%s: milestone %s has invalid status %s\n' "$milestones" "$id" "$status"
+    found=1
+  fi
+  if [[ ! $slice =~ \]\((\./slices/([0-9]{3}-[^/]+)/README\.md)\) ]]; then
+    printf '%s: milestone %s does not link its slice README\n' "$milestones" "$id"
+    found=1
+    continue
+  fi
+  link=${BASH_REMATCH[1]}
+  dir=${BASH_REMATCH[2]}
+  if [[ ${dir:0:3} != "$id" || ! -f docs/plan/${link#./} ]]; then
+    printf '%s: milestone %s link does not resolve to one matching directory\n' "$milestones" "$id"
+    found=1
+  fi
+  row_status[$id]=$status
+  row_appetite[$id]=$appetite
+  row_dir[$id]=$dir
+  : "$depends" "$note"
+done <"$milestones"
+
+for id in "${!row_count[@]}"; do
+  if ((row_count[$id] > 1)); then
+    printf '%s: milestone %s has %d rows; one status surface means one row\n' \
+      "$milestones" "$id" "${row_count[$id]}"
+    found=1
+  fi
+done
+
+mapfile -t dirs < <(find "$slices_root" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+previous=0
+declare -A seen=()
+for dir in "${dirs[@]}"; do
+  if [[ ! $dir =~ ^([0-9]{3})-[a-z0-9-]+$ ]]; then
+    printf '%s/%s: invalid slice directory name\n' "$slices_root" "$dir"
+    found=1
+    continue
+  fi
+  id=${BASH_REMATCH[1]}
+  numeric=$((10#$id))
+  if [[ -n ${seen[$id]:-} || $numeric -ne $((previous + 1)) ]]; then
+    printf '%s/%s: reused or non-contiguous slice id\n' "$slices_root" "$dir"
+    found=1
+  fi
+  seen[$id]=1
+  previous=$numeric
+
+  # Without the row there is no appetite or status to check this slice against,
+  # and continuing here would mask every later slice's defects behind this one.
+  if [[ ${row_dir[$id]:-} != "$dir" ]]; then
+    printf '%s/%s: no unique matching milestone row\n' "$slices_root" "$dir"
+    found=1
+    continue
+  fi
+
+  readme=$slices_root/$dir/README.md
+  headings=$(grep '^## ' "$readme" || true)
+  shape_ok=1
+  if [[ $headings != "$expected_headings" ]]; then
+    printf '%s: headings differ from the fixed slice shape\n' "$readme"
+    found=1
+    shape_ok=0
+  fi
+  if grep -q '^## Status$' "$readme"; then
+    printf '%s: slices may not carry local status\n' "$readme"
+    found=1
+  fi
+
+  # The whole appetite is compared, not just its number: a slice reading
+  # "4 weeks" against a milestone reading "4 sessions" is the two-surface drift
+  # the plan zone exists to prevent.
+  slice_appetite=$(awk '/^## Appetite$/ { active=1; next } active && NF { sub(/\.$/, ""); print; exit }' "$readme")
+  if [[ $slice_appetite != "${row_appetite[$id]}" ]]; then
+    printf '%s: appetite %s does not match milestone %s appetite %s\n' \
+      "$readme" "$slice_appetite" "$id" "${row_appetite[$id]}"
+    found=1
+  fi
+
+  # A wrong heading list makes every section range below run past its end, so
+  # the section-scoped checks only run once the shape is known good. The
+  # sibling-file gates below do not depend on the shape and always run.
+  if ((shape_ok)); then
+    # Link extraction stays in POSIX awk. A three-argument match() is a gawk
+    # extension, and awk is the host's on this platform: the gawk-only form
+    # failed silently inside process substitution, which is worse than no gate.
+    while IFS= read -r target; do
+      target=${target%%#*}
+      [[ $target =~ ^https?:// || $target =~ ^# || -z $target ]] && continue
+      resolved=$(realpath -m "$(dirname "$readme")/$target")
+      if [[ ! -f $resolved ]]; then
+        printf '%s: Governed by target is missing or not a file: %s\n' "$readme" "$target"
+        found=1
+      fi
+    done < <(awk '
+      /^## Governed by$/ { active=1; next }
+      /^## Acceptance$/ { active=0 }
+      active {
+        rest = $0
+        while ((opener = index(rest, "](")) > 0) {
+          rest = substr(rest, opener + 2)
+          closer = index(rest, ")")
+          if (closer == 0) break
+          print substr(rest, 1, closer - 1)
+          rest = substr(rest, closer + 1)
+        }
+      }
+    ' "$readme")
+
+    # The five adopted EARS shapes, complex being the state-driven form with a
+    # trigger clause inside it. Each needs `shall` and a response, so a bare
+    # trigger such as "When the cache misses." is not an assertion. The system
+    # noun is never hard-coded: the child, the report, and the wrapper are all
+    # legitimate subjects.
+    while IFS= read -r assertion; do
+      case $assertion in
+        '- The '*' shall '*) ;;
+        '- While '*', '*' shall '*) ;;
+        '- When '*', '*' shall '*) ;;
+        '- Where '*', '*' shall '*) ;;
+        '- If '*', then '*' shall '*) ;;
+        *)
+          printf '%s: acceptance line is not an assertion-only EARS form: %s\n' "$readme" "$assertion"
+          found=1
+          ;;
+      esac
+    done < <(awk '/^## Acceptance$/ { active=1; next } /^## Rabbit holes$/ { active=0 } active && NF { print }' "$readme")
+
+    # Scoped to Acceptance, where the arrow would mean a test name. A bare
+    # match on the file also rejects the closing "-->" of the requirements
+    # gate marker, which would make that gate impossible to satisfy.
+    if awk '/^## Acceptance$/ { active=1; next } /^## Rabbit holes$/ { active=0 } active && /->/ { hit=1 } END { exit !hit }' "$readme"; then
+      printf '%s: test-name arrow is forbidden in Acceptance while Q-001 is open\n' "$readme"
+      found=1
+    fi
+
+    while IFS= read -r rabbit; do
+      [[ $rabbit == *'escape:'* ]] || {
+        printf '%s: rabbit hole lacks escape: %s\n' "$readme" "$rabbit"
+        found=1
+      }
+    done < <(awk '/^## Rabbit holes$/ { active=1; next } /^## Done when$/ { active=0 } active && /^- / { print }' "$readme")
+  fi
+
+  tasks=$slices_root/$dir/tasks.md
+  if [[ -f $tasks ]]; then
+    # Cross-session progress is allowed only while work can advance. Its file
+    # stays a title plus flat checklist, never a second requirements surface.
+    if [[ ${row_status[$id]} =~ ^(done|cut|reshaped)$ ]]; then
+      printf '%s: terminal milestone status forbids tasks.md\n' "$tasks"
+      found=1
+    fi
+    if ! awk '
+      NR == 1 { if ($0 != "# Tasks") bad=1; next }
+      NR == 2 { if ($0 != "") bad=1; next }
+      /^$/ { next }
+      /^- \[[ x]\] .+/ { count += 1; next }
+      { bad=1 }
+      END { exit bad || count == 0 }
+    ' "$tasks"; then
+      printf '%s: expected only # Tasks and flat checkbox items\n' "$tasks"
+      found=1
+    fi
+  fi
+
+  requirements=$slices_root/$dir/requirements.md
+  if [[ -f $requirements ]]; then
+    # Requirements need an explicit reasoned gate and replace slice acceptance;
+    # they never duplicate assertions in two files.
+    if ! awk 'previous ~ /^<!--[[:space:]]*requirements-gate:[[:space:]]*[^[:space:]].*-->$/ && /^## Acceptance$/ { ok=1 } { previous=$0 } END { exit !ok }' "$readme"; then
+      printf '%s: requirements.md lacks a reasoned gate immediately above Acceptance\n' "$requirements"
+      found=1
+    fi
+    if awk '/^## Acceptance$/ { active=1; next } /^## Rabbit holes$/ { active=0 } active && /^- / { found=1 } END { exit !found }' "$readme"; then
+      printf '%s: README Acceptance must be empty when requirements.md exists\n' "$readme"
+      found=1
+    fi
+  fi
+done
+
+# design.md is never an allowed sibling: design belongs in the living owner.
+while IFS= read -r path; do
+  printf '%s: design.md is forbidden in the plan zone\n' "$path"
+  found=1
+done < <(find "$slices_root" -type f -name design.md)
+
+if ((${#row_status[@]} != ${#dirs[@]})); then
+  printf '%s: milestone row count and slice directory count differ\n' "$milestones"
+  found=1
+fi
+
+question_file=docs/plan/open-questions.md
+# Every candidate heading is judged, not only the well-formed ones: a mistyped
+# or reused id silently removes a blocker from machine-visible plan state, and
+# matching the strict form alone would skip exactly the malformed heading the
+# gate exists to catch.
+if ! awk -v file="$question_file" '
+  function finish() {
+    if (active && (blocks != 1 || raised != 1 || exits != 1)) {
+      printf "%s: Q-%s needs exactly one Blocks, one Raised, and one permitted Exit\n", file, id
+      bad = 1
+    }
+  }
+  /^## / {
+    if ($0 !~ /^## Q/) { finish(); active = 0; next }
+    finish()
+    active = 0
+    if ($0 !~ /^## Q-[0-9][0-9][0-9]( |$)/) {
+      printf "%s: question heading is not the stable Q-NNN form: %s\n", file, $0
+      bad = 1
+      next
+    }
+    id = substr($2, 3)
+    if (id in seen) {
+      printf "%s: question id Q-%s is reused; ids are stable and unique\n", file, id
+      bad = 1
+    }
+    seen[id] = 1
+    active = 1
+    blocks = raised = exits = 0
+    next
+  }
+  /^(Blocks|Raised|Exit):/ && !active {
+    printf "%s: field %s belongs to no question block\n", file, $0
+    bad = 1
+    next
+  }
+  active && /^Blocks: .+/ { blocks += 1; next }
+  active && /^Raised: .+/ { raised += 1; next }
+  active && /^Exit: (ADR|slice revision|measurement),/ { exits += 1; next }
+  END { finish(); exit bad }
+' "$question_file"; then
+  found=1
+fi
+
+exit "$found"

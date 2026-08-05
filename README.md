@@ -2,19 +2,19 @@
 
 A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 
-> **Status: pre-implementation.** The crate currently builds a placeholder binary. Nothing below describes shipped behaviour beyond the build and development workflow.
+> Status: pre-implementation. The crate currently builds a placeholder binary. Nothing below describes shipped behaviour beyond the build and development workflow.
 
 ## Design contract
 
-- **Never break native `claude` passthrough.** Anything the wrapper does not own is forwarded to `claude` unchanged, including arguments, stdin/stdout, and exit codes.
-- **XDG-compliant.** Every file the wrapper writes goes to its [XDG base directory](./docs/reference/xdg-storage.md).
-- **Self-contained.** At runtime the tool needs nothing but itself and the `claude` binary. Building it needs the pinned devShell.
+- Never break native `claude` passthrough. Anything the wrapper does not own is forwarded to `claude` unchanged, including arguments, stdin/stdout, and exit codes.
+- XDG-compliant. Every file the wrapper writes goes to its [XDG base directory](./docs/reference/xdg-storage.md).
+- Self-contained. At runtime the tool needs nothing but itself and the `claude` binary. Building it needs the pinned devShell.
 
-These three bullets are a summary. [Project governance](./docs/reference/project-governance.md#rule-ownership-and-enforcement) maps each binding rule to the document that owns it and the mechanism that rejects a violation.
+These bullets summarize the direct owners linked from [the documentation index](./docs/README.md).
 
 ## Documentation
 
-The engineering specifications live under [docs/](./docs/README.md), organized by what a reader needs: decisions, explanation, reference, and guides. They describe design for code that has not been written yet.
+The engineering specifications live under [docs](./docs/README.md), organized by reader need. Current delivery order lives in [milestones](./docs/plan/milestones.md).
 
 Common starting points:
 

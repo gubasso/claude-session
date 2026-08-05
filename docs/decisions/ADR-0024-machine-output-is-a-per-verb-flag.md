@@ -8,13 +8,13 @@ That placement contradicts a rule the same page already states: a top-level flag
 
 ## Considered Options
 
-- **Global `--format <text|json>`** — one flag, on the denylist, before the verb.
-- **Per-verb `--json`** — each verb that produces data declares its own, after the verb.
-- **Infer from whether standard output is a terminal** — already rejected by ADR-0017.
+- Global `--format <text|json>` — one flag, on the denylist, before the verb.
+- Per-verb `--json` — each verb that produces data declares its own, after the verb.
+- Infer from whether standard output is a terminal — already rejected by ADR-0017.
 
 ## Decision Outcome
 
-Chosen option: **per-verb `--json`**. It costs the child nothing, because a flag parsed after a wrapper verb sits inside an invocation the child never sees — the same reasoning that already keeps `--yes` and `doctor --list` off the table.
+Chosen option: per-verb `--json`. It costs the child nothing, because a flag parsed after a wrapper verb sits inside an invocation the child never sees — the same reasoning that already keeps `--yes` and `doctor --list` off the table.
 
 It also keeps each verb's output schema independent. A global format flag implies one output contract; declaring the flag per verb makes explicit that `account list --json` and `doctor --json` are separate documents that may evolve separately.
 

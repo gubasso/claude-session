@@ -12,7 +12,7 @@
 
 ## Decision Outcome
 
-Chosen option: **one target, `x86_64-unknown-linux-gnu`, and the shell installer alone.** A published artifact and a supported platform are the same claim, so the artifact list is the platform list. `aarch64-unknown-linux-gnu` goes with the rest: it is not the architecture this project is developed or verified on, so shipping it would restate the problem one architecture smaller. Adding a target back is a configuration line and a new record, which is the right cost for making a new promise.
+Chosen option: one target, `x86_64-unknown-linux-gnu`, and the shell installer alone. A published artifact and a supported platform are the same claim, so the artifact list is the platform list. `aarch64-unknown-linux-gnu` goes with the rest: it is not the architecture this project is developed or verified on, so shipping it would restate the problem one architecture smaller. Adding a target back is a configuration line and a new record, which is the right cost for making a new promise.
 
 No release has been tagged, so no consumer loses an artifact.
 

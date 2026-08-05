@@ -12,7 +12,7 @@ crates.io distributes source, while this Unix CLI should also provide prebuilt a
 
 ## Decision Outcome
 
-Chosen option: **generate the binary-distribution workflow with cargo-dist** — cargo-dist 0.32.0 owns `dist-workspace.toml` and the generated `.github/workflows/release.yml`, targets the four supported Linux and macOS architectures, and stays separate from `release-plz.yml`.
+Chosen option: generate the binary-distribution workflow with cargo-dist — cargo-dist 0.32.0 owns `dist-workspace.toml` and the generated `.github/workflows/release.yml`, targets the four supported Linux and macOS architectures, and stays separate from `release-plz.yml`.
 
 ## Consequences
 

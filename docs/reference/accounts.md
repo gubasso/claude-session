@@ -110,7 +110,7 @@ Rotation verifies the candidate before it writes anything, and [the metadata ren
 | `account status [name]` | named account or selected account                                                  | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing |
 | `account remove <name>` | account; `--yes`                                                                   | Whether local state was removed, and that upstream revocation did not occur                 |
 
-Each declares its own `--json`, as [every verb that produces data does](./logging-and-output.md#machine-output). Data goes to standard output; diagnostics and warnings go to standard error, and a confirmation prompt goes to [the controlling terminal](./cli-surface.md#the-predicate). **No subcommand ever prints a credential**, at any verbosity or in any format.
+Each declares its own `--json`, as [every verb that produces data does](./logging-and-output.md#machine-output). Data goes to standard output; diagnostics and warnings go to standard error, and a confirmation prompt goes to [the controlling terminal](./cli-surface.md#the-predicate). No subcommand ever prints a credential, at any verbosity or in any format.
 
 ## Reports
 
@@ -125,10 +125,10 @@ The [shared document rules](./logging-and-output.md#machine-output) hold for all
 
 Four rules the table does not carry:
 
-- **`accounts` is present even when empty**, because an empty list is the answer rather than an absent field.
-- **`list` never spawns the child.** `usable` is local state alone: the directory passes [the security checks](./xdg-storage.md#filesystem-security), `auth-mode.json` parses, and the mode's stored artifact is present. One probe per account would be one child per account, and `status` is the verb that was asked about a credential.
-- **`status` is the only subcommand carrying `warnings` as data**, because shadowing is its subject. Everywhere else a warning is prose on standard error. Where `metadata_consistent` is `false`, `age_seconds` and `estimated_expiry` are omitted rather than computed from a mint time that is not the token's.
-- **No field reports upstream revocation.** It would be `false` in both modes forever, discriminating nothing ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); the fact is a sentence on standard error.
+- `accounts` is present even when empty, because an empty list is the answer rather than an absent field.
+- `list` never spawns the child. `usable` is local state alone: the directory passes [the security checks](./xdg-storage.md#filesystem-security), `auth-mode.json` parses, and the mode's stored artifact is present. One probe per account would be one child per account, and `status` is the verb that was asked about a credential.
+- `status` is the only subcommand carrying `warnings` as data, because shadowing is its subject. Everywhere else a warning is prose on standard error. Where `metadata_consistent` is `false`, `age_seconds` and `estimated_expiry` are omitted rather than computed from a mint time that is not the token's.
+- No field reports upstream revocation. It would be `false` in both modes forever, discriminating nothing ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); the fact is a sentence on standard error.
 
 `selection_source` names the rung of [the ladder](#selection) that answered: `flag`, `environment`, `project-config`, `user-config`, `marker`, or `none`. `child_probe` is `{ status, exit_code }` where `status` is `ok`, `failed`, or `unavailable`, and `exit_code` is present only when a child ran.
 
@@ -162,7 +162,7 @@ The [exit-code matrix](./exit-codes.md) owns mappings.
 | Child resolution or execution fails                         | `ChildNotFound`, `ChildNotExecutable` | `login`                       |
 | The credential lock is still held at the deadline           | `LockBusy`                            | `remove`                      |
 
-`list` and `status` are [inspection verbs](./exit-codes.md#exit-regimes-by-verb): they exit `0` whatever they find, including no accounts at all, nothing selected, and unusable authentication. A child answer is data in their reports and never their exit; an invocation that tries to _use_ that authentication is what fails.
+`list` and `status` are [inspection verbs](./exit-codes.md#exit-regimes-by-verb): they exit `0` whatever they find, including no accounts at all, nothing selected, and unusable authentication. A child answer is data in their reports and never their exit; an invocation that tries to use that authentication is what fails.
 
 `login` is the one subcommand that spawns the child, and it keeps its own code from the matrix rather than the child's — it is the child's caller, not its passthrough ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)). Where the child produced the failure, the diagnostic names that command and its status, and the JSON error document carries `child_exit`.
 

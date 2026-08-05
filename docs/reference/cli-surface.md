@@ -11,13 +11,13 @@ claude-session [WRAPPER FLAGS] <verb> [VERB ARGS...]
 claude-session [WRAPPER FLAGS] [--] [CHILD ARGS...]
 ```
 
-Wrapper flags come **before** the verb. There is no wrapper flag valid after the verb, and no wrapper flag valid after `--`.
+Wrapper flags come before the verb. There is no wrapper flag valid after the verb, and no wrapper flag valid after `--`.
 
 When the first non-flag token is a wrapper verb, the invocation is a wrapper command. Otherwise the invocation is a passthrough and every remaining token belongs to the child. An invocation with no tokens at all is a passthrough with no arguments.
 
 ## Wrapper-owned flags
 
-This table is the denylist. Every flag on it is intercepted by the wrapper **in leading position** and does not reach the child there. **Every flag not on it is forwarded verbatim**, whether or not the wrapper recognizes it, and whether or not it exists in the child.
+This table is the denylist. Every flag on it is intercepted by the wrapper in leading position and does not reach the child there. Every flag not on it is forwarded verbatim, whether or not the wrapper recognizes it, and whether or not it exists in the child.
 
 The child-status column is measured, not assumed. It is the intersection audited by [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md), taken from `claude` 2.1.220 on 2026-07-31; the `child-flag-and-verb-inventory` fact in [research tracking](./research-tracking.yaml) owns its freshness.
 
@@ -33,13 +33,13 @@ The child-status column is measured, not assumed. It is the intersection audited
 
 Three properties of this table are contractual:
 
-**Long-form and distinctive.** Short forms are used only where the convention is universal (`-q`, `-V`, `-h`). Claiming a short flag that the child later wants is a collision the wrapper wins and the user loses, so the set stays small. `-v` is deliberately absent: the child spells it `--version`, so claiming it for verbosity would change a token's meaning rather than shadow it ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
+Long-form and distinctive. Short forms are used only where the convention is universal (`-q`, `-V`, `-h`). Claiming a short flag that the child later wants is a collision the wrapper wins and the user loses, so the set stays small. `-v` is deliberately absent: the child spells it `--version`, so claiming it for verbosity would change a token's meaning rather than shadow it ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
 
-**Append-only in spirit.** Adding a flag to this table removes a flag from the child's reachable surface. That is a passthrough-contract change, and it requires a decision record — see [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md). Removal takes a record for the same reason, in the other direction: [ADR-0072](../decisions/ADR-0072-retire-the-dry-run-flag.md) retired `--dry-run` and returned that spelling to the child.
+Append-only in spirit. Adding a flag to this table removes a flag from the child's reachable surface. That is a passthrough-contract change, and it requires a decision record — see [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md). Removal takes a record for the same reason, in the other direction: [ADR-0072](../decisions/ADR-0072-retire-the-dry-run-flag.md) retired `--dry-run` and returned that spelling to the child.
 
-**Every row has a contract.** A flag appears here only once its behaviour, its output, and its failures are specified on some page. A claimed spelling with nothing behind it costs the child a token in exchange for nothing, and makes the denylist-membership test assert a row that means nothing.
+Every row has a contract. A flag appears here only once its behaviour, its output, and its failures are specified on some page. A claimed spelling with nothing behind it costs the child a token in exchange for nothing, and makes the denylist-membership test assert a row that means nothing.
 
-**Audited, not asserted.** An intersection between this table and the child's inventory that is not named in the child-status column fails the build. The mechanism is the collision-audit test in [testing and quality](./testing-and-quality.md#mandatory-tests).
+Audited, not asserted. An intersection between this table and the child's inventory that is not named in the child-status column fails the build. The mechanism is the collision-audit test in [testing and quality](./testing-and-quality.md#mandatory-tests).
 
 ### Flag spelling
 
@@ -62,7 +62,7 @@ Value types split on whether the value is a path or a name. `--config` takes a p
 
 ### Machine output is not on this table
 
-`--json` is **verb-level**, accepted after the verb, and every verb that produces data owns its own:
+`--json` is verb-level, accepted after the verb, and every verb that produces data owns its own:
 
 ```text
 claude-session account list --json
@@ -72,7 +72,7 @@ A global `--format` would sit on the denylist above and cost the child a flag pe
 
 ### When the child owns the same name
 
-The wrapper wins in leading position, deterministically and **silently**. It does not warn, because warning would require the model of the child's grammar [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) forbids.
+The wrapper wins in leading position, deterministically and silently. It does not warn, because warning would require the model of the child's grammar [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) forbids.
 
 Three things reach the child's own spelling:
 
@@ -82,7 +82,7 @@ Three things reach the child's own spelling:
 | Any earlier token    | `claude-session -p hi --verbose` | `-p hi --verbose` — recognition already stopped at `-p` |
 | A different spelling | `claude-session --account-id X`  | `--account-id X` — a near-miss is not claimed           |
 
-`--` is unconditional. Everything after it is child argument territory even if it spells a wrapper flag or verb, and **a second `--` after the boundary is an ordinary child argument** — the wrapper consumes the first and never inspects, strips, or counts the rest.
+`--` is unconditional. Everything after it is child argument territory even if it spells a wrapper flag or verb, and a second `--` after the boundary is an ordinary child argument — the wrapper consumes the first and never inspects, strips, or counts the rest.
 
 Discovering a new collision is a procedure, not a note. Rebuild the child's inventory as the `child-flag-and-verb-inventory` fact in [research tracking](./research-tracking.yaml) describes, diff it against the child-status column, and resolve every difference before release: a shadowing collision is recorded in the column, and one that would change a token's meaning forces the wrapper's spelling to be dropped or renamed under a new decision record.
 
@@ -108,13 +108,13 @@ Two verb names overlap the child's, measured against `claude` 2.1.220 on 2026-07
 | `auth`     | Renamed    | Native auth is the child's own credential flow and stays reachable as passthrough; `account` is the wrapper's namespace ([ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md)).             |
 | `doctor`   | Composed   | The two reports answer different questions, so the wrapper runs its own checks and then the child's, passing that output through unmodified ([ADR-0045](../decisions/ADR-0045-compose-doctor-with-the-child-report.md)). |
 
-Those are the only two resolutions available. A wrapper verb may keep a name the child owns **only** when it runs the child's command as part of its own and reports the result; otherwise it is renamed. Shadowing a child verb and leaving `--` as the sole remedy is not one of them, because a user reaching for a diagnostic does not know a wrapper is in the way. Every overlap is named in this table with its reasoning, and the audit that keeps the table honest is the same one that covers flags ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
+Those are the only two resolutions available. A wrapper verb may keep a name the child owns only when it runs the child's command as part of its own and reports the result; otherwise it is renamed. Shadowing a child verb and leaving `--` as the sole remedy is not one of them, because a user reaching for a diagnostic does not know a wrapper is in the way. Every overlap is named in this table with its reasoning, and the audit that keeps the table honest is the same one that covers flags ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
 
 There is no `init`. Configuration is optional — every key has a compiled-in default — and the wrapper never writes the user's configuration, so there is no scaffold to create. Users copy a [generated example](./configuration.md#generated-examples-and-schema) instead. See [ADR-0015](../decisions/ADR-0015-retire-the-init-verb.md).
 
 ## Passthrough contract
 
-Forwarding is **verbatim**. Specifically:
+Forwarding is verbatim. Specifically:
 
 | Property        | Rule                                                                                                                                            |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -125,7 +125,7 @@ Forwarding is **verbatim**. Specifically:
 | Quoting         | Untouched. The shell already removed quotes; the wrapper does not re-add or re-interpret them.                                                  |
 | Unknown flags   | Forwarded. An unrecognized flag is a child flag by definition.                                                                                  |
 
-**There is no argv normalization step.** A change that adds one is a change to the passthrough contract and requires a decision record before it requires code.
+There is no argv normalization step. A change that adds one is a change to the passthrough contract and requires a decision record before it requires code.
 
 Standard input, standard output, and standard error are inherited by the child unmodified, under [the stream contract](./logging-and-output.md#the-stream-contract).
 
@@ -135,17 +135,17 @@ For a resolved profile, [ADR-0028](../decisions/ADR-0028-pass-composed-settings-
 
 A derive-based parser cannot be the only gate, and the reason is specific.
 
-Configuring a parser to accept unknown **external subcommands** makes it treat an unexpected _positional_ token as a subcommand name. A leading unknown **flag** is not a positional: `claude-session --print hello` is rejected as an unexpected argument before external-subcommand handling applies. Relaxed hyphen handling does not rescue this, because it applies to a declared value rather than to the top-level parse. Since a leading child flag is one of the most common passthrough invocations, the parser must not see it.
+Configuring a parser to accept unknown external subcommands makes it treat an unexpected positional token as a subcommand name. A leading unknown flag is not a positional: `claude-session --print hello` is rejected as an unexpected argument before external-subcommand handling applies. Relaxed hyphen handling does not rescue this, because it applies to a declared value rather than to the top-level parse. Since a leading child flag is one of the most common passthrough invocations, the parser must not see it.
 
 The contract is therefore:
 
-1. **Pre-split argv.** A pure function scans the front of the argument vector, consuming only tokens the wrapper's denylist claims and their values. It stops at the first token that is not a wrapper flag, or at `--`.
-2. **Classify.** If the next token is a wrapper verb, the remainder goes to the parser. Otherwise the remainder — including `--` handling — is child argv and is never handed to the parser.
-3. **Parse only the wrapper's part.** The parser sees a grammar in which every token is one it defines.
+1. Pre-split argv. A pure function scans the front of the argument vector, consuming only tokens the wrapper's denylist claims and their values. It stops at the first token that is not a wrapper flag, or at `--`.
+2. Classify. If the next token is a wrapper verb, the remainder goes to the parser. Otherwise the remainder — including `--` handling — is child argv and is never handed to the parser.
+3. Parse only the wrapper's part. The parser sees a grammar in which every token is one it defines.
 
 The pre-split is pure and total over a list of OS strings, which is what makes it directly unit-testable. It is the single point where the passthrough contract can silently break, and the golden-argv tests in [testing and quality](./testing-and-quality.md) exist to guard it.
 
-**The split itself never fails.** It classifies; only the wrapper's own parse and validation step exits. That keeps totality a property of the function rather than a claim about its callers, and it gives exactly three outcomes for a token that looks like a wrapper flag:
+The split itself never fails. It classifies; only the wrapper's own parse and validation step exits. That keeps totality a property of the function rather than a claim about its callers, and it gives exactly three outcomes for a token that looks like a wrapper flag:
 
 | Token                                                                                   | Outcome                                                                           |
 | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -154,7 +154,7 @@ The pre-split is pure and total over a list of OS strings, which is what makes i
 | Claimed, value malformed — `--config=`, `--verbose=1`                                   | `Usage`, naming the flag on standard error.                                       |
 | Claimed, value not valid UTF-8 where the flag requires text — `--account=<bad bytes>`   | `Usage`, naming the flag. `--config` is exempt: its value is a path.              |
 
-The wrapper never suggests that an unrecognized token was a mistyped wrapper flag. Suggestion machinery needs a model of the child's flags in order to know what it is _not_ looking at, and the wrapper does not have one. Codes are in [exit codes](./exit-codes.md#wrapper-matrix).
+The wrapper never suggests that an unrecognized token was a mistyped wrapper flag. Suggestion machinery needs a model of the child's flags in order to know what it is not looking at, and the wrapper does not have one. Codes are in [exit codes](./exit-codes.md#wrapper-matrix).
 
 Two parser settings are hazards rather than tools here. Long-argument inference is opt-in and stays off, since a unique prefix today is not a unique prefix after the child ships a flag. A trailing variable-argument declaration is not a substitute for the pre-split either, and it carries a live argv-corruption risk: a value delimiter configured on that argument still applies, which would split a child token on a character the user typed literally.
 
@@ -162,15 +162,15 @@ The parser is additionally configured to disable its automatic version flag, so 
 
 ## Help
 
-`--help` output is **generated by the parser**. A hand-maintained flag table is forbidden: it drifts from the parser the first time a flag is added and the table is not.
+`--help` output is generated by the parser. A hand-maintained flag table is forbidden: it drifts from the parser the first time a flag is added and the table is not.
 
 Authored prose the parser cannot generate — worked passthrough examples, the `--` explanation, a pointer to this documentation — lives in a text file under the output module and is included into the parser's long help at compile time.
 
-Help describes the **wrapper's** grammar only. It does not reproduce, summarize, or link into the child's flag list, because that list is not the wrapper's to track. It should say, once and plainly, that unrecognized arguments are forwarded.
+Help describes the wrapper's grammar only. It does not reproduce, summarize, or link into the child's flag list, because that list is not the wrapper's to track. It should say, once and plainly, that unrecognized arguments are forwarded.
 
-The `help` verb is the same surface under another spelling: `claude-session help [<verb>]` prints exactly what `--help` and `<verb> --help` print. Requested help is a **result** — standard output, exit `0`. Help printed because an invocation was malformed is a **diagnostic** — standard error, exit `Usage`. The parser's own default differs on both counts and is overridden; see [exit codes](./exit-codes.md#wrapper-matrix).
+The `help` verb is the same surface under another spelling: `claude-session help [<verb>]` prints exactly what `--help` and `<verb> --help` print. Requested help is a result — standard output, exit `0`. Help printed because an invocation was malformed is a diagnostic — standard error, exit `Usage`. The parser's own default differs on both counts and is overridden; see [exit codes](./exit-codes.md#wrapper-matrix).
 
-A **namespace verb requires its subcommand**. `account`, the only one, satisfies no invocation on its own, so bare `account` is malformed: the verb's help is a diagnostic, and so is an unrecognized subcommand. Both exit `Usage`. Unlike a mistyped wrapper flag, an unrecognized subcommand carries a nearest-match suggestion — the parser's subcommand set is closed and wholly wrapper-owned, so the reasoning that denies one to [flag spelling](#flag-spelling) does not reach it. See [ADR-0052](../decisions/ADR-0052-require-an-explicit-subcommand.md).
+A namespace verb requires its subcommand. `account`, the only one, satisfies no invocation on its own, so bare `account` is malformed: the verb's help is a diagnostic, and so is an unrecognized subcommand. Both exit `Usage`. Unlike a mistyped wrapper flag, an unrecognized subcommand carries a nearest-match suggestion — the parser's subcommand set is closed and wholly wrapper-owned, so the reasoning that denies one to [flag spelling](#flag-spelling) does not reach it. See [ADR-0052](../decisions/ADR-0052-require-an-explicit-subcommand.md).
 
 Shell completions cover the wrapper's grammar for the same reason. Completions never attempt to complete child arguments.
 
@@ -180,7 +180,7 @@ claude-session completion <bash|elvish|fish|powershell|zsh>
 
 The five are the full set the generator supports, so the list is the dependency's rather than a subset this project would have to justify and revisit. The script is the verb's result and is written raw to standard output: no header, no summary, no diagnostic. An unrecognized shell exits `Usage`.
 
-**Man pages are generated from the same parser tree.** Because help, completions, and man pages all read one `Command` tree, the flag list has a single source and no surface can drift from another. The authored prose file included into long help is included into the man page too. See [ADR-0016](../decisions/ADR-0016-ship-man-pages.md).
+Man pages are generated from the same parser tree. Because help, completions, and man pages all read one `Command` tree, the flag list has a single source and no surface can drift from another. The authored prose file included into long help is included into the man page too. See [ADR-0016](../decisions/ADR-0016-ship-man-pages.md).
 
 ```text
 claude-session man [--out-dir <dir>]
@@ -199,7 +199,7 @@ claude /usr/local/bin/claude 1.0.2
 
 Each line is `<name> [<path>] <version>`, with the version last so a caller can take the final field. Reporting both is the point: a user debugging wrapper behaviour needs to know which child was actually found, and path resolution is the most common source of surprise.
 
-When the child cannot be resolved or its version cannot be read, the second line names that condition in place of the version and **the exit stays `0`**. The wrapper's version is a fact it always knows; refusing to report it because the child is missing would withhold the one answer the user came for. `doctor` is where a missing child fails.
+When the child cannot be resolved or its version cannot be read, the second line names that condition in place of the version and the exit stays `0`. The wrapper's version is a fact it always knows; refusing to report it because the child is missing would withhold the one answer the user came for. `doctor` is where a missing child fails.
 
 The verb also takes `--json`, and the flag form does not — `--version` is intercepted before the verb split, where no verb-level flag applies:
 
@@ -223,13 +223,13 @@ Two verbs need a person present. No others do.
 
 Every other verb — `config`, `profile`, `doctor`, `completion`, `man`, `version`, `help` — is read-only or inert. There is nothing to agree to, so none of them prompts and none of them gates.
 
-**Without a terminal, a confirming verb fails rather than prompting or proceeding.** When no controlling terminal is available and no escape was given, the verb stops **before any side effect** and exits `Unavailable` (69). The diagnostic names the escape above; token ingestion through `--stdin` follows [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md).
+Without a terminal, a confirming verb fails rather than prompting or proceeding. When no controlling terminal is available and no escape was given, the verb stops before any side effect and exits `Unavailable` (69). The diagnostic names the escape above; token ingestion through `--stdin` follows [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md).
 
 Reading the absence of a terminal as consent is the alternative, and it makes `account remove` silent under a pipe. Prompting anyway is worse: the process hangs on a stream nobody is reading. See [ADR-0021](../decisions/ADR-0021-fail-closed-without-a-terminal.md).
 
 ### The predicate
 
-**A terminal is available when the process can open `/dev/tty` read-write.** The `open` is the test; nothing consults `isatty(0)`. So `something | claude-session account remove work` **prompts** — standard input is a pipe, but the controlling terminal is still there and no confirming verb reads standard input. `Unavailable` is for the case where the `open` itself fails: a cron job, a service unit, a container with no terminal, a session detached by `setsid`. See [ADR-0053](../decisions/ADR-0053-read-a-confirmation-from-the-controlling-terminal.md).
+A terminal is available when the process can open `/dev/tty` read-write. The `open` is the test; nothing consults `isatty(0)`. So `something | claude-session account remove work` prompts — standard input is a pipe, but the controlling terminal is still there and no confirming verb reads standard input. `Unavailable` is for the case where the `open` itself fails: a cron job, a service unit, a container with no terminal, a session detached by `setsid`. See [ADR-0053](../decisions/ADR-0053-read-a-confirmation-from-the-controlling-terminal.md).
 
 The prompt and its answer use that same handle, which is why a confirmation is [the one exception](./logging-and-output.md#the-stream-contract) to prompts going to standard error.
 
@@ -239,11 +239,11 @@ The prompt and its answer use that same handle, which is why a confirmation is [
 Remove account 'work' and all of its local state? [y/N]
 ```
 
-`y` and `yes` consent, case-insensitively and after trimming surrounding whitespace. **Everything else declines** — a bare Enter, an unrecognized answer, and end of input alike. There is one question and one answer; an unrecognized answer is not re-asked, because a verb that loops on a terminal it may not fully control is a verb that can hang.
+`y` and `yes` consent, case-insensitively and after trimming surrounding whitespace. Everything else declines — a bare Enter, an unrecognized answer, and end of input alike. There is one question and one answer; an unrecognized answer is not re-asked, because a verb that loops on a terminal it may not fully control is a verb that can hang.
 
 The capitalized letter is the default, and it is `N` because the verb is destructive. The prompt names the object and the consequence, so what a person approves and what `--json` reports are the same facts.
 
-**Declining is not a failure.** The verb stops before any side effect and exits `0`: nothing was removed, which is an outcome rather than an error. What the report says is owned by the verb — for `account remove`, [accounts](./accounts.md#removal).
+Declining is not a failure. The verb stops before any side effect and exits `0`: nothing was removed, which is an outcome rather than an error. What the report says is owned by the verb — for `account remove`, [accounts](./accounts.md#removal).
 
 ### `--yes` and `--json` are orthogonal
 
@@ -260,7 +260,7 @@ Because the prompt is not on standard output, `--json` needs no interaction rule
 
 ### Why `--yes` is not in the flag table
 
-`--yes` is a **verb-level** flag, accepted after the verb:
+`--yes` is a verb-level flag, accepted after the verb:
 
 ```text
 claude-session account remove work --yes
@@ -270,7 +270,7 @@ Its absence from the wrapper-owned flag table above is the design, not an oversi
 
 There is no `--non-interactive`. Detecting the missing terminal already produces exactly that behaviour, so a flag requesting it would be surface bought for nothing.
 
-**Passthrough is untouched.** The wrapper does not inspect standard input on a passthrough invocation, and the child's own prompting is the child's business.
+Passthrough is untouched. The wrapper does not inspect standard input on a passthrough invocation, and the child's own prompting is the child's business.
 
 ## Exit behaviour
 

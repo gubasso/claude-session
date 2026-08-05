@@ -13,7 +13,7 @@ This is the sole release and publishing runbook. Exact values and invariants liv
 
 ## Bootstrap release automation once
 
-Every step in this section runs **once, ever**. A routine release repeats none of them: it never touches forge settings, never creates a crates.io token, never registers a publisher, and never creates `master` — it fast-forwards a `master` that already exists. Step 5's ordering is the one that cannot be rearranged; see [forge enforcement](../reference/release-workflow.md#forge-enforcement).
+Every step in this section runs once, ever. A routine release repeats none of them: it never touches forge settings, never creates a crates.io token, never registers a publisher, and never creates `master` — it fast-forwards a `master` that already exists. Step 5's ordering is the one that cannot be rearranged; see [forge enforcement](../reference/release-workflow.md#forge-enforcement).
 
 1. Validate metadata and package contents with `./scripts/publish-dry`.
 2. Push `develop` and make it the GitHub default branch.
@@ -70,7 +70,7 @@ Local publishing uses a crates.io token; it does not use OIDC.
 
 ## Recover from a bad release
 
-**Releasing a new version is the recovery. Yanking is containment and fixes nothing on its own** — it de-indexes the version so no new resolution picks it up, and every existing lockfile keeps resolving to it. See [version and recovery policy](../reference/release-workflow.md#version-and-recovery-policy).
+Releasing a new version is the recovery. Yanking is containment and fixes nothing on its own — it de-indexes the version so no new resolution picks it up, and every existing lockfile keeps resolving to it. See [version and recovery policy](../reference/release-workflow.md#version-and-recovery-policy).
 
 1. Yank the affected version with `cargo yank --version X.Y.Z`, to stop new consumers reaching it.
 2. Fix the defect on `develop`.

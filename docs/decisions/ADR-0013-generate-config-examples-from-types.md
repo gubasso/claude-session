@@ -6,24 +6,23 @@
 
 ## Considered Options
 
-- **Scaffold on `init`** — the wrapper writes a starter file into the config directory.
-- **Hand-maintained examples** — authored files, kept correct by review.
-- **Generate examples and a schema from the config types**, with a gate proving freshness.
+- Scaffold on `init` — the wrapper writes a starter file into the config directory.
+- Hand-maintained examples — authored files, kept correct by review.
+- Generate examples and a schema from the config types, with a gate proving freshness.
 
 ## Decision Outcome
 
-Chosen option: **generate from the config types** — copy-don't-scaffold. The type is the single source of truth and the example is derived from it, so it cannot drift.
+Chosen option: generate from the config types — copy-don't-scaffold. The type is the single source of truth and the example is derived from it, so it cannot drift.
 
-A generator emits a JSON Schema and an annotated example per reflectable surface: required keys active, optional keys commented out, obviously fake placeholders, and a header naming the copy destination and stating that the wrapper never writes configuration. Generation **fails** when a public field carries no description, which is what keeps the example self-documenting rather than a wall of bare keys. A surface that cannot be reflected from a type — a settings piece is the child's own format — ships as a hand-maintained example under the same discipline.
+A generator emits a JSON Schema and an annotated example per reflectable surface: required keys active, optional keys commented out, obviously fake placeholders, and a header naming the copy destination and stating that the wrapper never writes configuration. Generation fails when a public field carries no description, which is what keeps the example self-documenting rather than a wall of bare keys. A surface that cannot be reflected from a type — a settings piece is the child's own format — ships as a hand-maintained example under the same discipline.
 
-Freshness is **byte comparison against freshly rendered text**, not a cache. Rendering is deterministic, so a stale file is exactly one whose contents differ, and an unrelated commit is a natural no-op. Nothing needs invalidating.
+Freshness is byte comparison against freshly rendered text, not a cache. Rendering is deterministic, so a stale file is exactly one whose contents differ, and an unrelated commit is a natural no-op. Nothing needs invalidating.
 
 The artifacts, the header, and the gate are specified in [configuration](../reference/configuration.md).
 
 ## Consequences
 
 - Good: examples cannot drift, and the schema doubles as editor and CI validation.
-- Good: configuration stays read-only to the wrapper, so a Nix- or Home-Manager-managed file is never written to.
 - Bad: adds a generator and a freshness gate to maintain.
 - Bad: generated files must be staged whole, so partially staging one is a mistake the gate cannot catch.
 

@@ -1,5 +1,5 @@
 <!--
-Copy this file to `ADR-NNNN-short-title.md` in the project's decisions directory and fill it in. Aim for about 350 words and trim or split anything past 450 by `wc -w`; keep each field brief, and split separate decisions into separate ADRs.
+Copy this file to `ADR-NNNN-short-title.md` and fill it in. A filled ADR must be at most 350 whole-file words by `wc -w`. Split separate decisions; move worked detail only to an existing owner.
 -->
 
 # ADR-NNNN: {Short Title}
@@ -16,7 +16,7 @@ Copy this file to `ADR-NNNN-short-title.md` in the project's decisions directory
 
 ## Decision Outcome
 
-Chosen option: **{Option 1}** — {one sentence: why}.
+Chosen option: {Option 1} — {one sentence: why}.
 
 ## Consequences
 
@@ -25,6 +25,6 @@ Chosen option: **{Option 1}** — {one sentence: why}.
 
 ## Status
 
-{Proposed | Accepted | Implemented | Superseded | Deprecated | Rejected}
+{Ideation | Proposed | Accepted | Implemented | Deprecated | Superseded | Rejected}
 
-{If Implemented: link to the code that enacts it. If Superseded: link to the successor. If Deprecated: say what made the context evaporate.}
+The first nonblank line below `## Status` is the status value alone. Put evidence and relationship prose in this separate paragraph. Link implemented code, the superseding record, or the reason a context was deprecated. A partial change keeps its status and adds `Amended by [ADR-NNNN](./ADR-NNNN-short-title.md)`.

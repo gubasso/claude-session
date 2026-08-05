@@ -12,14 +12,14 @@
 
 ## Decision Outcome
 
-Chosen option: **forward verbatim with a denylist** — a wrapper that understands its child's grammar breaks every time the child grows a flag, while a wrapper that understands almost nothing keeps working.
+Chosen option: forward verbatim with a denylist — a wrapper that understands its child's grammar breaks every time the child grows a flag, while a wrapper that understands almost nothing keeps working.
 
-Verbatim is defined strictly. Order, bytes, and count are preserved; arguments are carried as OS strings and never round-tripped through UTF-8; an empty argument is a real argument and is never filtered; `--` is a hard sentinel after which nothing is interpreted. There is **no argv normalization step**, and adding one is a change to this decision rather than an implementation detail.
+Verbatim is defined strictly. Order, bytes, and count are preserved; arguments are carried as OS strings and never round-tripped through UTF-8; an empty argument is a real argument and is never filtered; `--` is a hard sentinel after which nothing is interpreted. There is no argv normalization step, and adding one is a change to this decision rather than an implementation detail.
 
 ## Consequences
 
 - Good: new child flags work through the wrapper the day they ship, with no wrapper release.
-- Good: the forwarding logic is a small pure function, so the contract is directly testable — see the golden-argv table in [testing and quality](../reference/testing-and-quality.md).
+- Good: forwarding is directly testable through the golden-argv table in [testing and quality](../reference/testing-and-quality.md).
 - Good: non-UTF-8 arguments and paths survive, which UTF-8 round-tripping would corrupt.
 - Bad: a wrapper flag makes the identically-named child flag unreachable except after `--`. This is why the denylist is small and long-form; see [ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md).
 - Bad: the wrapper cannot validate or improve child arguments, so a child-side usage error surfaces from the child rather than earlier.

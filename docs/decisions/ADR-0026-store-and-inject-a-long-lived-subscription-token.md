@@ -14,7 +14,7 @@ Subscription-only automation needs durable authentication without copying or int
 
 ## Decision Outcome
 
-Chosen option: **private file plus per-run injection** — token-mode accounts store an OAuth token in a `0600` wrapper-owned file under the `0700` account directory and inject it as `CLAUDE_CODE_OAUTH_TOKEN` together with the account's `CLAUDE_CONFIG_DIR`.
+Chosen option: private file plus per-run injection — token-mode accounts store an OAuth token in a `0600` wrapper-owned file under the `0700` account directory and inject it as `CLAUDE_CODE_OAUTH_TOKEN` together with the account's `CLAUDE_CONFIG_DIR`.
 
 The file is written atomically after ingestion under [ADR-0027](./ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md). Mode metadata records `mode`, `recorded_at`, and `sha256[..8]`; it never infers lifetime from a token prefix. Age and estimated expiry use the recorded or corrected mint time and label expiry as an estimate.
 

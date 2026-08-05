@@ -12,9 +12,9 @@
 
 ## Decision Outcome
 
-Chosen option: **exact leading spelling** — the narrowest rule that can be stated in one paragraph and tested exhaustively, and the only one that stays correct as the child grows flags.
+Chosen option: exact leading spelling — the narrowest rule that can be stated in one paragraph and tested exhaustively, and the only one that stays correct as the child grows flags.
 
-A token is a wrapper flag only when it is byte-identical to a claimed spelling, appears before the first non-wrapper token, and is not preceded by `--`. No prefix abbreviation, no short-flag bundling, no case folding, no aliases beyond those enumerated. Value-taking flags accept `--flag=<value>` and `--flag <value>`; in the separated form a next token beginning with `-` is **not** consumed, so a missing value is a `Usage` error rather than a stolen child token.
+A token is a wrapper flag only when it is byte-identical to a claimed spelling, appears before the first non-wrapper token, and is not preceded by `--`. No prefix abbreviation, no short-flag bundling, no case folding, no aliases beyond those enumerated. Value-taking flags accept `--flag=<value>` and `--flag <value>`; in the separated form a next token beginning with `-` is not consumed, so a missing value is a `Usage` error rather than a stolen child token.
 
 Anything that is not an exact claimed spelling is child argv, forwarded verbatim, with no diagnostic and no suggestion — the wrapper has no model of the child's grammar and may not pretend to one.
 

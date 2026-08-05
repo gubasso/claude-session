@@ -12,7 +12,7 @@
 
 ## Decision Outcome
 
-Chosen option: **the project layer may set `default_profile` and nothing else.** `child_bin` selects an executable; `default_account` selects a credential. Neither belongs to a file that arrives with the source tree. `default_profile` names a profile the user authored under their own config base — a repository can ask for one, and gets nothing if it does not exist.
+Chosen option: the project layer may set `default_profile` and nothing else. `child_bin` selects an executable; `default_account` selects a credential. Neither belongs to a file that arrives with the source tree. `default_profile` names a profile the user authored under their own config base — a repository can ask for one, and gets nothing if it does not exist.
 
 `child_bin` or `default_account` appearing in a project file is `Config`, named and rejected, not silently ignored: the wrapper's [unknown-key rule](../reference/configuration.md#schema) already holds that a configuration which does not do what it says is the worse failure.
 

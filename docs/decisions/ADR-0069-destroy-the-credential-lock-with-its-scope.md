@@ -13,7 +13,7 @@
 
 ## Decision Outcome
 
-Chosen option: **take the lock exclusively, then delete the tree with the lock inside it.** ADR-0060's rule protects a lock whose guarded files still exist; when the scope itself is destroyed the lock has nothing left to guard, and the remover holds it. A racer blocked on acquisition wakes holding an unlinked inode and fails its rename with `Io` — legible, and not a corrupted account.
+Chosen option: take the lock exclusively, then delete the tree with the lock inside it. ADR-0060's rule protects a lock whose guarded files still exist; when the scope itself is destroyed the lock has nothing left to guard, and the remover holds it. A racer blocked on acquisition wakes holding an unlinked inode and fails its rename with `Io` — legible, and not a corrupted account.
 
 The lock stays beside the files it guards, so the artifact table keeps one rule.
 

@@ -12,7 +12,7 @@ The wrapper needs one idempotent entry point for stored subscription authenticat
 
 ## Decision Outcome
 
-Chosen option: **`account login [name]`** — it creates an account on the first successful login and replaces its selected authentication mode on later successful runs.
+Chosen option: `account login [name]` — it creates an account on the first successful login and replaces its selected authentication mode on later successful runs.
 
 `--token` selects long-lived subscription-token ingestion; `--stdin` selects its non-interactive source. Native authentication remains reachable verbatim, including `claude-session --account work -- auth login`. An in-TUI `/login` remains child-owned and cannot be intercepted.
 

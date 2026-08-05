@@ -12,7 +12,7 @@ Records were named `NNNN-short-title.md` while every reference to one — in pro
 
 ## Decision Outcome
 
-Chosen option: **prefix the filename with `ADR-`**, giving `ADR-NNNN-short-title.md`. A record now carries its own identity wherever the path travels away from its directory, and `ADR-0012` finds the file, its heading, and every inbound link with one search.
+Chosen option: prefix the filename with `ADR-`, giving `ADR-NNNN-short-title.md`. A record now carries its own identity wherever the path travels away from its directory, and `ADR-0012` finds the file, its heading, and every inbound link with one search.
 
 `template.md` keeps its name: it is not a record and has no number.
 

@@ -12,11 +12,11 @@ The wrapper claims `doctor` ([the CLI surface](../reference/cli-surface.md#wrapp
 
 ## Decision Outcome
 
-Chosen option: **compose** — the two reports answer different questions, and a user running `claude-session doctor` wants both.
+Chosen option: compose — the two reports answer different questions, and a user running `claude-session doctor` wants both.
 
 `claude-session doctor` emits its own report first, then spawns `claude doctor` and passes that output through unmodified under its own heading. The child's report is never parsed, summarized, or reformatted; its exit status enters the wrapper's report as one probe, zero being healthy and any other value a warning under the existing severity rules ([ADR-0034](./ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md)). Under `--json` the child's report is one opaque string field beside its status, so [ADR-0032](./ADR-0032-give-each-verb-its-own-json-document.md)'s schema never depends on the child's formatting.
 
-This generalizes: a wrapper verb may keep a name the child also owns **only** when it runs the child's command as part of its own and reports the result, and the overlap is recorded with that reasoning in the CLI surface. Every other collision is renamed or reached through `--`.
+This generalizes: a wrapper verb may keep a name the child also owns only when it runs the child's command as part of its own and reports the result, and the overlap is recorded with that reasoning in the CLI surface. Every other collision is renamed or reached through `--`.
 
 ## Consequences
 

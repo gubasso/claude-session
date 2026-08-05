@@ -12,7 +12,7 @@ This project authors its documentation ahead of its implementation — the speci
 
 ## Decision Outcome
 
-Chosen option: **write whatever the implementation needs, before the code**. A specification here is an input to implementation, not a report on it, so the reader served first is the implementer — and that reader is blocked by an absent document, never by an unshipped binary.
+Chosen option: write whatever the implementation needs, before the code. A specification here is an input to implementation, not a report on it, so the reader served first is the implementer — and that reader is blocked by an absent document, never by an unshipped binary.
 
 No zone has a page cap. A guide is written when a task needs an ordered procedure, and it is verified against the specification and the gate rather than against a release. The rules that already bound documents still bind: one fact one home, a zone created by its first real document, and never a placeholder ([ADR-0012](./ADR-0012-docs-architecture.md)).
 
@@ -25,6 +25,6 @@ No zone has a page cap. A guide is written when a task needs an ordered procedur
 
 ## Status
 
-Accepted
+Superseded
 
-Amends [ADR-0022](./ADR-0022-cut-the-first-release-when-passthrough-works.md), whose release decision is untouched.
+Superseded by [ADR-0075](./ADR-0075-build-through-the-current-slice.md). This record's amendment of [ADR-0022](./ADR-0022-cut-the-first-release-when-passthrough-works.md) remains historical.

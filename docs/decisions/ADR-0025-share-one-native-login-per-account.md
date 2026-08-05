@@ -13,7 +13,7 @@
 
 ## Decision Outcome
 
-Chosen option: **one account-wide native configuration directory** — every run of an account receives its durable `config/` as `CLAUDE_CONFIG_DIR`; groups retain only composed settings, provenance, and session metadata.
+Chosen option: one account-wide native configuration directory — every run of an account receives its durable `config/` as `CLAUDE_CONFIG_DIR`; groups retain only composed settings, provenance, and session metadata.
 
 The wrapper owns selection of the account directory. The child exclusively owns `config/.credentials.json`: the wrapper never reads, copies, writes, refreshes, fingerprints, or synchronizes it. Wrapper `account login`, passthrough `auth login`, and an in-TUI `/login` structurally reach the same child-owned location, without a wrapper handshake, lock, cache, or write-back. Exact TUI behavior remains externally tracked.
 

@@ -6,13 +6,13 @@
 
 ## Considered Options
 
-- **Keep `stable`** and accept the drift.
-- **Pin an exact version** and list the required components.
-- **Pin, and additionally declare `rust-version`** as a compatibility promise.
+- Keep `stable` and accept the drift.
+- Pin an exact version and list the required components.
+- Pin, and additionally declare `rust-version` as a compatibility promise.
 
 ## Decision Outcome
 
-Chosen option: **pin exactly and declare `rust-version`**.
+Chosen option: pin exactly and declare `rust-version`.
 
 `rust-toolchain.toml` names one release and lists `rustfmt` and `clippy` explicitly, so every developer, the devShell, and CI compile with the same compiler and lint set — and the devShell's claim about what the file provides becomes true. Upgrading then arrives as a visible commit that can be reviewed, bisected, and reverted like any other change.
 

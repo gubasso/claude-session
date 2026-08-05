@@ -6,7 +6,7 @@ Exact paths, modes, and writers are in [XDG storage](../reference/xdg-storage.md
 
 ## What a session is
 
-A wrapper session is an **account plus a profile**:
+A wrapper session is an account plus a profile:
 
 - The account selects one shared child `config/` directory and one stored authentication mode.
 - The profile selects one composed `settings.json` and its provenance sidecar.

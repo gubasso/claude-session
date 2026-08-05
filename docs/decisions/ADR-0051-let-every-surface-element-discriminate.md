@@ -6,13 +6,13 @@
 
 ## Considered Options
 
-- **Decide each case on its merits**, as ADR-0049 did.
-- **Ban namespaces outright**, flattening every verb.
-- **Name the shared rule**: an element earns its place by discriminating between alternatives.
+- Decide each case on its merits, as ADR-0049 did.
+- Ban namespaces outright, flattening every verb.
+- Name the shared rule: an element earns its place by discriminating between alternatives.
 
 ## Decision Outcome
 
-Chosen option: **name the shared rule**. A subcommand distinguishes itself from its siblings; a flag distinguishes one invocation's behaviour from another's. An element with nothing to distinguish is a token the user must type to say nothing, and it is a contract that must be specified, tested, and kept working forever.
+Chosen option: name the shared rule. A subcommand distinguishes itself from its siblings; a flag distinguishes one invocation's behaviour from another's. An element with nothing to distinguish is a token the user must type to say nothing, and it is a contract that must be specified, tested, and kept working forever.
 
 Two corollaries follow mechanically. A namespace verb with one subcommand collapses to the bare verb, so `profile list` becomes `profile`. A flag is declared on the invocations that act on it and nowhere else, so `--profile` is declared on the bare launch and on `config`, matching how [ADR-0024](./ADR-0024-machine-output-is-a-per-verb-flag.md) already scopes `--json`.
 

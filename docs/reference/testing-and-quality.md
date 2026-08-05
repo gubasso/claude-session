@@ -13,7 +13,7 @@ This describes normative design. The crate is pre-implementation.
 | End-to-end  | Continuous integration only               | —                                                     | The whole product against the real `claude`                           |
 | Doc tests   | `///` examples                            | Not run by `nextest`                                  | Requires a library target; none exists                                |
 
-The defining property of an integration test is that it tests **an interaction**, not that it touches something real. A test running the compiled binary against a recording stub is an integration test.
+The defining property of an integration test is that it tests an interaction, not that it touches something real. A test running the compiled binary against a recording stub is an integration test.
 
 End-to-end tests never run in a local hook. They are slow, they depend on host state, and they need credentials. A contributor must be able to run the whole local suite with nothing installed but the toolchain.
 
@@ -25,11 +25,11 @@ End-to-end tests never run in a local hook. They are slow, they depend on host s
 | `pre-push`             | `pre-push`   | Unit and integration     | Single-digit seconds |
 | Continuous integration | `ci`         | Everything, with retries | Minutes              |
 
-The unit lane is wired to **both** the commit and push hooks. It is nearly free, and running it again at push catches work that reached a commit through a rebase or an amend that bypassed the hook.
+The unit lane is wired to both the commit and push hooks. It is nearly free, and running it again at push catches work that reached a commit through a rebase or an amend that bypassed the hook.
 
-**The profile foot-gun:** a non-default `nextest` profile is inert unless the invoking command passes `--profile <name>`. A hook or recipe that omits it silently runs the default profile — every test, with the wrong settings — and the lane's filter never applies. Every invocation names its profile explicitly.
+The profile foot-gun: a non-default `nextest` profile is inert unless the invoking command passes `--profile <name>`. A hook or recipe that omits it silently runs the default profile — every test, with the wrong settings — and the lane's filter never applies. Every invocation names its profile explicitly.
 
-The time budget is one number: **the commit hook stays under one second of test time.** A commit hook slow enough to notice is a commit hook people bypass.
+The time budget is one number: the commit hook stays under one second of test time. A commit hook slow enough to notice is a commit hook people bypass.
 
 ### What each lane may admit
 
@@ -41,7 +41,7 @@ A lane is defined by the evidence it is allowed to look at, which is what keeps 
 | Integration | The compiled binary's exit status, its standard output and standard error as bytes, and the three raw-byte files [the recording stub](#the-recording-stub) wrote. Never host state. |
 | End-to-end  | Observations of the real `claude`. The only lane that may, and it may never run in a hook.                                                                                          |
 
-**The lane of a mandatory test is derived, never declared:** a test needing the recording stub or a temporary tree is integration, one needing the real child is end-to-end, and everything else is unit. That rule is total over the table below, which is why no test carries a lane column — a column would be a second source of truth over forty-odd rows, and the first row to disagree with the rule would be a defect nobody could see.
+The lane of a mandatory test is derived, never declared: a test needing the recording stub or a temporary tree is integration, one needing the real child is end-to-end, and everything else is unit. That rule is total over the table below, which is why no test carries a lane column — a column would be a second source of truth over forty-odd rows, and the first row to disagree with the rule would be a defect nobody could see.
 
 ## Tools
 
@@ -68,7 +68,7 @@ Every test touching the environment or the filesystem must satisfy all of these:
 | Requirement          | Rule                                                                                           |
 | -------------------- | ---------------------------------------------------------------------------------------------- |
 | Temporary directory  | Fresh per test, removed after. Never shared.                                                   |
-| Child environment    | **Cleared, then explicitly populated.** Never inherited and patched.                           |
+| Child environment    | Cleared, then explicitly populated. Never inherited and patched.                               |
 | Base directories     | Every `XDG_*` variable points inside the temporary directory                                   |
 | Network              | None                                                                                           |
 | Clock                | Injected where a timestamp is observable                                                       |
@@ -80,7 +80,7 @@ The last row is the one that produces the worst bugs. Both the environment and t
 
 Real-process tests use a stub binary placed on the search path ahead of anything else. It records the arguments, environment, and working directory it received, and exits with whatever status the test requires — including death by a chosen signal.
 
-**It records raw bytes, in the kernel's own format.** Three files in a directory the test names by variable — `argv`, `environ`, `cwd` — each entry written verbatim and separated by a NUL, with a trailing NUL. That is the `/proc/<pid>/cmdline` and `/proc/<pid>/environ` layout, and it is lossless without a length prefix because a NUL cannot occur inside an argument or an environment entry. Text, JSON, and any lossy conversion are forbidden: a stub that normalizes makes the golden argv test pass against a broken wrapper. Files rather than standard output, because the child's stdout is inherited unmodified and is itself under test.
+It records raw bytes, in the kernel's own format. Three files in a directory the test names by variable — `argv`, `environ`, `cwd` — each entry written verbatim and separated by a NUL, with a trailing NUL. That is the `/proc/<pid>/cmdline` and `/proc/<pid>/environ` layout, and it is lossless without a length prefix because a NUL cannot occur inside an argument or an environment entry. Text, JSON, and any lossy conversion are forbidden: a stub that normalizes makes the golden argv test pass against a broken wrapper. Files rather than standard output, because the child's stdout is inherited unmodified and is itself under test.
 
 The stub is what makes passthrough assertions mechanical: not "the command looked right" but "the child received exactly these arguments, in this order, with these bytes."
 
@@ -96,11 +96,11 @@ Each of these locks down a contract that is otherwise decorative:
 | Child signal fidelity     | A signal-killed stub produces signal death, or the documented fallback                             | [Exit codes](./exit-codes.md)           |
 | `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                                          | [CLI surface](./cli-surface.md)         |
 | Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session                         | [Process runtime](./process-runtime.md) |
-| Recursion guard, identity | A **hard-linked** wrapper is caught, which path equality would miss                                | [Process runtime](./process-runtime.md) |
+| Recursion guard, identity | A hard-linked wrapper is caught, which path equality would miss                                    | [Process runtime](./process-runtime.md) |
 | Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`                    | [Process runtime](./process-runtime.md) |
 | `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126                        | [Process runtime](./process-runtime.md) |
 | Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`                                | [Process runtime](./process-runtime.md) |
-| Environment isolation     | The stub sees the injected config directory and **exactly one** `CLAUDE_SESSION_*` key, the marker | [Process runtime](./process-runtime.md) |
+| Environment isolation     | The stub sees the injected config directory and exactly one `CLAUDE_SESSION_*` key, the marker     | [Process runtime](./process-runtime.md) |
 | Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                 | [Process runtime](./process-runtime.md) |
 | Profile isolation         | Two profiles launched from one terminal and one account get different entry paths and bytes        | [XDG storage](./xdg-storage.md)         |
 | Entry key determinism     | Changing a piece's content, resolved path, order, or the strategy table names a different entry    | [XDG storage](./xdg-storage.md)         |
@@ -134,7 +134,7 @@ Each of these locks down a contract that is otherwise decorative:
 
 ### Naming the implementation a test rejects
 
-**A mandatory test names the wrong implementation it rejects only where a naive implementation would pass the obvious assertion.** Most rows do not need one: a test that asserts the documented behaviour already fails everything else. Spelling out a rejected implementation for all of them would be table-completeness rather than coverage, and each sentence would then have to be maintained against code that does not exist yet.
+A mandatory test names the wrong implementation it rejects only where a naive implementation would pass the obvious assertion. Most rows do not need one: a test that asserts the documented behaviour already fails everything else. Spelling out a rejected implementation for all of them would be table-completeness rather than coverage, and each sentence would then have to be maintained against code that does not exist yet.
 
 These are the rows where the naive implementation passes and the contract still breaks:
 
@@ -143,7 +143,7 @@ These are the rows where the naive implementation passes and the contract still 
 | Child signal fidelity     | `exit(128 + N)` where re-raise was available. A shell reports the same number either way; the wait-status macros do not.                                 |
 | Recursion guard, identity | Comparing canonical paths. A hard link to the wrapper is a different path and the same file.                                                             |
 | Spawn-failure classes     | Classifying a child removed between the pre-flight check and the spawn as `OsError`. The pre-flight check is advisory, so the spawn's own errno decides. |
-| Mode enforcement          | Reporting `fail` on a mode that was **corrected**. A repair is not an unhealthy state, so `doctor --strict` must not fail on one.                        |
+| Mode enforcement          | Reporting `fail` on a mode that was corrected. A repair is not an unhealthy state, so `doctor --strict` must not fail on one.                            |
 | Partial pair recovery     | Keeping the surviving member of a half-written pair. Both are rewritten from this run's inputs, because the survivor's provenance is unknown.            |
 | In-process exclusion      | Relying on the file lock alone. An advisory lock is held per open file description and cannot exclude a second thread of the same process.               |
 
@@ -171,39 +171,39 @@ The five flag-recognition tests are one obligation split by what each rejects, a
 | Malformed wrapper flag | `--config` bare exits `Usage`; `--configg` forwards verbatim and the run exits with the stub's status.                                          |
 | Collision audit        | The claimed flag and verb sets are intersected with a checked-in, version-labelled inventory fixture and compared with the documented overlaps. |
 
-The collision audit reads the fixture, never the network and never a locally installed child; refreshing the fixture is the `child-flag-and-verb-inventory` revalidation, not a test run. **The fixture does not exist yet**, so the audit is specified and unbacked: it is written in the round that writes the flag table it audits, and until then the mechanism [research tracking](./research-tracking.yaml) calls the authority is a design, not a file.
+The collision audit reads the fixture, never the network and never a locally installed child; refreshing the fixture is the `child-flag-and-verb-inventory` revalidation, not a test run. The fixture does not exist yet, so the audit is specified and unbacked: it is written in the round that writes the flag table it audits, and until then the mechanism [research tracking](./research-tracking.yaml) calls the authority is a design, not a file.
 
 The two confirmation tests exist to reject one specific wrong implementation — `stdin().is_terminal()`, which passes a naive suite and fails only where the two predicates disagree ([ADR-0053](../decisions/ADR-0053-read-a-confirmation-from-the-controlling-terminal.md)):
 
-| Test                   | Shape                                                                                                                                                                                          |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Confirmation predicate | A pseudo-terminal is the child's controlling terminal, **and fd 0 is a pipe**. Answering `n` on the master exits `0`, leaves the account directory intact, and consumes nothing from the pipe. |
-| Confirmation escape    | The child is detached with `setsid`. Without `--yes` it exits `Unavailable` with the directory byte-for-byte unchanged; with `--yes` it removes.                                               |
+| Test                   | Shape                                                                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Confirmation predicate | A pseudo-terminal is the child's controlling terminal, and fd 0 is a pipe. Answering `n` on the master exits `0`, leaves the account directory intact, and consumes nothing from the pipe. |
+| Confirmation escape    | The child is detached with `setsid`. Without `--yes` it exits `Unavailable` with the directory byte-for-byte unchanged; with `--yes` it removes.                                           |
 
 Each carries its `y`, `yes`, bare-Enter, and end-of-input legs, and one `--json` leg asserting exactly one document on standard output while the prompt went to the terminal.
 
-**A confirmation test must detach or allocate its own terminal — never inherit the runner's.** Under the `/dev/tty` predicate an inherited terminal makes the binary prompt at whoever ran `cargo test`, so the suite hangs locally and passes in CI, which is the worst failure shape a gate can have. This is the [test-process globals](#hermetic-fixtures) rule reaching the terminal.
+A confirmation test must detach or allocate its own terminal — never inherit the runner's. Under the `/dev/tty` predicate an inherited terminal makes the binary prompt at whoever ran `cargo test`, so the suite hangs locally and passes in CI, which is the worst failure shape a gate can have. This is the [test-process globals](#hermetic-fixtures) rule reaching the terminal.
 
 `rustix` supplies `process::setsid`, the `pty` module, and the `termios` calls that [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md)'s echo-disable needs; `TIOCSCTTY` goes through `rustix::ioctl` or the `libc` exception. No terminal-scraping crate is added — see [dependencies](./dependencies.md).
 
-Five of these have teeth beyond their own assertion. The exit-code matrix, written exhaustively over a closed enum, means adding an error variant without a code **fails the build**. The example round-trip is what stops a generated example from being a plausible-looking file the program itself would reject — an example that does not parse is worse than none, because the user trusts it. The undocumented-field test enforces the hard failure [ADR-0013](../decisions/ADR-0013-generate-config-examples-from-types.md) rests on: without it, the generator degrades quietly into emitting bare keys. Denylist membership means a flag added in code without its table row fails the build, and the collision audit means a child release that starts shadowing a claimed spelling fails the build — the only mechanism in the project that turns red without a change of its own, which is the point.
+Five of these have teeth beyond their own assertion. The exit-code matrix, written exhaustively over a closed enum, means adding an error variant without a code fails the build. The example round-trip is what stops a generated example from being a plausible-looking file the program itself would reject — an example that does not parse is worse than none, because the user trusts it. The undocumented-field test enforces the hard failure [ADR-0013](../decisions/ADR-0013-generate-config-examples-from-types.md) rests on: without it, the generator degrades quietly into emitting bare keys. Denylist membership means a flag added in code without its table row fails the build, and the collision audit means a child release that starts shadowing a claimed spelling fails the build — the only mechanism in the project that turns red without a change of its own, which is the point.
 
 ## The gate
 
 Hooks are the source of truth; task-runner gate recipes delegate to them, while inner-loop recipes stay raw `cargo`.
 
-**`just hooks` is the single local command that reproduces the project's verdict.** It runs both stages:
+`just hooks` is the single local command that reproduces the project's verdict. It runs both stages:
 
 ```bash
 pre-commit run --all-files --hook-stage pre-commit
 pre-commit run --all-files --hook-stage pre-push
 ```
 
-`pre-commit run --all-files` on its own is **not** the gate. `--all-files` selects files, not stages, so it runs the commit stage alone and silently omits the push-stage half of the table below — the integration tests, the doctests, and every advisory and secret scan.
+`pre-commit run --all-files` on its own is not the gate. `--all-files` selects files, not stages, so it runs the commit stage alone and silently omits the push-stage half of the table below — the integration tests, the doctests, and every advisory and secret scan.
 
 Run it inside the devShell. Several hooks take their binary from the shell rather than building one, so outside it they fail at exec rather than reporting on content ([ADR-0040](../decisions/ADR-0040-provision-hook-binaries-from-the-devshell.md)).
 
-The **Backing** column says whether the hook exists today. `deferred` means the row is a specification the repository does not yet enforce; it is closed by the round that builds the mechanism, never by deleting the row.
+The Backing column says whether the hook exists today. `deferred` means the row is a specification the repository does not yet enforce; it is closed by the round that builds the mechanism, never by deleting the row.
 
 | Hook                                   | Stage        | Enforces                                       | Backing                                                                   |
 | -------------------------------------- | ------------ | ---------------------------------------------- | ------------------------------------------------------------------------- |
@@ -231,7 +231,7 @@ This table lists the gates the specifications depend on, not every hook configur
 
 Fast, autofixing checks run at commit; slow and network-dependent ones at push. Do not bypass a hook. A hook that is wrong should be fixed in its configuration.
 
-**Continuous integration runs a subset, not the whole gate.** `ci.yml` invokes the task-runner recipes — formatting, clippy, the `ci` test profile, a release build, docs, `cargo audit`, `cargo deny`, and `nix flake check` — and never invokes `pre-commit`. Everything else in the table is enforced locally only and can therefore reach a green pull request unrun. Closing that is a workflow change, and until it lands this page does not claim the two are equivalent.
+Continuous integration runs a subset, not the whole gate. `ci.yml` invokes the task-runner recipes — formatting, clippy, the `ci` test profile, a release build, docs, `cargo audit`, `cargo deny`, and `nix flake check` — and never invokes `pre-commit`. Everything else in the table is enforced locally only and can therefore reach a green pull request unrun. Closing that is a workflow change, and until it lands this page does not claim the two are equivalent.
 
 ## Boundary lints
 
@@ -244,76 +244,53 @@ Four architectural rules are structural rather than type-checked. Two ban a Rust
 | Dependency direction | grep over `src/`                                                   | deferred |
 | Tooling isolation    | grep, plus `cargo-deny` `bans` for the manifest half               | deferred |
 
-**Output ownership.** No print macro appears in `src/` outside the output module and the entry point. See [logging and output](./logging-and-output.md#the-stream-contract).
+Output ownership. No print macro appears in `src/` outside the output module and the entry point. See [logging and output](./logging-and-output.md#the-stream-contract).
 
-**Environment typing.** `std::env::var` and `std::env::vars` are banned under `src/`; the `_os` forms only. Both panic on an environment that is not valid UTF-8, which would turn a legal environment into a wrapper crash — the same conversion the [types rule](./coding-conventions.md#types) forbids on argv, in the place a type cannot catch it.
+Environment typing. `std::env::var` and `std::env::vars` are banned under `src/`; the `_os` forms only. Both panic on an environment that is not valid UTF-8, which would turn a legal environment into a wrapper crash — the same conversion the [types rule](./coding-conventions.md#types) forbids on argv, in the place a type cannot catch it.
 
-**Dependency direction.** `domain/` imports nothing from `adapters/` or `services/`. A violation means pure code has acquired an I/O dependency, and the type system will not catch it.
+Dependency direction. `domain/` imports nothing from `adapters/` or `services/`. A violation means pure code has acquired an I/O dependency, and the type system will not catch it.
 
-**Tooling isolation.** Nothing under `src/` imports from `xtask`, and the wrapper's own manifest does not list a development-tooling crate. The dependency runs one way, and the whole reason `xtask` exists is that its dependencies stay out of the shipped binary; see [dependencies](./dependencies.md).
+Tooling isolation. Nothing under `src/` imports from `xtask`, and the wrapper's own manifest does not list a development-tooling crate. The dependency runs one way, and the whole reason `xtask` exists is that its dependencies stay out of the shipped binary; see [dependencies](./dependencies.md).
 
 Scope all but tooling isolation to `src/`. The two clippy rules resolve paths, so they neither fire inside a `///` example nor miss an aliased import — which is the whole reason they are not greps. The two that remain greps carry that hazard and must be written to tolerate it.
 
-**No boundary lint is wired today.** All four are specified and none is configured, so the rejecting mechanism for these rules is review until the round that adds `clippy.toml` and the two greps lands.
+No boundary lint is wired today. All four are specified and none is configured, so the rejecting mechanism for these rules is review until the round that adds `clippy.toml` and the two greps lands.
 
 ## Protected branches
 
-**The gate refuses a commit made directly on `master`, and takes no position on `develop`.** `master` is written by the installed GitHub App alone ([release workflow](./release-workflow.md#branch-and-release-invariant)), so a local commit there has no legitimate case and the hook rejects that class with no false positives.
+The gate refuses a commit made directly on `master`, and takes no position on `develop`. `master` is written by the installed GitHub App alone ([release workflow](./release-workflow.md#branch-and-release-invariant)), so a local commit there has no legitimate case and the hook rejects that class with no false positives.
 
 `develop` is deliberately excluded. Its real policy is a reviewed pull request with green continuous integration, which a client-side hook cannot approximate and would only imitate — and it has one legitimate direct-commit case, during [release bootstrap](../guides/releasing.md#bootstrap-release-automation-once). The forge ruleset is its authority. The general rule: local hooks validate content, forge rules enforce branch topology.
 
-**The hook is specified and not yet enabled.** `no-commit-to-branch` is commented out in the hook configuration, so this rule is enforced by review until it is uncommented. Enabling it before the bootstrap is done would reject the direct commits the release guide requires, so its precondition is a published `develop` and a closed bootstrap window.
+The hook is specified and not yet enabled. `no-commit-to-branch` is commented out in the hook configuration, so this rule is enforced by review until it is uncommented. Enabling it before the bootstrap is done would reject the direct commits the release guide requires, so its precondition is a published `develop` and a closed bootstrap window.
 
 It must carry `args: [--branch, master]`. The hook's default set is `master` and `main`; only `master` is protected here, and the explicit argument keeps the hook from asserting a branch this project's model does not name.
 
 ## Documentation sweeps
 
-Six checks over the documentation and the queue. **No hook runs them.** They are the rejecting mechanism [project governance](./project-governance.md#rule-ownership-and-enforcement) names for rules no formatter can see, and a reader runs them during review. Run them from the repository root.
+The hook configuration is the enforcement lookup. Three repository scripts reject ADR-contract drift, plan-zone drift, and decorative emphasis; markdownlint owns structural Markdown checks. Review sweeps cover facts that need human classification.
 
-| Sweep                                   | Rejects                                                                                                               |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| ADR status is a bare exact value        | A status line carrying prose, which defeats every status read                                                         |
-| No ADR over 450 words                   | A record past the [ADR-0041](../decisions/ADR-0041-budget-adr-length-with-a-margin.md) trim line                      |
-| Plan-cited ADRs resolve and are current | A round taking a current rule from a historical record                                                                |
-| Registered perishable facts             | An externally owned fact asserted without a cadence                                                                   |
-| No personal or home-relative path       | A load-bearing dependency on something outside the repository ([ADR-0001](../decisions/ADR-0001-self-containment.md)) |
-| No unresolved marker under `docs/`      | A contract left as a promise to specify it later                                                                      |
+| Check                                                              | Rejects                                                                              |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| [`check-adrs`](../../scripts/check-adrs)                           | ADR id, shape, status, relationship, or 350-word-cap drift.                          |
+| [`check-plan-zone`](../../scripts/check-plan-zone)                 | Slice, milestone, task, acceptance, rabbit-hole, and question-contract drift.        |
+| [`check-markdown-emphasis`](../../scripts/check-markdown-emphasis) | Unapproved bold or italic prose outside code.                                        |
+| `markdownlint-cli2`                                                | Invalid Markdown, broken relative links, unlabelled fences, and slice heading drift. |
+| Research-tracking inspection                                       | Missing six-field entries or paths that no longer resolve.                           |
+| Personal-path and marker sweeps                                    | Load-bearing external paths or unresolved promises under `docs/`.                    |
 
 ```bash
-# Status is one of the six values, alone on the first nonblank line.
-for f in docs/decisions/ADR-*.md; do
-  s="$(sed -n '/^## Status/,$p' "$f" | grep -v '^## \|^$' | head -1)"
-  case "$s" in
-    Proposed|Accepted|Implemented|Superseded|Deprecated|Rejected) ;;
-    *) printf '%-58s %s\n' "$(basename "$f")" "$s" ;;
-  esac
-done
+scripts/check-adrs
+scripts/check-plan-zone
+scripts/check-markdown-emphasis $(rg --files -g '*.md' -g '*.markdown')
 
-# ADR-0041 measures the whole file; only a record past 450 needs an edit.
-for f in docs/decisions/ADR-*.md; do
-  n="$(wc -w < "$f")"
-  [ "$n" -gt 450 ] && printf 'TRIM %-58s %s\n' "$(basename "$f")" "$n"
-done
+rg -n '(/h[o]me/|/U[s]ers/|~[/]|file:/{2}|exobrain-[t]ech)' docs AGENTS.md README.md \
+  .pre-commit-config.yaml scripts
 
-# Every ADR a round cites resolves and is current authority.
-grep -rhoE 'docs/decisions/ADR-[0-9]{4}-[a-z0-9-]+\.md' .implementation-plans | sort -u \
-  | while read -r f; do
-      [ -e "$f" ] || { echo "DANGLING: $f"; continue; }
-      s="$(sed -n '/^## Status/,$p' "$f" | grep -v '^## \|^$' | head -1)"
-      case "$s" in Accepted|Implemented) ;; *) echo "$s: $f" ;; esac
-    done
-
-grep -c '^  - id:' docs/reference/research-tracking.yaml
-
-# The bracket classes stop the pattern matching this file.
-rg -n '(/h[o]me/|/U[s]ers/|~[/]|file:/{2})' docs/ AGENTS.md README.md .implementation-plans/
-
-rg -n -i '\b(TOD[O]|TB[D]|FIXM[E]|XX[X])\b' docs/ --glob '!research-tracking.yaml'
+rg -n -i '\b(TOD[O]|TB[D]|FIXM[E]|XX[X])\b' docs --glob '!research-tracking.yaml'
 ```
 
-Three sweeps have declared exceptions, and a hit matching one is not a defect. `cs-accounts-auth/README.md` cites Superseded [ADR-0011](../decisions/ADR-0011-isolate-credentials-by-seed-and-session.md) as the model that was superseded, which is history and not authority. The marker sweep matches the queue status value in [the development workflow](../guides/development-workflow.md), which names a status and not a marker. The personal-path sweep matches the rendered sidecar in [configuration](./configuration.md#provenance-sidecar), where an absolute path under a home directory is what the field actually holds; it otherwise permits only quotations of the XDG specification's own home-relative defaults.
-
-What a sweep proves is that a reference resolves. Whether the resolved contract is complete is a [completeness-rubric](./project-governance.md#completeness-rubric) read.
+Two personal-path hits are declared examples rather than defects: the rendered provenance sidecar in [configuration](./configuration.md#provenance-sidecar), where the absolute path is the field value, and quotations of the XDG specification's own home-relative defaults where that default is the specified value. No other personal or external local path may carry authority.
 
 Counting rule: never combine `grep -c` with `-o`. Count occurrences with `grep -ohE PATTERN FILE | sort -u | wc -l`, which de-duplicates and behaves the same on every host.
 
@@ -321,17 +298,19 @@ Counting rule: never combine `grep -c` with `-o`. Count occurrences with `grep -
 
 Documentation passes the same gate as code.
 
-| Constraint                        | Consequence for authoring                                                                                              |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `dprint` sets `textWrap: "never"` | Every paragraph is unwrapped to one physical line. Do not hand-wrap prose.                                             |
-| `markdownlint` MD041, MD025       | One `#` heading, on the first line                                                                                     |
-| `markdownlint` MD001              | Heading levels increment by one                                                                                        |
-| `markdownlint` MD029              | Ordered lists renumber to `1.`, `2.`, `3.` — the only autofix                                                          |
-| `markdownlint` MD046              | Code blocks are fenced                                                                                                 |
-| `relative-links`                  | A relative link must resolve to a real file, and a fragment to a real heading                                          |
-| pygrep link guards                | Relative links must be explicit: `./name.md`, `../dir/name.md`, or `dir/name.md`. A bare `name.md` target is rejected. |
+| Constraint                           | Consequence for authoring                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `dprint` sets `textWrap: "never"`    | Every paragraph is unwrapped to one physical line. Do not hand-wrap prose.                                             |
+| `markdownlint` MD041, MD025          | One `#` heading, on the first line                                                                                     |
+| `markdownlint` MD001                 | Heading levels increment by one                                                                                        |
+| `markdownlint` MD029                 | Ordered lists renumber to `1.`, `2.`, `3.` — the only autofix                                                          |
+| `markdownlint` MD043, MD046          | Slice entry headings are fixed and code blocks are fenced                                                              |
+| `relative-links`                     | A relative link must resolve to a real file, and a fragment to a real heading                                          |
+| pygrep link guards                   | Relative links must be explicit: `./name.md`, `../dir/name.md`, or `dir/name.md`. A bare `name.md` target is rejected. |
+| `markdown-no-emphasis`               | Decorative bold and italics are rejected outside fenced and inline code                                                |
+| `adr-contract`, `plan-zone-contract` | ADR and plan-zone rules are checked over their complete zones                                                          |
 
-Expect the first hook run after authoring to produce a large mechanical diff. Accept it and re-run.
+Acceptance test names are intentionally absent until [Q-001](../plan/open-questions.md#q-001--when-can-slice-acceptance-name-tests) closes with a resolver hook in the same change.
 
 ## Further reading
 

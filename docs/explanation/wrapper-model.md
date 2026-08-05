@@ -4,7 +4,7 @@
 
 ## The cardinal principle
 
-**Keep the wrapper's grammar small and explicit. Keep the wrapped command opaque. Do not rewrite argv without a narrow, stable reason.**
+Keep the wrapper's grammar small and explicit. Keep the wrapped command opaque. Do not rewrite argv without a narrow, stable reason.
 
 Every other rule here follows from that one. A wrapper that parses its child's grammar in order to rewrite it has taken on an obligation it cannot meet: the child is developed by someone else, it gains flags on its own schedule, and each new flag is a potential breakage in the wrapper. The wrapper that survives is the one that knows almost nothing about its child.
 
@@ -18,43 +18,43 @@ A wrapper invocation has three regions, and confusing them is the classic wrappe
 claude-session [WRAPPER FLAGS] <verb> [--] [CHILD ARGS...]
 ```
 
-**Wrapper flags** come first and are a closed, documented set. They are long-form, distinctively named, and small enough to list on one screen. Anything not on that list is not a wrapper flag, no matter how much it looks like one.
+Wrapper flags come first and are a closed, documented set. They are long-form, distinctively named, and small enough to list on one screen. Anything not on that list is not a wrapper flag, no matter how much it looks like one.
 
-**The verb** is either one of the wrapper's own commands or absent. When it is absent, the invocation is a passthrough and everything from the first token onward belongs to the child.
+The verb is either one of the wrapper's own commands or absent. When it is absent, the invocation is a passthrough and everything from the first token onward belongs to the child.
 
-**Child arguments** are opaque. They are forwarded in order, byte for byte, and the wrapper forms no opinion about them.
+Child arguments are opaque. They are forwarded in order, byte for byte, and the wrapper forms no opinion about them.
 
 `--` is a hard sentinel. Everything after it is child argument territory, unconditionally, even if it happens to spell a wrapper flag or a wrapper verb. There is no context in which the wrapper reinterprets a token past `--`.
 
 ## Denylist, not allowlist
 
-The wrapper claims a **denylist** of flags: a short, explicit list it intercepts. Everything else forwards.
+The wrapper claims a denylist of flags: a short, explicit list it intercepts. Everything else forwards.
 
 The alternative — an allowlist of child flags the wrapper understands, with anything unrecognized rejected — fails the moment the child ships a new flag. The user would then need a new wrapper release to use a feature that already works in the tool being wrapped. That is exactly the failure the passthrough contract exists to prevent.
 
 The cost of a denylist is a genuine collision risk: if the wrapper claims a flag the child also claims, the wrapper wins and the user loses the child's version. That risk is real rather than theoretical — the child already spells `--verbose`, and it spells `-v` as its version flag.
 
-Three things keep the cost bounded. Wrapper flags are long-form and distinctive rather than single letters. Interception is **leading-position only**, so a claimed spelling typed after any other token still reaches the child. And the claimed set is compared against a recorded inventory of the child's own flags, with any unnamed overlap failing the build rather than being noticed later ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)). The exact spellings, their measured child status, and the escape hatches are in [the CLI surface](../reference/cli-surface.md#wrapper-owned-flags).
+Three things keep the cost bounded. Wrapper flags are long-form and distinctive rather than single letters. Interception is leading-position only, so a claimed spelling typed after any other token still reaches the child. And the claimed set is compared against a recorded inventory of the child's own flags, with any unnamed overlap failing the build rather than being noticed later ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)). The exact spellings, their measured child status, and the escape hatches are in [the CLI surface](../reference/cli-surface.md#wrapper-owned-flags).
 
 A collision the wrapper cannot resolve by shadowing is resolved by renaming, as `auth` was, or by composing — running the child's command inside the wrapper's own and reporting both, as `doctor` does. Nothing is left to be discovered by a user who did not know a wrapper was in the way.
 
 ## Byte-preserving argv
 
-Arguments are forwarded **verbatim**, preserving order and bytes. Concretely:
+Arguments are forwarded verbatim, preserving order and bytes. Concretely:
 
 - Arguments are carried as OS strings end to end, never round-tripped through UTF-8. On Unix an argument is a byte string, and a filename that is not valid UTF-8 is still a perfectly legal argument.
-- An **empty argument is a real argument**. A shell that ran `claude-session foo "" bar` passed three arguments, and the child must receive three. Filtering empties is a silent semantic change to the user's command line.
+- An empty argument is a real argument. A shell that ran `claude-session foo "" bar` passed three arguments, and the child must receive three. Filtering empties is a silent semantic change to the user's command line.
 - No reordering, no deduplication, no case normalization, no quote stripping, no re-quoting.
 
 There is no argv normalization step in this program. If a future change appears to need one, it is a change to the passthrough contract and needs a decision record before it needs code.
 
 ## Why the parser cannot do this alone
 
-A derive-based argument parser is built to reject what it does not recognize. Configuring one to accept an unknown _positional_ token as an external subcommand is straightforward; the parser treats an unexpected positional as a subcommand name and hands you the rest. But a leading unknown **flag** is not a positional. An invocation whose first token is a dash-prefixed flag the wrapper does not define is rejected as an unexpected argument before any external-subcommand handling applies. Settings that relax hyphen handling operate on a declared value, not on the top-level parse, and so do not rescue this case either.
+A derive-based argument parser is built to reject what it does not recognize. Configuring one to accept an unknown positional token as an external subcommand is straightforward; the parser treats an unexpected positional as a subcommand name and hands you the rest. But a leading unknown flag is not a positional. An invocation whose first token is a dash-prefixed flag the wrapper does not define is rejected as an unexpected argument before any external-subcommand handling applies. Settings that relax hyphen handling operate on a declared value, not on the top-level parse, and so do not rescue this case either.
 
 Since a passthrough wrapper's most common invocation is exactly that shape — the user typing a child flag as the first token — the parser cannot be the only gate.
 
-The consequence for this design: **argv is split before it reaches the parser.** A small, pure pre-parse scans the front of the command line, consuming only tokens the wrapper's closed flag set claims and stopping at the first token that is not one — or at `--`. If what remains begins with a wrapper verb, the parser handles it. Otherwise the remainder is child argv and never touches the parser at all.
+The consequence for this design: argv is split before it reaches the parser. A small, pure pre-parse scans the front of the command line, consuming only tokens the wrapper's closed flag set claims and stopping at the first token that is not one — or at `--`. If what remains begins with a wrapper verb, the parser handles it. Otherwise the remainder is child argv and never touches the parser at all.
 
 That pre-parse is a pure function over a list of OS strings. Being pure and total makes it directly unit-testable, and it is: the golden-argv tests in [the testing strategy](./testing-strategy.md) exist precisely because this function is the single point where the passthrough contract can silently break.
 
@@ -64,18 +64,18 @@ Replacing the wrapper's own process image with the child's is the cheapest way t
 
 The current reasons are child supervision and post-flight last-used/log finalization. The original credential and trust-state sync-back rationale is historical; amended [ADR-0004](../decisions/ADR-0004-spawn-and-wait-child-supervision.md) and [process runtime](../reference/process-runtime.md) own the current obligations. Choosing to stay alive means owning signal forwarding, terminal semantics, and exit-status fidelity by hand.
 
-The wrapper's obligation, having made that choice, is to be **behaviourally indistinguishable** from `exec` in everything the user can observe: the same exit status, the same terminal behaviour, the same response to Ctrl-C. [ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md) generalizes that obligation past argv and exit status, and names the two classes of divergence a wrapper feature may buy.
+The wrapper's obligation, having made that choice, is to be behaviourally indistinguishable from `exec` in everything the user can observe: the same exit status, the same terminal behaviour, the same response to Ctrl-C. [ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md) generalizes that obligation past argv and exit status, and names the two classes of divergence a wrapper feature may buy.
 
 ## Signals and the double-delivery trap
 
 The naive design — catch every terminal signal and forward it to the child — is wrong, and wrong in a way that is easy to miss in testing.
 
-When the wrapper spawns the child without changing process groups, the child stays in the wrapper's **foreground process group**. A terminal-generated signal is delivered by the kernel to _every_ process in that group. So Ctrl-C already reaches the child. A wrapper that also forwards it delivers the signal twice, and a child that counts interrupts — one press to interrupt the current operation, two to quit — sees a single press as a double press.
+When the wrapper spawns the child without changing process groups, the child stays in the wrapper's foreground process group. A terminal-generated signal is delivered by the kernel to every process in that group. So Ctrl-C already reaches the child. A wrapper that also forwards it delivers the signal twice, and a child that counts interrupts — one press to interrupt the current operation, two to quit — sees a single press as a double press.
 
 There are two coherent topologies, and the choice must be made once, deliberately:
 
-- **Share the group.** Terminal signals reach the child directly. The wrapper forwards only the signals the terminal does _not_ broadcast, and otherwise stays out of the way. Simple, and correct for interactive use.
-- **Give the child its own group.** The child no longer receives terminal signals at all, so the wrapper must forward every one of them, and must also manage which group owns the terminal so the child can still read from it.
+- Share the group. Terminal signals reach the child directly. The wrapper forwards only the signals the terminal does not broadcast, and otherwise stays out of the way. Simple, and correct for interactive use.
+- Give the child its own group. The child no longer receives terminal signals at all, so the wrapper must forward every one of them, and must also manage which group owns the terminal so the child can still read from it.
 
 This project takes the first: the child shares the wrapper's foreground process group, and forwarding is deliberately partial. Which signals are forwarded, and which are left to the kernel, is the matrix in [the process runtime](../reference/process-runtime.md). The design consequence worth stating here is that "forward everything" is a bug, not a safe default.
 
@@ -105,7 +105,7 @@ The child's environment is otherwise inherited, with the wrapper's own `CLAUDE_S
 
 Some users front `claude` with a local proxy — for token compression, request logging, or routing. The child already supports this through an environment variable naming its API base URL.
 
-The wrapper's contribution is a **seam, not a feature** — and the seam is inheritance. The wrapper does not touch that variable, so exporting it is all a user has to do; there is nothing to compose and no injection surface to maintain. `claude-session` implements no proxying, no compression, and no request rewriting of its own, and it should not grow any.
+The wrapper's contribution is a seam, not a feature — and the seam is inheritance. The wrapper does not touch that variable, so exporting it is all a user has to do; there is nothing to compose and no injection surface to maintain. `claude-session` implements no proxying, no compression, and no request rewriting of its own, and it should not grow any.
 
 The boundary is worth stating plainly because it is the kind of thing that erodes. Every request-manipulating feature added inside the wrapper is a feature that must track the upstream API, duplicate an existing external tool, and be debugged inside a process whose job is to launch another process. The seam stays a seam.
 

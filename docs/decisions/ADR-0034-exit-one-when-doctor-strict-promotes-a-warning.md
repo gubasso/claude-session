@@ -12,11 +12,11 @@ The check catalog's soft checks are legitimately ignorable — a degraded featur
 
 ## Decision Outcome
 
-Chosen option: **a bare `1`**, and it is the only one the wrapper emits.
+Chosen option: a bare `1`, and it is the only one the wrapper emits.
 
 Every other code names a category: something was unavailable, misconfigured, unreadable. A promoted warning is none of those — the run succeeded and every check reported. What failed is a policy the caller supplied at the call site, so borrowing a `sysexits` category would claim a diagnosis the wrapper never made. `1` is the conventional "the thing you asked about is not true", which is exactly the claim being made.
 
-The flag changes no check, no severity, and no output — only the exit. Absent it the exit is unchanged, so `--strict` can never make a passing catalog fail. It is available on `doctor` alone, because `doctor` is the only verb with a warning to promote. Appending the code is what [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) permits; sanctioning a _bare_ code in a taxonomy of categories is the decision recorded here.
+The flag changes no check, no severity, and no output — only the exit. Absent it the exit is unchanged, so `--strict` can never make a passing catalog fail. It is available on `doctor` alone, because `doctor` is the only verb with a warning to promote. Appending the code is what [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) permits; sanctioning a bare code in a taxonomy of categories is the decision recorded here.
 
 ## Consequences
 

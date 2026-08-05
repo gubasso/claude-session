@@ -12,11 +12,11 @@ Scorecard is the ecosystem's default supply-chain self-assessment, and adopting 
 
 ## Decision Outcome
 
-Chosen option: **defer it, with a named trigger** — its central checks cannot pass a repository that has never released, so a published score would measure the absence of a release rather than the project's supply chain.
+Chosen option: defer it, with a named trigger — its central checks cannot pass a repository that has never released, so a published score would measure the absence of a release rather than the project's supply chain.
 
 `Maintained`, `Signed-Releases`, `Code-Review`, `Contributors`, and `CI-Tests` all read release and collaboration history this repository does not have yet. Its Branch-Protection check additionally wants a maintainer token, which is the long-lived credential [ADR-0039](./ADR-0039-use-a-github-app-for-release-automation.md) deliberately replaced with a short-lived App token.
 
-**Trigger:** after the first tagged release, once the `develop`, `master`, and `v*` rulesets are live and there is release history to read.
+Trigger: after the first tagged release, once the `develop`, `master`, and `v*` rulesets are live and there is release history to read.
 
 Declining permanently is rejected. The present coverage — `cargo audit`, `cargo deny`, two secret scanners, pinned actions, a pinned toolchain, and Trusted Publishing — is what Scorecard would measure, so the gap is evidence rather than practice, and evidence becomes available at the trigger.
 

@@ -23,7 +23,6 @@ exclude = [
   "/.editorconfig",
   "/.envrc",
   "/.github",
-  "/.implementation-plans",
   "/.pre-commit-config.yaml",
   "/committed.toml",
   "/deny.toml",

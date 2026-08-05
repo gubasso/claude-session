@@ -6,17 +6,17 @@ Several rules already written down rest on a premise never stated: that `claude-
 
 ## Considered Options
 
-- **Human-facing** — a person at a terminal is the primary consumer.
-- **Machine-facing** — a program is, and prose output is the accommodation.
-- **Decide per command**, or infer at runtime from whether standard output is a terminal.
+- Human-facing — a person at a terminal is the primary consumer.
+- Machine-facing — a program is, and prose output is the accommodation.
+- Decide per command, or infer at runtime from whether standard output is a terminal.
 
 ## Decision Outcome
 
-Chosen option: **human-facing**. This is a wrapper a developer runs interactively, many times a day, whose main mode is handing a terminal session to a child that is itself interactive.
+Chosen option: human-facing. This is a wrapper a developer runs interactively, many times a day, whose main mode is handing a terminal session to a child that is itself interactive.
 
-Three consequences follow, and settling them is the point of declaring it. Machine-readable output is **opt-in**, through an explicit flag, never the default. The terminal-output module is named and shaped for human rendering — `ui/`, not a protocol module. Diagnostics are mirrored to standard error by default, because a person needs to see them without enabling anything first.
+Three consequences follow, and settling them is the point of declaring it. Machine-readable output is opt-in, through an explicit flag, never the default. The terminal-output module is named and shaped for human rendering — `ui/`, not a protocol module. Diagnostics are mirrored to standard error by default, because a person needs to see them without enabling anything first.
 
-This is a **design-time** category, not a runtime `isatty()` flip. Detecting a terminal changes colour and progress rendering and nothing else; it never changes which format a command emits. Output that reshapes itself when piped is precisely the behaviour that makes a CLI unscriptable.
+This is a design-time category, not a runtime `isatty()` flip. Detecting a terminal changes colour and progress rendering and nothing else; it never changes which format a command emits. Output that reshapes itself when piped is precisely the behaviour that makes a CLI unscriptable.
 
 ## Consequences
 

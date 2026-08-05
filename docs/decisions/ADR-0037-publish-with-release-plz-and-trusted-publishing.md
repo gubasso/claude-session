@@ -12,7 +12,7 @@ Release-plz configuration and helper scripts exist, but the release tool and aut
 
 ## Decision Outcome
 
-Chosen option: **release-plz with crates.io Trusted Publishing over OIDC** — release-plz opens or updates the release PR on the default `develop` branch, and merging it tags and publishes with `id-token: write` and no registry-token secret.
+Chosen option: release-plz with crates.io Trusted Publishing over OIDC — release-plz opens or updates the release PR on the default `develop` branch, and merging it tags and publishes with `id-token: write` and no registry-token secret.
 
 The first version remains the one-time manual exception required by [ADR-0022](./ADR-0022-cut-the-first-release-when-passthrough-works.md). See [the release workflow](../reference/release-workflow.md) for the contract and [the release guide](../guides/releasing.md) for procedures.
 

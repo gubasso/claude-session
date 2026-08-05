@@ -12,9 +12,9 @@
 
 ## Decision Outcome
 
-Chosen option: **audit and block** — a collision is a fact about two programs, so it is checked mechanically or not at all.
+Chosen option: audit and block — a collision is a fact about two programs, so it is checked mechanically or not at all.
 
-Three rules. A wrapper flag is subtracted from the child **only in leading position**; after the first non-wrapper token, or after `--`, the child's spelling is reachable unchanged. Every intersection between the claimed set and the child's inventory is named in the CLI surface with the child's meaning. An intersection that is not named there **fails the build**, against a checked-in, version-labelled inventory fixture.
+Three rules. A wrapper flag is subtracted from the child only in leading position; after the first non-wrapper token, or after `--`, the child's spelling is reachable unchanged. Every intersection between the claimed set and the child's inventory is named in the CLI surface with the child's meaning. An intersection that is not named there fails the build, against a checked-in, version-labelled inventory fixture.
 
 `-v` is dropped from the claimed set. Every other collision merely shadows a child spelling the escape hatch still reaches; `-v` would change a token's meaning, which no escape hatch repairs. `--help`, `-h`, and `--version` stay as named exceptions, since the wrapper's answer is a superset of the child's.
 

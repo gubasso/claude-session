@@ -12,7 +12,7 @@ Four architectural rules are structural rather than type-checked, and the refere
 
 ## Decision Outcome
 
-Chosen option: **clippy for the two API bans, grep for the two structural rules** — a lint that resolves paths enforces an API ban exactly, and a text scan cannot.
+Chosen option: clippy for the two API bans, grep for the two structural rules — a lint that resolves paths enforces an API ban exactly, and a text scan cannot.
 
 Output ownership becomes `disallowed-macros` on the print macros; environment typing becomes `disallowed-methods` on `std::env::var` and `std::env::vars`, carrying `std::env::var_os` as the replacement. Both gain a `reason` that names this record. The wins are concrete: the reference currently has to warn that the output-ownership grep must not fire inside a `///` block, and the environment grep matches the literal `std::env::var(` while `use std::env; env::var(…)` is the common spelling.
 
@@ -21,7 +21,6 @@ Dependency direction and tooling isolation stay grep. They are module-graph and 
 ## Consequences
 
 - Good: two rules move from a review promise to `clippy -D warnings`, which already gates every commit.
-- Good: the known false-positive carve-out disappears rather than being documented.
 - Bad: enforcement is split across two mechanisms, so a reader checking a rule has to look in `clippy.toml` or in a hook depending on which rule it is.
 - Bad: the two remaining greps still need writing, and until they exist the reference marks them deferred rather than enforced.
 
@@ -29,4 +28,4 @@ Dependency direction and tooling isolation stay grep. They are module-graph and 
 
 Accepted
 
-Changes the rejecting mechanism recorded in [project governance](../reference/project-governance.md#rule-ownership-and-enforcement); the rules themselves stay owned by [testing and quality § Boundary lints](../reference/testing-and-quality.md#boundary-lints).
+The rules and their rejecting mechanisms stay owned by [testing and quality § Boundary lints](../reference/testing-and-quality.md#boundary-lints) and the hook configuration.

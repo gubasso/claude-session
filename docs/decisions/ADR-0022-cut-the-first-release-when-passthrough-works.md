@@ -12,7 +12,7 @@ The crate builds a placeholder binary, but the release machinery is already wire
 
 ## Decision Outcome
 
-Chosen option: **publish nothing until passthrough works**. The crate's description promises forwarding to `claude`; a published version that does not forward is a permanently broken artifact for anyone who runs `cargo install claude-session`, and yanking only stops new dependents.
+Chosen option: publish nothing until passthrough works. The crate's description promises forwarding to `claude`; a published version that does not forward is a permanently broken artifact for anyone who runs `cargo install claude-session`, and yanking only stops new dependents.
 
 `0.1.0` is the first release. It is cut once the wrapper forwards argv, standard streams, and the child's exit status per [ADR-0002](./ADR-0002-verbatim-argv-passthrough.md) and [the exit-code taxonomy](../reference/exit-codes.md). Trusted Publishing attaches to a crate that already exists, so the one-time manual `publish-new` upload is part of shipping `0.1.0`, not a step taken before it.
 
@@ -29,4 +29,4 @@ Accepted
 
 `Cargo.toml` holds `0.1.0` as the unreleased authoring version; the tag that mirrors it does not exist yet.
 
-Amended by [ADR-0036](./ADR-0036-write-the-specifications-before-the-code.md): documentation is not gated on the release, so the second consequence above no longer holds and the `guides/` zone grows with the specifications. The release decision recorded here is unchanged.
+Documentation timing now follows [ADR-0075](./ADR-0075-build-through-the-current-slice.md). The release decision recorded here is unchanged.

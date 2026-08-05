@@ -13,7 +13,7 @@
 
 ## Decision Outcome
 
-Chosen option: **`.claude-session.toml`, first found wins, stopping at the enclosing repository root** — the directory holding a `.git` entry, a file for worktrees and submodules and a directory otherwise. Git is never invoked. Outside a repository there is no project layer.
+Chosen option: `.claude-session.toml`, first found wins, stopping at the enclosing repository root — the directory holding a `.git` entry, a file for worktrees and submodules and a directory otherwise. Git is never invoked. Outside a repository there is no project layer.
 
 The stop rule follows the layer's stated purpose. These are per-repository overrides, so the repository is the boundary, and it is the only candidate needing no marker key to maintain, no ceiling variable to escape with, and no rule for merging several files. Nested repositories stop at the inner one, which is the answer a user working in a vendored checkout expects.
 
@@ -22,7 +22,6 @@ Unifying every ancestor was rejected because it makes a home-directory file a si
 ## Consequences
 
 - Good: a project file's reach is exactly the repository containing it, checkable by eye.
-- Good: no discovery configuration — nothing to set, nothing to get wrong.
 - Bad: a working directory outside any repository has no project layer, so a non-repository tree cannot carry one.
 - Bad: the walk stats for `.git` on every invocation, one syscall per level.
 

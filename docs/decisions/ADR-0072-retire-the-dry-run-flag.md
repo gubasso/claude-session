@@ -12,7 +12,7 @@
 
 ## Decision Outcome
 
-Chosen option: **retire it** — `config` already answers the question a rehearsal would ask, so the flag discriminates nothing while costing the child a spelling.
+Chosen option: retire it — `config` already answers the question a rehearsal would ask, so the flag discriminates nothing while costing the child a spelling.
 
 `config` resolves the active profile, the pieces it names, the composed entry path, provenance, freshness, and defects, and it spawns nothing ([ADR-0049](./ADR-0049-collapse-config-inspection-into-one-verb.md)). A rehearsal flag reporting those same facts would be a second surface for one answer, which [ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md) rejects. Specifying it first and finding the consumer later inverts the order [ADR-0048](./ADR-0048-build-for-a-present-need.md) requires.
 

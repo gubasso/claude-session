@@ -12,7 +12,7 @@ Projects drift when critical knowledge lives only in external documents that mov
 
 ## Decision Outcome
 
-Chosen option: **keep all load-bearing knowledge in-repo** — the repository is complete on its own; an external reference is allowed only as a public link/citation, never as a load-bearing dependency on a resource outside the repository, and in particular never on an external, local, personalized, or mutating repository, path, or tool. If external knowledge is required, its essential substance is copied into the repo.
+Chosen option: keep all load-bearing knowledge in-repo — the repository is complete on its own; an external reference is allowed only as a public link/citation, never as a load-bearing dependency on a resource outside the repository, and in particular never on an external, local, personalized, or mutating repository, path, or tool. If external knowledge is required, its essential substance is copied into the repo.
 
 ## Consequences
 

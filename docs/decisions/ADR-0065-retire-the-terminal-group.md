@@ -12,7 +12,7 @@ A group existed to own one composed `settings.json`, its provenance sidecar, and
 
 ## Decision Outcome
 
-Chosen option: **retire it.** A surface earns its place by discriminating something ([ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md)); with settings re-keyed, no wrapper behaviour reads a group. Keeping it as a metadata axis would preserve `ttyname_r(3)`, `getsid(2)`, the discriminator, and the claim check in order to write a document whose content this project never specified. `groups/<group>/<profile>/` keeps the same machinery to key an artifact with no terminal-dependent input.
+Chosen option: retire it. A surface earns its place by discriminating something ([ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md)); with settings re-keyed, no wrapper behaviour reads a group. Keeping it as a metadata axis would preserve `ttyname_r(3)`, `getsid(2)`, the discriminator, and the claim check in order to write a document whose content this project never specified. `groups/<group>/<profile>/` keeps the same machinery to key an artifact with no terminal-dependent input.
 
 Retired with it: the `--session <id>` flag, `CLAUDE_SESSION_GROUP`, the `session-identity-derives` and `session-group-claim` checks and their remediations, `session-meta.json`, the group directory and its `.settings.lock`, stale-group pruning, and the terminal-identity prior art these rested on. Dropping `--session` returns that spelling to the child, which is the passthrough change this record authorises.
 

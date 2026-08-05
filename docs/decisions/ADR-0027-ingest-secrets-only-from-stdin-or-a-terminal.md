@@ -14,7 +14,7 @@ A long-lived subscription token must enter the wrapper without appearing in proc
 
 ## Decision Outcome
 
-Chosen option: **standard input or the controlling terminal** — `--stdin` reads one line without prompting; otherwise the wrapper reads one line from the controlling terminal with echo disabled.
+Chosen option: standard input or the controlling terminal — `--stdin` reads one line without prompting; otherwise the wrapper reads one line from the controlling terminal with echo disabled.
 
 For interactive minting, `setup-token` runs first with inherited standard streams. The user then pastes the result; the wrapper never parses the child's presentation.
 

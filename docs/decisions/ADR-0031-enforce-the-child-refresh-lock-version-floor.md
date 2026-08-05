@@ -12,14 +12,14 @@ Shared-login mode depends on the child's cross-process refresh coordination intr
 
 ## Decision Outcome
 
-Chosen option: **hard-fail a login-mode launch** below the floor. The wrapper refuses to spawn, reports the detected version, the required 2.1.211, and how to upgrade.
+Chosen option: hard-fail a login-mode launch below the floor. The wrapper refuses to spawn, reports the detected version, the required 2.1.211, and how to upgrade.
 
 An unparsable version is treated as below the floor: the check fails closed, because the failure it prevents is a silent account-wide logout while the failure it causes is loud and locally fixable.
 
 Enforcement is scoped to what actually depends on the lock:
 
-- **Blocked** — a `login`-mode launch, which shares one saved login across concurrent runs.
-- **Not blocked** — `token` mode, which injects a credential the child never refreshes; and any passthrough with no account selected, which the wrapper leaves alone under [ADR-0002](./ADR-0002-verbatim-argv-passthrough.md).
+- Blocked — a `login`-mode launch, which shares one saved login across concurrent runs.
+- Not blocked — `token` mode, which injects a credential the child never refreshes; and any passthrough with no account selected, which the wrapper leaves alone under [ADR-0002](./ADR-0002-verbatim-argv-passthrough.md).
 
 The existing soft `doctor` probe reports version state but is voluntary, so it does not satisfy this launch-time precondition.
 

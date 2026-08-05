@@ -6,9 +6,11 @@
 // docs benefit from — single top-level H1, first-line H1, ordered heading levels —
 // is left ON via `default: true`.
 //
-// Single source of truth: this .jsonc is the ONLY markdownlint config. Do not add
-// a `.markdownlint.{yaml,json,...}` — when both exist, the `.markdownlint.*` rules
-// win and silently override the `config` block below.
+// This root .jsonc owns repository-wide rules. The nested
+// docs/plan/slices/.markdownlint-cli2.jsonc scopes MD043 to slice entry documents;
+// markdownlint-cli2 merges it with this root rather than replacing it. Do not add a
+// `.markdownlint.{yaml,json,...}` — when both exist, the `.markdownlint.*` rules win
+// and silently override the `config` blocks.
 //
 // Tooling split (researched): markdownlint is a LINTER with surgical per-span
 // autofixes, NOT a formatter. It cannot reflow/unwrap prose, normalize GFM table

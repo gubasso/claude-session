@@ -12,7 +12,7 @@ Releases are cut by automation, and what that automation publishes has to be rea
 
 ## Decision Outcome
 
-Chosen option: **two long-lived branches with a one-way promote**. Trunk-only leaves no branch that means "the published version", so answering "what is released right now" requires reading tags. GitFlow's release and hotfix branches solve a parallel-maintenance problem this project does not have.
+Chosen option: two long-lived branches with a one-way promote. Trunk-only leaves no branch that means "the published version", so answering "what is released right now" requires reading tags. GitFlow's release and hotfix branches solve a parallel-maintenance problem this project does not have.
 
 `develop` is the integration branch and the release trigger. `master` mirrors the latest published version and is written only by the automated fast-forward. Feature branches are short-lived, kept linear by rebasing onto `develop`, and merged through a reviewed pull request. The mechanics are in [the release workflow](../reference/release-workflow.md).
 

@@ -305,6 +305,14 @@ repos:
   # git push may strip PATH and the format is already applied by commit time.
   - repo: local
     hooks:
+      - id: markdown-no-emphasis
+        name: markdown has no decorative emphasis
+        entry: scripts/check-markdown-emphasis
+        language: system
+        types: [markdown]
+        pass_filenames: true
+        stages: [pre-commit, pre-push]
+
       - id: dprint-markdown
         name: dprint fmt (markdown)
         entry: dprint fmt --config dprint.markdown.json
@@ -312,6 +320,22 @@ repos:
         files: '\.(md|markdown)$'
         pass_filenames: true
         stages: [pre-commit]
+
+      - id: adr-contract
+        name: ADR contract
+        entry: scripts/check-adrs
+        language: system
+        files: '^docs/decisions/'
+        pass_filenames: false
+        stages: [pre-commit, pre-push]
+
+      - id: plan-zone-contract
+        name: plan zone contract
+        entry: scripts/check-plan-zone
+        language: system
+        files: '^docs/plan/'
+        pass_filenames: false
+        stages: [pre-commit, pre-push]
 
   # --- Explicit relative links (ambiguity guard; pre-commit, local) ---
   #

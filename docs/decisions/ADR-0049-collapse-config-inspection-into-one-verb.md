@@ -6,23 +6,22 @@
 
 ## Considered Options
 
-- **Keep the six subcommands**, each answering its slice.
-- **Fold inspection into `doctor`**, leaving no `config` verb.
-- **One bare `config` verb** that resolves, validates, and reports in a single output.
+- Keep the six subcommands, each answering its slice.
+- Fold inspection into `doctor`, leaving no `config` verb.
+- One bare `config` verb that resolves, validates, and reports in a single output.
 
 ## Decision Outcome
 
-Chosen option: **one bare `config` verb**. It reports the resolved wrapper configuration with per-key provenance, the active profile and its resolved pieces, generated-settings freshness, and every structural defect and unknown-key warning — one command, one answer, `--json` for machines.
+Chosen option: one bare `config` verb. It reports the resolved wrapper configuration with per-key provenance, the active profile and its resolved pieces, generated-settings freshness, and every structural defect and unknown-key warning — one command, one answer, `--json` for machines.
 
-`config` is an **assertion** verb, alongside `doctor` in [exit codes](../reference/exit-codes.md#exit-regimes-by-verb): it validates, so a defect it cannot function with exits with that defect's code rather than reporting failure at `0`.
+`config` is an assertion verb, alongside `doctor` in [exit codes](../reference/exit-codes.md#exit-regimes-by-verb): it validates, so a defect it cannot function with exits with that defect's code rather than reporting failure at `0`.
 
 `doctor` stays a pure checker and is not a configuration renderer. The two do not duplicate logic: under [ADR-0018](./ADR-0018-one-probe-set-with-stable-check-ids.md) there is one probe catalog, `config` runs its config-scoped subset, `doctor` runs the whole of it, and both quote the same remediation verbatim.
 
-`config schema` is retired because the JSON Schema already ships as a committed artifact generated from the same type ([ADR-0013](./ADR-0013-generate-config-examples-from-types.md)); a live command was a third rendering of one source. `profile status` is retired as the same redundancy — `config --profile <name>` resolves any manifest — while `profile list` survives, since discovering what may be passed to `--profile` has no other home.
+`config schema` is redundant with the generated committed schema ([ADR-0013](./ADR-0013-generate-config-examples-from-types.md)). `profile status` is redundant with `config --profile <name>`; discovering accepted profiles remains a separate need.
 
 ## Consequences
 
-- Good: one command answers the whole question, and there is one place for a defect to surface.
 - Good: the specification and test surface shrink by five verbs before any of them was written.
 - Bad: `config` now exits non-zero on a defect, so a script that only wants the values must tolerate that or read `--json`.
 - Bad: a single output is denser than six narrow ones.
@@ -31,6 +30,4 @@ Chosen option: **one bare `config` verb**. It reports the resolved wrapper confi
 
 Accepted
 
-Amended by [ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md) — `profile list` collapses to `profile`, and the rule this record applied once is named there.
-
-Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — `config` reports the resolved composed-settings entry and whether it exists, rather than an mtime freshness verdict. The one-verb decision is unchanged.
+Amended by [ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md) to collapse `profile list`, and by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) to report entry existence instead of mtime freshness. The one-verb decision remains.

@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-[ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md) prepends `--settings <composed settings path>` and left duplicate-flag behaviour explicitly unverified. Measured against `claude` 2.1.220 on 2026-07-31, the child keeps only the **last** occurrence: an earlier settings file is not merged, not validated, and not read at all. Since the wrapper's pair is a prefix, a user's own `--settings` always wins, silently discarding the wrapper's composed layer.
+[ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md) prepends `--settings <composed settings path>` and left duplicate-flag behaviour explicitly unverified. Measured against `claude` 2.1.220 on 2026-07-31, the child keeps only the last occurrence: an earlier settings file is not merged, not validated, and not read at all. Since the wrapper's pair is a prefix, a user's own `--settings` always wins, silently discarding the wrapper's composed layer.
 
 ## Considered Options
 
@@ -12,7 +12,7 @@
 
 ## Decision Outcome
 
-Chosen option: **accept the child's precedence** — the losing layer is the wrapper's, the winning one is the user's explicit instruction, and that is the safe direction for a tool whose first contract is not interfering.
+Chosen option: accept the child's precedence — the losing layer is the wrapper's, the winning one is the user's explicit instruction, and that is the safe direction for a tool whose first contract is not interfering.
 
 Appending the pair after the user suffix was rejected because tokens after `--` are the child's positional territory, so a suffix would corrupt exactly the invocations the sentinel exists to protect. Parsing to deduplicate is the coupling [ADR-0002](./ADR-0002-verbatim-argv-passthrough.md) and [ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md) both reject.
 

@@ -12,19 +12,16 @@ Given verbatim passthrough ([ADR-0002](./ADR-0002-verbatim-argv-passthrough.md))
 
 ## Decision Outcome
 
-Chosen option: **a small, closed, top-level set** — nesting costs a token on every invocation to solve a collision problem a short documented list already solves, and mirroring the child's grammar is the coupling [ADR-0002](./ADR-0002-verbatim-argv-passthrough.md) rejects.
+Chosen option: a small, closed, top-level set — nesting costs a token on every invocation to solve a collision problem a short documented list already solves, and mirroring the child's grammar is the coupling [ADR-0002](./ADR-0002-verbatim-argv-passthrough.md) rejects.
 
-Three rules make the surface safe. Wrapper flags are **long-form** except where a short form is universal, so short flags stay available to the child. Wrapper flags appear **before** the verb, never after, and never after `--`. The claimed set is **enumerated with a reason per entry** in [the CLI surface](../reference/cli-surface.md).
+Three rules make the surface safe. Wrapper flags are long-form except where a short form is universal, so short flags stay available to the child. Wrapper flags appear before the verb, never after, and never after `--`. The claimed set is enumerated with a reason per entry in [the CLI surface](../reference/cli-surface.md).
 
 ## Consequences
 
-- Good: wrapper commands are as short to type as the child's, which matters for a tool run dozens of times a day.
 - Good: the collision surface is small, explicit, and reviewable rather than implicit.
 - Good: `--` is an unconditional escape to any claimed name.
 - Bad: adding a flag to the set removes it from the child's reachable surface, so growing the set is a passthrough-contract change needing an amendment here, not a table edit.
 - Bad: if the child adds a subcommand matching a wrapper verb, the wrapper wins and users need `--`; the collision is recorded rather than silently resolved.
-- Bad: help and completions describe only the wrapper's grammar, so users consult the child for its own flags.
-- Bad: colour gets no flag — `NO_COLOR` and `FORCE_COLOR` are the only controls — because `--no-color` would take that spelling from the child permanently.
 
 ## Status
 
