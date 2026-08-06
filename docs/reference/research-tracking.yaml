@@ -127,14 +127,28 @@ tracked:
       - docs/reference/process-runtime.md
 
   - path: docs/reference/dependencies.md
-    last_checked: 2026-07-31
+    last_checked: 2026-08-06
     cadence: semiannual
     why: Reviewed crates can become unmaintained, deprecated, or superseded.
     revalidate: >-
       Inspect every named crate individually for maintenance status and a
       successor. The page carries rulings rather than version numbers, so
       review every name and ruling; a spot check is not sufficient.
-    dependents: []
+    dependents:
+      - docs/plan/slices/012-human-presentation/README.md
+
+  - path: docs/reference/presentation.md
+    last_checked: 2026-08-06
+    cadence: semiannual
+    why: Published colour conventions and terminal guidance can change independently of this repository.
+    revalidate: >-
+      Re-read no-color.org, force-color.org, FreeBSD ls(1), and clig.dev.
+      Reconfirm activation, precedence, TERM behavior, and target-stream
+      detection before changing the ladder or its rejected inputs.
+    dependents:
+      - docs/decisions/ADR-0083-read-only-the-two-published-colour-variables.md
+      - docs/reference/prior-art.md
+      - docs/plan/slices/012-human-presentation/README.md
 
   - path: docs/reference/prior-art.md
     last_checked: 2026-08-04
