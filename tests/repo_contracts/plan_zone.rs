@@ -11,8 +11,8 @@ const SLICES: &str = "docs/plan/slices";
 const QUESTIONS: &str = "docs/plan/open-questions.md";
 
 /// A floor and sentinels, so a table that parses to nothing fails rather than
-/// passing. There are ten rows today.
-const FLOOR: usize = 9;
+/// passing. There are twelve rows today.
+const FLOOR: usize = 11;
 const SENTINELS: &[&str] = &["001", "009"];
 
 const HEADINGS: &[&str] = &[
