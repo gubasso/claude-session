@@ -18,6 +18,7 @@ Each named surface carries colour when the ladder says so, and the plain reading
 - The three named surfaces: the diagnostic kind, the mirrored level word, and the composed delimiter.
 - A presentation crate admitted through the dependency procedure.
 - One line of authored help prose naming the variable that turns colour off, which no flag can lead a user to.
+- The present-and-not-empty rule on both variables, which the ladder and the two tests written against it currently get wrong in the same direction.
 - Escape-byte assertions, including their absence under `NO_COLOR`, under a redirected stream, and in JSON mode.
 
 ## Out of scope
@@ -40,6 +41,7 @@ Each named surface carries colour when the ladder says so, and the plain reading
 - [ADR-0017](../../../decisions/ADR-0017-declare-a-human-facing-cli.md)
 - [ADR-0081](../../../decisions/ADR-0081-bind-every-human-surface-to-one-presentation-contract.md)
 - [ADR-0082](../../../decisions/ADR-0082-colour-a-closed-set-of-named-surfaces.md)
+- [ADR-0083](../../../decisions/ADR-0083-read-only-the-two-published-colour-variables.md)
 
 ## Acceptance
 
@@ -49,6 +51,8 @@ Each named surface carries colour when the ladder says so, and the plain reading
 - The wrapper shall resolve the colour decision once and carry it to every renderer.
 - When colour is off, the wrapper shall write the same text it writes when colour is on.
 - The wrapper shall name the colour convention in its help output.
+- Where `NO_COLOR` is present and empty, the wrapper shall treat it as unset.
+- Where `FORCE_COLOR` is present and empty, the wrapper shall treat it as unset.
 
 ## Rabbit holes
 

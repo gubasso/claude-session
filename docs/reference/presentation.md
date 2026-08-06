@@ -17,13 +17,27 @@ Two surfaces are rendered today: the error diagnostic and the composed-output de
 
 Applied to standard error text and to standard output only in human format. Never in JSON mode. Resolved in this order, first match wins:
 
-1. `NO_COLOR` set to any value — off. Per [the convention](https://no-color.org/).
-2. `FORCE_COLOR` set — on, regardless of what the stream is.
-3. `TERM` is `dumb` — off.
+1. `NO_COLOR` is present and not an empty string — off. Per [the convention](https://no-color.org/), which fixes both halves of that test: an unset variable and an empty one are alike inert, and any other value disables colour whatever it says.
+2. `FORCE_COLOR` is present and not an empty string — on, whatever the stream is. Per [the convention](https://force-color.org/), the value is not read, so `FORCE_COLOR=0` forces colour on rather than off. The spelling is a request to force, not a boolean.
+3. `TERM` is `dumb` — off. Neither convention names this rung; a terminal declaring itself dumb cannot render the escapes, so writing them is never right.
 4. The target stream is not a terminal — off.
 5. Otherwise — on.
 
-There is deliberately no wrapper flag for colour. `NO_COLOR` is the established convention and costs the child nothing, whereas claiming `--no-color` would take that spelling away from the child for good — a passthrough-contract change needing its own decision record, per [the CLI surface](./cli-surface.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md).
+Presence and emptiness are the whole test on rungs 1 and 2. Reading the value would invent a fourth convention for a question two published ones already answer, and would make `NO_COLOR=0` mean the opposite of what every other tool does with it.
+
+### What the ladder does not read
+
+A reader holding the wider convention will look for these, so their absence is stated rather than left to be inferred ([ADR-0083](../decisions/ADR-0083-read-only-the-two-published-colour-variables.md)):
+
+| Input                  | Why the ladder does not read it                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| `CLICOLOR_FORCE`       | A second spelling of `FORCE_COLOR`, which rung 2 already honours                     |
+| `CLICOLOR=0`           | A weaker `NO_COLOR`, which rung 1 already honours                                    |
+| `CLICOLOR=1`           | The terminal test, which rung 4 already is                                           |
+| `CI`, `GITHUB_ACTIONS` | Sniffing them repeats rung 4, and strips colour from the runners that do render ANSI |
+| A `--color` flag       | The spelling belongs to the child; see below                                         |
+
+A general command-line checklist would require the `--color auto|always|never` flag, and this project deliberately does not ship it. There is no wrapper flag for colour. `NO_COLOR` is the established convention and costs the child nothing, whereas claiming `--no-color` would take that spelling away from the child for good — a passthrough-contract change needing its own decision record, per [the CLI surface](./cli-surface.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md).
 
 ### Coloured surfaces
 
@@ -45,5 +59,5 @@ A table or an interactive prompt arrives through the verb that needs it, which n
 
 ## Further reading
 
-- [`no-color.org`](https://no-color.org/)
+- [`no-color.org`](https://no-color.org/) and [`force-color.org`](https://force-color.org/)
 - [Command Line Interface Guidelines](https://clig.dev/)
