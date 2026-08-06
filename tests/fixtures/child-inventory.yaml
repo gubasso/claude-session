@@ -1,0 +1,178 @@
+# Measured inventory of the child command's top-level and per-subcommand
+# spellings. Read only by the collision audit in ../collision_audit/, which never
+# spawns the child and never uses the network: this file is the child fact the
+# audit compares the wrapper's claimed set against (ADR-0044).
+#
+# Regenerating it is a measurement, not a test run. Follow the revalidation the
+# docs/reference/cli-surface.md entry in
+# ../../docs/reference/research-tracking.yaml describes, then update
+# child_version, measured_on, and the prose datelines in
+# ../../docs/reference/cli-surface.md that name the same version and date.
+#
+# Every list is byte-sorted, unique, and quoted, one spelling per line, so
+# adopting a new child version is a reviewable diff.
+
+child_version: "2.1.220"
+measured_on: "2026-08-06"
+source_command: "claude --help, then claude <verb> --help for each verb below"
+
+top_level_flags:
+  - "--add-dir"
+  - "--agent"
+  - "--agents"
+  - "--allow-dangerously-skip-permissions"
+  - "--allowed-tools"
+  - "--allowedTools"
+  - "--append-system-prompt"
+  - "--ax-screen-reader"
+  - "--background"
+  - "--bare"
+  - "--betas"
+  - "--bg"
+  - "--brief"
+  - "--chrome"
+  - "--continue"
+  - "--dangerously-skip-permissions"
+  - "--debug"
+  - "--debug-file"
+  - "--disable-slash-commands"
+  - "--disallowed-tools"
+  - "--disallowedTools"
+  - "--effort"
+  - "--exclude-dynamic-system-prompt-sections"
+  - "--fallback-model"
+  - "--file"
+  - "--fork-session"
+  - "--forward-subagent-text"
+  - "--from-pr"
+  - "--help"
+  - "--ide"
+  - "--include-hook-events"
+  - "--include-partial-messages"
+  - "--input-format"
+  - "--json-schema"
+  - "--max-budget-usd"
+  - "--mcp-config"
+  - "--model"
+  - "--name"
+  - "--no-chrome"
+  - "--no-session-persistence"
+  - "--output-format"
+  - "--permission-mode"
+  - "--plugin-dir"
+  - "--plugin-url"
+  - "--print"
+  - "--prompt-suggestions"
+  - "--remote-control"
+  - "--remote-control-session-name-prefix"
+  - "--replay-user-messages"
+  - "--resume"
+  - "--safe-mode"
+  - "--session-id"
+  - "--setting-sources"
+  - "--settings"
+  - "--strict-mcp-config"
+  - "--system-prompt"
+  - "--tmux"
+  - "--tools"
+  - "--verbose"
+  - "--version"
+  - "--worktree"
+  - "-c"
+  - "-d"
+  - "-h"
+  - "-n"
+  - "-p"
+  - "-r"
+  - "-v"
+  - "-w"
+
+top_level_verbs:
+  - "agents"
+  - "auth"
+  - "auto-mode"
+  - "doctor"
+  - "gateway"
+  - "install"
+  - "mcp"
+  - "plugin"
+  - "plugins"
+  - "project"
+  - "setup-token"
+  - "ultrareview"
+  - "update"
+  - "upgrade"
+
+# A spelling whose meaning is another spelling's, rather than a separate flag. A
+# claimed wrapper spelling appearing as a key here would change a token's
+# meaning rather than shadow it, which ADR-0044 forbids outright; that is why
+# `-v` is absent from the wrapper's denylist.
+aliases:
+  "-v": "--version"
+
+# Keyed by a member of top_level_verbs. A verb-level wrapper flag costs the
+# child nothing except on a composed verb, and cli-surface.md carries no
+# verb-level flag table yet, so the audit asserts only the shape of this map
+# today. The per-subcommand comparison turns on with doctor's flag table.
+subcommand_flags:
+  agents:
+    - "--add-dir"
+    - "--agent"
+    - "--all"
+    - "--allow-dangerously-skip-permissions"
+    - "--cwd"
+    - "--dangerously-skip-permissions"
+    - "--effort"
+    - "--help"
+    - "--json"
+    - "--mcp-config"
+    - "--model"
+    - "--permission-mode"
+    - "--plugin-dir"
+    - "--setting-sources"
+    - "--settings"
+    - "--strict-mcp-config"
+    - "-h"
+  auth:
+    - "--help"
+    - "-h"
+  auto-mode:
+    - "--help"
+    - "-h"
+  doctor:
+    - "--help"
+    - "-h"
+  gateway:
+    - "--config"
+    - "--help"
+    - "-h"
+  install:
+    - "--force"
+    - "--help"
+    - "-h"
+  mcp:
+    - "--help"
+    - "-h"
+  plugin:
+    - "--help"
+    - "-h"
+  plugins:
+    - "--help"
+    - "-h"
+  project:
+    - "--help"
+    - "-h"
+  setup-token:
+    - "--help"
+    - "-h"
+  ultrareview:
+    - "--help"
+    - "--json"
+    - "--timeout"
+    - "-h"
+  update:
+    - "--help"
+    - "-h"
+  upgrade:
+    - "--help"
+    - "-h"

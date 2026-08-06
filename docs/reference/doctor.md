@@ -133,7 +133,7 @@ This is the one document carrying `schema_version`, because its check ids are th
 
 ## The child's own report
 
-`doctor` ends by running `claude doctor` and passing its output through unmodified, under its own heading, after the wrapper's summary line. The child's report is never parsed, reformatted, or summarized: the wrapper claims the verb name only because it composes with the child's rather than replacing it ([ADR-0045](../decisions/ADR-0045-compose-doctor-with-the-child-report.md)).
+`doctor` ends by running `claude doctor` and passing its output through unmodified, after the wrapper's summary line and under the delimiter [logging and output](./logging-and-output.md#composed-output) owns. The child's report is never parsed, reformatted, or summarized: the wrapper claims the verb name only because it composes with the child's rather than replacing it ([ADR-0045](../decisions/ADR-0045-compose-doctor-with-the-child-report.md)), which it is allowed to do because both reports only read and print ([ADR-0079](../decisions/ADR-0079-compose-every-overlapping-surface-with-the-child.md)).
 
 Its exit status enters the catalog as one soft check — zero passes, anything else warns — so it can promote under `--strict` but can never turn a healthy wrapper into a hard failure over a program the wrapper does not own. Under `--json` the child's report is one opaque string field beside its status, which is what keeps the document's schema independent of the child's formatting. If the child cannot be resolved or spawned at all, that is already a hard check of the wrapper's own and this section is skipped with that reason.
 

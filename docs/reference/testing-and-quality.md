@@ -35,13 +35,15 @@ The time budget is one number: the commit hook stays under one second of test ti
 
 A lane is defined by the evidence it is allowed to look at, which is what keeps a slow test from drifting into a fast lane:
 
-| Lane        | Admissible evidence                                                                                                                                                                 |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit        | The return value of a function called in-process. No process, no filesystem, no clock, no environment.                                                                              |
-| Integration | The compiled binary's exit status, its standard output and standard error as bytes, and the three raw-byte files [the recording stub](#the-recording-stub) wrote. Never host state. |
-| End-to-end  | Observations of the real `claude`. The only lane that may, and it may never run in a hook.                                                                                          |
+| Lane        | Admissible evidence                                                                                                                                                                                                                                                        |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit        | The return value of a function called in-process. No process, no filesystem, no clock, no environment.                                                                                                                                                                     |
+| Integration | The compiled binary's exit status, its standard output and standard error as bytes, the three raw-byte files [the recording stub](#the-recording-stub) wrote, and the bytes of a checked-in repository file read read-only under the manifest directory. Never host state. |
+| End-to-end  | Observations of the real `claude`. The only lane that may, and it may never run in a hook.                                                                                                                                                                                 |
 
-The lane of a mandatory test is derived, never declared: a test needing the recording stub or a temporary tree is integration, one needing the real child is end-to-end, and everything else is unit. That rule is total over the table below, which is why no test carries a lane column — a column would be a second source of truth over forty-odd rows, and the first row to disagree with the rule would be a defect nobody could see.
+A checked-in repository file is admissible because it is versioned and deterministic and changes only with a commit, so a test reading one is evidence about this repository rather than about the host. Reading it still costs the filesystem access the unit lane forbids, which is what puts a documentation gate in the push lane rather than the commit lane. That admission is a lane rule and not a fourth lane, because a fourth lane would need its own profile, hook row, and budget to discriminate nothing the integration lane does not already discriminate.
+
+The lane of a mandatory test is derived, never declared: a test needing the recording stub, a temporary tree, or a checked-in repository file outside the crate's sources is integration, one needing the real child is end-to-end, and everything else is unit. That rule is total over the table below, which is why no test carries a lane column — a column would be a second source of truth over forty-odd rows, and the first row to disagree with the rule would be a defect nobody could see.
 
 ## Tools
 
@@ -171,7 +173,9 @@ The five flag-recognition tests are one obligation split by what each rejects, a
 | Malformed wrapper flag | `--config` bare exits `Usage`; `--configg` forwards verbatim and the run exits with the stub's status.                                          |
 | Collision audit        | The claimed flag and verb sets are intersected with a checked-in, version-labelled inventory fixture and compared with the documented overlaps. |
 
-The collision audit reads the fixture, never the network and never a locally installed child; refreshing the fixture is the `child-flag-and-verb-inventory` revalidation, not a test run. The fixture does not exist yet, so the audit is specified and unbacked: it is written in the round that writes the flag table it audits, and until then the mechanism [research tracking](./research-tracking.yaml) calls the authority is a design, not a file.
+The collision audit reads the fixture, never the network and never a locally installed child; refreshing the fixture is the `child-flag-and-verb-inventory` revalidation, not a test run. It lives in `tests/collision_audit/` and compares [the child inventory](../../tests/fixtures/child-inventory.yaml) against the three tables in [the CLI surface](./cli-surface.md) that claim spellings and resolve overlaps.
+
+Its own integrity is the harder half. A documentation gate that silently matches zero rows reports success, so the audit proves it found what it was aiming at before it compares anything: the table headers must match exactly and in order, row counts must clear a floor, and named rows must be recovered — the value placeholder in `--config <path>` must strip to one spelling, and the `--version`, `-V` row must yield exactly one colliding and one free spelling. An unrecognized child-status clause is a failure rather than a default, because defaulting to free is precisely the collision the audit exists to catch. Negative cases drive the comparison from doctored literals, so a run that goes green has demonstrated it can go red.
 
 The two confirmation tests exist to reject one specific wrong implementation — `stdin().is_terminal()`, which passes a naive suite and fails only where the two predicates disagree ([ADR-0053](../decisions/ADR-0053-read-a-confirmation-from-the-controlling-terminal.md)):
 

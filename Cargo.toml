@@ -39,7 +39,15 @@ exclude = [
   "/dist-workspace.toml",
   "/release-plz.toml",
   "/scripts",
+  # The suite reads docs/, which this list already excludes, so a packaged crate
+  # would carry tests it cannot satisfy. Tests run from the git tree; cargo-dist
+  # and release-plz build from the checkout, so the release path is unaffected.
+  "/tests",
   "/uninstall.sh",
 ]
 
 [dependencies]
+
+[dev-dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_yaml_ng = "0.10.0"

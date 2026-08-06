@@ -145,7 +145,13 @@ repos:
         name: cargo nextest (integration tests)
         entry: cargo nextest run --profile pre-push --all-features --no-tests=pass
         language: system
-        types_or: [rust, toml]
+        # `always_run`, not a file filter: the integration lane admits the bytes
+        # of checked-in repository files (docs/reference/testing-and-quality.md),
+        # so the collision audit's inputs are Markdown and YAML. A `types_or`
+        # list narrow enough to be a filter would skip a push that changes only
+        # those inputs, which is exactly the change the audit exists to catch,
+        # and one wide enough to cover them would match every file anyway.
+        always_run: true
         pass_filenames: false
         stages: [pre-push]
 

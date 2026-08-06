@@ -48,6 +48,22 @@ Three rules apply to every document, whichever verb emits it:
 
 The error document above is the only shape fixed across every verb. Everything else — the top-level object, its fields, and whether `schema_version` appears at all — belongs to the verb that emits it and is specified on that verb's own page ([ADR-0032](../decisions/ADR-0032-give-each-verb-its-own-json-document.md)). That is the whole fixed-versus-variable boundary; an index of per-verb documents here would be a second home for every one of them.
 
+## Composed output
+
+Where the wrapper keeps a spelling the child also owns, the result carries both answers: the wrapper's own output first, complete on its own, then the child's bytes verbatim ([ADR-0079](../decisions/ADR-0079-compose-every-overlapping-surface-with-the-child.md)). Which spellings qualify is [the CLI surface](./cli-surface.md#when-the-child-owns-the-same-name)'s to say; this section owns what the seam looks like. It is the only case in which the wrapper's standard output carries bytes it did not produce.
+
+One delimiter line separates the two, with a blank line on each side:
+
+```text
+--- claude doctor ---
+```
+
+Between the dashes is the exact command that produced what follows, so a reader can reproduce the second half on its own. The form is fixed: ASCII, and no padding to the terminal's width. Padding would make the result depend on the terminal it was printed into, which a golden test cannot pin and a pipe has no use for. Colour may be applied to the line under the ladder below, and carries nothing the command name does not already state.
+
+The child's bytes pass through unchanged — not parsed, not re-indented, not re-wrapped, not summarized — and nothing follows them. The wrapper claimed the name in order to add its own answer, not to edit the child's. In human format that is literal: the wrapper writes its output and the delimiter, flushes, and the child inherits standard output, so no wrapper code ever holds those bytes.
+
+The composed section is part of the result, so `--quiet` does not suppress it and a redirected standard output receives it. JSON mode is the one case that captures instead of inheriting, because the document has already claimed standard output: there is no delimiter, and the child's output is one opaque string field beside its status on the document the verb owns. When the child cannot be resolved or spawned, one line naming that condition takes the place of the section, and its absence does not change the exit status.
+
 ## Verbosity
 
 | Invocation                      | Level              |

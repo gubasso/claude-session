@@ -2,7 +2,7 @@
 
 Which crates this project has reviewed, how one enters the manifest, and which are ruled out.
 
-This describes normative design. The crate is pre-implementation and currently has no dependencies.
+This describes normative design. The shipped binary still has no dependencies of its own; the test and development graph carries the two the collision audit needs. Which crates are present is the manifest's to record, and this page never repeats it.
 
 ## No version numbers here
 
@@ -98,7 +98,7 @@ Reviewed, not needed yet. Named here so the decision is not re-made from scratch
 
 | Crate                                      | Unlocked by                                                  |
 | ------------------------------------------ | ------------------------------------------------------------ |
-| `serde_yaml_ng`                            | The first profile                                            |
+| `serde_yaml_ng` in the shipped graph       | The first profile                                            |
 | `rustix`                                   | The confirmation-prompt test harness or the first real spawn |
 | `sha2`                                     | The first token fingerprint or composed-settings digest      |
 | `signal-hook`                              | The first real spawn with signal forwarding                  |
@@ -151,18 +151,18 @@ The states are distinct: reviewed authorizes consideration, not installation; de
 
 `Cargo.lock` is committed. This is a binary, not a library: reproducible builds are the point, and a lockfile is how a bug report from six months ago is reproducible.
 
-| Gate                          | Enforces                                                                  | Backing                                                                                                               |
-| ----------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `cargo deny check advisories` | No known-vulnerable dependency                                            | fails the build                                                                                                       |
-| `cargo deny check bans`       | No wildcard version requirement; no banned crate; no gratuitous duplicate | warns — `wildcards` and `multiple-versions` are not set to deny, and the ruled-out list below is not in `[bans].deny` |
-| `cargo deny check sources`    | Every crate comes from a known registry                                   | warns — `unknown-registry` and `unknown-git` are not set to deny                                                      |
-| `cargo deny check licenses`   | Every licence is on the allow-list                                        | fails the build                                                                                                       |
-| `cargo audit`                 | Independent advisory check                                                | fails the build                                                                                                       |
-| `cargo machete`               | No declared-but-unused dependency                                         | fails the build                                                                                                       |
+| Gate                          | Enforces                                                                  | Backing                                                  |
+| ----------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `cargo deny check advisories` | No known-vulnerable dependency                                            | fails the build                                          |
+| `cargo deny check bans`       | No wildcard version requirement; no banned crate; no gratuitous duplicate | fails the build, except `multiple-versions`, which warns |
+| `cargo deny check sources`    | Every crate comes from a known registry                                   | fails the build                                          |
+| `cargo deny check licenses`   | Every licence is on the allow-list                                        | fails the build                                          |
+| `cargo audit`                 | Independent advisory check                                                | fails the build                                          |
+| `cargo machete`               | No declared-but-unused dependency                                         | fails the build                                          |
 
 The project is dual-licensed MIT or Apache-2.0, and the allow-list is compatible with both.
 
-Three of these report rather than reject today, which is a gap between `deny.toml` and the rule above it, not a softer rule. The manifest has no dependencies yet, so tightening costs nothing and is done in the round that adds the first one: set `wildcards` and the two `sources` keys to `deny`, and move the [ruled-out crates](#ruled-out) into `[bans].deny` with a `reason` each, so the prose ruling becomes the mechanism. `multiple-versions` stays a warning, because a duplicate is a judgement about a transitive graph the project does not control.
+That tightening was applied in the round that added the first dependency: `wildcards` and the two `sources` keys are `deny`, and every [ruled-out crate](#ruled-out) is in `[bans].deny` carrying the reason this page records, so the prose ruling is the mechanism rather than a convention review has to remember. No `wrappers` escape is granted, because a ruled-out crate arriving transitively is the same signal as a direct one. `multiple-versions` stays a warning, because a duplicate is a judgement about a transitive graph the project does not control.
 
 ## Further reading
 

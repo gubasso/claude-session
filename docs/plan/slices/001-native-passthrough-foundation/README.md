@@ -15,14 +15,17 @@ Unknown native argv is byte-preserved, the child runs, and its status is returne
 ## In scope
 
 - Error, logging, UI, context, and configuration plumbing.
-- The complete wrapper-owned parser and verb stubs.
+- The complete wrapper-owned pre-split, flag denylist, and verb classification.
+- The measured child inventory fixture and the collision audit that reads it.
 - Version reporting for the wrapper and resolved child.
+- Help and version composed with the child's, under the composed-output delimiter.
 - Boundary, output, documentation, and quality gates.
 
 ## Out of scope
 
 - Secure account/profile storage, robust signal supervision, authentication, and settings composition.
 - Parsing or modelling the child's grammar.
+- Declaring a verb whose behaviour a later slice specifies; until then its spelling stays passthrough.
 
 ## Governed by
 
@@ -44,12 +47,14 @@ Unknown native argv is byte-preserved, the child runs, and its status is returne
 - When unknown native arguments are supplied, the wrapper shall forward their bytes, order, count, empty values, and separator unchanged.
 - When the child exits or is terminated, the wrapper shall return the same observable status.
 - If the resolved child is missing or invalid, then the wrapper shall return the documented typed error without recursing.
-- While wrapper-owned commands remain stubs, the wrapper shall keep native passthrough usable.
+- While a wrapper verb is unimplemented, its spelling shall stay undeclared and reach the child unchanged.
+- When a claimed read-only spelling overlaps the child's, the wrapper shall emit its own output, the delimiter, then the child's bytes unchanged.
+- When a claimed spelling appears in the child inventory fixture without being named in the CLI surface, the build shall fail.
 
 ## Rabbit holes
 
 - Full process supervision; escape: keep the minimal spawn seam replaceable for slice 003.
-- Feature-complete verb handlers; escape: expose only the documented stub surface.
+- Feature-complete verb handlers; escape: declare `version` and `help` only, and add each remaining verb in the slice that specifies it.
 
 ## Done when
 

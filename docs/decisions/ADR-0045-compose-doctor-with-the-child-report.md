@@ -28,3 +28,5 @@ This generalizes: a wrapper verb may keep a name the child also owns only when i
 ## Status
 
 Accepted
+
+Amended by [ADR-0079](./ADR-0079-compose-every-overlapping-surface-with-the-child.md), which supplies the test this record generalized without stating: composition is available where the shared surface is read-only, and required there.

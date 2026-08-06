@@ -28,3 +28,5 @@ Claiming `auth` would otherwise force native callers through `--`, contrary to [
 ## Status
 
 Accepted
+
+Amended by [ADR-0079](./ADR-0079-compose-every-overlapping-surface-with-the-child.md), which restates this rename as an instance of a rule: `auth` changes stored state, so composing was never available to it.

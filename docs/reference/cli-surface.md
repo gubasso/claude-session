@@ -19,7 +19,7 @@ When the first non-flag token is a wrapper verb, the invocation is a wrapper com
 
 This table is the denylist. Every flag on it is intercepted by the wrapper in leading position and does not reach the child there. Every flag not on it is forwarded verbatim, whether or not the wrapper recognizes it, and whether or not it exists in the child.
 
-The child-status column is measured, not assumed. It is the intersection audited by [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md), taken from `claude` 2.1.220 on 2026-07-31; the `child-flag-and-verb-inventory` fact in [research tracking](./research-tracking.yaml) owns its freshness.
+The child-status column is measured, not assumed. It is the intersection audited by [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md), taken from `claude` 2.1.220 on 2026-08-06 and recorded in [the child inventory](../../tests/fixtures/child-inventory.yaml); the `child-flag-and-verb-inventory` fact in [research tracking](./research-tracking.yaml) owns its freshness.
 
 | Flag               | Meaning                                              | Why the wrapper claims it                                                                                                   | Child status                              |
 | ------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
@@ -29,7 +29,7 @@ The child-status column is measured, not assumed. It is the intersection audited
 | `--account <name>` | Select the account and stored authentication context | The wrapper owns account selection; the child owns its credential                                                           | Free                                      |
 | `--profile <name>` | Select the settings profile to compose               | The wrapper owns composition; declared on the launch and on `config` only, per [configuration](./configuration.md#commands) | Free                                      |
 | `--version`, `-V`  | Print the wrapper's version and the resolved child's | Must report both, which the child cannot do                                                                                 | `--version` collides by design; `-V` free |
-| `--help`, `-h`     | Print the wrapper's help                             | Must describe the wrapper's grammar, not the child's                                                                        | Collides by design                        |
+| `--help`, `-h`     | Print the wrapper's help, then the child's           | Must describe the wrapper's grammar, which the child cannot; composes so the child's is not lost                            | Collides by design                        |
 
 Three properties of this table are contractual:
 
@@ -39,7 +39,7 @@ Append-only in spirit. Adding a flag to this table removes a flag from the child
 
 Every row has a contract. A flag appears here only once its behaviour, its output, and its failures are specified on some page. A claimed spelling with nothing behind it costs the child a token in exchange for nothing, and makes the denylist-membership test assert a row that means nothing.
 
-Audited, not asserted. An intersection between this table and the child's inventory that is not named in the child-status column fails the build. The mechanism is the collision-audit test in [testing and quality](./testing-and-quality.md#mandatory-tests).
+Audited, not asserted. An intersection between this table and the child's inventory that is not named in the child-status column fails the build. The mechanism is the collision audit in `tests/collision_audit/`, which reads this table and [the child inventory](../../tests/fixtures/child-inventory.yaml) and compares them; see [testing and quality](./testing-and-quality.md#mandatory-tests).
 
 ### Flag spelling
 
@@ -74,6 +74,10 @@ A global `--format` would sit on the denylist above and cost the child a flag pe
 
 The wrapper wins in leading position, deterministically and silently. It does not warn, because warning would require the model of the child's grammar [ADR-0002](../decisions/ADR-0002-verbatim-argv-passthrough.md) forbids.
 
+Winning is conditional, and one test decides it for flags and verbs alike ([ADR-0079](../decisions/ADR-0079-compose-every-overlapping-surface-with-the-child.md)). A claimed spelling the child also owns is kept only when the shared surface is read-only — checks, reports, help, version — and then it composes: the wrapper's own output first, then the child's under [the composed-output delimiter](./logging-and-output.md#composed-output). A shared surface that runs the agent, opens a terminal interface, or changes state is renamed instead, because composing it would perform the effect twice and shadowing it would hide the child's behaviour behind the wrapper's.
+
+Whether the child owns a name is measured before it is claimed, not assumed from its documentation: the inventory is rebuilt as the procedure below describes, and a claimed spelling with no counterpart in it composes nothing. Every other token — every flag, verb, and argument the wrapper does not claim — reaches the child untouched, and the wrapper does nothing else with it.
+
 Three things reach the child's own spelling:
 
 | Escape               | Example                          | What the child receives                                 |
@@ -101,14 +105,16 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 | `version`    | Print the wrapper's version and the resolved child's path and version     | [Version output](#version-output)            |
 | `help`       | Print the wrapper's help, or one verb's                                   | [Help](#help)                                |
 
-Two verb names overlap the child's, measured against `claude` 2.1.220 on 2026-07-31, and each resolves differently:
+Two verb names overlap the child's, measured against `claude` 2.1.220 on 2026-08-06, and the read-only test in [when the child owns the same name](#when-the-child-owns-the-same-name) resolves each:
 
-| Child verb | Resolution | Reason                                                                                                                                                                                                                   |
-| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `auth`     | Renamed    | Native auth is the child's own credential flow and stays reachable as passthrough; `account` is the wrapper's namespace ([ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md)).             |
-| `doctor`   | Composed   | The two reports answer different questions, so the wrapper runs its own checks and then the child's, passing that output through unmodified ([ADR-0045](../decisions/ADR-0045-compose-doctor-with-the-child-report.md)). |
+| Child verb | Shared surface                              | Resolution | Reason                                                                                                                                                                                                                                                                           |
+| ---------- | ------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth`     | A credential flow that changes stored state | Renamed    | Running it twice would mint two credentials, and its in-terminal `/login` cannot be intercepted at all; native auth stays reachable as passthrough and `account` is the wrapper's namespace ([ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md)). |
+| `doctor`   | A diagnostic report that reads and prints   | Composed   | The two reports answer different questions and neither changes anything, so the wrapper runs its own checks and then the child's, passing that output through unmodified ([ADR-0045](../decisions/ADR-0045-compose-doctor-with-the-child-report.md)).                            |
 
-Those are the only two resolutions available. A wrapper verb may keep a name the child owns only when it runs the child's command as part of its own and reports the result; otherwise it is renamed. Shadowing a child verb and leaving `--` as the sole remedy is not one of them, because a user reaching for a diagnostic does not know a wrapper is in the way. Every overlap is named in this table with its reasoning, and the audit that keeps the table honest is the same one that covers flags ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
+Those are the only two resolutions available. Shadowing a child verb and leaving `--` as the sole remedy is not one of them, because a user reaching for a diagnostic does not know a wrapper is in the way. Every overlap is named in this table with the surface it shares and its reasoning, and the audit that keeps the table honest is the same one that covers flags ([ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md)).
+
+A verb the wrapper has not yet built is not on the table above and not claimed. Until the slice that specifies its behaviour lands it, the spelling reaches the child like any other unclaimed token, which is what keeps the empty-claim rule stated for flags true of verbs as well.
 
 There is no `init`. Configuration is optional — every key has a compiled-in default — and the wrapper never writes the user's configuration, so there is no scaffold to create. Users copy a [generated example](./configuration.md#generated-examples-and-schema) instead. See [ADR-0015](../decisions/ADR-0015-retire-the-init-verb.md).
 
@@ -166,9 +172,11 @@ The parser is additionally configured to disable its automatic version flag, so 
 
 Authored prose the parser cannot generate — worked passthrough examples, the `--` explanation, a pointer to this documentation — lives in a text file under the output module and is included into the parser's long help at compile time.
 
-Help describes the wrapper's grammar only. It does not reproduce, summarize, or link into the child's flag list, because that list is not the wrapper's to track. It should say, once and plainly, that unrecognized arguments are forwarded.
+The generated part describes the wrapper's grammar only. It does not reproduce, summarize, or link into the child's flag list, because that list is not the wrapper's to track. It should say, once and plainly, that unrecognized arguments are forwarded.
 
-The `help` verb is the same surface under another spelling: `claude-session help [<verb>]` prints exactly what `--help` and `<verb> --help` print. Requested help is a result — standard output, exit `0`. Help printed because an invocation was malformed is a diagnostic — standard error, exit `Usage`. The parser's own default differs on both counts and is overridden; see [exit codes](./exit-codes.md#wrapper-matrix).
+The child's list is not reproduced because it is delegated. `--help` is a claimed spelling over a read-only surface, so it composes: the wrapper's generated help, then `claude --help` under [the composed-output delimiter](./logging-and-output.md#composed-output). This is what makes the wrapper's answer a superset of the child's rather than a replacement for it, which is the ground [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md) keeps the collision on. The child's help is never parsed, so nothing here tracks its grammar.
+
+The `help` verb is the same surface under another spelling: `claude-session help [<verb>]` prints exactly what `--help` and `<verb> --help` print. A verb's help composes on the same test: `help doctor` appends `claude doctor --help`, because `doctor` is the one verb whose name the child also owns. `account` appends nothing — it was renamed precisely so there is no shared surface — and neither does any verb the child does not have. Requested help is a result — standard output, exit `0`. Help printed because an invocation was malformed is a diagnostic — standard error, exit `Usage`. The parser's own default differs on both counts and is overridden; see [exit codes](./exit-codes.md#wrapper-matrix).
 
 A namespace verb requires its subcommand. `account`, the only one, satisfies no invocation on its own, so bare `account` is malformed: the verb's help is a diagnostic, and so is an unrecognized subcommand. Both exit `Usage`. Unlike a mistyped wrapper flag, an unrecognized subcommand carries a nearest-match suggestion — the parser's subcommand set is closed and wholly wrapper-owned, so the reasoning that denies one to [flag spelling](#flag-spelling) does not reach it. See [ADR-0052](../decisions/ADR-0052-require-an-explicit-subcommand.md).
 

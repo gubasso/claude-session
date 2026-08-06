@@ -4,7 +4,7 @@ This is the only delivery-status surface. Work proceeds in dependency order.
 
 | id  | slice                                                                                 | status | appetite                  | depends on    | note                                               |
 | --- | ------------------------------------------------------------------------------------- | ------ | ------------------------- | ------------- | -------------------------------------------------- |
-| 001 | [native passthrough foundation](./slices/001-native-passthrough-foundation/README.md) | shaped | 4 implementation sessions | none          |                                                    |
+| 001 | [native passthrough foundation](./slices/001-native-passthrough-foundation/README.md) | active | 4 implementation sessions | none          |                                                    |
 | 002 | [secure session storage](./slices/002-secure-session-storage/README.md)               | shaped | 3 implementation sessions | 001           |                                                    |
 | 003 | [supervised child runtime](./slices/003-supervised-child-runtime/README.md)           | shaped | 3 implementation sessions | 002           |                                                    |
 | 004 | [profile composition](./slices/004-profile-composition/README.md)                     | shaped | 4 implementation sessions | 002, 003      | Adds 003 to serialize runtime before composition.  |

@@ -80,18 +80,25 @@ tracked:
       - docs/reference/xdg-storage.md
 
   - path: docs/reference/cli-surface.md
-    last_checked: 2026-07-31
+    last_checked: 2026-08-06
     cadence: monthly and on every adopted child or parser major release
     why: Child spellings and parser treatment of unknown leading flags can change across releases.
     revalidate: >-
       Rebuild the child's top-level and per-subcommand inventory from its own
-      help and diff the version-labelled fixture; until the fixture exists in
-      slice 001, re-measure directly. Corroborate with the public CLI reference,
-      record new overlaps, and drop or rename any wrapper spelling whose meaning
-      would change. On a parser major upgrade, retry a leading unknown flag
-      without the pre-split using the upstream external-subcommand cookbook;
-      keep the golden argv tests regardless of outcome.
+      help, and rewrite tests/fixtures/child-inventory.yaml from that
+      measurement: run
+      `claude --help` for the top-level flags and verbs, then `claude <verb>
+      --help` for each verb, keeping every list byte-sorted and unique. Update
+      child_version, measured_on, and the prose in ./cli-surface.md that names
+      the same version and date, which the collision audit compares. The audit
+      never runs the child, so this is the only step that measures it.
+      Corroborate with the public CLI reference, record new overlaps, and drop
+      or rename any wrapper spelling whose meaning would change. On a parser
+      major upgrade, retry a leading unknown flag without the pre-split using
+      the upstream external-subcommand cookbook; keep the golden argv tests
+      regardless of outcome.
     dependents:
+      - tests/fixtures/child-inventory.yaml
       - docs/decisions/ADR-0002-verbatim-argv-passthrough.md
       - docs/decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md
       - docs/decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md
