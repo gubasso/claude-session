@@ -14,6 +14,7 @@
 
 - For the product shape, read [architecture](./explanation/architecture.md) and the [wrapper model](./explanation/wrapper-model.md).
 - For exact behavior, begin with the [CLI surface](./reference/cli-surface.md), [process runtime](./reference/process-runtime.md), [XDG storage](./reference/xdg-storage.md), and [exit codes](./reference/exit-codes.md).
+- For anything a user reads, follow [logging and output](./reference/logging-and-output.md) for the destination and [presentation](./reference/presentation.md) for the appearance.
 - For current work, open [milestones](./plan/milestones.md) and follow the first active or unblocked shaped slice.
 - For contribution procedure, use the [development workflow](./guides/development-workflow.md) and [testing gate](./reference/testing-and-quality.md#the-gate).
 - For release operations, use the [release guide](./guides/releasing.md) and [release contract](./reference/release-workflow.md).

@@ -4,7 +4,7 @@ The probe catalog, what each check reads, the remediation it prints, and how a r
 
 This describes normative design. The crate is pre-implementation.
 
-The catalog below has three consumers and only one of them is an output surface, which is why it lives here rather than in [logging and output](./logging-and-output.md): a reader holding a check id is asking a health question, not a formatting one. That page still owns the streams, the document rules, and the colour ladder this one defers to.
+The catalog below has three consumers and only one of them is an output surface, which is why it lives here rather than in [logging and output](./logging-and-output.md): a reader holding a check id is asking a health question, not a formatting one. That page still owns the streams and the document rules, and [presentation](./presentation.md) owns the appearance rules this one defers to.
 
 ```text
 claude-session doctor [--json] [--list] [--strict]
@@ -103,7 +103,7 @@ Exit is `0` when no hard check fails, and otherwise the `err.kind` code of the f
 
 The report is the verb's result, so it goes to standard output; progress and diagnostics go to standard error, which is what makes `doctor --json 2>/dev/null` safe to pipe.
 
-Checks are grouped by scope in catalog order, and each line carries its status as a bracketed word — `[pass]`, `[warn]`, `[fail]`, `[skipped]` — never a glyph or a colour alone, for the reason [colour](./logging-and-output.md#colour) gives. A `warn` or `fail` is followed by an indented `hint:` line carrying the Hint part of the [error shape](./exit-codes.md#error-message-shape); a `skipped` check states its reason instead. The report ends with one summary line giving the counts and the exit the run produced.
+Checks are grouped by scope in catalog order, and each line carries its status as a bracketed word — `[pass]`, `[warn]`, `[fail]`, `[skipped]` — never a glyph or a colour alone, for the reason [presentation](./presentation.md#the-contract) gives. A `warn` or `fail` is followed by an indented `hint:` line carrying the Hint part of the [error shape](./exit-codes.md#error-message-shape); a `skipped` check states its reason instead. The report ends with one summary line giving the counts and the exit the run produced.
 
 `doctor --json` emits that same run as one document:
 

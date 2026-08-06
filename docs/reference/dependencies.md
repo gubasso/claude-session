@@ -37,6 +37,15 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 | `tracing-subscriber` (env-filter, fmt) | Subscriber and `RUST_LOG` filtering            | Its transitive graph violates the deny policy; use a project-owned subscriber |
 | `tracing-appender`                     | Non-blocking file sink with rotation           | Its transitive graph violates the deny policy; use the project-owned worker   |
 
+### Human presentation
+
+| Crate      | Why                                                                                                                                                          | Skip if                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `anstream` | Applies or strips ANSI at the stream, so a renderer writes one string and the decision made by the [colour ladder](./presentation.md#colour) is applied once | The named surfaces stay plain, which retires colour rather than hand-rolling it |
+| `anstyle`  | The style vocabulary `anstream` composes, with no runtime of its own                                                                                         | It arrives only through `anstream`, which is the normal case                    |
+
+Both are maintained under the `clap` organization, are dual MIT or Apache-2.0, carry no advisory, and are already resolved in the lockfile through `clap`'s default features — so admitting them adds a direct edge rather than a new subtree. They are named here because a renderer may not reach for a styling crate that this page has not reviewed. `owo-colors` and `nu-ansi-term` render style but do not own the stream, which is where the single ladder decision has to be applied, so neither replaces `anstream`.
+
 ### Serialization
 
 | Crate            | Why                                                                        | Skip if                         |
@@ -98,6 +107,7 @@ Reviewed, not needed yet. Named here so the decision is not re-made from scratch
 | Crate                                      | Unlocked by                                             |
 | ------------------------------------------ | ------------------------------------------------------- |
 | `serde_yaml_ng` in the shipped graph       | The first profile                                       |
+| `anstream`, `anstyle`                      | The first coloured surface                              |
 | `sha2`                                     | The first token fingerprint or composed-settings digest |
 | `clap_complete`, `clap_mangen`             | The completions and man-page work                       |
 | `schemars`, `toml_edit`                    | The `xtask` example generator                           |

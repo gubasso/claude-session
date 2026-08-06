@@ -46,6 +46,8 @@ Every key is flat, so an underscore is always part of a key name and never a lev
 
 Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are not configuration keys. What reaches the child is [process runtime](./process-runtime.md#child-environment)'s to say.
 
+The wrapper also reads variables outside the prefix, and none of them is configuration: `NO_COLOR`, `FORCE_COLOR`, and `TERM` are read by [the colour ladder](./presentation.md#colour), `RUST_LOG` by [verbosity](./logging-and-output.md#verbosity), and the XDG bases by [XDG storage](./xdg-storage.md). They are listed here because this is where a reader asks what the environment does, and owned there because that is where they act. None has a file spelling, a layer, or a row above — a key is a permanent contract this project defines, and these are conventions it honours.
+
 ### Future token-helper boundary
 
 A future `token_helper` setting may select an argv-based helper process. Its settled boundary is:
@@ -70,7 +72,7 @@ Identifiers follow [the identifier rules](./xdg-storage.md#identifiers); an abso
 
 The project layer may set `default_profile` only. A repository that could set `child_bin` would choose the executable that runs, and one that could set `default_account` would choose the credential it runs under — both before the user has read a line of it. Either key in a project file is `Config`, not a silent ignore ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
 
-No other key earns a row. Verbosity is invocation-scoped, colour is `NO_COLOR` ([logging and output](./logging-and-output.md)), and `token_helper` stays deferred by [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md). A key is a permanent contract, so it is added by a present need rather than by symmetry ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
+No other key earns a row. Verbosity is invocation-scoped, colour is `NO_COLOR` ([presentation](./presentation.md#colour)), and `token_helper` stays deferred by [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md). A key is a permanent contract, so it is added by a present need rather than by symmetry ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
 ### Schema
 

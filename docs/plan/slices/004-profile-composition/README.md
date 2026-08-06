@@ -33,6 +33,7 @@ Identical inputs yield one immutable byte-identical output and changed inputs yi
 - [XDG storage](../../../reference/xdg-storage.md)
 - [CLI surface](../../../reference/cli-surface.md)
 - [Logging and output](../../../reference/logging-and-output.md)
+- [Presentation](../../../reference/presentation.md)
 - [Coding conventions](../../../reference/coding-conventions.md)
 - [Dependencies](../../../reference/dependencies.md)
 - [Testing and quality](../../../reference/testing-and-quality.md)

@@ -1,6 +1,6 @@
 # Logging and output
 
-Every byte the wrapper writes, and where it goes.
+Every byte the wrapper writes, and where it goes. How a human-facing byte looks once it gets there is [presentation](./presentation.md)'s.
 
 The passthrough, diagnostic, logging, and composed read-only output foundation is implemented. Later verb output remains normative design.
 
@@ -58,7 +58,7 @@ One delimiter line separates the two, with a blank line on each side:
 --- claude doctor ---
 ```
 
-Between the dashes is the exact command that produced what follows, so a reader can reproduce the second half on its own. The form is fixed: ASCII, and no padding to the terminal's width. Padding would make the result depend on the terminal it was printed into, which a golden test cannot pin and a pipe has no use for. Colour may be applied to the line under the ladder below, and carries nothing the command name does not already state.
+Between the dashes is the exact command that produced what follows, so a reader can reproduce the second half on its own. The form is fixed: ASCII, and no padding to the terminal's width. Padding would make the result depend on the terminal it was printed into, which a golden test cannot pin and a pipe has no use for. The line is one of the surfaces [presentation](./presentation.md#coloured-surfaces) permits colour on, and carries nothing the command name does not already state.
 
 The child's bytes pass through unchanged — not parsed, not re-indented, not re-wrapped, not summarized — and nothing follows them. The wrapper claimed the name in order to add its own answer, not to edit the child's. In human format that is literal: the wrapper writes its output and the delimiter, flushes, and the child inherits standard output, so no wrapper code ever holds those bytes.
 
@@ -116,22 +116,7 @@ The only secret-derived value permitted is `sha256[..8]` of a wrapper-owned OAut
 
 The child's arguments are not logged at default verbosity because a passed-through argument can contain a prompt, path, or secret. Trace-level argument logging must apply the same redaction rule.
 
-## Colour
-
-Applied to stderr text and to stdout only in human format. Never in JSON mode. Resolved in this order, first match wins:
-
-1. `NO_COLOR` set to any value — off. Per [the convention](https://no-color.org/).
-2. `FORCE_COLOR` set — on, regardless of what the stream is.
-3. `TERM` is `dumb` — off.
-4. The target stream is not a terminal — off.
-5. Otherwise — on.
-
-There is deliberately no wrapper flag for colour. `NO_COLOR` is the established convention and costs the child nothing, whereas claiming `--no-color` would take that spelling away from the child for good — a passthrough-contract change needing its own decision record, per [the CLI surface](./cli-surface.md) and [ADR-0003](../decisions/ADR-0003-reserve-a-small-wrapper-cli-surface.md).
-
-Colour never carries meaning by itself. Anything colour indicates is also stated in the text, because a redirected stream, a colour-blind reader, and a screen reader all lose it.
-
 ## Further reading
 
 - [`tracing`](https://docs.rs/tracing/) and [`tracing-subscriber`](https://docs.rs/tracing-subscriber/)
-- [`no-color.org`](https://no-color.org/)
 - [Command Line Interface Guidelines](https://clig.dev/)

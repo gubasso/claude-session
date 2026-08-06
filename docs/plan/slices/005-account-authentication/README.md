@@ -35,6 +35,7 @@ Login and token modes are deterministic, private, redacted, and safe under concu
 - [CLI surface](../../../reference/cli-surface.md)
 - [Exit codes](../../../reference/exit-codes.md)
 - [Logging and output](../../../reference/logging-and-output.md)
+- [Presentation](../../../reference/presentation.md)
 - [Testing and quality](../../../reference/testing-and-quality.md)
 
 ## Acceptance

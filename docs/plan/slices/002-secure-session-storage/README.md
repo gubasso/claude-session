@@ -31,6 +31,7 @@ Every created component refuses symlinks and wrong ownership and enforces privat
 - [Configuration](../../../reference/configuration.md)
 - [Exit codes](../../../reference/exit-codes.md)
 - [Logging and output](../../../reference/logging-and-output.md)
+- [Presentation](../../../reference/presentation.md)
 - [Testing and quality](../../../reference/testing-and-quality.md)
 
 ## Acceptance

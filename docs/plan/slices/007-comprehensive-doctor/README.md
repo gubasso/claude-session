@@ -30,6 +30,7 @@ Every catalog check runs independently and the documented ordered exit rule hold
 - [Doctor](../../../reference/doctor.md)
 - [Exit codes](../../../reference/exit-codes.md)
 - [Logging and output](../../../reference/logging-and-output.md)
+- [Presentation](../../../reference/presentation.md)
 - [Testing and quality](../../../reference/testing-and-quality.md)
 
 ## Acceptance
