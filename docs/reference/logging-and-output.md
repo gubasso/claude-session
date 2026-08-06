@@ -22,7 +22,7 @@ The test is whether a user could pipe the command into another program. If a byt
 
 During a passthrough invocation the wrapper writes nothing to standard output. Not a banner, not a progress line, not a "launching claude" notice. The child's standard output is the user's data stream and the wrapper is not entitled to a byte of it. Wrapper diagnostics during a passthrough go to standard error, where they are already interleaved with the child's.
 
-Every terminal write goes through one output writer, owned by the context. Direct print macros are forbidden outside that writer and the entry point, and a lint enforces it; see [testing and quality](./testing-and-quality.md). One writer is what makes JSON mode, `--quiet`, and colour handling work uniformly instead of being reimplemented per command.
+Every terminal write goes through the output writer. The context carries one, and the entry point and the subscriber construct their own because they run outside a context — before one exists, and from inside the logging stack it would otherwise re-enter. Direct print macros are forbidden outside that writer and the entry point, and a lint enforces it; see [testing and quality](./testing-and-quality.md). One writer is what makes JSON mode, `--quiet`, and colour handling work uniformly instead of being reimplemented per command.
 
 ## Machine output
 
@@ -78,7 +78,7 @@ Verbosity repeats by repeating the whole spelling, and `-vv` is not a wrapper to
 
 A fourth `--verbose` is not an error; the level is clamped at trace. `--quiet` and `--verbose` together is a usage error, not a silent precedence rule.
 
-`RUST_LOG` is honoured and, when set, overrides the flag-derived level. This is deliberate: the flag is the user's coarse control, and the environment variable is the developer's fine one, which needs per-module filtering the flags cannot express. No `CLAUDE_SESSION_LOG` variable is invented — reusing the ecosystem-standard name means existing knowledge transfers.
+`RUST_LOG` is honoured and, when set, overrides the flag-derived level. This is deliberate: the flag is the user's coarse control, and the environment variable is the developer's fine one. Only the level is read from it — the wrapper emits from one target, so per-module filtering would have nothing to select between, and a directive naming a module selects on its level alone. No `CLAUDE_SESSION_LOG` variable is invented — reusing the ecosystem-standard name means existing knowledge transfers.
 
 Verbosity governs the stderr mirror and nothing else. The file sink is fixed at `debug`, unconditionally: `--quiet`, `--verbose`, and `RUST_LOG` do not move it. A level that tracked the terminal would leave the file useless in exactly the case it exists for — a bug report from a user who ran with no flags. `trace` is deliberately not the fixed level, because trace is where child arguments are logged and always-on argument capture on a wrapper that forwards prompts is a standing redaction hazard.
 
@@ -88,7 +88,7 @@ Exactly one subscriber is installed, from the entry point, before anything else 
 
 The default sink is a file under the state base directory, written non-blocking and rotated. It is a file rather than the terminal because a wrapper's diagnostics interleaved with an interactive child's output are unreadable, and because the log's value is in being there after something went wrong.
 
-The stderr mirror is opt-in, driven by verbosity.
+The stderr mirror is driven by verbosity, and it is a human channel. In JSON mode it is off: standard error carries the error document there, and a mirrored record beside it would corrupt the one document shape a verb does not choose.
 
 Each record is one line, with a stable field set:
 
@@ -107,6 +107,8 @@ Each record is one line, with a stable field set:
 `status`, `dur_ms`, and `err.kind` appear only where they mean something — a record that opens an operation has no duration yet — but where they appear, they carry these names. `err.kind` matters most: it is already the identifier scripts match on, and a log that spells it differently from the diagnostic forces a reader to learn two vocabularies for one failure.
 
 One line per record, with structured fields rather than interpolated prose, because both a human with `grep` and a program with a parser can then use it.
+
+A value that would break either is quoted, and the characters that would break the line are escaped inside the quotes. A path with a space in it otherwise splits into two fields, and a message with a newline in it otherwise becomes two records — silently, and only for the values most worth reading.
 
 Credentials, tokens, API keys, and helper output are never emitted, at any level or in any field. This covers human output, prompts, every `--json` document, logs, diagnostics, errors, and the diagnostic `where` clause. A concrete secret error location is its non-secret path, never its content.
 

@@ -43,12 +43,15 @@ fn spawn_error(error: &io::Error, program: &std::path::Path) -> AppError {
         Some(1 | 8 | 13) => {
             AppError::child_not_executable(program.display().to_string(), error.to_string())
         }
-        _ => AppError::OsError(Diagnostic::new(
-            "child process could not be spawned",
-            program.display().to_string(),
-            error.to_string(),
-            "inspect the operating-system error",
-        )),
+        _ => AppError::new(
+            crate::error::ErrorKind::OsError,
+            Diagnostic::new(
+                "child process could not be spawned",
+                program.display().to_string(),
+                error.to_string(),
+                "inspect the operating-system error",
+            ),
+        ),
     }
 }
 
@@ -63,12 +66,15 @@ impl ProcessRunner for SystemProcessRunner {
             .spawn()
             .map_err(|error| spawn_error(&error, invocation.program()))?;
         child.wait().map(outcome).map_err(|error| {
-            AppError::OsError(Diagnostic::new(
-                "waiting for child failed",
-                invocation.program().display().to_string(),
-                error.to_string(),
-                "retry the invocation",
-            ))
+            AppError::new(
+                crate::error::ErrorKind::OsError,
+                Diagnostic::new(
+                    "waiting for child failed",
+                    invocation.program().display().to_string(),
+                    error.to_string(),
+                    "retry the invocation",
+                ),
+            )
         })
     }
     fn run_captured(&self, invocation: &ChildInvocation) -> Result<CapturedChild, AppError> {

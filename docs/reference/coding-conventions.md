@@ -10,7 +10,7 @@ These conventions govern the implemented native-passthrough foundation and every
 | ---------------------------- | ----------------------- | -------------------------------- |
 | Parse-shape argument struct  | `<Verb>Args`            | `AccountArgs`                    |
 | Runtime-shape request        | `<Verb>Request`         | `ComposeRequest`                 |
-| Per-layer error enum         | `<Layer>Error`          | `DomainError`, `FsAdapterError`  |
+| Per-layer error enum         | `<Layer>Error`          | `DomainError`, `ConfigError`     |
 | Validated newtype            | The concept, singular   | `AccountId`, `ProfileId`         |
 | Adapter trait                | The role it plays       | `Spawner`, `Filesystem`, `Clock` |
 | Command handler              | `run`                   | One per `commands/<verb>.rs`     |
@@ -44,21 +44,21 @@ The reason is mechanical: a tree of `mod.rs` files gives every open editor tab t
 
 Errors are typed per layer and converge on one application error:
 
-| Layer       | Type                    | Purpose                                                                               |
-| ----------- | ----------------------- | ------------------------------------------------------------------------------------- |
-| Domain      | `DomainError`           | Invariant violations in pure code — an invalid identifier, a malformed path component |
-| Adapter     | `<Sys>AdapterError`     | One per adapter. Wraps the underlying failure and records what was being attempted    |
-| Service     | `ServiceError`          | Orchestration failures, and adapter failures with the operation's context attached    |
-| Application | `AppError`              | The closed enum every layer converges on. Owns the exit-code mapping.                 |
-| Boundary    | The boundary error type | The entry point only, for the final report                                            |
+| Layer         | Type             | Purpose                                                                                        |
+| ------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| Domain        | `DomainError`    | Invariant violations in pure code — an invalid identifier, a malformed path component          |
+| Configuration | `ConfigError`    | Layer-walk failures that keep the file, the key, and the underlying `io::Error`                |
+| Adapter       | `std::io::Error` | Adapters return the system's own error; the caller that knows the operation names it           |
+| Application   | `AppError`       | What every layer converges on: one `ErrorKind` and one diagnostic. Owns the exit-code mapping. |
 
 Rules:
 
 - Every error carries the concrete value involved — the path, the key, the account. An error that says a file could not be read without saying which file has failed at its one job.
 - Conversions between layers are derived where the mapping is total, and written by hand where context must be added. A conversion that discards context is worse than none.
-- `AppError` is a closed enum with no catch-all variant. This is what makes the exit-code mapping exhaustive; see [exit codes](./exit-codes.md).
+- `AppError` carries a closed `ErrorKind` with no catch-all member. The kind owns the code and the published spelling, so an error without a code is unconstructible rather than caught by a test. A parallel variant list beside the kind would only give the two of them a way to drift apart; see [exit codes](./exit-codes.md).
 - A boxed trait-object error is never a return type in this crate. It erases exactly the type information the exit-code mapping needs.
-- The boundary error type is used only in the entry point. It is the right tool for one place — assembling the final report — and the wrong tool everywhere else, because a function returning it tells the caller nothing about what can go wrong.
+- A service takes each dependency it reaches the outside world through as a trait parameter, not as a context to fish it out of. That is what lets a test drive a resolution ladder against a fake instead of a real tree, and it is the reason the ports exist.
+- The entry point holds no logic. It connects to process globals, installs logging, calls the fallible program, and converts the outcome; the fallible program takes what it needs as parameters and reads no global. The conversion is ordered report, flush, then exit ([ADR-0080](../decisions/ADR-0080-order-the-boundary-as-report-flush-exit.md)), so the record naming the failure reaches the log before the sink is joined.
 - `main` returns `std::process::ExitCode`, and `std::process::exit` is not called — it skips destructors, and the non-blocking log sink is flushed by one. Reproducing a child's signal death is the single exception, because re-raising does not return; it lives in the entry point and nowhere else. Every code the process can produce is owned by one enum, hand-rolled rather than taken from a crate. See [ADR-0035](../decisions/ADR-0035-convert-the-typed-error-to-a-code-once.md) and [exit codes](./exit-codes.md).
 
 ## Panics

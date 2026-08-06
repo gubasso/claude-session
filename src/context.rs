@@ -3,7 +3,7 @@
 use crate::{
     adapters::{
         environment::{Environment, SystemEnvironment},
-        filesystem::FileSystem,
+        filesystem::SystemFileSystem,
         process::SystemProcessRunner,
     },
     commands::dispatch::OutputMode,
@@ -14,13 +14,13 @@ use crate::{
 /// Concrete adapter bundle shared by handlers.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Adapters {
-    filesystem: FileSystem,
+    filesystem: SystemFileSystem,
     process: SystemProcessRunner,
 }
 
 impl Adapters {
     /// Returns the filesystem adapter.
-    pub(crate) const fn filesystem(self) -> FileSystem {
+    pub(crate) const fn filesystem(self) -> SystemFileSystem {
         self.filesystem
     }
     /// Returns the process adapter.
@@ -63,6 +63,9 @@ impl AppContext {
         &self.config
     }
     /// Returns resolved XDG paths.
+    // Logging resolves its own namespace at the entry point, before a context
+    // exists. The first downstream reader is the account and profile storage.
+    #[allow(dead_code, reason = "no command writes to a namespace yet")]
     pub(crate) const fn paths(&self) -> &XdgPaths {
         &self.paths
     }

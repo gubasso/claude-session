@@ -45,7 +45,7 @@ The resolved path is logged on every invocation, passthrough included, at `info`
 
 The inherited `PATH` is searched left to right for the fixed name `claude`, unmodified — the wrapper does not prune its own directory from it, because a wrapper ahead of its child on `PATH` is a misconfiguration to report as `ChildRecursion`, not to route around.
 
-Zero-length entries are dropped. POSIX calls the zero-length prefix a legacy feature meaning the current working directory, and a bare `::` in `PATH` would mean "run `./claude` from wherever the user happens to be standing" — the wrong thing for a process about to be handed credentials. The `which` crate emulates `which(1)` and does not filter them on Unix, so the wrapper filters them itself.
+Zero-length entries are dropped. POSIX calls the zero-length prefix a legacy feature meaning the current working directory, and a bare `::` in `PATH` would mean "run `./claude` from wherever the user happens to be standing" — the wrong thing for a process about to be handed credentials. `which(1)` does not filter them on Unix, so this is a deliberate divergence from it rather than an omission.
 
 A candidate rejected for execute permission does not stop the search; it is remembered. If no later entry yields an executable, that memory decides the failure: `ChildNotExecutable` if any candidate was rejected for permission, `ChildNotFound` otherwise. An unset `PATH` is `ChildNotFound`, with no invented default path.
 

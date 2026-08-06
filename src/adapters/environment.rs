@@ -1,9 +1,21 @@
 //! The only adapter allowed to read process-global environment state.
 
 use std::{
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     path::{Path, PathBuf},
 };
+
+/// Looks one variable up in a captured snapshot.
+///
+/// The snapshot is a slice of pairs rather than a map because the capture is
+/// ordered and lossless, so every reader needs the same linear lookup. Four
+/// independent copies of it is four chances to compare keys differently.
+pub(crate) fn value<'a>(environment: &'a [(OsString, OsString)], key: &str) -> Option<&'a OsStr> {
+    environment
+        .iter()
+        .find(|(candidate, _)| candidate == OsStr::new(key))
+        .map(|(_, found)| found.as_os_str())
+}
 
 /// Read-only process environment port.
 pub(crate) trait Environment {

@@ -38,6 +38,29 @@ fn sentinel_preserves_child_suffix() {
     );
 }
 
+/// The sentinel is unconditional, so a wrapper verb spelling behind it belongs
+/// to the child. `--` is also the documented remedy for reaching a shadowed
+/// child surface, which only works if the wrapper never looks past it.
+#[test]
+fn a_wrapper_verb_behind_the_sentinel_reaches_the_child() {
+    for verb in ["help", "version"] {
+        let harness = Harness::new();
+        assert!(
+            harness
+                .command()
+                .args(["--", verb])
+                .status()
+                .expect("wrapper")
+                .success()
+        );
+        assert_eq!(
+            &read_nul(&harness.record_dir().join("argv"))[1..],
+            &[verb.as_bytes().to_vec()],
+            "the wrapper claimed `{verb}` from behind the sentinel"
+        );
+    }
+}
+
 #[test]
 fn unimplemented_verbs_reach_child() {
     for verb in [
@@ -155,4 +178,28 @@ fn passthrough_stdout_contains_only_child_bytes() {
         .output()
         .expect("wrapper");
     assert_eq!(output.stdout, b"child-only");
+}
+
+/// Signal reproduction runs after the flush, not instead of it. Re-raising does
+/// not return, so anything the boundary still owed the log at that point is
+/// lost forever — which is exactly the run a reader most wants a log for.
+#[test]
+fn a_signalled_run_still_leaves_a_complete_log() {
+    let harness = Harness::new();
+    let status = harness
+        .command()
+        .env("CS_TEST_ABORT", "1")
+        .status()
+        .expect("wrapper");
+    assert_eq!(status.signal(), Some(6));
+    let log = std::fs::read_to_string(
+        harness
+            .root()
+            .join("state/claude-session/claude-session.log"),
+    )
+    .expect("UTF-8 structured log");
+    assert!(
+        log.contains("op=resolve_child"),
+        "the sink was never flushed before the re-raise:\n{log}"
+    );
 }

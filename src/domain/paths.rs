@@ -55,11 +55,16 @@ impl XdgPaths {
     pub(crate) fn state(&self) -> &Path {
         &self.state
     }
+    // Resolving all four namespaces is the XDG contract itself, so these two are
+    // carried without a reader rather than dropped. The allow is scoped to the
+    // item so a genuinely dead addition elsewhere still reports.
     /// Returns the data namespace.
+    #[allow(dead_code, reason = "no namespace has a durable artifact yet")]
     pub(crate) fn data(&self) -> &Path {
         &self.data
     }
     /// Returns the cache namespace.
+    #[allow(dead_code, reason = "no namespace has a discardable artifact yet")]
     pub(crate) fn cache(&self) -> &Path {
         &self.cache
     }

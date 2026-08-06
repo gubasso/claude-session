@@ -34,3 +34,5 @@ Implemented
 Enacted by [`src/main.rs`](../../src/main.rs).
 
 Extends [ADR-0008](./ADR-0008-layered-error-architecture.md), which fixed the error types but not their realization.
+
+Amended by [ADR-0080](./ADR-0080-order-the-boundary-as-report-flush-exit.md), which orders the boundary so the report reaches the log before the sink is flushed.

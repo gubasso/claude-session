@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    adapters::{environment::Environment, filesystem::FileSystem},
+    adapters::{environment::Environment, filesystem::SystemFileSystem},
     commands::dispatch::Globals,
     domain::{
         config::{ResolvedConfig, Source},
@@ -64,7 +64,7 @@ fn apply_file(
     source: Source,
     project: bool,
 ) -> Result<(), ConfigError> {
-    let bytes = match FileSystem::read(path) {
+    let bytes = match SystemFileSystem::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => {

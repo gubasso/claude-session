@@ -18,6 +18,20 @@ pub(crate) enum OutputMode {
     Json,
 }
 
+/// The user's coarse control over the diagnostic mirror.
+///
+/// One ladder rather than a count beside a flag: `--quiet` with `--verbose` is a
+/// usage error, so the pair can never both be set and a type that could hold
+/// both would invite a silent precedence rule.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Verbosity {
+    Quiet,
+    Default,
+    Info,
+    Debug,
+    Trace,
+}
+
 /// Parsed global values needed before full configuration loading.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Globals {
@@ -34,7 +48,7 @@ pub(crate) struct Globals {
 pub(crate) enum InvocationKind {
     Passthrough(Vec<OsString>),
     Help,
-    Version { json: bool },
+    Version { mode: OutputMode },
 }
 
 /// Fully classified wrapper invocation.
@@ -51,14 +65,22 @@ impl Invocation {
     pub(crate) const fn globals(&self) -> &Globals {
         &self.globals
     }
-    /// Returns the clamped verbosity count.
-    pub(crate) const fn verbosity(&self) -> u8 {
-        if self.verbose > 3 { 3 } else { self.verbose }
+    /// Returns the diagnostic-mirror ladder, clamping a fourth repeat.
+    pub(crate) const fn verbosity(&self) -> Verbosity {
+        if self.quiet {
+            return Verbosity::Quiet;
+        }
+        match self.verbose {
+            0 => Verbosity::Default,
+            1 => Verbosity::Info,
+            2 => Verbosity::Debug,
+            _ => Verbosity::Trace,
+        }
     }
     /// Returns the active output mode.
     pub(crate) const fn output_mode(&self) -> OutputMode {
         match self.kind {
-            InvocationKind::Version { json: true } => OutputMode::Json,
+            InvocationKind::Version { mode } => mode,
             _ => OutputMode::Human,
         }
     }
@@ -74,21 +96,29 @@ pub(crate) enum DispatchOutcome {
 /// Pre-splits raw arguments and parses only wrapper-owned bytes.
 pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
     let partition = argv::split(arguments)?;
+    // `--` is unconditional: everything after it is child territory even when it
+    // spells a wrapper verb, so the rescue below only applies to a suffix that
+    // no sentinel closed.
+    let sentinel = partition.sentinel();
     let (mut wrapper, mut child) = partition.into_parts();
     let wrapper_verb = child
         .first()
+        .filter(|_| !sentinel)
         .and_then(|value| value.to_str())
         .filter(|value| matches!(*value, "help" | "version"));
     if wrapper_verb.is_some() {
         wrapper.append(&mut child);
     }
     let cli = Cli::try_parse_from(&wrapper).map_err(|error| {
-        AppError::Usage(Diagnostic::new(
-            "invalid command line",
-            "wrapper arguments",
-            error.to_string(),
-            "run claude-session --help",
-        ))
+        AppError::new(
+            crate::error::ErrorKind::Usage,
+            Diagnostic::new(
+                "invalid command line",
+                "wrapper arguments",
+                error.to_string(),
+                "run claude-session --help",
+            ),
+        )
     })?;
     let globals = Globals {
         config: cli.config,
@@ -98,11 +128,19 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
     let kind = if cli.help_flag {
         InvocationKind::Help
     } else if cli.version_flag {
-        InvocationKind::Version { json: false }
+        InvocationKind::Version {
+            mode: OutputMode::Human,
+        }
     } else {
         match cli.command {
             Some(Command::Help(_)) => InvocationKind::Help,
-            Some(Command::Version(value)) => InvocationKind::Version { json: value.json },
+            Some(Command::Version(value)) => InvocationKind::Version {
+                mode: if value.json {
+                    OutputMode::Json
+                } else {
+                    OutputMode::Human
+                },
+            },
             None => InvocationKind::Passthrough(child),
         }
     };
@@ -119,15 +157,10 @@ pub(crate) fn dispatch(
     context: &AppContext,
     invocation: Invocation,
 ) -> Result<DispatchOutcome, AppError> {
-    if invocation.quiet {
-        tracing::trace!(op = "dispatch", status = "ok", "quiet mode selected");
-    }
-    let _output_mode = context.output_mode();
-    let _paths = context.paths();
     match invocation.kind {
         InvocationKind::Passthrough(arguments) => super::passthrough::run(context, arguments),
         InvocationKind::Help => super::help::run(context),
-        InvocationKind::Version { json } => super::version::run(context, json),
+        InvocationKind::Version { .. } => super::version::run(context),
     }
 }
 

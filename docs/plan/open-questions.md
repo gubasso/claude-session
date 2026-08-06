@@ -31,3 +31,11 @@ Blocks: slice 009 Done when.
 Raised: migrated from the release round's external operator prerequisites.
 
 Exit: measurement, record that `develop`, the GitHub App secrets, and both branch rulesets exist before changing slice 009 to done.
+
+## Q-006 — Does the wrapper colour anything, and should it?
+
+Blocks: nothing. The colour ladder is specified, implemented as a pure function, tested, and its result discarded — so the test and the ladder both pass against a program with no colour output at all.
+
+Raised: slice 011, which found the computed value dropped at the context constructor and left both the code and the specification alone rather than deciding by deletion.
+
+Exit: ADR, either colour a named surface and assert the escape bytes, or remove the ladder from the code and the reference together.

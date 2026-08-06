@@ -56,14 +56,13 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 
 ### Process and system
 
-| Crate         | Why                                                                                                                       | Skip if                                                      |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `rustix`      | Safe, direct system calls — ownership checks and process identity — without a raw `unsafe` block                          |                                                              |
-| `sha2`        | The account token's `sha256[..8]` and the composed-settings input digest; RustCrypto, and the only hash the project needs |                                                              |
-| `signal-hook` | The widely-used signal handling crate; async-signal-safe registration                                                     |                                                              |
-| `libc`        | Only where `rustix` has no equivalent                                                                                     | `rustix` covers the need, which it usually does              |
-| `which`       | `PATH` search for the child binary. It emulates `which(1)`, so the wrapper drops zero-length `PATH` entries itself        | The search is hand-rolled, which is easy to get subtly wrong |
-| `tempfile`    | Atomic write-then-rename, and hermetic test directories                                                                   | Never                                                        |
+| Crate         | Why                                                                                                                       | Skip if                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `rustix`      | Safe, direct system calls — ownership checks and process identity — without a raw `unsafe` block                          |                                                 |
+| `sha2`        | The account token's `sha256[..8]` and the composed-settings input digest; RustCrypto, and the only hash the project needs |                                                 |
+| `signal-hook` | The widely-used signal handling crate; async-signal-safe registration                                                     |                                                 |
+| `libc`        | Only where `rustix` has no equivalent                                                                                     | `rustix` covers the need, which it usually does |
+| `tempfile`    | Atomic write-then-rename, and hermetic test directories                                                                   | Never                                           |
 
 ### Asynchrony
 

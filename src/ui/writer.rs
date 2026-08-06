@@ -7,6 +7,43 @@ use crate::error::AppError;
 /// Stateless access to process terminal streams.
 pub(crate) struct OutputWriter;
 
+/// Renders a failure and returns its code, leaving the log sink alone.
+///
+/// The log record and the diagnostic are emitted together so they cannot spell
+/// the same failure two ways. Flushing is the entry point's to order, not this
+/// function's: it only writes.
+pub(crate) fn report(error: &AppError, mode: crate::commands::dispatch::OutputMode) -> u8 {
+    tracing::error!(
+        op = "dispatch",
+        status = "err",
+        err.kind = error.kind().spelling(),
+        "wrapper operation failed"
+    );
+    let writer = OutputWriter::system();
+    // A caller asking for JSON asked for it on both streams.
+    match mode {
+        crate::commands::dispatch::OutputMode::Human => writer.diagnostic(error),
+        crate::commands::dispatch::OutputMode::Json => writer.diagnostic_json(error),
+    }
+    error.exit_code()
+}
+
+/// Wraps a failed terminal write as the typed boundary error.
+///
+/// Every composed verb needs this and they must agree, since the diagnostic is
+/// the same condition whichever stream refused it.
+pub(crate) fn output_error(error: &io::Error) -> AppError {
+    AppError::new(
+        crate::error::ErrorKind::Io,
+        crate::error::Diagnostic::new(
+            "terminal output failed",
+            "standard output",
+            error.to_string(),
+            "check the output stream",
+        ),
+    )
+}
+
 #[allow(clippy::unused_self)] // The value is the single writer seam carried by AppContext.
 impl OutputWriter {
     /// Constructs the system-stream writer.

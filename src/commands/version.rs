@@ -2,9 +2,13 @@
 
 use crate::{
     adapters::process::ProcessRunner,
-    commands::dispatch::DispatchOutcome,
+    commands::{
+        compose,
+        dispatch::{DispatchOutcome, OutputMode},
+    },
     context::AppContext,
     error::{AppError, Diagnostic},
+    ui::writer::output_error,
 };
 use serde::Serialize;
 
@@ -25,9 +29,9 @@ struct ChildVersion {
 /// Emits wrapper and child version information without making inspection fail.
 // The nested result distinguishes resolution from spawn failure.
 #[allow(clippy::option_if_let_else)]
-pub(crate) fn run(context: &AppContext, json: bool) -> Result<DispatchOutcome, AppError> {
+pub(crate) fn run(context: &AppContext) -> Result<DispatchOutcome, AppError> {
     let resolved = crate::services::child::invocation(context, vec!["--version".into()]);
-    if json {
+    if context.output_mode() == OutputMode::Json {
         let child = match resolved {
             Ok(invocation) => match context.adapters().process().run_captured(&invocation) {
                 Ok(captured) => {
@@ -74,12 +78,15 @@ pub(crate) fn run(context: &AppContext, json: bool) -> Result<DispatchOutcome, A
             child,
         };
         let mut bytes = serde_json::to_vec(&document).map_err(|error| {
-            AppError::Internal(Diagnostic::new(
-                "version JSON failed",
-                "version document",
-                error.to_string(),
-                "report this wrapper bug",
-            ))
+            AppError::new(
+                crate::error::ErrorKind::Internal,
+                Diagnostic::new(
+                    "version JSON failed",
+                    "version document",
+                    error.to_string(),
+                    "report this wrapper bug",
+                ),
+            )
         })?;
         bytes.push(b'\n');
         context
@@ -101,26 +108,9 @@ pub(crate) fn run(context: &AppContext, json: bool) -> Result<DispatchOutcome, A
             .writer()
             .delimiter("--version")
             .map_err(|error| output_error(&error))?;
-        match resolved {
-            Ok(invocation) => {
-                let _ = context.adapters().process().run_inherited(&invocation);
-            }
-            Err(error) => context
-                .writer()
-                .stdout(format!("claude unavailable: {}\n", error.kind().spelling()).as_bytes())
-                .map_err(|output| output_error(&output))?,
-        }
+        compose::child_section(context, resolved)?;
     }
     Ok(DispatchOutcome::Complete(0))
-}
-
-fn output_error(error: &std::io::Error) -> AppError {
-    AppError::Io(Diagnostic::new(
-        "terminal output failed",
-        "standard output",
-        error.to_string(),
-        "check the output stream",
-    ))
 }
 
 const fn resolution_status(error: &AppError) -> &'static str {

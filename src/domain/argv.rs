@@ -9,6 +9,7 @@ use crate::error::DomainError;
 pub(crate) struct Partition {
     wrapper: Vec<OsString>,
     child: Vec<OsString>,
+    sentinel: bool,
 }
 
 impl Partition {
@@ -22,6 +23,14 @@ impl Partition {
     pub(crate) fn child(&self) -> &[OsString] {
         &self.child
     }
+    /// Reports whether a `--` sentinel closed the wrapper prefix.
+    ///
+    /// The sentinel is consumed rather than forwarded, so nothing downstream
+    /// can recover it from the suffix alone. A caller that treats a leading
+    /// child token as a wrapper verb has to ask.
+    pub(crate) const fn sentinel(&self) -> bool {
+        self.sentinel
+    }
     /// Moves out both argument zones.
     pub(crate) fn into_parts(self) -> (Vec<OsString>, Vec<OsString>) {
         (self.wrapper, self.child)
@@ -34,10 +43,12 @@ pub(crate) fn split(arguments: &[OsString]) -> Result<Partition, DomainError> {
         return Ok(Partition {
             wrapper: Vec::new(),
             child: Vec::new(),
+            sentinel: false,
         });
     }
     let mut wrapper = vec![arguments[0].clone()];
     let mut index = 1;
+    let mut sentinel = false;
     let mut seen_single = std::collections::BTreeSet::new();
     let mut verbose = false;
     let mut quiet = false;
@@ -45,6 +56,7 @@ pub(crate) fn split(arguments: &[OsString]) -> Result<Partition, DomainError> {
         let bytes = crate::util::os::bytes(arguments[index].as_os_str());
         if bytes == b"--" {
             index += 1;
+            sentinel = true;
             break;
         }
         let (name, takes_value, attached) = claimed(bytes);
@@ -87,6 +99,7 @@ pub(crate) fn split(arguments: &[OsString]) -> Result<Partition, DomainError> {
     Ok(Partition {
         wrapper,
         child: arguments[index..].to_vec(),
+        sentinel,
     })
 }
 

@@ -21,7 +21,12 @@ use tracing::{
     span::{Attributes, Id, Record},
 };
 
-use crate::{adapters::filesystem::FileSystem, domain::paths::XdgPaths, ui::writer::OutputWriter};
+use crate::{
+    adapters::filesystem::SystemFileSystem,
+    commands::dispatch::{OutputMode, Verbosity},
+    domain::paths::XdgPaths,
+    ui::writer::OutputWriter,
+};
 
 /// Owns the non-blocking worker until post-flight cleanup.
 pub(crate) struct LoggingGuard {
@@ -131,30 +136,60 @@ impl Fields {
 impl Visit for Fields {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         let rendered = format!("{value:?}");
-        self.values.insert(
-            field.name().to_owned(),
-            rendered.trim_matches('"').to_owned(),
-        );
+        // Only the delimiters `Debug` added for a string are removed, not every
+        // quote the value itself carries.
+        let unquoted = rendered
+            .strip_prefix('"')
+            .and_then(|rest| rest.strip_suffix('"'))
+            .unwrap_or(&rendered);
+        self.values
+            .insert(field.name().to_owned(), escape(unquoted));
     }
+}
+
+/// Keeps one record on one line with parsable `key=value` pairs.
+///
+/// A record carries a path or a message, and either may hold a space or a
+/// newline. Unescaped, the first breaks field parsing and the second breaks the
+/// one-line contract the whole format rests on.
+fn escape(value: &str) -> String {
+    if !value.contains([' ', '\n', '\r', '\t', '"', '\\']) {
+        return value.to_owned();
+    }
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            _ => out.push(character),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// Installs exactly one subscriber, returning a guard for post-flight flush.
 pub(crate) fn install(
     paths: &XdgPaths,
-    verbosity: u8,
+    verbosity: Verbosity,
+    mode: OutputMode,
     environment: &[(OsString, OsString)],
 ) -> LoggingGuard {
     let empty = || LoggingGuard {
         sender: None,
         worker: None,
     };
-    if let Err(error) = FileSystem::create_private_dir(paths.state()) {
+    if let Err(error) = SystemFileSystem::create_private_dir(paths.state()) {
         report_unavailable(&error);
         return empty();
     }
     let log_path = paths.state().join("claude-session.log");
     rotate(&log_path);
-    let mut file = match FileSystem::open_private_log(&log_path) {
+    let mut file = match SystemFileSystem::open_private_log(&log_path) {
         Ok(file) => file,
         Err(error) => {
             report_unavailable(&error);
@@ -173,7 +208,7 @@ pub(crate) fn install(
             report_unavailable(&error);
         }
     });
-    let terminal = terminal_level(verbosity, environment);
+    let terminal = terminal_level(verbosity, mode, environment);
     let subscriber = FileSubscriber {
         sender: Mutex::new(sender.clone()),
         terminal,
@@ -194,11 +229,21 @@ fn report_unavailable(error: &std::io::Error) {
         .stderr(format!("claude-session: warning: logging unavailable: {error}\n").as_bytes());
 }
 
-fn terminal_level(verbosity: u8, environment: &[(OsString, OsString)]) -> Option<Level> {
-    let rust_log = environment
-        .iter()
-        .find(|(key, _)| key == "RUST_LOG")
-        .and_then(|(_, value)| value.to_str());
+/// Resolves the level of the stderr mirror, which is a human channel.
+///
+/// In JSON mode standard error carries the error document, so a mirrored
+/// key-value record would corrupt the one document shape a verb does not
+/// choose. `RUST_LOG` is the developer's override and outranks the flags.
+fn terminal_level(
+    verbosity: Verbosity,
+    mode: OutputMode,
+    environment: &[(OsString, OsString)],
+) -> Option<Level> {
+    if mode == OutputMode::Json {
+        return None;
+    }
+    let rust_log = crate::adapters::environment::value(environment, "RUST_LOG")
+        .and_then(std::ffi::OsStr::to_str);
     if let Some(value) = rust_log {
         let lower = value.to_ascii_lowercase();
         if lower.contains("trace") {
@@ -217,12 +262,16 @@ fn terminal_level(verbosity: u8, environment: &[(OsString, OsString)]) -> Option
             return Some(Level::ERROR);
         }
     }
-    match verbosity {
-        0 => None,
-        1 => Some(Level::INFO),
-        2 => Some(Level::DEBUG),
-        _ => Some(Level::TRACE),
-    }
+    // The default mirrors warnings and above. Mirroring nothing would make the
+    // wrapper silent about its own recoverable conditions in exactly the run a
+    // user makes without flags.
+    Some(match verbosity {
+        Verbosity::Quiet => Level::ERROR,
+        Verbosity::Default => Level::WARN,
+        Verbosity::Info => Level::INFO,
+        Verbosity::Debug => Level::DEBUG,
+        Verbosity::Trace => Level::TRACE,
+    })
 }
 
 fn timestamp() -> String {
@@ -272,5 +321,36 @@ fn rotate(path: &Path) {
         };
         let to = path.with_extension(format!("log.{index}"));
         let _ = fs::rename(from, to);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape;
+
+    #[test]
+    fn a_value_without_separators_is_left_alone() {
+        assert_eq!(escape("resolve_child"), "resolve_child");
+        assert_eq!(escape("/usr/bin/claude"), "/usr/bin/claude");
+        assert_eq!(escape(""), "");
+    }
+
+    #[test]
+    fn a_separator_forces_quoting_so_fields_stay_parsable() {
+        assert_eq!(escape("two words"), "\"two words\"");
+        assert_eq!(escape("/a path/claude"), "\"/a path/claude\"");
+    }
+
+    #[test]
+    fn a_newline_never_reaches_the_record() {
+        assert_eq!(escape("a\nb"), "\"a\\nb\"");
+        assert_eq!(escape("a\r\nb"), "\"a\\r\\nb\"");
+        assert!(!escape("a\nb").contains('\n'));
+    }
+
+    #[test]
+    fn a_quote_or_backslash_is_escaped_rather_than_dropped() {
+        assert_eq!(escape("say \"hi\""), "\"say \\\"hi\\\"\"");
+        assert_eq!(escape("a\\b c"), "\"a\\\\b c\"");
     }
 }

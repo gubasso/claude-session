@@ -56,7 +56,6 @@ signal-hook = "0.4.4"
 thiserror = "2.0.19"
 toml = "1.1.4"
 tracing = "0.1.44"
-which = "8.0.5"
 
 [dev-dependencies]
 assert_cmd = "2.2.2"

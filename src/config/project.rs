@@ -2,38 +2,27 @@
 
 use std::path::{Path, PathBuf};
 
-/// Finds the first project file while stopping at the nearest `.git` boundary.
+/// Finds the first project file within the nearest repository.
+///
+/// Outside a repository there is no project layer at all, so a walk that
+/// reaches the filesystem root without meeting a `.git` marker has not found a
+/// project — it has left the concept behind. Returning a candidate there would
+/// let a file in the home directory or at the root apply to every invocation
+/// made from an unrelated tree.
 pub(crate) fn discover(start: &Path) -> Option<PathBuf> {
+    let mut candidate = None;
     let mut current = Some(start);
     while let Some(directory) = current {
-        let candidate = directory.join(".claude-session.toml");
-        if candidate.is_file() {
-            return Some(candidate);
+        if candidate.is_none() {
+            let file = directory.join(".claude-session.toml");
+            if file.is_file() {
+                candidate = Some(file);
+            }
         }
         if directory.join(".git").exists() {
-            return None;
+            return candidate;
         }
         current = directory.parent();
     }
     None
-}
-
-#[cfg(test)]
-#[allow(clippy::expect_used)]
-mod tests {
-    use super::*;
-    #[test]
-    fn project_discovery_stops_at_repository_boundary() {
-        let tree = tempfile::tempdir().expect("tempdir");
-        std::fs::write(
-            tree.path().join(".claude-session.toml"),
-            "default_profile='outer'",
-        )
-        .expect("fixture");
-        let repository = tree.path().join("repo");
-        let child = repository.join("child");
-        std::fs::create_dir_all(repository.join(".git")).expect("git marker");
-        std::fs::create_dir_all(&child).expect("child");
-        assert_eq!(discover(&child), None);
-    }
 }

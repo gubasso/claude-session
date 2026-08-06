@@ -6,35 +6,70 @@ use std::{
     path::Path,
 };
 
+/// What the resolution ladder needs to know about an existing path.
+///
+/// Narrower than `std::fs::Metadata` on purpose: a port that hands back a type
+/// only `std::fs` can construct cannot be faked, which defeats the point of
+/// having a port at all.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FileFacts {
+    /// Whether the path is a regular file.
+    pub(crate) regular: bool,
+    /// The permission bits.
+    pub(crate) mode: u32,
+}
+
+/// The filesystem port.
+///
+/// A service depends on this rather than on the system implementation, so a
+/// test can substitute a fake and exercise a resolution ladder without laying
+/// down a tree or forking a process.
+pub(crate) trait FileSystem {
+    /// Returns the facts about a followed path.
+    fn describe(&self, path: &Path) -> io::Result<FileFacts>;
+    /// Resolves the candidate to an absolute physical path.
+    fn canonicalize(&self, path: &Path) -> io::Result<std::path::PathBuf>;
+    /// Checks executable access with the kernel's permission rules.
+    fn executable(&self, path: &Path) -> io::Result<bool>;
+    /// Returns the stable device/inode file identity.
+    fn identity(&self, path: &Path) -> io::Result<(u64, u64)>;
+}
+
 /// Linux filesystem adapter.
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct FileSystem;
+pub(crate) struct SystemFileSystem;
 
-impl FileSystem {
-    /// Reads a complete file.
-    pub(crate) fn read(path: &Path) -> io::Result<Vec<u8>> {
-        fs::read(path)
+impl FileSystem for SystemFileSystem {
+    fn describe(&self, path: &Path) -> io::Result<FileFacts> {
+        let data = fs::metadata(path)?;
+        Ok(FileFacts {
+            regular: data.is_file(),
+            mode: data.permissions().mode(),
+        })
     }
-    /// Returns followed metadata.
-    pub(crate) fn metadata(path: &Path) -> io::Result<fs::Metadata> {
-        fs::metadata(path)
-    }
-    /// Resolves the candidate to an absolute physical path.
-    pub(crate) fn canonicalize(path: &Path) -> io::Result<std::path::PathBuf> {
+    fn canonicalize(&self, path: &Path) -> io::Result<std::path::PathBuf> {
         fs::canonicalize(path)
     }
-    /// Checks executable access with the kernel's permission rules.
-    pub(crate) fn executable(path: &Path) -> io::Result<bool> {
+    fn executable(&self, path: &Path) -> io::Result<bool> {
         match rustix::fs::access(path, rustix::fs::Access::EXEC_OK) {
             Ok(()) => Ok(true),
             Err(error) if error == rustix::io::Errno::ACCESS => Ok(false),
             Err(error) => Err(io::Error::from_raw_os_error(error.raw_os_error())),
         }
     }
-    /// Returns the stable device/inode file identity.
-    pub(crate) fn identity(path: &Path) -> io::Result<(u64, u64)> {
+    fn identity(&self, path: &Path) -> io::Result<(u64, u64)> {
         let data = fs::metadata(path)?;
         Ok((data.dev(), data.ino()))
+    }
+}
+
+// Reading a configuration file and preparing the log namespace happen once each,
+// from a caller that owns the real filesystem by definition, so they stay
+// associated functions rather than widening the port with methods no fake needs.
+impl SystemFileSystem {
+    /// Reads a complete file.
+    pub(crate) fn read(path: &Path) -> io::Result<Vec<u8>> {
+        fs::read(path)
     }
     /// Creates the state namespace with private permissions.
     pub(crate) fn create_private_dir(path: &Path) -> io::Result<()> {
