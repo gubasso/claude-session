@@ -1,0 +1,5 @@
+claude-session preserves native claude behavior while adding isolated sessions.
+
+Unknown arguments are forwarded unchanged. Use `--` to force every following
+argument to the child. This foundation implements only composed help and version;
+all later wrapper verbs remain native passthrough.

@@ -27,4 +27,6 @@ The pre-flight check is therefore advisory: it exists to produce a good diagnost
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/adapters/process.rs`](../../src/adapters/process.rs).

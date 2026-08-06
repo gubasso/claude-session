@@ -44,12 +44,12 @@ Unknown native argv is byte-preserved, the child runs, and its status is returne
 
 ## Acceptance
 
-- When unknown native arguments are supplied, the wrapper shall forward their bytes, order, count, empty values, and separator unchanged.
-- When the child exits or is terminated, the wrapper shall return the same observable status.
-- If the resolved child is missing or invalid, then the wrapper shall return the documented typed error without recursing.
-- While a wrapper verb is unimplemented, its spelling shall stay undeclared and reach the child unchanged.
-- When a claimed read-only spelling overlaps the child's, the wrapper shall emit its own output, the delimiter, then the child's bytes unchanged.
-- When a claimed spelling appears in the child inventory fixture without being named in the CLI surface, the build shall fail.
+- When unknown native arguments are supplied, the wrapper shall forward their bytes, order, count, empty values, and separator unchanged. -> passthrough::golden_argv_preserves_bytes_order_count_and_empty_values
+- When the child exits or is terminated, the wrapper shall return the same observable status. -> passthrough::child_exit_and_signal_status_are_preserved
+- If the resolved child is missing or invalid, then the wrapper shall return the documented typed error without recursing. -> child_resolution::configured_child_is_terminal_when_missing
+- While a wrapper verb is unimplemented, its spelling shall stay undeclared and reach the child unchanged. -> passthrough::unimplemented_verbs_reach_child
+- When a claimed read-only spelling overlaps the child's, the wrapper shall emit its own output, the delimiter, then the child's bytes unchanged. -> output::claimed_read_only_surfaces_compose_child_bytes
+- When a claimed spelling appears in the child inventory fixture without being named in the CLI surface, the build shall fail. -> collision_audit::claimed_flags_match_the_child_inventory
 
 ## Rabbit holes
 
@@ -62,4 +62,4 @@ The targeted `cargo nextest` and `assert_cmd` passthrough checks pass, followed 
 
 ## Revisions
 
-None.
+- 2026-08-06: Added resolver-backed acceptance test IDs after the slice gained real unit and integration tests.

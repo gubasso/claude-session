@@ -2,7 +2,7 @@
 
 The wrapper's own grammar: what `claude-session` claims, what it forwards, and the parser shape that makes verbatim passthrough work. For the reasoning behind these rules, see [the wrapper model](../explanation/wrapper-model.md).
 
-This describes normative design. The crate is pre-implementation.
+The passthrough, `help`, and `version` surfaces are implemented. Later verbs remain normative design and undeclared until their slices land.
 
 ## Invocation shape
 
@@ -198,16 +198,19 @@ Without `--out-dir`, `man` writes roff to standard output. With it, the page set
 
 ## Version output
 
-`--version` and the `version` verb print the same two lines on standard output:
+`--version` and the `version` verb compose wrapper and child output on standard output:
 
 ```text
 claude-session 0.1.0
-claude /usr/local/bin/claude 1.0.2
+
+--- claude --version ---
+
+1.0.2
 ```
 
-Each line is `<name> [<path>] <version>`, with the version last so a caller can take the final field. Reporting both is the point: a user debugging wrapper behaviour needs to know which child was actually found, and path resolution is the most common source of surprise.
+The wrapper line is followed by the shared composed-output delimiter and the child's native `--version` bytes unchanged. Reporting both is the point: a user debugging wrapper behaviour needs to know the wrapper and child versions, while the delimiter makes their ownership explicit.
 
-When the child cannot be resolved or its version cannot be read, the second line names that condition in place of the version and the exit stays `0`. The wrapper's version is a fact it always knows; refusing to report it because the child is missing would withhold the one answer the user came for. `doctor` is where a missing child fails.
+When the child cannot be resolved or its version cannot be read, one condition line replaces the child section and the exit stays `0`. The wrapper's version is a fact it always knows; refusing to report it because the child is missing would withhold the one answer the user came for. `doctor` is where a missing child fails.
 
 The verb also takes `--json`, and the flag form does not — `--version` is intercepted before the verb split, where no verb-level flag applies:
 

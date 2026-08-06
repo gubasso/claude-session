@@ -2,7 +2,7 @@
 
 Test tools, test lanes, the gate map, and which contract each mandatory test locks down. The approach and its rationale are in [the testing strategy](../explanation/testing-strategy.md).
 
-This describes normative design. The crate is pre-implementation.
+The native passthrough foundation is implemented. Later-slice rows remain normative design until their owning slices land.
 
 ## Test kinds
 
@@ -90,49 +90,53 @@ The stub is what makes passthrough assertions mechanical: not "the command looke
 
 Each of these locks down a contract that is otherwise decorative:
 
-| Test                      | Locks                                                                                              | Owning document                         |
-| ------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Golden argv table         | The whole vector: `argv[0]`, the wrapper prefix, and a suffix preserved in order, count, and bytes | [CLI surface](./cli-surface.md)         |
-| Exit-code matrix          | Every error variant maps to its documented code, no catch-all                                      | [Exit codes](./exit-codes.md)           |
-| Child exit fidelity       | A stub exiting with N produces N                                                                   | [Exit codes](./exit-codes.md)           |
-| Child signal fidelity     | A signal-killed stub produces signal death, or the documented fallback                             | [Exit codes](./exit-codes.md)           |
-| `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                                          | [CLI surface](./cli-surface.md)         |
-| Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session                         | [Process runtime](./process-runtime.md) |
-| Recursion guard, identity | A hard-linked wrapper is caught, which path equality would miss                                    | [Process runtime](./process-runtime.md) |
-| Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`                    | [Process runtime](./process-runtime.md) |
-| `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126                        | [Process runtime](./process-runtime.md) |
-| Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`                                | [Process runtime](./process-runtime.md) |
-| Environment isolation     | The stub sees the injected config directory and exactly one `CLAUDE_SESSION_*` key, the marker     | [Process runtime](./process-runtime.md) |
-| Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                 | [Process runtime](./process-runtime.md) |
-| Profile isolation         | Two profiles launched from one terminal and one account get different entry paths and bytes        | [XDG storage](./xdg-storage.md)         |
-| Entry key determinism     | Changing a piece's content, resolved path, order, or the strategy table names a different entry    | [XDG storage](./xdg-storage.md)         |
-| Terminal independence     | Identical inputs under different terminal state and different accounts name the same entry         | [XDG storage](./xdg-storage.md)         |
-| Entry immutability        | An existing entry is never rewritten, and a run that finds a matching one composes nothing         | [XDG storage](./xdg-storage.md)         |
-| Sidecar mismatch refusal  | An entry whose recorded digest disagrees with the recomputed one is neither opened nor overwritten | [XDG storage](./xdg-storage.md)         |
-| Partial pair recovery     | With exactly one member present, both are written from this run's inputs, never the survivor kept  | [XDG storage](./xdg-storage.md)         |
-| Symlink rejection         | A wrapper-managed path that is a symlink is refused                                                | [XDG storage](./xdg-storage.md)         |
-| Mode enforcement          | An over-permissive directory is corrected, and the check reports `pass`, not `fail`                | [XDG storage](./xdg-storage.md)         |
-| Unmanaged ancestors       | A `0755` `$HOME` or `.local` is never checked or corrected                                         | [XDG storage](./xdg-storage.md)         |
-| Interrupted write         | An abandoned temporary leaves the previous complete file readable at the final path                | [XDG storage](./xdg-storage.md)         |
-| Sweep safety              | An orphaned temporary is removed, and one whose process id is live is kept                         | [XDG storage](./xdg-storage.md)         |
-| Cross-process exclusion   | A second writer of a locked scope waits, then exits `LockBusy` at its deadline                     | [XDG storage](./xdg-storage.md)         |
-| In-process exclusion      | Two threads writing one scope serialize, which the file lock alone would not achieve               | [XDG storage](./xdg-storage.md)         |
-| Lock release on death     | A holder killed by `SIGKILL` leaves the next acquisition uncontended                               | [XDG storage](./xdg-storage.md)         |
-| Unknown configuration key | A typo is rejected, naming the key and file                                                        | [Configuration](./configuration.md)     |
-| Merge determinism         | The same pieces produce byte-identical output                                                      | [Configuration](./configuration.md)     |
-| Freshness on piece change | Editing a piece without the profile names a new entry and leaves the old one untouched             | [Configuration](./configuration.md)     |
-| Example round-trip        | Every generated example parses through the real loader                                             | [Configuration](./configuration.md)     |
-| Undocumented field        | A public config field without a description fails generation                                       | [Configuration](./configuration.md)     |
-| Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                                 | [Doctor](./doctor.md)                   |
-| Help snapshot             | Generated help does not change unnoticed                                                           | [CLI surface](./cli-surface.md)         |
-| Denylist membership       | The spellings the pre-split claims are exactly the documented table                                | [CLI surface](./cli-surface.md)         |
-| Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms                    | [CLI surface](./cli-surface.md)         |
-| Leading-position scope    | A claimed flag after any other token reaches the child                                             | [CLI surface](./cli-surface.md)         |
-| Malformed wrapper flag    | A claimed flag missing its value exits `Usage`; a near-miss forwards                               | [CLI surface](./cli-surface.md)         |
-| Collision audit           | The claimed set meets the child's inventory only where documented                                  | [CLI surface](./cli-surface.md)         |
-| Child version floor       | A `login`-mode launch below the floor fails before spawn; `token` mode does not                    | [Process runtime](./process-runtime.md) |
-| Confirmation predicate    | A piped invocation with a controlling terminal still prompts                                       | [CLI surface](./cli-surface.md)         |
-| Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable`                  | [CLI surface](./cli-surface.md)         |
+| Test                      | Locks                                                                                               | Owning document                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Golden argv table         | The whole vector: `argv[0]`, the wrapper prefix, and a suffix preserved in order, count, and bytes  | [CLI surface](./cli-surface.md)               |
+| Exit-code matrix          | Every error variant maps to its documented code, no catch-all                                       | [Exit codes](./exit-codes.md)                 |
+| Child exit fidelity       | A stub exiting with N produces N                                                                    | [Exit codes](./exit-codes.md)                 |
+| Child signal fidelity     | A signal-killed stub produces signal death, or the documented fallback                              | [Exit codes](./exit-codes.md)                 |
+| `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                                           | [CLI surface](./cli-surface.md)               |
+| Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session                          | [Process runtime](./process-runtime.md)       |
+| Recursion guard, identity | A hard-linked wrapper is caught, which path equality would miss                                     | [Process runtime](./process-runtime.md)       |
+| Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`                     | [Process runtime](./process-runtime.md)       |
+| `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126                         | [Process runtime](./process-runtime.md)       |
+| Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`                                 | [Process runtime](./process-runtime.md)       |
+| Environment isolation     | The stub sees the injected config directory and exactly one `CLAUDE_SESSION_*` key, the marker      | [Process runtime](./process-runtime.md)       |
+| Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                  | [Process runtime](./process-runtime.md)       |
+| Profile isolation         | Two profiles launched from one terminal and one account get different entry paths and bytes         | [XDG storage](./xdg-storage.md)               |
+| Entry key determinism     | Changing a piece's content, resolved path, order, or the strategy table names a different entry     | [XDG storage](./xdg-storage.md)               |
+| Terminal independence     | Identical inputs under different terminal state and different accounts name the same entry          | [XDG storage](./xdg-storage.md)               |
+| Entry immutability        | An existing entry is never rewritten, and a run that finds a matching one composes nothing          | [XDG storage](./xdg-storage.md)               |
+| Sidecar mismatch refusal  | An entry whose recorded digest disagrees with the recomputed one is neither opened nor overwritten  | [XDG storage](./xdg-storage.md)               |
+| Partial pair recovery     | With exactly one member present, both are written from this run's inputs, never the survivor kept   | [XDG storage](./xdg-storage.md)               |
+| Symlink rejection         | A wrapper-managed path that is a symlink is refused                                                 | [XDG storage](./xdg-storage.md)               |
+| Mode enforcement          | An over-permissive directory is corrected, and the check reports `pass`, not `fail`                 | [XDG storage](./xdg-storage.md)               |
+| Unmanaged ancestors       | A `0755` `$HOME` or `.local` is never checked or corrected                                          | [XDG storage](./xdg-storage.md)               |
+| Interrupted write         | An abandoned temporary leaves the previous complete file readable at the final path                 | [XDG storage](./xdg-storage.md)               |
+| Sweep safety              | An orphaned temporary is removed, and one whose process id is live is kept                          | [XDG storage](./xdg-storage.md)               |
+| Cross-process exclusion   | A second writer of a locked scope waits, then exits `LockBusy` at its deadline                      | [XDG storage](./xdg-storage.md)               |
+| In-process exclusion      | Two threads writing one scope serialize, which the file lock alone would not achieve                | [XDG storage](./xdg-storage.md)               |
+| Lock release on death     | A holder killed by `SIGKILL` leaves the next acquisition uncontended                                | [XDG storage](./xdg-storage.md)               |
+| Unknown configuration key | A typo is rejected, naming the key and file                                                         | [Configuration](./configuration.md)           |
+| Merge determinism         | The same pieces produce byte-identical output                                                       | [Configuration](./configuration.md)           |
+| Freshness on piece change | Editing a piece without the profile names a new entry and leaves the old one untouched              | [Configuration](./configuration.md)           |
+| Example round-trip        | Every generated example parses through the real loader                                              | [Configuration](./configuration.md)           |
+| Undocumented field        | A public config field without a description fails generation                                        | [Configuration](./configuration.md)           |
+| Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                                  | [Doctor](./doctor.md)                         |
+| Help snapshot             | Generated help does not change unnoticed                                                            | [CLI surface](./cli-surface.md)               |
+| Denylist membership       | The spellings the pre-split claims are exactly the documented table                                 | [CLI surface](./cli-surface.md)               |
+| Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms                     | [CLI surface](./cli-surface.md)               |
+| Leading-position scope    | A claimed flag after any other token reaches the child                                              | [CLI surface](./cli-surface.md)               |
+| Malformed wrapper flag    | A claimed flag missing its value exits `Usage`; a near-miss forwards                                | [CLI surface](./cli-surface.md)               |
+| Collision audit           | The claimed set meets the child's inventory only where documented                                   | [CLI surface](./cli-surface.md)               |
+| Child version floor       | A `login`-mode launch below the floor fails before spawn; `token` mode does not                     | [Process runtime](./process-runtime.md)       |
+| Confirmation predicate    | A piped invocation with a controlling terminal still prompts                                        | [CLI surface](./cli-surface.md)               |
+| Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable`                   | [CLI surface](./cli-surface.md)               |
+| ADR contract              | Record id, shape, status vocabulary, relationship links, and the word cap                           | [Documentation sweeps](#documentation-sweeps) |
+| Plan-zone contract        | Milestone rows, slice shape, appetite agreement, EARS acceptance, and the question register         | [Documentation sweeps](#documentation-sweeps) |
+| Decorative emphasis       | No bold or italic prose outside code, over every document in the tree                               | [AGENTS.md](../../AGENTS.md)                  |
+| Boundary facts            | `domain/` names no adapter or service, `src/` names no `xtask`, the manifest lists no tooling crate | [Boundary lints](#boundary-lints)             |
 
 ### Naming the implementation a test rejects
 
@@ -239,14 +243,14 @@ Continuous integration runs a subset, not the whole gate. `ci.yml` invokes the t
 
 ## Boundary lints
 
-Four architectural rules are structural rather than type-checked. Two ban a Rust API and are enforced by clippy configuration; two are module-graph and manifest facts that no lint can express ([ADR-0074](../decisions/ADR-0074-enforce-boundary-rules-with-clippy-configuration.md)).
+Four architectural rules are structural rather than type-checked. Two ban a Rust API and are enforced by clippy configuration; two are module-graph and manifest facts that no lint can express, so they are integration tests that read the tree ([ADR-0074](../decisions/ADR-0074-enforce-boundary-rules-with-clippy-configuration.md)).
 
-| Rule                 | Mechanism                                                          | Backing  |
-| -------------------- | ------------------------------------------------------------------ | -------- |
-| Output ownership     | `clippy.toml` `disallowed-macros`                                  | deferred |
-| Environment typing   | `clippy.toml` `disallowed-methods`, replacement `std::env::var_os` | deferred |
-| Dependency direction | grep over `src/`                                                   | deferred |
-| Tooling isolation    | grep, plus `cargo-deny` `bans` for the manifest half               | deferred |
+| Rule                 | Mechanism                                                          | Backing |
+| -------------------- | ------------------------------------------------------------------ | ------- |
+| Output ownership     | `clippy.toml` `disallowed-macros`                                  | present |
+| Environment typing   | `clippy.toml` `disallowed-methods`, replacement `std::env::var_os` | present |
+| Dependency direction | `tests/repo_contracts/boundaries.rs`                               | present |
+| Tooling isolation    | `tests/repo_contracts/boundaries.rs`, plus `cargo-deny` `bans`     | present |
 
 Output ownership. No print macro appears in `src/` outside the output module and the entry point. See [logging and output](./logging-and-output.md#the-stream-contract).
 
@@ -256,9 +260,9 @@ Dependency direction. `domain/` imports nothing from `adapters/` or `services/`.
 
 Tooling isolation. Nothing under `src/` imports from `xtask`, and the wrapper's own manifest does not list a development-tooling crate. The dependency runs one way, and the whole reason `xtask` exists is that its dependencies stay out of the shipped binary; see [dependencies](./dependencies.md).
 
-Scope all but tooling isolation to `src/`. The two clippy rules resolve paths, so they neither fire inside a `///` example nor miss an aliased import — which is the whole reason they are not greps. The two that remain greps carry that hazard and must be written to tolerate it.
+Scope all but tooling isolation to `src/`. The two clippy rules resolve paths, so they neither fire inside a `///` example nor miss an aliased import — which is the whole reason they are not lints over text. The two that remain text scans carry that hazard and are written to tolerate it: the `xtask` scan tests word boundaries, so it rejects `xtask::` and accepts `my_xtask`, and the manifest half parses `[dependencies]` rather than matching lines, so a `[dependencies.name]` subtable cannot slip past.
 
-No boundary lint is wired today. All four are specified and none is configured, so the rejecting mechanism for these rules is review until the round that adds `clippy.toml` and the two greps lands.
+The two clippy rules are wired at pre-commit and pre-push; the two facts are tests, so they run in the pre-push integration lane. A boundary violation is therefore caught at push rather than at commit, which is the price of the lane rule at [what each lane may admit](#what-each-lane-may-admit): anything reading a checked-in file costs the filesystem access the commit lane's one-second budget forbids. Implemented slice acceptance may append an exact nextest ID after `->`; `scripts/check-acceptance-tests` rejects duplicate or unresolved IDs at pre-push.
 
 ## Protected branches
 
@@ -272,21 +276,21 @@ It must carry `args: [--branch, master]`. The hook's default set is `master` and
 
 ## Documentation sweeps
 
-The hook configuration is the enforcement lookup. Three repository scripts reject ADR-contract drift, plan-zone drift, and decorative emphasis; markdownlint owns structural Markdown checks. Review sweeps cover facts that need human classification.
+The test suite is the enforcement lookup. Three integration gates reject ADR-contract drift, plan-zone drift, and decorative emphasis; markdownlint owns structural Markdown checks. Review sweeps cover facts that need human classification.
 
-| Check                                                              | Rejects                                                                              |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| [`check-adrs`](../../scripts/check-adrs)                           | ADR id, shape, status, relationship, or 350-word-cap drift.                          |
-| [`check-plan-zone`](../../scripts/check-plan-zone)                 | Slice, milestone, task, acceptance, rabbit-hole, and question-contract drift.        |
-| [`check-markdown-emphasis`](../../scripts/check-markdown-emphasis) | Unapproved bold or italic prose outside code.                                        |
-| `markdownlint-cli2`                                                | Invalid Markdown, broken relative links, unlabelled fences, and slice heading drift. |
-| Research-tracking inspection                                       | Missing six-field entries or paths that no longer resolve.                           |
-| Personal-path and marker sweeps                                    | Load-bearing external paths or unresolved promises under `docs/`.                    |
+Each gate carries its own integrity proof, for the reason the collision audit does: a gate that matches zero rows reports success. The ADR gate floors the record count and names sentinel ids, the plan-zone gate requires a recovered milestone row for every slice directory, and the emphasis gate floors the file count, names sentinel paths, and asserts that build output was excluded rather than merely absent. Negative fixtures drive every rule from a doctored literal, so a run that goes green has demonstrated it can go red.
+
+| Check                                                                  | Rejects                                                                              |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [`repo_contracts::adrs`](../../tests/repo_contracts/adrs.rs)           | ADR id, shape, status, relationship, or 350-word-cap drift.                          |
+| [`repo_contracts::plan_zone`](../../tests/repo_contracts/plan_zone.rs) | Slice, milestone, task, acceptance, rabbit-hole, and question-contract drift.        |
+| [`repo_contracts::emphasis`](../../tests/repo_contracts/emphasis.rs)   | Unapproved bold or italic prose outside code.                                        |
+| `markdownlint-cli2`                                                    | Invalid Markdown, broken relative links, unlabelled fences, and slice heading drift. |
+| Research-tracking inspection                                           | Missing six-field entries or paths that no longer resolve.                           |
+| Personal-path and marker sweeps                                        | Load-bearing external paths or unresolved promises under `docs/`.                    |
 
 ```bash
-scripts/check-adrs
-scripts/check-plan-zone
-scripts/check-markdown-emphasis $(rg --files -g '*.md' -g '*.markdown')
+cargo nextest run --profile pre-push --all-features -E 'binary(repo_contracts)'
 
 rg -n '(/h[o]me/|/U[s]ers/|~[/]|file:/{2}|exobrain-[t]ech)' docs AGENTS.md README.md \
   .pre-commit-config.yaml scripts
@@ -302,19 +306,19 @@ Counting rule: never combine `grep -c` with `-o`. Count occurrences with `grep -
 
 Documentation passes the same gate as code.
 
-| Constraint                           | Consequence for authoring                                                                                              |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `dprint` sets `textWrap: "never"`    | Every paragraph is unwrapped to one physical line. Do not hand-wrap prose.                                             |
-| `markdownlint` MD041, MD025          | One `#` heading, on the first line                                                                                     |
-| `markdownlint` MD001                 | Heading levels increment by one                                                                                        |
-| `markdownlint` MD029                 | Ordered lists renumber to `1.`, `2.`, `3.` — the only autofix                                                          |
-| `markdownlint` MD043, MD046          | Slice entry headings are fixed and code blocks are fenced                                                              |
-| `relative-links`                     | A relative link must resolve to a real file, and a fragment to a real heading                                          |
-| pygrep link guards                   | Relative links must be explicit: `./name.md`, `../dir/name.md`, or `dir/name.md`. A bare `name.md` target is rejected. |
-| `markdown-no-emphasis`               | Decorative bold and italics are rejected outside fenced and inline code                                                |
-| `adr-contract`, `plan-zone-contract` | ADR and plan-zone rules are checked over their complete zones                                                          |
+| Constraint                          | Consequence for authoring                                                                                              |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `dprint` sets `textWrap: "never"`   | Every paragraph is unwrapped to one physical line. Do not hand-wrap prose.                                             |
+| `markdownlint` MD041, MD025         | One `#` heading, on the first line                                                                                     |
+| `markdownlint` MD001                | Heading levels increment by one                                                                                        |
+| `markdownlint` MD029                | Ordered lists renumber to `1.`, `2.`, `3.` — the only autofix                                                          |
+| `markdownlint` MD043, MD046         | Slice entry headings are fixed and code blocks are fenced                                                              |
+| `relative-links`                    | A relative link must resolve to a real file, and a fragment to a real heading                                          |
+| pygrep link guards                  | Relative links must be explicit: `./name.md`, `../dir/name.md`, or `dir/name.md`. A bare `name.md` target is rejected. |
+| `repo_contracts::emphasis`          | Decorative bold and italics are rejected outside fenced and inline code, over every document in the tree               |
+| `repo_contracts::adrs`, `plan_zone` | ADR and plan-zone rules are checked over their complete zones, at push                                                 |
 
-Acceptance test names are intentionally absent until [Q-001](../plan/open-questions.md#q-001--when-can-slice-acceptance-name-tests) closes with a resolver hook in the same change.
+Implemented slices may name exact nextest IDs because the pre-push resolver hook rejects duplicate and unresolved names.
 
 ## Further reading
 

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$root"
+
+mapfile -t named < <(awk '
+  /^## Acceptance$/ { active=1; next }
+  /^## Rabbit holes$/ { active=0 }
+  active && / -> / { sub(/^.* -> /, ""); print }
+' docs/plan/slices/*/README.md)
+
+if ((${#named[@]} == 0)); then
+  printf '%s\n' 'no acceptance test IDs were found'
+  exit 1
+fi
+
+duplicates=$(printf '%s\n' "${named[@]}" | sort | uniq -d)
+if [[ -n $duplicates ]]; then
+  printf 'duplicate acceptance test ID: %s\n' "$duplicates"
+  exit 1
+fi
+
+mapfile -t actual < <(cargo nextest list --all-features | awk '
+  $1 ~ /::bin\/claude-session$/ { print $2; next }
+  { prefix=$1; sub(/^claude-session::/, "", prefix); print prefix "::" $2 }
+')
+
+for test_id in "${named[@]}"; do
+  if ! printf '%s\n' "${actual[@]}" | grep -Fxq -- "$test_id"; then
+    printf 'unresolved acceptance test ID: %s\n' "$test_id"
+    exit 1
+  fi
+done
+
+fixture=(alpha alpha)
+[[ $(printf '%s\n' "${fixture[@]}" | sort | uniq -d) == alpha ]] || {
+  printf '%s\n' 'check-acceptance-tests: duplicate negative fixture failed'
+  exit 1
+}
+if printf '%s\n' "${actual[@]}" | grep -Fxq -- '__definitely_missing_test__'; then
+  printf '%s\n' 'check-acceptance-tests: unresolved negative fixture failed'
+  exit 1
+fi

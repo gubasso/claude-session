@@ -1,6 +1,6 @@
 # Documentation
 
-`claude-session` is pre-implementation. These documents specify the product and its delivery rather than describing shipped behavior.
+`claude-session` ships its native-passthrough foundation. These documents distinguish that implemented foundation from later specified slices.
 
 | Zone                          | Purpose                                                                   |
 | ----------------------------- | ------------------------------------------------------------------------- |

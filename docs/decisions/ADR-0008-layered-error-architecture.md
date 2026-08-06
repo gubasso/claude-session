@@ -27,6 +27,8 @@ Two rules keep it useful rather than ceremonial. Every error carries the concret
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/error.rs`](../../src/error.rs).
 
 Extended by [ADR-0035](./ADR-0035-convert-the-typed-error-to-a-code-once.md) — how the closed enum becomes a process status.

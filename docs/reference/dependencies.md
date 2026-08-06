@@ -2,7 +2,7 @@
 
 Which crates this project has reviewed, how one enters the manifest, and which are ruled out.
 
-This describes normative design. The shipped binary still has no dependencies of its own; the test and development graph carries the two the collision audit needs. Which crates are present is the manifest's to record, and this page never repeats it.
+The native-passthrough foundation now uses its reviewed command-line, error, diagnostics, serialization, configuration, path, process, and signal dependencies. Which crates and versions are present remains the manifest and lockfile's fact; later-slice candidates stay reviewed but absent until their triggers occur.
 
 ## No version numbers here
 
@@ -31,11 +31,11 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 
 ### Diagnostics
 
-| Crate                                  | Why                                            | Skip if                                   |
-| -------------------------------------- | ---------------------------------------------- | ----------------------------------------- |
-| `tracing`                              | Structured, leveled instrumentation with spans | Never                                     |
-| `tracing-subscriber` (env-filter, fmt) | Subscriber and `RUST_LOG` filtering            | Never                                     |
-| `tracing-appender`                     | Non-blocking file sink with rotation           | The file sink is dropped, which it is not |
+| Crate                                  | Why                                            | Skip if                                                                       |
+| -------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------- |
+| `tracing`                              | Structured, leveled instrumentation with spans | Never                                                                         |
+| `tracing-subscriber` (env-filter, fmt) | Subscriber and `RUST_LOG` filtering            | Its transitive graph violates the deny policy; use a project-owned subscriber |
+| `tracing-appender`                     | Non-blocking file sink with rotation           | Its transitive graph violates the deny policy; use the project-owned worker   |
 
 ### Serialization
 
@@ -48,11 +48,11 @@ Note that `clap` alone cannot express this wrapper's passthrough; see [the CLI s
 
 ### Configuration and paths
 
-| Crate                 | Why                                                                                                                                                                                                                                                                                                                                       | Skip if                                                           |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `figment` (env, toml) | Layered configuration with the precedence model this project needs, and provenance                                                                                                                                                                                                                                                        | The layering is hand-rolled, which is more code for less          |
-| `directories`         | XDG resolution with the specification's defaults. Relative and empty values are discarded in favour of the default, matching the specification — behaviour verified in source, not stated in the crate's rendered documentation, so it is registered in [research tracking](./research-tracking.yaml) rather than relied on as a contract | An alternative XDG crate is preferred; both are acceptable        |
-| `camino` (serde1)     | UTF-8 paths, so path handling in the config layer avoids lossy conversions                                                                                                                                                                                                                                                                | Only where paths are known-UTF-8. Boundary paths stay OS strings. |
+| Crate                 | Why                                                                                                                                                                                                                                                                                                                                       | Skip if                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `figment` (env, toml) | Layered configuration with the precedence model this project needs, and provenance                                                                                                                                                                                                                                                        | The layering is hand-rolled, which is more code for less                             |
+| `directories`         | XDG resolution with the specification's defaults. Relative and empty values are discarded in favour of the default, matching the specification — behaviour verified in source, not stated in the crate's rendered documentation, so it is registered in [research tracking](./research-tracking.yaml) rather than relied on as a contract | Its transitive graph violates the deny policy; resolve from the environment snapshot |
+| `camino` (serde1)     | UTF-8 paths, so path handling in the config layer avoids lossy conversions                                                                                                                                                                                                                                                                | Only where paths are known-UTF-8. Boundary paths stay OS strings.                    |
 
 ### Process and system
 
@@ -96,17 +96,13 @@ These belong to the `xtask` workspace member ([ADR-0014](../decisions/ADR-0014-x
 
 Reviewed, not needed yet. Named here so the decision is not re-made from scratch:
 
-| Crate                                      | Unlocked by                                                  |
-| ------------------------------------------ | ------------------------------------------------------------ |
-| `serde_yaml_ng` in the shipped graph       | The first profile                                            |
-| `rustix`                                   | The confirmation-prompt test harness or the first real spawn |
-| `sha2`                                     | The first token fingerprint or composed-settings digest      |
-| `signal-hook`                              | The first real spawn with signal forwarding                  |
-| `which`                                    | The child resolution ladder                                  |
-| `tempfile`                                 | The first atomic write or hermetic test                      |
-| `clap_complete`, `clap_mangen`             | The completions and man-page work                            |
-| `schemars`, `toml_edit`                    | The `xtask` example generator                                |
-| `proptest`, `cargo-mutants`, `cargo-bloat` | The advanced test tier                                       |
+| Crate                                      | Unlocked by                                             |
+| ------------------------------------------ | ------------------------------------------------------- |
+| `serde_yaml_ng` in the shipped graph       | The first profile                                       |
+| `sha2`                                     | The first token fingerprint or composed-settings digest |
+| `clap_complete`, `clap_mangen`             | The completions and man-page work                       |
+| `schemars`, `toml_edit`                    | The `xtask` example generator                           |
+| `proptest`, `cargo-mutants`, `cargo-bloat` | The advanced test tier                                  |
 
 ## Ruled out
 

@@ -2,7 +2,7 @@
 
 Where every artifact lives, who writes it, and what protects it. For the account/profile split, see [session isolation](../explanation/session-isolation.md).
 
-This describes normative design. The crate is pre-implementation.
+XDG base resolution and the private state log namespace are implemented. Later storage artifacts remain normative design.
 
 ## Base directories
 

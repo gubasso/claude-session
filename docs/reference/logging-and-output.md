@@ -2,7 +2,7 @@
 
 Every byte the wrapper writes, and where it goes.
 
-This describes normative design. The crate is pre-implementation.
+The passthrough, diagnostic, logging, and composed read-only output foundation is implemented. Later verb output remains normative design.
 
 ## The stream contract
 

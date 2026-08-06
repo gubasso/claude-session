@@ -39,7 +39,7 @@ Record each significant, hard-to-reverse choice in one filled file under `docs/d
 - Give each slice a fixed appetite and non-negotiable core. Record a dated revision only when work has begun and `Goal`, `Core`, `Appetite`, or `Acceptance` changes; cutting the end of `In scope` is not a revision.
 - Every slice has one directory entered through `README.md` with `Goal`, `Appetite`, `Core`, `In scope`, `Out of scope`, `Governed by`, `Acceptance`, `Rabbit holes`, `Done when`, and `Revisions`, in that order.
 - Until the current slice is implemented, add no specification page and open no ADR outside it. Route new blockers to [open questions](./docs/plan/open-questions.md).
-- While Q-001 is open, slice acceptance uses assertion-only EARS lines and no `-> test-name` syntax.
+- Implemented slice acceptance may append `-> <nextest-test-id>` only when `scripts/check-acceptance-tests` resolves the exact ID.
 - A `tasks.md` contains only `# Tasks` and flat checkboxes; delete it when the slice becomes `done`. `design.md` is forbidden. `requirements.md` needs the explicit gate marker and replaces, rather than duplicates, acceptance.
 - Track external-system bugs under `docs/reference/known-issues/` only when the first real case exists; expand while active and collapse after resolution.
 - Track perishable facts in [research tracking](./docs/reference/research-tracking.yaml) with exactly `path`, `last_checked`, `cadence`, `why`, `revalidate`, and `dependents`.

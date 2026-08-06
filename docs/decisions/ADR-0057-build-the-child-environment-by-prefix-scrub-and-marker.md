@@ -26,4 +26,6 @@ Injection is rejected because the proxy seam is inheritance — the child reads 
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/services/child.rs`](../../src/services/child.rs).

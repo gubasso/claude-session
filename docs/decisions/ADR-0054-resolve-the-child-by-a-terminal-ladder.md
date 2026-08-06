@@ -28,4 +28,6 @@ The `PATH` rung searches the inherited `PATH` for the fixed name `claude` and al
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/services/child.rs`](../../src/services/child.rs).

@@ -14,6 +14,8 @@ repos:
       - id: check-merge-conflict
         args: ['--assume-in-merge']
       - id: check-shebang-scripts-are-executable
+        # Rust inner attributes (`#![allow(...)]`) are not shebangs.
+        exclude: '\.rs$'
       - id: check-symlinks
       - id: check-toml
       - id: check-yaml
@@ -147,10 +149,19 @@ repos:
         language: system
         # `always_run`, not a file filter: the integration lane admits the bytes
         # of checked-in repository files (docs/reference/testing-and-quality.md),
-        # so the collision audit's inputs are Markdown and YAML. A `types_or`
-        # list narrow enough to be a filter would skip a push that changes only
-        # those inputs, which is exactly the change the audit exists to catch,
-        # and one wide enough to cover them would match every file anyway.
+        # so the collision audit and the repository contracts take Markdown,
+        # YAML, TOML, and Rust sources as inputs. A `types_or` list narrow
+        # enough to be a filter would skip a push that changes only those
+        # inputs, which is exactly the change these gates exist to catch, and
+        # one wide enough to cover them would match every file anyway.
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: acceptance-test-ids
+        name: resolve slice acceptance test IDs
+        entry: scripts/check-acceptance-tests
+        language: system
         always_run: true
         pass_filenames: false
         stages: [pre-push]
@@ -311,14 +322,6 @@ repos:
   # git push may strip PATH and the format is already applied by commit time.
   - repo: local
     hooks:
-      - id: markdown-no-emphasis
-        name: markdown has no decorative emphasis
-        entry: scripts/check-markdown-emphasis
-        language: system
-        types: [markdown]
-        pass_filenames: true
-        stages: [pre-commit, pre-push]
-
       - id: dprint-markdown
         name: dprint fmt (markdown)
         entry: dprint fmt --config dprint.markdown.json
@@ -326,22 +329,6 @@ repos:
         files: '\.(md|markdown)$'
         pass_filenames: true
         stages: [pre-commit]
-
-      - id: adr-contract
-        name: ADR contract
-        entry: scripts/check-adrs
-        language: system
-        files: '^docs/decisions/'
-        pass_filenames: false
-        stages: [pre-commit, pre-push]
-
-      - id: plan-zone-contract
-        name: plan zone contract
-        entry: scripts/check-plan-zone
-        language: system
-        files: '^docs/plan/'
-        pass_filenames: false
-        stages: [pre-commit, pre-push]
 
   # --- Explicit relative links (ambiguity guard; pre-commit, local) ---
   #

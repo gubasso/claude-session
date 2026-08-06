@@ -27,4 +27,6 @@ Linux is the supported target. Other Unix systems are neither claimed nor delibe
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/services/child.rs`](../../src/services/child.rs) and the package manifest.

@@ -30,6 +30,8 @@ See [the CLI surface](../reference/cli-surface.md#flag-spelling).
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/domain/argv.rs`](../../src/domain/argv.rs).
 
 Amends [ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md).

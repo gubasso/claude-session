@@ -35,6 +35,7 @@
             pkgs.cargo-nextest
             pkgs.cargo-deny
             pkgs.cargo-audit
+            pkgs.cargo-machete
             # TOML formatter for the local `taplo format` pre-commit hook.
             pkgs.taplo
             # JSON/JSONC + markdown formatter; the dprint pre-commit hooks run as

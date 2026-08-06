@@ -2,7 +2,7 @@
 
 Exact contracts for locating, launching, and supervising the child process. For the reasoning, see [the wrapper model](../explanation/wrapper-model.md); for the codes this produces, see [exit codes](./exit-codes.md).
 
-This describes normative design. The crate is pre-implementation.
+Terminal child resolution, recursion guards, environment scrubbing, and minimal spawn-and-wait are implemented. Full supervision remains later-slice design.
 
 ## Platform scope
 

@@ -1,13 +1,5 @@
 # Open questions
 
-## Q-001 — When can slice acceptance name tests?
-
-Blocks: adoption of test-name arrows in every slice Acceptance section; assertion-only execution is not blocked.
-
-Raised: during the documentation refactor while the crate has no test tree.
-
-Exit: slice revision, after slice 001 creates real tests and the same change adds a hook that resolves every named test.
-
 ## Q-002 — Does the child baseline still guarantee cross-process refresh locking?
 
 Blocks: slice 005 login-mode version-floor acceptance.

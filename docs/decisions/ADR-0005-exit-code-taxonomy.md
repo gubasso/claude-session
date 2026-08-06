@@ -26,6 +26,8 @@ Two properties make it usable. The mapping is exhaustive over a closed error enu
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/error.rs`](../../src/error.rs) and [`src/main.rs`](../../src/main.rs).
 
 Amended by [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) for unused numbers, [ADR-0034](./ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) for `doctor --strict`, and [ADR-0068](./ADR-0068-spawn-the-child-as-a-subroutine.md) for subroutine spawns. Realized by [ADR-0035](./ADR-0035-convert-the-typed-error-to-a-code-once.md).

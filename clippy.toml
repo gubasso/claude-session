@@ -1,0 +1,11 @@
+disallowed-macros = [
+  { path = "std::print", reason = "ADR-0074: terminal bytes belong to the output writer" },
+  { path = "std::println", reason = "ADR-0074: terminal bytes belong to the output writer" },
+  { path = "std::eprint", reason = "ADR-0074: terminal bytes belong to the output writer" },
+  { path = "std::eprintln", reason = "ADR-0074: terminal bytes belong to the output writer" },
+]
+
+disallowed-methods = [
+  { path = "std::env::var", reason = "use std::env::var_os so non-UTF-8 environment values remain valid" },
+  { path = "std::env::vars", reason = "use std::env::vars_os so non-UTF-8 environment values remain valid" },
+]

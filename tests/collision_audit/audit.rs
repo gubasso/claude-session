@@ -26,8 +26,8 @@ impl Violation {
         }
     }
 
-    /// A fact about the whole file, reported without a line, exactly as
-    /// `scripts/check-plan-zone` reports its cross-file findings.
+    /// A fact about the whole file, reported without a line, because a
+    /// cross-file finding has no single line to blame.
     pub(crate) fn whole(file: &'static str, message: impl Into<String>) -> Self {
         Self {
             file,

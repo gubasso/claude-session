@@ -10,7 +10,7 @@ The child's authentication precedence is separate from wrapper configuration pre
 
 Paths for both are in [XDG storage](./xdg-storage.md).
 
-This describes normative design. The crate is pre-implementation.
+The three-key wrapper configuration loader and provenance model are implemented. Settings composition and generated examples remain later-slice design.
 
 ## The wrapper's configuration
 

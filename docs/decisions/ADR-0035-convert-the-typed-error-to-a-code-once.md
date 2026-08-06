@@ -29,6 +29,8 @@ Signal reproduction is the one sanctioned exception. Re-raising a signal on the 
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/main.rs`](../../src/main.rs).
 
 Extends [ADR-0008](./ADR-0008-layered-error-architecture.md), which fixed the error types but not their realization.

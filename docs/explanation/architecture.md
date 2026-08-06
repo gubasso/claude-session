@@ -2,7 +2,7 @@
 
 This page gives the mental model of the `claude-session` crate: the shape of the code, the vocabulary the rest of the documentation uses, the invocation lifecycle, and what each module may and may not do. It is the map you should hold in your head before writing a line of code.
 
-It does not carry exact values. Naming rules, visibility defaults, and the error type stack are in [coding conventions](../reference/coding-conventions.md); the crate list is in [dependencies](../reference/dependencies.md); the wrapper's own grammar is in [the CLI surface](../reference/cli-surface.md). Nothing here describes shipped behaviour — the crate is pre-implementation.
+It does not carry exact values. Naming rules, visibility defaults, and the error type stack are in [coding conventions](../reference/coding-conventions.md); the crate list is in [dependencies](../reference/dependencies.md); the wrapper's own grammar is in [the CLI surface](../reference/cli-surface.md). The native-passthrough foundation follows this architecture; later-slice modules remain specified rather than shipped.
 
 ## A human-facing tool
 

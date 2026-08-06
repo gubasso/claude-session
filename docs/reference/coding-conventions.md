@@ -2,7 +2,7 @@
 
 Lookup rules for code shape: naming, visibility, module form, the error type stack, and the panic policy. The reasoning behind the module layout is in [the architecture](../explanation/architecture.md).
 
-This describes normative design. The crate is pre-implementation.
+These conventions govern the implemented native-passthrough foundation and every later slice.
 
 ## Naming
 

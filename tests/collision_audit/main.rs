@@ -12,6 +12,13 @@
 //! crate root: `mod surface;` beside such a file would resolve to `tests/`, and
 //! every helper would become a stray test binary.
 
+#![allow(
+    clippy::expect_used,
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::redundant_pub_crate
+)]
+
 mod audit;
 mod inventory;
 mod surface;

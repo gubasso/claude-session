@@ -31,6 +31,8 @@ See [the CLI surface](../reference/cli-surface.md#when-the-child-owns-the-same-n
 
 ## Status
 
-Accepted
+Implemented
+
+See [audit](../../tests/collision_audit/main.rs).
 
 Amends [ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md).

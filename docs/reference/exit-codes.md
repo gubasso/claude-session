@@ -2,7 +2,7 @@
 
 The wrapper's exit-code matrix, the error message shape, and the rule that governs the boundary between wrapper-originated and child-originated status.
 
-This describes normative design. The crate is pre-implementation.
+The wrapper matrix and passthrough status boundary are implemented. Later verb regimes remain normative design.
 
 ## Two regimes
 

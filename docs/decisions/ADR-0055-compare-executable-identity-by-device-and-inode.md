@@ -28,4 +28,6 @@ Self-identity comes from `std::env::current_exe`, which on the supported Linux t
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/services/child.rs`](../../src/services/child.rs).

@@ -27,4 +27,6 @@ Verbatim is defined strictly. Order, bytes, and count are preserved; arguments a
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [`src/domain/argv.rs`](../../src/domain/argv.rs) and the binary passthrough tests.
