@@ -278,7 +278,7 @@ It must carry `args: [--branch, master]`. The hook's default set is `master` and
 
 The test suite is the enforcement lookup. Three integration gates reject ADR-contract drift, plan-zone drift, and decorative emphasis; markdownlint owns structural Markdown checks. Review sweeps cover facts that need human classification.
 
-Each gate carries its own integrity proof, for the reason the collision audit does: a gate that matches zero rows reports success. The ADR gate floors the record count and names sentinel ids, the plan-zone gate requires a recovered milestone row for every slice directory, and the emphasis gate floors the file count, names sentinel paths, and asserts that build output was excluded rather than merely absent. Negative fixtures drive every rule from a doctored literal, so a run that goes green has demonstrated it can go red.
+Each gate carries its own integrity proof, for the reason the collision audit does: a gate that matches zero rows reports success. The ADR gate floors the record count and names sentinel ids, the plan-zone gate requires a recovered milestone line for every slice directory, and the emphasis gate floors the file count, names sentinel paths, and asserts that build output was excluded rather than merely absent. Negative fixtures drive every rule from a doctored literal, so a run that goes green has demonstrated it can go red.
 
 | Check                                                                  | Rejects                                                                              |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |

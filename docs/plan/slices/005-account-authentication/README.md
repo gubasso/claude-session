@@ -1,4 +1,6 @@
-# Account authentication
+# 005 — Account authentication
+
+<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","## Appetite","## Core","## In scope","## Out of scope","## Governed by","## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->
 
 ## Goal
 

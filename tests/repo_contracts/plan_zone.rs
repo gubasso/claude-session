@@ -1,4 +1,4 @@
-//! ADR-0077 makes the milestone table the only status surface and fixes the
+//! ADR-0077 makes `milestones.md` the only status surface and fixes the
 //! slice entry shape. This gate reads the whole zone, so drift that spans two
 //! files cannot hide between them.
 
@@ -10,10 +10,32 @@ const MILESTONES: &str = "docs/plan/milestones.md";
 const SLICES: &str = "docs/plan/slices";
 const QUESTIONS: &str = "docs/plan/open-questions.md";
 
-/// A floor and sentinels, so a table that parses to nothing fails rather than
-/// passing. There are twelve rows today.
+/// A floor and sentinels, so a list that parses to nothing fails rather than
+/// passing. There are twelve lines today.
 const FLOOR: usize = 11;
 const SENTINELS: &[&str] = &["001", "009"];
+
+/// The two sections, live work first. A terminal status belongs only under the
+/// second, and the move is one-way.
+const IN_FLIGHT: &str = "## in flight";
+const CLOSED: &str = "## closed";
+
+/// The field separator in the milestone grammar. A note may not contain it, so
+/// the line parses to a fixed field count.
+const FIELD: &str = " — ";
+
+/// Each fixed-shape document carries its own heading array, because MD043 is
+/// configured per document rather than per project. The gate checks the pin is
+/// present and exact; markdownlint checks the headings against it.
+const MILESTONES_PIN: &str = concat!(
+    r###"<!-- markdownlint-configure-file { "MD043": { "headings": "###,
+    r###"["# Milestones","## in flight","## closed"] } } -->"###,
+);
+const SLICE_PIN: &str = concat!(
+    r###"<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","###,
+    r###""## Appetite","## Core","## In scope","## Out of scope","## Governed by","###,
+    r###""## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->"###,
+);
 
 const HEADINGS: &[&str] = &[
     "## Goal",
@@ -50,6 +72,7 @@ struct Row {
     status: String,
     appetite: String,
     dir: String,
+    closed: bool,
 }
 
 /// Shell-glob matching with `*` only, because the shapes above were shell
@@ -76,72 +99,115 @@ fn is_identifier(text: &str) -> bool {
     text.len() == 3 && text.chars().all(|c| c.is_ascii_digit())
 }
 
-/// The `./slices/NNN-name/README.md` destination in a milestone slice cell.
-fn slice_link(cell: &str) -> Option<(String, String)> {
-    link_targets(cell).into_iter().find_map(|target| {
-        let dir = target
-            .strip_prefix("./slices/")?
-            .strip_suffix("/README.md")?;
-        let valid = dir.len() >= 5
-            && !dir.contains('/')
-            && is_identifier(&dir[..3])
-            && dir.as_bytes()[3] == b'-';
-        valid.then(|| (target.to_string(), dir.to_string()))
-    })
+/// `<id> <slug>` splits on one space, so a slug that swallowed the separator is
+/// caught here rather than becoming an unmatched directory later.
+fn identity(head: &str) -> Option<(String, String)> {
+    let (id, slug) = head.split_once(' ')?;
+    let shaped = is_identifier(id)
+        && !slug.is_empty()
+        && slug
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    shaped.then(|| (id.to_string(), slug.to_string()))
 }
 
+/// Parses the two-section list. The grammar is fixed so the status surface stays
+/// machine-readable: `- <id> <slug> — <status> — <appetite>[ — <note>]`, and
+/// nothing else on the line.
 fn milestones(text: &str) -> (Vec<Row>, Vec<Violation>) {
     let mut rows: Vec<Row> = Vec::new();
     let mut found = Vec::new();
     let mut counts: Vec<(String, usize)> = Vec::new();
+    let mut closed: Option<bool> = None;
+    let mut previous = 0_usize;
 
     for line in text.lines() {
-        // Table cells hold English prose, so splitting must have no quoting
-        // semantics: an ordinary apostrophe in the note column is data.
-        let fields: Vec<&str> = line.split('|').collect();
-        let cell = |index: usize| fields.get(index).map_or("", |text| text.trim());
-        let id = cell(1);
-        if !is_identifier(id) {
+        // Any other heading ends the list rather than being read as part of it,
+        // so a third section cannot smuggle entries past the ordering checks.
+        if line.starts_with("## ") {
+            closed = match line {
+                IN_FLIGHT => Some(false),
+                CLOSED => Some(true),
+                _ => None,
+            };
+            previous = 0;
+            continue;
+        }
+        let Some(closed) = closed else { continue };
+        if line.trim().is_empty() {
             continue;
         }
 
+        let Some(entry) = line.strip_prefix("- ") else {
+            found.push(Violation::whole(
+                MILESTONES,
+                format!("line in a milestone section is not an entry: {line}"),
+            ));
+            continue;
+        };
+        let fields: Vec<&str> = entry.split(FIELD).collect();
+        if !(3..=4).contains(&fields.len()) {
+            found.push(Violation::whole(
+                MILESTONES,
+                format!("milestone entry is not the fixed grammar: {line}"),
+            ));
+            continue;
+        }
+        let Some((id, slug)) = identity(fields[0]) else {
+            found.push(Violation::whole(
+                MILESTONES,
+                format!("milestone entry does not open with an id and a slug: {line}"),
+            ));
+            continue;
+        };
+
         // Counted before any other check so a duplicate is caught even when its
-        // row is otherwise malformed. Later rows replace earlier ones below, so
-        // without this a second contradictory row for one id would be invisible.
-        match counts.iter_mut().find(|(seen, _)| seen == id) {
+        // entry is otherwise malformed. Later entries replace earlier ones
+        // below, so without this a second contradictory line would be invisible.
+        match counts.iter_mut().find(|(seen, _)| *seen == id) {
             Some((_, count)) => *count += 1,
-            None => counts.push((id.to_string(), 1)),
+            None => counts.push((id.clone(), 1)),
         }
 
-        let status = cell(3);
+        // Ascending inside a section, so the two runs stay scannable and a
+        // misfiled entry is visible without reading every line.
+        let numeric = id.parse::<usize>().unwrap_or(0);
+        if numeric <= previous {
+            found.push(Violation::whole(
+                MILESTONES,
+                format!("milestone {id} is out of ascending id order in its section"),
+            ));
+        }
+        previous = numeric;
+
+        let status = fields[1];
         if !STATUSES.contains(&status) {
             found.push(Violation::whole(
                 MILESTONES,
                 format!("milestone {id} has invalid status {status}"),
             ));
+        } else if TERMINAL.contains(&status) != closed {
+            found.push(Violation::whole(
+                MILESTONES,
+                format!("milestone {id} carries {status} under the wrong section"),
+            ));
         }
 
-        let Some((link, dir)) = slice_link(cell(2)) else {
+        let dir = format!("{id}-{slug}");
+        if !tree::is_file(&format!("{SLICES}/{dir}/README.md")) {
             found.push(Violation::whole(
                 MILESTONES,
-                format!("milestone {id} does not link its slice README"),
-            ));
-            continue;
-        };
-        let target = format!("docs/plan/{}", link.trim_start_matches("./"));
-        if &dir[..3] != id || !tree::is_file(&target) {
-            found.push(Violation::whole(
-                MILESTONES,
-                format!("milestone {id} link does not resolve to one matching directory"),
+                format!("milestone {id} names no slice directory {dir}"),
             ));
         }
 
         rows.retain(|row| row.id != id);
         rows.push(Row {
-            id: id.to_string(),
+            id,
             status: status.to_string(),
-            appetite: cell(4).to_string(),
+            appetite: fields[2].to_string(),
             dir,
+            closed,
         });
     }
 
@@ -149,12 +215,27 @@ fn milestones(text: &str) -> (Vec<Row>, Vec<Violation>) {
         if count > 1 {
             found.push(Violation::whole(
                 MILESTONES,
-                format!("milestone {id} has {count} rows; one status surface means one row"),
+                format!("milestone {id} has {count} lines; one status surface means one line"),
             ));
         }
     }
 
     (rows, found)
+}
+
+/// A fixed-shape document must carry its own heading array, and exactly one: a
+/// second `markdownlint-configure-file` comment silently replaces the first.
+fn pin(path: &str, text: &str, expected: &str) -> Vec<Violation> {
+    let comments = text
+        .lines()
+        .filter(|line| line.contains("markdownlint-configure-file"))
+        .collect::<Vec<_>>();
+    match comments.as_slice() {
+        [only] if *only == expected => Vec::new(),
+        [_] => vec![Violation::whole(path, "heading pin is not the fixed array")],
+        [] => vec![Violation::whole(path, "no MD043 heading pin under the H1")],
+        _ => vec![Violation::whole(path, "more than one configure comment")],
+    }
 }
 
 fn slice_directories(rows: &[Row]) -> (Vec<String>, Vec<Violation>) {
@@ -193,7 +274,7 @@ fn slice_directories(rows: &[Row]) -> (Vec<String>, Vec<Violation>) {
         if rows.iter().any(|row| row.id == id && row.dir == dir) {
             matched.push(dir);
         } else {
-            found.push(Violation::whole(path, "no unique matching milestone row"));
+            found.push(Violation::whole(path, "no unique matching milestone line"));
         }
     }
 
@@ -446,6 +527,7 @@ fn is_question_heading(line: &str) -> bool {
 fn the_plan_zone_satisfies_the_contract() {
     let text = read(MILESTONES);
     let (rows, mut found) = milestones(&text);
+    found.extend(pin(MILESTONES, &text, MILESTONES_PIN));
     let (dirs, directory_findings) = slice_directories(&rows);
     found.extend(directory_findings);
 
@@ -460,6 +542,7 @@ fn the_plan_zone_satisfies_the_contract() {
         let shape_findings = shape(&path, &readme);
         let shaped = shape_findings.is_empty();
         found.extend(shape_findings);
+        found.extend(pin(&path, &readme, SLICE_PIN));
         found.extend(appetite(&path, &readme, row));
 
         // A wrong heading list makes every section range below run past its
@@ -493,7 +576,7 @@ fn the_plan_zone_satisfies_the_contract() {
     if rows.len() != tree::directories(SLICES).len() {
         found.push(Violation::whole(
             MILESTONES,
-            "milestone row count and slice directory count differ",
+            "milestone line count and slice directory count differ",
         ));
     }
 
@@ -502,11 +585,11 @@ fn the_plan_zone_satisfies_the_contract() {
 }
 
 #[test]
-fn the_milestone_table_parsed_to_every_row() {
+fn the_milestone_list_parsed_to_every_line() {
     let (rows, _) = milestones(&read(MILESTONES));
     assert!(
         rows.len() >= FLOOR,
-        "parsed {} milestone rows, expected at least {FLOOR}",
+        "parsed {} milestone lines, expected at least {FLOOR}",
         rows.len()
     );
     for sentinel in SENTINELS {
@@ -592,13 +675,26 @@ fn row(status: &str, appetite: &str) -> Row {
         status: status.to_string(),
         appetite: appetite.to_string(),
         dir: "001-a-slice".to_string(),
+        closed: TERMINAL.contains(&status),
     }
 }
 
-const TABLE: &str = "| id | slice | status | appetite | depends on | note |\n\
-    | --- | --- | --- | --- | --- | --- |\n\
-    | 001 | [a](./slices/001-native-passthrough-foundation/README.md) \
-    | done | 4 implementation sessions | none | |\n";
+/// Real slice directories, so a rule under test fails on its own account rather
+/// than on a name that resolves to nothing.
+const LIST: &str = "# Milestones\n\
+    \n\
+    ## in flight\n\
+    \n\
+    - 009 release-readiness — shaped — 1 implementation session\n\
+    \n\
+    ## closed\n\
+    \n\
+    - 001 native-passthrough-foundation — done — 4 implementation sessions\n";
+
+/// Two live entries, so a duplicate or a descent can be built from the fixture
+/// rather than hand-written twice.
+const NINE: &str = "- 009 release-readiness — shaped — 1 implementation session\n";
+const EIGHT: &str = "- 008 cli-artifacts — shaped — 1 implementation session\n";
 
 #[test]
 fn a_healthy_slice_is_accepted() {
@@ -615,8 +711,16 @@ fn a_healthy_slice_is_accepted() {
 }
 
 #[test]
+fn a_healthy_milestone_list_is_accepted() {
+    let (rows, found) = milestones(LIST);
+    assert_clean(&found);
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().any(|row| row.id == "001" && row.closed));
+}
+
+#[test]
 fn a_status_outside_the_vocabulary_is_a_violation() {
-    let text = TABLE.replace("| done |", "| finished |");
+    let text = LIST.replace("— shaped —", "— finished —");
     let (_, found) = milestones(&text);
     assert!(
         found
@@ -628,49 +732,127 @@ fn a_status_outside_the_vocabulary_is_a_violation() {
 }
 
 #[test]
-fn a_row_that_links_no_slice_is_a_violation() {
-    let text = TABLE.replace(
-        "[a](./slices/001-native-passthrough-foundation/README.md)",
-        "a",
+fn a_terminal_status_left_in_flight_is_a_violation() {
+    let text = LIST.replace(
+        "009 release-readiness — shaped",
+        "009 release-readiness — done",
     );
     let (_, found) = milestones(&text);
     assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
-    assert!(found[0].to_string().contains("does not link its slice"));
+    assert!(found[0].to_string().contains("under the wrong section"));
 }
 
 #[test]
-fn a_slice_link_that_does_not_resolve_is_a_violation() {
-    let text = TABLE.replace("001-native-passthrough-foundation", "001-no-such-slice");
+fn a_live_status_under_closed_is_a_violation() {
+    let text = LIST.replace(
+        "001 native-passthrough-foundation — done",
+        "001 native-passthrough-foundation — active",
+    );
     let (_, found) = milestones(&text);
     assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
-    assert!(found[0].to_string().contains("does not resolve"));
+    assert!(found[0].to_string().contains("under the wrong section"));
 }
 
 #[test]
-fn a_slice_link_whose_directory_id_disagrees_is_a_violation() {
-    let text = TABLE.replace("| 001 |", "| 002 |");
+fn an_entry_naming_no_slice_directory_is_a_violation() {
+    let text = LIST.replace("release-readiness", "no-such-slice");
+    let (_, found) = milestones(&text);
+    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
+    assert!(found[0].to_string().contains("names no slice directory"));
+}
+
+#[test]
+fn an_entry_whose_id_disagrees_with_its_slug_is_a_violation() {
+    let text = LIST.replace("- 009 release-readiness", "- 008 release-readiness");
     let (_, found) = milestones(&text);
     assert!(
         found
             .iter()
-            .any(|v| v.to_string().contains("does not resolve")),
+            .any(|v| v.to_string().contains("names no slice directory")),
         "{}",
         crate::violation::render(&found)
     );
 }
 
 #[test]
-fn two_rows_for_one_id_is_a_violation() {
-    let text = format!(
-        "{TABLE}{}",
-        TABLE.lines().last().expect("the fixture table has rows")
+fn an_entry_outside_the_fixed_grammar_is_a_violation() {
+    let text = LIST.replace(
+        "- 009 release-readiness — shaped — 1 implementation session",
+        "- 009 release-readiness is shaped",
     );
     let (_, found) = milestones(&text);
+    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
+    assert!(found[0].to_string().contains("not the fixed grammar"));
+}
+
+#[test]
+fn a_line_in_a_section_that_is_not_an_entry_is_a_violation() {
+    let text = LIST.replace("## closed\n", "## closed\n\nA stray paragraph.\n");
+    let (_, found) = milestones(&text);
+    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
+    assert!(found[0].to_string().contains("is not an entry"));
+}
+
+#[test]
+fn descending_ids_within_a_section_are_a_violation() {
+    let text = LIST.replace(NINE, &format!("{NINE}{EIGHT}"));
+    let (_, found) = milestones(&text);
+    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
+    assert!(found[0].to_string().contains("ascending id order"));
+}
+
+#[test]
+fn an_entry_under_a_third_section_is_not_read_as_status() {
+    let text = format!("{LIST}\n## backlog\n\n- 002 secure-session-storage — shaped — 3\n");
+    let (rows, found) = milestones(&text);
+    assert_clean(&found);
+    assert_eq!(rows.len(), 2, "a third section must carry no status");
+}
+
+#[test]
+fn two_lines_for_one_id_is_a_violation() {
+    let text = LIST.replace(NINE, &format!("{NINE}{NINE}"));
+    let (_, found) = milestones(&text);
     assert!(
-        found.iter().any(|v| v.to_string().contains("has 2 rows")),
+        found.iter().any(|v| v.to_string().contains("has 2 lines")),
         "{}",
         crate::violation::render(&found)
     );
+}
+
+#[test]
+fn a_document_without_its_heading_pin_is_a_violation() {
+    let found = pin("m.md", LIST, MILESTONES_PIN);
+    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
+    assert!(found[0].to_string().contains("no MD043 heading pin"));
+}
+
+#[test]
+fn a_heading_pin_that_is_not_the_fixed_array_is_a_violation() {
+    let text = format!(
+        "# Milestones\n\n{}\n",
+        MILESTONES_PIN.replace("in flight", "wip")
+    );
+    let found = pin("m.md", &text, MILESTONES_PIN);
+    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
+    assert!(found[0].to_string().contains("not the fixed array"));
+}
+
+#[test]
+fn a_second_configure_comment_is_a_violation() {
+    let text = format!("# Milestones\n\n{MILESTONES_PIN}\n{MILESTONES_PIN}\n");
+    let found = pin("m.md", &text, MILESTONES_PIN);
+    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
+    assert!(found[0].to_string().contains("more than one"));
+}
+
+#[test]
+fn a_healthy_pin_is_accepted() {
+    assert_clean(&pin(
+        "m.md",
+        &format!("# Milestones\n\n{MILESTONES_PIN}\n"),
+        MILESTONES_PIN,
+    ));
 }
 
 #[test]

@@ -14,17 +14,17 @@ Report a red baseline before adding unrelated repairs.
 
 ## Pick up current work
 
-1. Open [milestones](../plan/milestones.md).
-2. Continue the first `active` slice, or change the first unblocked `shaped` row to `active`.
-3. Open that row's slice `README.md` and read it completely.
+1. Open [milestones](../plan/milestones.md) and read `## in flight`.
+2. Continue the `active` slice, or change the first `shaped` line whose named predecessors are closed to `active`.
+3. Open that line's slice `README.md`, at `slices/<id>-<slug>/`, and read it completely.
 4. Load only the files named under `Governed by`; they are the slice's implementation filter.
 5. Implement the core first, then `In scope` from top to bottom. If appetite binds, cut from the end.
 6. Check off `tasks.md` only when it exists; it carries no requirements.
 7. If work has begun and `Goal`, `Core`, `Appetite`, or `Acceptance` changes, add a dated entry under `Revisions` explaining what was learned.
 8. Route a new blocker to [open questions](../plan/open-questions.md) instead of expanding another slice.
-9. Run the slice's `Done when` checks and the full gate. Change only the milestone status to `done`, then delete its `tasks.md`.
+9. Run the slice's `Done when` checks and the full gate. Change the milestone status to `done` and move that line to `## closed` in the same change, then delete its `tasks.md`.
 
-Use `cut` when the core shipped and the appetite ended the remainder; it is a success, and the note names what was dropped. Use `reshaped` when started work stopped uphill and was shaped again; the note names the successor slice id. The milestone table remains the only status surface.
+Use `cut` when the core shipped and the appetite ended the remainder; it is a success, and the note names what was dropped. Use `reshaped` when started work stopped uphill and was shaped again; the note names the successor slice id, which takes the next free id rather than the old one. Every terminal status moves the line to `## closed`, and a closed line never moves back. [Milestones](../plan/milestones.md) remains the only status surface, and a slice `README.md` never carries a status of its own.
 
 ## Add a wrapper command
 

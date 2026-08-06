@@ -6,11 +6,16 @@
 // docs benefit from — single top-level H1, first-line H1, ordered heading levels —
 // is left ON via `default: true`.
 //
-// This root .jsonc owns repository-wide rules. The nested
-// docs/plan/slices/.markdownlint-cli2.jsonc scopes MD043 to slice entry documents;
-// markdownlint-cli2 merges it with this root rather than replacing it. Do not add a
+// This root .jsonc owns repository-wide rules. Do not add a
 // `.markdownlint.{yaml,json,...}` — when both exist, the `.markdownlint.*` rules win
 // and silently override the `config` blocks.
+//
+// MD043 (required-headings) is OFF here on purpose. Its heading array is per
+// document, not per project, so a repository-wide array would gate one document's
+// shape and reject every other file. Each fixed-shape document — milestones.md and
+// every slice README.md — carries its own array in a `markdownlint-configure-file`
+// comment under its H1, which overrides this `false`. That keeps the pin with the
+// file it governs, so a copied document brings its gate along.
 //
 // Tooling split (researched): markdownlint is a LINTER with surgical per-span
 // autofixes, NOT a formatter. It cannot reflow/unwrap prose, normalize GFM table
@@ -72,6 +77,7 @@
     // --- structural rules kept ON via default: MD001 (heading-increment),
     //     MD025 (single top-level H1), MD041 (first-line H1) enforce doc discipline ---
     "MD013": false, // line length — dprint unwraps prose to one physical line
+    "MD043": false, // required-headings — pinned per document; see the header note
     "MD024": { "siblings_only": true }, // dup headings OK across sections, not within
     "MD033": false, // inline HTML — needed for badges, <details>, <kbd>
     "MD046": { "style": "fenced" } // require fenced code blocks

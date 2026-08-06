@@ -139,7 +139,7 @@ Every implementation slice inherits these boundaries even when its prose omits t
 | Treat `docs/` as normative pre-implementation design; when a slice conflicts, correct the slice, or change the owner and governing ADR first.                     | [AGENTS.md § Decisions](../../AGENTS.md#decisions)                                                                                                                                                                                                                               | Owner and decision reconciliation                       |
 | At slice completion, run its acceptance commands and the repository gate before changing milestone status; do not infer completion from files existing.           | [Milestones](../plan/milestones.md) and [Testing and quality § The gate](./testing-and-quality.md#the-gate)                                                                                                                                                                      | Acceptance results plus the full gate                   |
 
-Before editing, resolve every cited ADR to a current status and read all `Governed by` owners. During editing, stop when work would cross a listed boundary without an owning contract. Before marking done, run the named checks, read them against slice acceptance, update the milestone row, and delete `tasks.md`.
+Before editing, resolve every cited ADR to a current status and read all `Governed by` owners. During editing, stop when work would cross a listed boundary without an owning contract. Before marking done, run the named checks, read them against slice acceptance, move the milestone line to `## closed` with its new status, and delete `tasks.md`.
 
 ## Further reading
 
