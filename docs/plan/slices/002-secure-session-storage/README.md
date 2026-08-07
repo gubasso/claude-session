@@ -20,7 +20,7 @@ Every created component refuses symlinks and wrong ownership and enforces privat
 
 ## Out of scope
 
-- Settings merge semantics, child spawning, and authentication.
+- Per-key array strategies, structural validation, contributor provenance, child spawning, and authentication.
 - Terminal-, project-, account-, or working-directory-derived entry keys.
 
 ## Governed by
@@ -36,10 +36,10 @@ Every created component refuses symlinks and wrong ownership and enforces privat
 
 ## Acceptance
 
-- If a storage component is a symlink or has the wrong owner, then the wrapper shall refuse it before reading or writing its leaf.
-- When a secure directory is used, the wrapper shall enforce mode `0700` on every invocation.
-- When identical profile inputs are supplied, the wrapper shall name and reuse one immutable entry.
-- If an existing entry disagrees with its full digest, then the wrapper shall refuse it without overwrite.
+- If a storage component is a symlink or has the wrong owner, then the wrapper shall refuse it before reading or writing its leaf. -> session_storage::a_symlinked_managed_component_is_refused_before_its_leaf
+- When a secure directory is used, the wrapper shall enforce mode `0700` on every invocation. -> session_storage::an_over_permissive_managed_directory_is_corrected_on_every_invocation
+- When identical profile inputs are supplied, the wrapper shall name and reuse one immutable entry. -> session_storage::identical_inputs_name_and_reuse_one_immutable_entry
+- If an existing entry disagrees with its full digest, then the wrapper shall refuse it without overwrite. -> session_storage::a_sidecar_digest_mismatch_is_refused_without_overwrite
 
 ## Rabbit holes
 

@@ -140,19 +140,33 @@ fn apply_environment(
 }
 
 fn identifier(key: &'static str, value: &str, path: &Path) -> Result<Identifier, ConfigError> {
-    Identifier::from_str(value).map_err(|_| ConfigError::Value {
+    Identifier::from_str(value).map_err(|_| ConfigError::Identifier {
         key,
         origin: path.display().to_string(),
+        value: value.to_owned(),
     })
 }
 
 fn environment_identifier(key: &'static str, value: &OsStr) -> Result<Identifier, ConfigError> {
+    // A non-UTF-8 value is not an identifier-grammar failure, so it keeps the
+    // `Config` typing: there is no value to quote back and nothing about the
+    // grammar to correct.
     let text = value.to_str().ok_or_else(|| ConfigError::Value {
         key,
         origin: "environment (non-UTF-8)".into(),
     })?;
-    Identifier::from_str(text).map_err(|_| ConfigError::Value {
+    Identifier::from_str(text).map_err(|_| ConfigError::Identifier {
         key,
-        origin: "environment".into(),
+        origin: environment_spelling(key).to_owned(),
+        value: text.to_owned(),
     })
+}
+
+/// Names the environment variable a key is read from, so a diagnostic points at
+/// the thing the user would unset rather than at the file spelling.
+const fn environment_spelling(key: &str) -> &'static str {
+    match key.as_bytes() {
+        b"default_account" => "CLAUDE_SESSION_DEFAULT_ACCOUNT",
+        _ => "CLAUDE_SESSION_DEFAULT_PROFILE",
+    }
 }

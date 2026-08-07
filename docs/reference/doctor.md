@@ -2,7 +2,7 @@
 
 The probe catalog, what each check reads, the remediation it prints, and how a run collapses into one exit code.
 
-This describes normative design. The crate is pre-implementation.
+The five `storage-*` checks and the two `settings-*` checks are implemented at their guard call sites, quoting the remediations below. The `doctor` verb, its report, `--list`, and `--strict` remain normative design.
 
 The catalog below has three consumers and only one of them is an output surface, which is why it lives here rather than in [logging and output](./logging-and-output.md): a reader holding a check id is asking a health question, not a formatting one. That page still owns the streams and the document rules, and [presentation](./presentation.md) owns the appearance rules this one defers to.
 

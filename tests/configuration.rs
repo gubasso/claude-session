@@ -150,3 +150,52 @@ fn an_unreadable_named_config_is_typed() {
         "the diagnostic did not name the file:\n{stderr}"
     );
 }
+
+/// An identifier becomes a path component in the storage tree, so its grammar
+/// is a usage contract every layer shares. Before this, a bad name in a file
+/// exited `Config` and the same name on the command line exited `Usage` — two
+/// codes for one mistake, disagreeing with the two pages that own the rule.
+#[test]
+fn an_invalid_identifier_from_any_layer_exits_usage() {
+    let harness = Harness::new();
+    let config = harness.root().join("bad-profile.toml");
+    fs::write(&config, "default_profile='Work'\n").expect("config");
+    let output = harness
+        .command()
+        .args(["--config".into(), config.clone().into_os_string()])
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(64), "user file layer:\n{stderr}");
+    assert!(stderr.contains("Work"), "{stderr}");
+    assert!(
+        stderr.contains(config.to_str().expect("utf8")),
+        "the diagnostic did not name the file:\n{stderr}"
+    );
+
+    let output = harness
+        .command()
+        .env("CLAUDE_SESSION_DEFAULT_ACCOUNT", "has.dot")
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        output.status.code(),
+        Some(64),
+        "environment layer:\n{stderr}"
+    );
+    assert!(stderr.contains("has.dot"), "{stderr}");
+    assert!(
+        stderr.contains("CLAUDE_SESSION_DEFAULT_ACCOUNT"),
+        "the diagnostic did not name the variable:\n{stderr}"
+    );
+
+    let output = harness
+        .command()
+        .args(["--profile", "has/slash"])
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(64), "command line:\n{stderr}");
+    assert!(stderr.contains("has/slash"), "{stderr}");
+}

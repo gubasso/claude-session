@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::error::DomainError;
+use crate::{domain::identifier::Identifier, error::DomainError};
 
 /// Absolute XDG namespace paths owned by the wrapper.
 #[derive(Clone, Debug)]
@@ -67,5 +67,79 @@ impl XdgPaths {
     #[allow(dead_code, reason = "no namespace has a discardable artifact yet")]
     pub(crate) fn cache(&self) -> &Path {
         &self.cache
+    }
+
+    /// Returns the accounts collection directory.
+    pub(crate) fn accounts(&self) -> PathBuf {
+        self.state.join("accounts")
+    }
+    /// Returns one account's directory.
+    pub(crate) fn account(&self, account: &Identifier) -> PathBuf {
+        self.accounts().join(account.as_str())
+    }
+    /// Returns the child-owned native configuration directory for one account.
+    ///
+    /// The wrapper creates it; the child writes everything inside it.
+    pub(crate) fn account_config(&self, account: &Identifier) -> PathBuf {
+        self.account(account).join("config")
+    }
+    /// Returns the composed-settings store directory.
+    pub(crate) fn composed(&self) -> PathBuf {
+        self.state.join("composed")
+    }
+    /// Returns the profile document for one profile name.
+    pub(crate) fn profile_file(&self, profile: &Identifier) -> PathBuf {
+        self.config
+            .join("profiles")
+            .join(format!("{}.yaml", profile.as_str()))
+    }
+    /// Returns the settings piece file for one piece name.
+    pub(crate) fn piece_file(&self, piece: &Identifier) -> PathBuf {
+        self.config
+            .join("settings")
+            .join(format!("{}.json", piece.as_str()))
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    fn fixture() -> XdgPaths {
+        XdgPaths::resolve(&[
+            (OsString::from("XDG_CONFIG_HOME"), OsString::from("/c")),
+            (OsString::from("XDG_STATE_HOME"), OsString::from("/s")),
+            (OsString::from("XDG_DATA_HOME"), OsString::from("/d")),
+            (OsString::from("XDG_CACHE_HOME"), OsString::from("/k")),
+        ])
+        .expect("absolute bases resolve")
+    }
+
+    /// A compiler-checked copy of the artifact table's path column, so a
+    /// renamed directory fails here rather than silently relocating a user's
+    /// durable state.
+    #[test]
+    fn every_managed_path_matches_the_artifact_table() {
+        let paths = fixture();
+        let work = "work".parse().expect("identifier");
+        assert_eq!(paths.accounts(), Path::new("/s/claude-session/accounts"));
+        assert_eq!(
+            paths.account(&work),
+            Path::new("/s/claude-session/accounts/work")
+        );
+        assert_eq!(
+            paths.account_config(&work),
+            Path::new("/s/claude-session/accounts/work/config")
+        );
+        assert_eq!(paths.composed(), Path::new("/s/claude-session/composed"));
+        assert_eq!(
+            paths.profile_file(&work),
+            Path::new("/c/claude-session/profiles/work.yaml")
+        );
+        assert_eq!(
+            paths.piece_file(&work),
+            Path::new("/c/claude-session/settings/work.json")
+        );
     }
 }

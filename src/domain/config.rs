@@ -82,6 +82,14 @@ impl ResolvedConfig {
     pub(crate) const fn child_bin_mut(&mut self) -> &mut Sourced<PathBuf> {
         &mut self.child_bin
     }
+    /// Returns the selected account, if any layer supplied one.
+    pub(crate) const fn account(&self) -> Option<&Identifier> {
+        self.default_account.value()
+    }
+    /// Returns the selected profile, if any layer supplied one.
+    pub(crate) const fn profile(&self) -> Option<&Identifier> {
+        self.default_profile.value()
+    }
     /// Mutably accesses the account value during resolution only.
     pub(crate) const fn account_mut(&mut self) -> &mut Sourced<Identifier> {
         &mut self.default_account

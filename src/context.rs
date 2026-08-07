@@ -1,5 +1,7 @@
 //! The single immutable application context.
 
+use std::sync::OnceLock;
+
 use crate::{
     adapters::{
         environment::{Environment, SystemEnvironment},
@@ -8,6 +10,7 @@ use crate::{
     },
     commands::dispatch::OutputMode,
     domain::{config::ResolvedConfig, paths::XdgPaths},
+    services::session::SessionPaths,
     ui::writer::{Color, OutputWriter},
 };
 
@@ -37,6 +40,11 @@ pub(crate) struct AppContext {
     output_mode: OutputMode,
     writer: OutputWriter,
     color: Color,
+    // Only the pure path resolution is cached here. No filesystem answer ever
+    // joins it: `docs/reference/xdg-storage.md#how-a-path-is-validated` requires
+    // the checks to run against the state each operation will meet, so a cached
+    // validation would answer a question about a moment that has passed.
+    session: OnceLock<SessionPaths>,
     adapters: Adapters,
 }
 
@@ -65,6 +73,7 @@ impl AppContext {
             output_mode,
             writer,
             color,
+            session: OnceLock::new(),
             adapters: Adapters::default(),
         }
     }
@@ -73,11 +82,15 @@ impl AppContext {
         &self.config
     }
     /// Returns resolved XDG paths.
-    // Logging resolves its own namespace at the entry point, before a context
-    // exists. The first downstream reader is the account and profile storage.
-    #[allow(dead_code, reason = "no command writes to a namespace yet")]
     pub(crate) const fn paths(&self) -> &XdgPaths {
         &self.paths
+    }
+    /// Returns this run's account and profile selection, resolved on first use.
+    ///
+    /// Laziness through `&self`, so the context stays immutable and no handler
+    /// needs a `&mut`. A run that selects neither never builds it.
+    pub(crate) fn session(&self) -> &SessionPaths {
+        self.session.get_or_init(|| SessionPaths::resolve(self))
     }
     /// Returns the environment snapshot.
     pub(crate) const fn environment(&self) -> &SystemEnvironment {

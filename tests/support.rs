@@ -68,6 +68,52 @@ impl Harness {
     pub(crate) fn assert_command(&self) -> assert_cmd::Command {
         assert_cmd::Command::from_std(self.command())
     }
+
+    /// The wrapper-managed state namespace inside this fixture's XDG state base.
+    pub(crate) fn state(&self) -> PathBuf {
+        self.root.path().join("state/claude-session")
+    }
+    /// The wrapper's config namespace inside this fixture's XDG config base.
+    pub(crate) fn config_base(&self) -> PathBuf {
+        self.root.path().join("config/claude-session")
+    }
+    /// Writes a settings piece the user would have authored.
+    pub(crate) fn write_piece(&self, name: &str, json: &str) {
+        let directory = self.config_base().join("settings");
+        fs::create_dir_all(&directory).expect("settings fixture");
+        fs::write(directory.join(format!("{name}.json")), json).expect("piece fixture");
+    }
+    /// Writes a profile document the user would have authored.
+    pub(crate) fn write_profile(&self, name: &str, yaml: &str) {
+        let directory = self.config_base().join("profiles");
+        fs::create_dir_all(&directory).expect("profiles fixture");
+        fs::write(directory.join(format!("{name}.yaml")), yaml).expect("profile fixture");
+    }
+}
+
+/// The permission bits of a path, read without following a symbolic link.
+pub(crate) fn mode(path: &Path) -> u32 {
+    fs::symlink_metadata(path)
+        .expect("fixture metadata")
+        .permissions()
+        .mode()
+        & 0o7777
+}
+
+/// The names in one directory, sorted so an assertion is order-independent.
+pub(crate) fn entries(path: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(path)
+        .expect("fixture directory")
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
 }
 
 pub(crate) fn read_nul(path: &Path) -> Vec<Vec<u8>> {

@@ -2,7 +2,7 @@
 
 Where every artifact lives, who writes it, and what protects it. For the account/profile split, see [session isolation](../explanation/session-isolation.md).
 
-XDG base resolution and the private state log namespace are implemented. Later storage artifacts remain normative design.
+Base resolution, the private state log namespace, the account directories, the composed-settings store and its pair rule, the five security checks, and the lock-free atomic write are implemented. The credential artifacts, the lock scope, and the last-used marker remain normative design.
 
 ## Base directories
 
@@ -72,6 +72,8 @@ Each entry is a pure function of its inputs, so its name is computed from them (
 
 The input digest is SHA-256 over a versioned, unambiguously framed preimage: the literal domain tag `claude-session-composed-v1`, then the profile name, the profile file's resolved absolute path and the SHA-256 of its bytes, then for every piece in profile order its resolved absolute path and the SHA-256 of its bytes. Every field is length-prefixed, so no field value can imitate a field boundary. Paths are hashed as raw OS bytes, since a path is a byte string. The array-strategy table is a field of the profile file, so the profile's own content digest covers it.
 
+The prefix is the field's byte length as eight bytes, big-endian and unsigned, written before every field including the fixed-width digests. Eight bytes because a length on this target is 64-bit and a narrower prefix would need an overflow rule; big-endian because a digest preimage is a wire format. There is no piece count: the prefixes already make the concatenation injective, and a count would be a second thing to keep in agreement. The width is stated because a preimage that cannot be reproduced from its specification is not specified.
+
 Twelve hex characters name the entry; the full digest is recorded in the provenance sidecar. Before an existing entry is reused, that recorded digest is compared against the one just computed — the inputs were read to compute the key, so the comparison costs nothing. A match reuses the entry. A mismatch is [`DataFormat`](./exit-codes.md#wrapper-matrix): the entry is neither opened nor overwritten. That is what makes "two profiles never share settings" a check rather than a probability, and it is why twelve characters is a naming choice rather than a safety margin.
 
 A complete entry is never rewritten. Generation checks whether the settings path exists. If it does, and the sidecar agrees, both files are already correct by construction and the run composes nothing. If neither exists, the wrapper composes, writes the settings by [the atomic sequence](#the-sequence), then writes the provenance the same way. If exactly one member of the pair exists the entry is incomplete and nothing about it can be verified — a settings file without its provenance carries no digest to compare, so adopting it would turn the guarantee above back into a probability. The wrapper composes and writes both members, replacing the survivor with one this run's inputs produced. Two concurrent runs of one profile compute identical bytes, so a lost update is invisible — which is why neither file takes a lock.
@@ -100,7 +102,7 @@ A wrapper-owned secret that is read is opened once, validated again from that op
 
 The wrapper does not confine traversal through an `openat(2)` descriptor walk. These checks detect accidental drift and foreign artifacts; they are not a boundary against a process running as this user, which [ADR-0061](../decisions/ADR-0061-protect-storage-from-accidental-local-drift.md) places out of scope. This is the reasoning [ADR-0056](../decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md) used to reject `fexecve`, applied to the same shape of race.
 
-Managed-directory creation is idempotent, and a directory the wrapper creates is created `0700` rather than created and then corrected.
+Managed-directory creation is idempotent, and a directory the wrapper creates is requested `0700` rather than created permissive and then narrowed, so no invocation opens a window in which the component is readable by anyone else. Because `mkdir(2)` applies the process umask to the requested mode, the wrapper settles the mode it just asked for on the component it just created. That only ever widens back toward `0700`, which is why it is not the create-then-correct sequence the rule above rules out.
 
 The wrapper validates the child-owned `.credentials.json` path before relying on its presence, but never changes its mode, rewrites it, or follows it to read credential content.
 

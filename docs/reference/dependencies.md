@@ -2,7 +2,7 @@
 
 Which crates this project has reviewed, how one enters the manifest, and which are ruled out.
 
-The native-passthrough foundation now uses its reviewed command-line, error, diagnostics, serialization, configuration, path, process, and signal dependencies. Which crates and versions are present remains the manifest and lockfile's fact; later-slice candidates stay reviewed but absent until their triggers occur.
+The native-passthrough foundation now uses its reviewed command-line, error, diagnostics, serialization, configuration, path, process, and signal dependencies. Secure session storage added the profile and digest dependencies to the shipped graph, since the first profile and the first composed-settings digest are the triggers those two names were waiting on. Which crates and versions are present remains the manifest and lockfile's fact; later-slice candidates stay reviewed but absent until their triggers occur.
 
 ## No version numbers here
 
@@ -104,14 +104,12 @@ These belong to the `xtask` workspace member ([ADR-0014](../decisions/ADR-0014-x
 
 Reviewed, not needed yet. Named here so the decision is not re-made from scratch:
 
-| Crate                                      | Unlocked by                                             |
-| ------------------------------------------ | ------------------------------------------------------- |
-| `serde_yaml_ng` in the shipped graph       | The first profile                                       |
-| `anstream`, `anstyle`                      | The first coloured surface                              |
-| `sha2`                                     | The first token fingerprint or composed-settings digest |
-| `clap_complete`, `clap_mangen`             | The completions and man-page work                       |
-| `schemars`, `toml_edit`                    | The `xtask` example generator                           |
-| `proptest`, `cargo-mutants`, `cargo-bloat` | The advanced test tier                                  |
+| Crate                                      | Unlocked by                       |
+| ------------------------------------------ | --------------------------------- |
+| `anstream`, `anstyle`                      | The first coloured surface        |
+| `clap_complete`, `clap_mangen`             | The completions and man-page work |
+| `schemars`, `toml_edit`                    | The `xtask` example generator     |
+| `proptest`, `cargo-mutants`, `cargo-bloat` | The advanced test tier            |
 
 ## Ruled out
 

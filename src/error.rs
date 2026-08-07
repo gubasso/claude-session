@@ -28,6 +28,17 @@ pub(crate) enum ConfigError {
     /// An environment or file identifier was invalid.
     #[error("invalid configuration value for {key} from {origin}")]
     Value { key: &'static str, origin: String },
+    /// A layer supplied a value that is not a valid identifier.
+    ///
+    /// Separate from `Value` because it exits differently. An identifier
+    /// becomes a path component in the storage tree, so its grammar is a usage
+    /// contract every layer shares rather than one file's key being wrong.
+    #[error("invalid identifier `{value}` for {key} from {origin}")]
+    Identifier {
+        key: &'static str,
+        origin: String,
+        value: String,
+    },
 }
 
 /// Stable wrapper error identifiers.
@@ -286,6 +297,19 @@ impl From<ConfigError> for AppError {
                     key,
                     why,
                     "correct the named value",
+                ),
+            ),
+            // `Usage`, not `Config`, whichever layer supplied it. Both
+            // docs/reference/xdg-storage.md#identifiers and
+            // docs/reference/configuration.md#selecting-the-active-profile say
+            // so, because the same grammar decides a `--profile` argument.
+            ConfigError::Identifier { origin, .. } => Self::new(
+                ErrorKind::Usage,
+                Diagnostic::new(
+                    "identifier is invalid",
+                    origin,
+                    why,
+                    "use [a-z0-9_-], starting with a lowercase letter or digit, max 32 bytes",
                 ),
             ),
         }

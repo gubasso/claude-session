@@ -2,7 +2,7 @@
 
 Test tools, test lanes, the gate map, and which contract each mandatory test locks down. The approach and its rationale are in [the testing strategy](../explanation/testing-strategy.md).
 
-The native passthrough foundation is implemented. Later-slice rows remain normative design until their owning slices land.
+The native passthrough foundation and the secure session storage rows are implemented. The remaining later-slice rows stay normative design until their owning slices land.
 
 ## Test kinds
 

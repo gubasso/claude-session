@@ -36,8 +36,86 @@ impl TryFrom<String> for Identifier {
     }
 }
 
+impl Identifier {
+    /// Borrows the validated identifier text.
+    ///
+    /// Path construction joins this directly. Going through `Display` would
+    /// allocate a `String` for every component of every managed path, on a
+    /// value whose grammar already guarantees it is one safe component.
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 impl fmt::Display for Identifier {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    fn parse(value: &str) -> Result<Identifier, DomainError> {
+        value.parse()
+    }
+
+    #[test]
+    fn the_documented_character_set_is_accepted() {
+        for value in ["a", "0", "z9", "a-b_c", "work", &"x".repeat(32)] {
+            assert!(parse(value).is_ok(), "{value} should parse");
+        }
+    }
+
+    /// The grammar's first byte rule is separate from its rest rule, so a
+    /// separator or a digit-only case has to be tested on both ends.
+    #[test]
+    fn a_leading_separator_is_rejected() {
+        assert!(parse("-a").is_err());
+        assert!(parse("_a").is_err());
+    }
+
+    #[test]
+    fn any_uppercase_byte_is_rejected() {
+        assert!(parse("A").is_err());
+        assert!(parse("aB").is_err());
+    }
+
+    #[test]
+    fn a_path_or_whitespace_byte_is_rejected() {
+        for value in ["a.b", "a/b", "a b", "a\tb", "..", "/"] {
+            assert!(parse(value).is_err(), "{value} should not parse");
+        }
+    }
+
+    /// The length rule counts bytes, not characters, so a multi-byte value
+    /// has to fail on the character class rather than slip through on length.
+    #[test]
+    fn a_non_ascii_value_is_rejected() {
+        assert!(parse("á").is_err());
+        assert!(parse("aá").is_err());
+    }
+
+    #[test]
+    fn an_empty_value_is_rejected() {
+        assert!(parse("").is_err());
+    }
+
+    #[test]
+    fn a_thirty_third_byte_is_rejected() {
+        assert!(parse(&"x".repeat(32)).is_ok());
+        assert!(parse(&"x".repeat(33)).is_err());
+    }
+
+    /// Nothing is truncated or rewritten: the refusal carries back exactly what
+    /// the user supplied, which is what lets a diagnostic name the real value.
+    #[test]
+    fn a_rejection_carries_the_original_value_verbatim() {
+        let Err(DomainError::InvalidIdentifier(value)) = parse("Has.Dot") else {
+            panic!("expected an identifier rejection");
+        };
+        assert_eq!(value, "Has.Dot");
     }
 }
