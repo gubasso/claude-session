@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     adapters::{environment::Environment, filesystem::SystemFileSystem},
-    commands::dispatch::Globals,
+    commands::dispatch::ConfigOverrides,
     domain::{
         config::{ResolvedConfig, Source},
         identifier::Identifier,
@@ -34,10 +34,10 @@ struct FileConfig {
 pub(crate) fn resolve(
     environment: &impl Environment,
     paths: &XdgPaths,
-    globals: &Globals,
+    overrides: &ConfigOverrides,
 ) -> Result<ResolvedConfig, ConfigError> {
     let mut resolved = ResolvedConfig::defaults();
-    let user = globals
+    let user = overrides
         .config
         .clone()
         .unwrap_or_else(|| paths.config().join("config.toml"));
@@ -46,13 +46,10 @@ pub(crate) fn resolve(
         apply_file(&mut resolved, &project, Source::Project, true)?;
     }
     apply_environment(&mut resolved, environment.variables())?;
-    if let Some(path) = globals.config.as_ref() {
-        let _ = path;
-    }
-    if let Some(account) = globals.account.clone() {
+    if let Some(account) = overrides.account.clone() {
         resolved.account_mut().set(account, Source::Cli);
     }
-    if let Some(profile) = globals.profile.clone() {
+    if let Some(profile) = overrides.profile.clone() {
         resolved.profile_mut().set(profile, Source::Cli);
     }
     Ok(resolved)

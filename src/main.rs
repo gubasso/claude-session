@@ -99,7 +99,7 @@ fn run(prepared: Prepared) -> Result<DispatchOutcome, AppError> {
         invocation,
         paths,
     } = prepared;
-    let config = config::load::resolve(&environment, &paths, invocation.globals())?;
+    let config = config::load::resolve(&environment, &paths, invocation.config_overrides())?;
     let mode = invocation.output_mode();
     let context = AppContext::new(config, paths, environment, mode);
     commands::dispatch::dispatch(&context, invocation)

@@ -32,9 +32,12 @@ pub(crate) enum Verbosity {
     Trace,
 }
 
-/// Parsed global values needed before full configuration loading.
+/// Command-line inputs to configuration resolution.
+///
+/// Extracted before the configuration layers exist, because `--config` decides
+/// what configuration is.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Globals {
+pub(crate) struct ConfigOverrides {
     /// Explicit user configuration replacement.
     pub(crate) config: Option<PathBuf>,
     /// Invocation account override.
@@ -54,16 +57,16 @@ pub(crate) enum InvocationKind {
 /// Fully classified wrapper invocation.
 #[derive(Debug)]
 pub(crate) struct Invocation {
-    globals: Globals,
+    config_overrides: ConfigOverrides,
     verbose: u8,
     quiet: bool,
     kind: InvocationKind,
 }
 
 impl Invocation {
-    /// Returns configuration-producing CLI globals.
-    pub(crate) const fn globals(&self) -> &Globals {
-        &self.globals
+    /// Returns the command line's contribution to configuration resolution.
+    pub(crate) const fn config_overrides(&self) -> &ConfigOverrides {
+        &self.config_overrides
     }
     /// Returns the diagnostic-mirror ladder, clamping a fourth repeat.
     pub(crate) const fn verbosity(&self) -> Verbosity {
@@ -120,7 +123,7 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
             ),
         )
     })?;
-    let globals = Globals {
+    let config_overrides = ConfigOverrides {
         config: cli.config,
         account: cli.account,
         profile: cli.profile,
@@ -145,7 +148,7 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
         }
     };
     Ok(Invocation {
-        globals,
+        config_overrides,
         verbose: cli.verbose,
         quiet: cli.quiet,
         kind,
