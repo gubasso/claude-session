@@ -95,11 +95,11 @@ pub(crate) enum DispatchOutcome {
 
 /// Pre-splits raw arguments and parses only wrapper-owned bytes.
 pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
-    let partition = argv::split(arguments)?;
+    let partition: argv::Partition = argv::split(arguments)?;
     // `--` is unconditional: everything after it is child territory even when it
     // spells a wrapper verb, so the rescue below only applies to a suffix that
     // no sentinel closed.
-    let sentinel = partition.sentinel();
+    let sentinel: bool = partition.sentinel();
     let (mut wrapper, mut child) = partition.into_parts();
     let wrapper_verb = child
         .first()

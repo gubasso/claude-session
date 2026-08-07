@@ -26,6 +26,20 @@ Modules are singular when they hold one concept, plural when they hold a collect
 
 Booleans read as assertions: `is_executable`, `has_credentials`. Never a negation in the name — `is_not_ready` produces `!is_not_ready` at the call site.
 
+## Function placement
+
+A function that takes a receiver is a method. That much is settled by ownership rather than taste, and it is the whole of what the API guidelines' `C-METHOD` governs. Everything else is receiver-free, and the choice between an associated function and a free function turns on the specificity of the input, not on which type comes out.
+
+Associated when the function's one job is producing that type from another type the crate already trusts. `XdgPaths::resolve`, `Color::resolve`, and `SessionPaths::resolve` are the instances here: one output, one owner, one door.
+
+Free when the input is the shape the outside world hands over — raw argv, an environment slice, a file — or when the function is a named stage of a pipeline its module owns. `argv::split`, `dispatch::classify`, `dispatch::dispatch`, `config::load::resolve`, `environment::value`, `logging::install`, and `ui::writer::report` are all this case. Hanging one on the type it returns inflates that type's dependencies to reach a call site that already reads correctly, and turns an inert data carrier into something that knows its own handlers.
+
+The trap is treating "it constructs one type" as sufficient. `C-CONV-SPECIFIC` places a conversion on the most specific type involved, and `&[OsString]` is the least specific type in the crate; there is nothing on the input side to hang it on, and the rule supplies no pull toward the output side either. Rust's own boundary parsers land the same way: `rustc_parse::new_parser_from_file` builds a `Parser` as a free function, `serde_json::from_str` builds a caller-chosen `T`, and ripgrep splits the two cases precisely — `flags::parse` reads raw argv freely, while `HiArgs::from_low_args` converts one settled type into another as an associated function.
+
+A receiver-free associated function also collects none of `C-METHOD`'s benefits. No autoref, no import saved, and with no library target there is no rustdoc audience to discover it. What is left is the module path, and `commands::dispatch::classify` names the stage where `Invocation::classify` would restate a noun its module already carries.
+
+When a function does belong on a type, `C-CTOR` fixes the name: `from_<source>` for a conversion constructor, or a domain verb in the shape of `File::open`. `try_new` is for a general fallible constructor and nothing else.
+
 ## Visibility
 
 `pub(crate)` is the default for everything. There is no library target, so `pub` on an item that nothing outside the crate can reach is noise that implies a stability promise the crate does not make.
@@ -144,6 +158,8 @@ Before editing, resolve every cited ADR to a current status and read all `Govern
 ## Further reading
 
 - [Rust API Guidelines: naming](https://rust-lang.github.io/api-guidelines/naming.html)
+- [Rust API Guidelines: predictability](https://rust-lang.github.io/api-guidelines/predictability.html)
+- [ripgrep's flag pipeline](https://github.com/BurntSushi/ripgrep/tree/master/crates/core/flags)
 - [Parse, don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
 - [The newtype pattern](https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html)
 - [Error handling in Rust](https://burntsushi.net/rust-error-handling/)
