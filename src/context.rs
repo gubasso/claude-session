@@ -8,7 +8,7 @@ use crate::{
     },
     commands::dispatch::OutputMode,
     domain::{config::ResolvedConfig, paths::XdgPaths},
-    ui::writer::OutputWriter,
+    ui::writer::{Color, OutputWriter},
 };
 
 /// Concrete adapter bundle shared by handlers.
@@ -36,6 +36,7 @@ pub(crate) struct AppContext {
     environment: SystemEnvironment,
     output_mode: OutputMode,
     writer: OutputWriter,
+    color: Color,
     adapters: Adapters,
 }
 
@@ -48,13 +49,22 @@ impl AppContext {
         output_mode: OutputMode,
     ) -> Self {
         let writer = OutputWriter::system();
-        let _color = OutputWriter::color(environment.variables(), writer.stdout_is_terminal());
+        // The one place the ladder is read. Every renderer takes the answer
+        // from here, which is what makes two surfaces in one invocation
+        // impossible to disagree.
+        let color = Color::resolve(
+            environment.variables(),
+            output_mode,
+            writer.stdout_is_terminal(),
+            writer.stderr_is_terminal(),
+        );
         Self {
             config,
             paths,
             environment,
             output_mode,
             writer,
+            color,
             adapters: Adapters::default(),
         }
     }
@@ -80,6 +90,13 @@ impl AppContext {
     /// Returns the sole output writer.
     pub(crate) const fn writer(&self) -> &OutputWriter {
         &self.writer
+    }
+    /// Returns the invocation's color decision.
+    // Resolved here so the first renderer to colour a named surface reads an
+    // answer rather than deriving one. No surface is coloured yet.
+    #[allow(dead_code, reason = "no renderer applies the decision yet")]
+    pub(crate) const fn color(&self) -> Color {
+        self.color
     }
     /// Returns concrete adapters.
     pub(crate) const fn adapters(&self) -> &Adapters {

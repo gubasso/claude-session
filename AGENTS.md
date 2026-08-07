@@ -52,6 +52,7 @@ Record each significant, hard-to-reverse choice in one filled file under `docs/d
 
 - Keep changes scoped and reversible; documentation and rationale live beside what they describe.
 - Use post-2018 Rust module form, `pub(crate)` by default, typed layer errors, one immutable `AppContext`, and OS strings at process boundaries. Exact rules live in [coding conventions](./docs/reference/coding-conventions.md).
+- Satisfy [presentation](./docs/reference/presentation.md) before writing a human-facing byte. Plain text carries the whole meaning, the colour decision is resolved once rather than per renderer, and only the surfaces that page names are coloured. It binds every renderer the project writes, so a new verb reads it instead of inventing an appearance, and a disagreement changes the renderer.
 - Add dependencies through the documented procedure and the pinned devShell; do not depend on host tooling.
 - Run `just hooks` before proposing changes. It executes both configured hook stages; `pre-commit run --all-files` alone is not the verdict. The exact gate is in [testing and quality](./docs/reference/testing-and-quality.md#the-gate).
 - Commit messages use Conventional Commits, a lowercase description, no trailing period, and at most 72 characters on every line.

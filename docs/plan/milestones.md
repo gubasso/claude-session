@@ -14,10 +14,10 @@ One line per slice, ordered by id inside its section: `<id> <slug> — <status> 
 - 007 comprehensive-doctor — shaped — 1 implementation session — after 004, 005, and 012; 012 gives the report renderer its contract
 - 008 cli-artifacts — shaped — 1 implementation session — after 005 and 007
 - 009 release-readiness — shaped — 1 implementation session — after 006, 007, and 008
-- 012 human-presentation — active — 2 implementation sessions — after 011; carries the colour decision 011 left discarded through to bytes
 
 ## closed
 
 - 001 native-passthrough-foundation — done — 4 implementation sessions
 - 010 native-repository-gates — done — 1 implementation session — replaced four shell check-scripts
 - 011 entry-point-and-contract-repair — done — 3 implementation sessions — repaired contracts 001 claimed but did not meet
+- 012 human-presentation — done — 2 implementation sessions — decided the colour contract every later renderer applies

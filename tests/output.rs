@@ -39,17 +39,34 @@ fn json_error_shape() {
     assert!(value.get("child_exit").is_none());
 }
 
+/// The ladder is decided but not yet applied: slice 013 carries it to bytes.
+/// Until then the absence has to be provable rather than assumed, and the
+/// strongest case is the one the ladder resolves to on: an active
+/// `FORCE_COLOR`, which no lower rung can overrule.
 #[test]
-fn color_precedence() {
+fn no_surface_emits_an_escape_byte_yet() {
+    let escape = |stream: &[u8]| stream.contains(&0x1b);
     let harness = Harness::new();
-    let output = harness
+    // A usage failure renders the human diagnostic on standard error.
+    let human = harness
         .command()
         .arg("--config")
-        .env("NO_COLOR", "")
         .env("FORCE_COLOR", "1")
         .output()
         .expect("wrapper");
-    assert!(!output.stderr.contains(&0x1b));
+    assert!(!escape(&human.stderr), "the diagnostic carried an escape");
+    assert!(!escape(&human.stdout));
+    // The composed delimiter is the only standard-output surface today.
+    let harness = Harness::new();
+    let composed = harness
+        .command()
+        .arg("--version")
+        .env("FORCE_COLOR", "1")
+        .env("CS_TEST_STDOUT", "native")
+        .output()
+        .expect("wrapper");
+    assert!(!escape(&composed.stdout), "the delimiter carried an escape");
+    assert!(!escape(&composed.stderr));
 }
 
 #[test]

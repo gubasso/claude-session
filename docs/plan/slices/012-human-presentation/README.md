@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make the presentation contract reach bytes, so the colour decision is visible and its absence is provable.
+Decide and document the presentation contract, so the renderer that later applies it has one binding specification rather than a per-verb judgement.
 
 ## Appetite
 
@@ -10,19 +10,21 @@ Make the presentation contract reach bytes, so the colour decision is visible an
 
 ## Core
 
-Each named surface carries colour when the ladder says so, and the plain reading of every surface is unchanged.
+One owner states the colour ladder and the closed set of colourful surfaces, and the resolver already in the code agrees with it.
 
 ## In scope
 
-- One colour decision resolved once and carried to every human surface, replacing the value discarded at the context constructor.
-- The three named surfaces: the diagnostic kind, the mirrored level word, and the composed delimiter.
-- A presentation crate admitted through the dependency procedure.
-- One line of authored help prose naming the variable that turns colour off, which no flag can lead a user to.
-- Two distinct precedence defects: empty `NO_COLOR` and `FORCE_COLOR` values must be inert, and active `FORCE_COLOR` must win over active `NO_COLOR`.
-- Escape-byte assertions, including absence under `NO_COLOR`, a redirected stream, and JSON mode, plus forced colour on a redirected stream.
+- The presentation contract as one reference page binding every human renderer, current and later.
+- The colour ladder as a first-match order over the two published variables, including the empty-value half of each convention.
+- The inputs the ladder deliberately does not read, stated rather than left to be inferred.
+- The closed set of named colourful surfaces: the diagnostic kind, the mirrored level word, and the composed delimiter.
+- The decision records behind the single contract, the closed surface set, and the two-variable ladder.
+- The colour resolver corrected to the published order and resolved once per destination on the immutable context, under unit coverage, with its absence from every stream provable.
 
 ## Out of scope
 
+- Colouring a surface, which each renderer does under the standing rule rather than in a slice of its own.
+- A presentation crate, which the first coloured surface admits.
 - Tables, progress indicators, spinners, and interactive prompts.
 - A wrapper flag for colour, which the passthrough contract forbids.
 - The doctor report renderer, which slice 007 owns.
@@ -34,7 +36,6 @@ Each named surface carries colour when the ladder says so, and the plain reading
 - [Presentation](../../../reference/presentation.md)
 - [Logging and output](../../../reference/logging-and-output.md)
 - [CLI surface](../../../reference/cli-surface.md)
-- [Exit codes](../../../reference/exit-codes.md)
 - [Coding conventions](../../../reference/coding-conventions.md)
 - [Dependencies](../../../reference/dependencies.md)
 - [Testing and quality](../../../reference/testing-and-quality.md)
@@ -45,28 +46,27 @@ Each named surface carries colour when the ladder says so, and the plain reading
 
 ## Acceptance
 
-- Where the target stream is a terminal and no override forbids it, the wrapper shall write each named surface with colour.
-- When `NO_COLOR` is active and `FORCE_COLOR` is not active, the wrapper shall write no escape byte on any stream.
-- When `NO_COLOR` and `FORCE_COLOR` are both active, the wrapper shall write colour on a human surface.
-- When `FORCE_COLOR` is active for a redirected human stream, the wrapper shall write colour.
-- While the output mode is JSON, the wrapper shall write no escape byte on either stream.
-- The wrapper shall resolve the colour decision once and carry it to every renderer.
-- When colour is off, the wrapper shall write the same text it writes when colour is on.
-- The wrapper shall name the colour convention in its help output.
-- Where `NO_COLOR` is present and empty, the wrapper shall treat it as unset.
-- Where `FORCE_COLOR` is present and empty, the wrapper shall treat it as unset.
+- Where `FORCE_COLOR` is present and not empty, the wrapper shall resolve colour on whatever the destination is. -> ui::writer::tests::forced_color_wins_over_denied_color
+- Where `NO_COLOR` or `FORCE_COLOR` is present and empty, the wrapper shall treat that variable as unset. -> ui::writer::tests::an_empty_override_is_inert
+- Where no override is active and the destination is a dumb terminal or not a terminal, the wrapper shall resolve colour off. -> ui::writer::tests::a_dumb_or_redirected_destination_fails_closed
+- While the output mode is JSON, the wrapper shall resolve colour off on both streams whatever the environment asked for. -> ui::writer::tests::machine_mode_dominates_every_override
+- The wrapper shall resolve the decision once per destination, so one redirected stream does not decide the other's appearance. -> ui::writer::tests::each_destination_resolves_its_own_terminal_rung
+- While no renderer applies the resolved decision, the wrapper shall write no escape byte on either stream. -> output::no_surface_emits_an_escape_byte_yet
+- The presentation reference shall state the ladder, the inputs it does not read, and the closed surface set as the single owner of each.
 
 ## Rabbit holes
 
-- Building a palette or a theme; escape: colour the three named surfaces and stop.
+- Building a palette or a theme; escape: name the three surfaces and stop.
 - Adding a `--color` flag to settle a precedence argument; escape: the ladder is environment-only and the spelling belongs to the child.
-- Colouring the child's inherited bytes; escape: the wrapper decorates only what it wrote.
+- Writing a renderer to prove the specification; escape: the verb that needs the surface writes it, and a spec proved by its own first implementation is a spec nothing checked.
 - Reaching for a terminal-control crate to reuse its detection; escape: the ladder is four rungs over an environment snapshot.
 
 ## Done when
 
-Each named surface carries an escape byte under a terminal, under active `FORCE_COLOR` on a redirected human stream, and when both colour variables are active; it carries none under unopposed `NO_COLOR`, an ordinary redirected stream, or JSON. The plain text is byte-identical either way, and `just hooks` is green.
+The presentation reference and its three decision records state the contract, the resolver matches the published ladder under unit coverage, no wrapper surface emits an escape byte, and `just hooks` is green.
 
 ## Revisions
 
-None.
+- 2026-08-07: `Goal`, `Core`, and `Acceptance` narrowed from carrying colour to bytes to deciding and documenting the contract. The specification was the deliverable the work actually needed: the ladder's precedence was written two ways before it settled, and a renderer built against either draft would have shipped the wrong order under a test that agreed with it. Applying the decision is not a slice: colour binds every renderer the project will write, so it lands as a standing rule that each verb satisfies when it renders its surface.
+- 2026-08-07: The decision is one value per destination rather than one boolean, and machine mode short-circuits the ladder rather than sitting inside it. Carrying a single answer derived from standard output would have coloured the diagnostic, which lands on standard error, by asking the wrong stream whether it was a terminal — the ordinary case of a piped command.
+- 2026-08-07: The resolver's own order was corrected here rather than deferred. It read presence without emptiness and put deny above force, so the code contradicted the page that owns it, and leaving a wrong rule under a passing test is worse than leaving no rule at all.
