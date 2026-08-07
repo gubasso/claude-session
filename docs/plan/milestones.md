@@ -1,7 +1,5 @@
 # Milestones
 
-<!-- markdownlint-configure-file { "MD043": { "headings": ["# Milestones","## in flight","## closed"] } } -->
-
 The single status surface. A reader consults this and nothing else to know where the work stands.
 
 One line per slice, ordered by id inside its section: `<id> <slug> — <status> — <appetite>[ — <note>]`. The slug is the slice's directory under [slices](./slices/). Live work comes first; a slice moves to `## closed` when its status becomes terminal and never moves back. The [development workflow](../guides/development-workflow.md#pick-up-current-work) owns the status vocabulary and the pick-up procedure, and the [charter](./charter.md) owns the appetite unit.

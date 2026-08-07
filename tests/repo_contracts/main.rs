@@ -32,6 +32,7 @@ mod boundaries;
 mod emphasis;
 mod markdown;
 mod plan_zone;
+mod shape;
 mod tree;
 mod violation;
 

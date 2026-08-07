@@ -1,7 +1,5 @@
 # 012 — Human presentation
 
-<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","## Appetite","## Core","## In scope","## Out of scope","## Governed by","## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->
-
 ## Goal
 
 Make the presentation contract reach bytes, so the colour decision is visible and its absence is provable.

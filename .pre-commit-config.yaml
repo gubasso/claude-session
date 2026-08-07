@@ -372,3 +372,45 @@ repos:
       - id: markdownlint-cli2
         language_version: system
         additional_dependencies: ['markdownlint-rule-relative-links']
+
+      # --- Heading shapes (MD043) ---
+      #
+      # MD043 takes one ordered heading array and markdownlint has no per-glob rule
+      # configuration, so a shape narrower than a whole subtree cannot be expressed
+      # in a config file alone: `docs/plan/slices/<id>/README.md` and the `tasks.md`
+      # beside it need different arrays, and `milestones.md` sits next to a charter
+      # with a different shape again. The seam that takes a filter is the
+      # invocation — one array per shape in ./.markdownlint/, one entry per shape
+      # here to choose the documents it applies to.
+      #
+      # These are overlays. Every other rule still comes from
+      # ./.markdownlint-cli2.jsonc, which is discovered for the working directory
+      # and merged OVER the --config base. That merge is why MD043 must not appear
+      # in that file at any value: an explicit `false` there silently switches off
+      # every shape below while these hooks keep reporting success.
+      #
+      # Each array is asserted equal to its Rust constant by the repository
+      # contracts, so the shape has one owner rather than two that can disagree.
+      - id: markdownlint-cli2
+        alias: md-slice-readme
+        name: markdownlint (slice entry heading shape)
+        language_version: system
+        additional_dependencies: ['markdownlint-rule-relative-links']
+        files: '^docs/plan/slices/[^/]+/README\.md$'
+        args: ['--config', '.markdownlint/slice-readme.markdownlint-cli2.jsonc']
+
+      - id: markdownlint-cli2
+        alias: md-milestones
+        name: markdownlint (milestones heading shape)
+        language_version: system
+        additional_dependencies: ['markdownlint-rule-relative-links']
+        files: '^docs/plan/milestones\.md$'
+        args: ['--config', '.markdownlint/milestones.markdownlint-cli2.jsonc']
+
+      - id: markdownlint-cli2
+        alias: md-adr
+        name: markdownlint (decision record heading shape)
+        language_version: system
+        additional_dependencies: ['markdownlint-rule-relative-links']
+        files: '^docs/decisions/(ADR-[0-9]+-.*|template)\.md$'
+        args: ['--config', '.markdownlint/adr.markdownlint-cli2.jsonc']

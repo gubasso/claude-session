@@ -213,27 +213,28 @@ Run it inside the devShell. Several hooks take their binary from the shell rathe
 
 The Backing column says whether the hook exists today. `deferred` means the row is a specification the repository does not yet enforce; it is closed by the round that builds the mechanism, never by deleting the row.
 
-| Hook                                   | Stage        | Enforces                                       | Backing                                                                   |
-| -------------------------------------- | ------------ | ---------------------------------------------- | ------------------------------------------------------------------------- |
-| `cargo fmt`                            | commit       | Canonical formatting                           | present                                                                   |
-| `clippy` auto-fix, then gate           | commit       | Lint clean, warnings as errors                 | present                                                                   |
-| `cargo nextest` (`pre-commit` profile) | commit, push | Unit tests                                     | present                                                                   |
-| `cargo nextest` (`pre-push` profile)   | push         | Integration tests                              | present                                                                   |
-| `cargo test --doc`                     | push         | Doctests, guarded on a library target existing | present                                                                   |
-| `taplo`                                | commit       | TOML formatting                                | present                                                                   |
-| `typos`                                | commit       | Spelling                                       | present                                                                   |
-| `ripsecrets`                           | commit       | Fast secret scan                               | present                                                                   |
-| `gitleaks`                             | push         | Full secret scan                               | present                                                                   |
-| `cargo audit`                          | push         | Advisories                                     | present                                                                   |
-| `cargo deny`                           | push         | Advisories, bans, sources, licences            | partial — see [dependencies](./dependencies.md#lockfile-and-supply-chain) |
-| `cargo machete`                        | push         | Unused dependencies                            | present                                                                   |
-| `cargo xtask gen-config`               | commit       | Generated examples match the config types      | deferred — no `xtask` member yet                                          |
-| `dprint`                               | commit       | Markdown and JSON formatting                   | present                                                                   |
-| `markdownlint-cli2`                    | commit       | Markdown structure and link integrity          | present                                                                   |
-| `shellcheck`, `shfmt`                  | commit       | Shell scripts                                  | present                                                                   |
-| `nixfmt`, `statix`, `deadnix`          | commit       | Nix sources                                    | present                                                                   |
-| `no-commit-to-branch`                  | commit       | No direct commit on `master`                   | deferred — commented out in the hook config                               |
-| `committed`                            | commit-msg   | Conventional Commits                           | present                                                                   |
+| Hook                                         | Stage        | Enforces                                       | Backing                                                                   |
+| -------------------------------------------- | ------------ | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `cargo fmt`                                  | commit       | Canonical formatting                           | present                                                                   |
+| `clippy` auto-fix, then gate                 | commit       | Lint clean, warnings as errors                 | present                                                                   |
+| `cargo nextest` (`pre-commit` profile)       | commit, push | Unit tests                                     | present                                                                   |
+| `cargo nextest` (`pre-push` profile)         | push         | Integration tests                              | present                                                                   |
+| `cargo test --doc`                           | push         | Doctests, guarded on a library target existing | present                                                                   |
+| `taplo`                                      | commit       | TOML formatting                                | present                                                                   |
+| `typos`                                      | commit       | Spelling                                       | present                                                                   |
+| `ripsecrets`                                 | commit       | Fast secret scan                               | present                                                                   |
+| `gitleaks`                                   | push         | Full secret scan                               | present                                                                   |
+| `cargo audit`                                | push         | Advisories                                     | present                                                                   |
+| `cargo deny`                                 | push         | Advisories, bans, sources, licences            | partial — see [dependencies](./dependencies.md#lockfile-and-supply-chain) |
+| `cargo machete`                              | push         | Unused dependencies                            | present                                                                   |
+| `cargo xtask gen-config`                     | commit       | Generated examples match the config types      | deferred — no `xtask` member yet                                          |
+| `dprint`                                     | commit       | Markdown and JSON formatting                   | present                                                                   |
+| `markdownlint-cli2`                          | commit       | Markdown structure and link integrity          | present                                                                   |
+| `md-slice-readme`, `md-milestones`, `md-adr` | commit       | Fixed heading shapes, one array per shape      | present                                                                   |
+| `shellcheck`, `shfmt`                        | commit       | Shell scripts                                  | present                                                                   |
+| `nixfmt`, `statix`, `deadnix`                | commit       | Nix sources                                    | present                                                                   |
+| `no-commit-to-branch`                        | commit       | No direct commit on `master`                   | deferred — commented out in the hook config                               |
+| `committed`                                  | commit-msg   | Conventional Commits                           | present                                                                   |
 
 This table lists the gates the specifications depend on, not every hook configured. The file-hygiene hooks — private-key detection, symlink and large-file checks, JSON5 and editorconfig validation — are configured and depend on no specification, so they carry no row.
 
@@ -280,14 +281,16 @@ The test suite is the enforcement lookup. Three integration gates reject ADR-con
 
 Each gate carries its own integrity proof, for the reason the collision audit does: a gate that matches zero rows reports success. The ADR gate floors the record count and names sentinel ids, the plan-zone gate requires a recovered milestone line for every slice directory, and the emphasis gate floors the file count, names sentinel paths, and asserts that build output was excluded rather than merely absent. Negative fixtures drive every rule from a doctored literal, so a run that goes green has demonstrated it can go red.
 
-| Check                                                                  | Rejects                                                                              |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [`repo_contracts::adrs`](../../tests/repo_contracts/adrs.rs)           | ADR id, shape, status, relationship, or 350-word-cap drift.                          |
-| [`repo_contracts::plan_zone`](../../tests/repo_contracts/plan_zone.rs) | Slice, milestone, task, acceptance, rabbit-hole, and question-contract drift.        |
-| [`repo_contracts::emphasis`](../../tests/repo_contracts/emphasis.rs)   | Unapproved bold or italic prose outside code.                                        |
-| `markdownlint-cli2`                                                    | Invalid Markdown, broken relative links, unlabelled fences, and slice heading drift. |
-| Research-tracking inspection                                           | Missing six-field entries or paths that no longer resolve.                           |
-| Personal-path and marker sweeps                                        | Load-bearing external paths or unresolved promises under `docs/`.                    |
+| Check                                                                  | Rejects                                                                       |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [`repo_contracts::adrs`](../../tests/repo_contracts/adrs.rs)           | ADR id, shape, status, relationship, or 350-word-cap drift.                   |
+| [`repo_contracts::plan_zone`](../../tests/repo_contracts/plan_zone.rs) | Slice, milestone, task, acceptance, rabbit-hole, and question-contract drift. |
+| [`repo_contracts::emphasis`](../../tests/repo_contracts/emphasis.rs)   | Unapproved bold or italic prose outside code.                                 |
+| `markdownlint-cli2`                                                    | Invalid Markdown, broken relative links, and unlabelled fences.               |
+| `md-*` heading-shape hooks                                             | A fixed shape gaining, losing, or reordering a heading.                       |
+| [`repo_contracts::shape`](../../tests/repo_contracts/shape.rs)         | The two shape-wiring faults those hooks report as success.                    |
+| Research-tracking inspection                                           | Missing six-field entries or paths that no longer resolve.                    |
+| Personal-path and marker sweeps                                        | Load-bearing external paths or unresolved promises under `docs/`.             |
 
 ```bash
 cargo nextest run --profile pre-push --all-features -E 'binary(repo_contracts)'
@@ -306,17 +309,18 @@ Counting rule: never combine `grep -c` with `-o`. Count occurrences with `grep -
 
 Documentation passes the same gate as code.
 
-| Constraint                          | Consequence for authoring                                                                                              |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `dprint` sets `textWrap: "never"`   | Every paragraph is unwrapped to one physical line. Do not hand-wrap prose.                                             |
-| `markdownlint` MD041, MD025         | One `#` heading, on the first line                                                                                     |
-| `markdownlint` MD001                | Heading levels increment by one                                                                                        |
-| `markdownlint` MD029                | Ordered lists renumber to `1.`, `2.`, `3.` — the only autofix                                                          |
-| `markdownlint` MD043, MD046         | Slice entry headings are fixed and code blocks are fenced                                                              |
-| `relative-links`                    | A relative link must resolve to a real file, and a fragment to a real heading                                          |
-| pygrep link guards                  | Relative links must be explicit: `./name.md`, `../dir/name.md`, or `dir/name.md`. A bare `name.md` target is rejected. |
-| `repo_contracts::emphasis`          | Decorative bold and italics are rejected outside fenced and inline code, over every document in the tree               |
-| `repo_contracts::adrs`, `plan_zone` | ADR and plan-zone rules are checked over their complete zones, at push                                                 |
+| Constraint                          | Consequence for authoring                                                                                                                                                                                                                                                |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dprint` sets `textWrap: "never"`   | Every paragraph is unwrapped to one physical line. Do not hand-wrap prose.                                                                                                                                                                                               |
+| `markdownlint` MD041, MD025         | One `#` heading, on the first line                                                                                                                                                                                                                                       |
+| `markdownlint` MD001                | Heading levels increment by one                                                                                                                                                                                                                                          |
+| `markdownlint` MD029                | Ordered lists renumber to `1.`, `2.`, `3.` — the only autofix                                                                                                                                                                                                            |
+| `markdownlint` MD046                | Code blocks are fenced                                                                                                                                                                                                                                                   |
+| `markdownlint` MD043                | Each fixed shape has one array in `.markdownlint/`, applied by its own `md-*` hook entry. Never set MD043 in the project config: it is merged over the shape and switches it off silently. Both faults are silent in hook output, so `repo_contracts::shape` gates them. |
+| `relative-links`                    | A relative link must resolve to a real file, and a fragment to a real heading                                                                                                                                                                                            |
+| pygrep link guards                  | Relative links must be explicit: `./name.md`, `../dir/name.md`, or `dir/name.md`. A bare `name.md` target is rejected.                                                                                                                                                   |
+| `repo_contracts::emphasis`          | Decorative bold and italics are rejected outside fenced and inline code, over every document in the tree                                                                                                                                                                 |
+| `repo_contracts::adrs`, `plan_zone` | ADR and plan-zone rules are checked over their complete zones, at push                                                                                                                                                                                                   |
 
 Implemented slices may name exact nextest IDs because the pre-push resolver hook rejects duplicate and unresolved names.
 

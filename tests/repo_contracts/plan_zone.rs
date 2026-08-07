@@ -24,18 +24,22 @@ const CLOSED: &str = "## closed";
 /// the line parses to a fixed field count.
 const FIELD: &str = " — ";
 
-/// Each fixed-shape document carries its own heading array, because MD043 is
-/// configured per document rather than per project. The gate checks the pin is
-/// present and exact; markdownlint checks the headings against it.
-const MILESTONES_PIN: &str = concat!(
-    r###"<!-- markdownlint-configure-file { "MD043": { "headings": "###,
-    r###"["# Milestones","## in flight","## closed"] } } -->"###,
-);
-const SLICE_PIN: &str = concat!(
-    r###"<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","###,
-    r###""## Appetite","## Core","## In scope","## Out of scope","## Governed by","###,
-    r###""## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->"###,
-);
+/// The shape configs markdownlint applies to these documents. Each states a
+/// heading array this file also fixes in a constant, so the gate asserts the two
+/// agree rather than letting a second owner drift.
+const MILESTONES_SHAPE: &str = ".markdownlint/milestones.markdownlint-cli2.jsonc";
+const SLICE_SHAPE: &str = ".markdownlint/slice-readme.markdownlint-cli2.jsonc";
+
+/// Merged over every shape, so it may not name `MD043` at any value.
+const PROJECT_CONFIG: &str = ".markdownlint-cli2.jsonc";
+
+/// Every shape config lives here, and the hook file is what points at one. A
+/// config neither side names is an array nothing reads.
+const SHAPE_DIR: &str = ".markdownlint";
+const HOOKS: &str = ".pre-commit-config.yaml";
+
+/// The status surface's own headings, which the slice shape does not cover.
+const SECTIONS: &[&str] = &["# Milestones", IN_FLIGHT, CLOSED];
 
 const HEADINGS: &[&str] = &[
     "## Goal",
@@ -223,19 +227,21 @@ fn milestones(text: &str) -> (Vec<Row>, Vec<Violation>) {
     (rows, found)
 }
 
-/// A fixed-shape document must carry its own heading array, and exactly one: a
-/// second `markdownlint-configure-file` comment silently replaces the first.
-fn pin(path: &str, text: &str, expected: &str) -> Vec<Violation> {
-    let comments = text
-        .lines()
-        .filter(|line| line.contains("markdownlint-configure-file"))
-        .collect::<Vec<_>>();
-    match comments.as_slice() {
-        [only] if *only == expected => Vec::new(),
-        [_] => vec![Violation::whole(path, "heading pin is not the fixed array")],
-        [] => vec![Violation::whole(path, "no MD043 heading pin under the H1")],
-        _ => vec![Violation::whole(path, "more than one configure comment")],
-    }
+/// A document carries no lint configuration of its own: the shape lives in
+/// `.markdownlint/` and a hook entry applies it. A leftover configure comment
+/// would override that shape from inside the file, silently and per document.
+fn no_inline_configuration(path: &str, text: &str) -> Vec<Violation> {
+    text.lines()
+        .enumerate()
+        .filter(|(_, line)| line.contains("markdownlint-configure-file"))
+        .map(|(index, _)| {
+            Violation::at(
+                path,
+                index + 1,
+                "heading shapes live in .markdownlint/, not in the document",
+            )
+        })
+        .collect()
 }
 
 fn slice_directories(rows: &[Row]) -> (Vec<String>, Vec<Violation>) {
@@ -527,7 +533,35 @@ fn is_question_heading(line: &str) -> bool {
 fn the_plan_zone_satisfies_the_contract() {
     let text = read(MILESTONES);
     let (rows, mut found) = milestones(&text);
-    found.extend(pin(MILESTONES, &text, MILESTONES_PIN));
+    found.extend(no_inline_configuration(MILESTONES, &text));
+    found.extend(crate::shape::matches(
+        MILESTONES_SHAPE,
+        &read(MILESTONES_SHAPE),
+        SECTIONS,
+    ));
+
+    // The status surface's own headings, which no other check here fixes.
+    if headings(&text) != [IN_FLIGHT, CLOSED] {
+        found.push(Violation::whole(
+            MILESTONES,
+            "the two sections are the whole document, live work first",
+        ));
+    }
+
+    found.extend(crate::shape::absent_from_project_config(
+        PROJECT_CONFIG,
+        &read(PROJECT_CONFIG),
+    ));
+    found.extend(crate::shape::applied_by_a_hook(SHAPE_DIR, &read(HOOKS)));
+
+    let mut slice_shape: Vec<&str> = vec!["*"];
+    slice_shape.extend(HEADINGS);
+    found.extend(crate::shape::matches(
+        SLICE_SHAPE,
+        &read(SLICE_SHAPE),
+        &slice_shape,
+    ));
+
     let (dirs, directory_findings) = slice_directories(&rows);
     found.extend(directory_findings);
 
@@ -542,7 +576,7 @@ fn the_plan_zone_satisfies_the_contract() {
         let shape_findings = shape(&path, &readme);
         let shaped = shape_findings.is_empty();
         found.extend(shape_findings);
-        found.extend(pin(&path, &readme, SLICE_PIN));
+        found.extend(no_inline_configuration(&path, &readme));
         found.extend(appetite(&path, &readme, row));
 
         // A wrong heading list makes every section range below run past its
@@ -821,37 +855,37 @@ fn two_lines_for_one_id_is_a_violation() {
 }
 
 #[test]
-fn a_document_without_its_heading_pin_is_a_violation() {
-    let found = pin("m.md", LIST, MILESTONES_PIN);
-    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
-    assert!(found[0].to_string().contains("no MD043 heading pin"));
-}
-
-#[test]
-fn a_heading_pin_that_is_not_the_fixed_array_is_a_violation() {
+fn an_inline_configure_comment_is_a_violation() {
     let text = format!(
-        "# Milestones\n\n{}\n",
-        MILESTONES_PIN.replace("in flight", "wip")
+        "# Milestones\n\n<!-- markdownlint-configure-file {{ \"MD043\": {{}} }} -->\n{LIST}"
     );
-    let found = pin("m.md", &text, MILESTONES_PIN);
+    let found = no_inline_configuration("m.md", &text);
     assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
-    assert!(found[0].to_string().contains("not the fixed array"));
+    assert!(found[0].to_string().contains("live in .markdownlint/"));
 }
 
 #[test]
-fn a_second_configure_comment_is_a_violation() {
-    let text = format!("# Milestones\n\n{MILESTONES_PIN}\n{MILESTONES_PIN}\n");
-    let found = pin("m.md", &text, MILESTONES_PIN);
-    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
-    assert!(found[0].to_string().contains("more than one"));
+fn a_document_without_inline_configuration_is_accepted() {
+    assert_clean(&no_inline_configuration("m.md", LIST));
 }
 
 #[test]
-fn a_healthy_pin_is_accepted() {
-    assert_clean(&pin(
-        "m.md",
-        &format!("# Milestones\n\n{MILESTONES_PIN}\n"),
-        MILESTONES_PIN,
+fn the_slice_shape_is_the_star_plus_the_heading_constant() {
+    let mut expected: Vec<&str> = vec!["*"];
+    expected.extend(HEADINGS);
+    assert_clean(&crate::shape::matches(
+        SLICE_SHAPE,
+        &read(SLICE_SHAPE),
+        &expected,
+    ));
+}
+
+#[test]
+fn the_milestones_shape_is_the_two_sections_under_the_h1() {
+    assert_clean(&crate::shape::matches(
+        MILESTONES_SHAPE,
+        &read(MILESTONES_SHAPE),
+        SECTIONS,
     ));
 }
 

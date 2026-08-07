@@ -1,7 +1,5 @@
 # 011 — Entry point and contract repair
 
-<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","## Appetite","## Core","## In scope","## Out of scope","## Governed by","## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->
-
 ## Goal
 
 Make the entry point a boundary and make the contracts slice 001 claimed actually hold.

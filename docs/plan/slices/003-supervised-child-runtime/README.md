@@ -1,7 +1,5 @@
 # 003 — Supervised child runtime
 
-<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","## Appetite","## Core","## In scope","## Out of scope","## Governed by","## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->
-
 ## Goal
 
 Supervise the resolved child with faithful signals, status, argv, and isolated environment.

@@ -1,7 +1,5 @@
 # 010 — Native repository gates
 
-<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","## Appetite","## Core","## In scope","## Out of scope","## Governed by","## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->
-
 ## Goal
 
 Move the repository's own contract checks from shell scripts into the test suite.

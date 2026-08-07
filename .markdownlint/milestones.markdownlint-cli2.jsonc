@@ -1,0 +1,13 @@
+// Heading shape for the status surface. The `md-milestones` hook in
+// ../.pre-commit-config.yaml owns which documents this applies to.
+//
+// Two sections and no third: the array is what stops a `## backlog` or a per-status
+// split from turning the single status surface back into a plan. Checked against
+// tests/repo_contracts/plan_zone.rs, so the two cannot drift apart.
+{
+  "config": {
+    "MD043": {
+      "headings": ["# Milestones", "## in flight", "## closed"]
+    }
+  }
+}

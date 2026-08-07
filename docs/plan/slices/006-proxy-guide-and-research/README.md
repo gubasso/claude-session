@@ -1,7 +1,5 @@
 # 006 — Proxy guide and research
 
-<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","## Appetite","## Core","## In scope","## Out of scope","## Governed by","## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->
-
 ## Goal
 
 Revalidate externally owned facts and give users an executable proxy-integration guide.

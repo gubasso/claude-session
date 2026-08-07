@@ -1,0 +1,29 @@
+// Heading shape for a slice entry document. The `md-slice-readme` hook in
+// ../.pre-commit-config.yaml owns which documents this applies to.
+//
+// This is an overlay: every other rule still comes from ../.markdownlint-cli2.jsonc,
+// which the tool discovers for the working directory and merges over this file. That
+// merge is why the project config must never mention MD043 at any value.
+//
+// The array is checked against `HEADINGS` in tests/repo_contracts/plan_zone.rs, so
+// the two cannot drift apart.
+{
+  "config": {
+    "MD043": {
+      "headings": [
+        // The H1 varies per slice: `# <id> — <Title>`.
+        "*",
+        "## Goal",
+        "## Appetite",
+        "## Core",
+        "## In scope",
+        "## Out of scope",
+        "## Governed by",
+        "## Acceptance",
+        "## Rabbit holes",
+        "## Done when",
+        "## Revisions"
+      ]
+    }
+  }
+}

@@ -1,7 +1,5 @@
 # 002 — Secure session storage
 
-<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","## Appetite","## Core","## In scope","## Out of scope","## Governed by","## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->
-
 ## Goal
 
 Expose secure XDG-backed account/profile paths and immutable composed-entry storage through diagnostics.

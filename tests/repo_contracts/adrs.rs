@@ -7,6 +7,11 @@ use crate::{read, tree};
 
 const ZONE: &str = "docs/decisions";
 const TEMPLATE: &str = "docs/decisions/template.md";
+
+/// The shape config markdownlint applies to every record and to the template.
+/// It states the same section list as `HEADINGS`, so the gate asserts the two
+/// agree and this file stays the owner.
+const SHAPE: &str = ".markdownlint/adr.markdownlint-cli2.jsonc";
 const CAP: usize = 350;
 
 /// A floor, so a walk that finds nothing fails instead of passing. The corpus
@@ -170,6 +175,15 @@ fn every_adr_satisfies_the_contract() {
 #[test]
 fn the_template_satisfies_the_contract() {
     assert_clean(&template(&read(TEMPLATE)));
+}
+
+/// The record title varies, so the shape opens with `*` and fixes the five
+/// sections after it.
+#[test]
+fn the_record_shape_is_the_star_plus_the_heading_constant() {
+    let mut expected: Vec<&str> = vec!["*"];
+    expected.extend(HEADINGS);
+    assert_clean(&crate::shape::matches(SHAPE, &read(SHAPE), &expected));
 }
 
 /// The gate is worthless if the walk returns nothing, and a filter that

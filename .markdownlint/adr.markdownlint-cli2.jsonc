@@ -1,0 +1,21 @@
+// Heading shape for a decision record. The `md-adr` hook in
+// ../.pre-commit-config.yaml owns which documents this applies to.
+//
+// The leading `*` matches both a filled record's title and the template's
+// placeholder H1, so one shape covers the records and the template they came from.
+// Checked against `HEADINGS` in tests/repo_contracts/adrs.rs, so the two cannot
+// drift apart.
+{
+  "config": {
+    "MD043": {
+      "headings": [
+        "*",
+        "## Context and Problem Statement",
+        "## Considered Options",
+        "## Decision Outcome",
+        "## Consequences",
+        "## Status"
+      ]
+    }
+  }
+}

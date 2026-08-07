@@ -1,7 +1,5 @@
 # 005 — Account authentication
 
-<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","## Appetite","## Core","## In scope","## Out of scope","## Governed by","## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->
-
 ## Goal
 
 Select, authenticate, inspect, and remove named accounts without taking ownership of child credentials.

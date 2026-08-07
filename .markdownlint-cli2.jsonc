@@ -10,12 +10,14 @@
 // `.markdownlint.{yaml,json,...}` — when both exist, the `.markdownlint.*` rules win
 // and silently override the `config` blocks.
 //
-// MD043 (required-headings) is OFF here on purpose. Its heading array is per
-// document, not per project, so a repository-wide array would gate one document's
-// shape and reject every other file. Each fixed-shape document — milestones.md and
-// every slice README.md — carries its own array in a `markdownlint-configure-file`
-// comment under its H1, which overrides this `false`. That keeps the pin with the
-// file it governs, so a copied document brings its gate along.
+// MD043 (required-headings) is ABSENT here on purpose, and must stay absent — not
+// set to false. Its heading array is per shape, not per project, so each fixed shape
+// owns one array under ./.markdownlint/ and one `md-*` entry in
+// .pre-commit-config.yaml chooses the documents it applies to. This file is
+// discovered for the working directory and merged OVER the `--config` base those
+// hooks pass, so any MD043 value here — `false` included — silently switches off
+// every shape while the hooks keep reporting success. The rule is inert without a
+// `headings` array, so leaving it out is both correct and safe.
 //
 // Tooling split (researched): markdownlint is a LINTER with surgical per-span
 // autofixes, NOT a formatter. It cannot reflow/unwrap prose, normalize GFM table
@@ -77,7 +79,6 @@
     // --- structural rules kept ON via default: MD001 (heading-increment),
     //     MD025 (single top-level H1), MD041 (first-line H1) enforce doc discipline ---
     "MD013": false, // line length — dprint unwraps prose to one physical line
-    "MD043": false, // required-headings — pinned per document; see the header note
     "MD024": { "siblings_only": true }, // dup headings OK across sections, not within
     "MD033": false, // inline HTML — needed for badges, <details>, <kbd>
     "MD046": { "style": "fenced" } // require fenced code blocks

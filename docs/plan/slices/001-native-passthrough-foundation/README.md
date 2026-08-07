@@ -1,7 +1,5 @@
 # 001 — Native passthrough foundation
 
-<!-- markdownlint-configure-file { "MD043": { "headings": ["*","## Goal","## Appetite","## Core","## In scope","## Out of scope","## Governed by","## Acceptance","## Rabbit holes","## Done when","## Revisions"] } } -->
-
 ## Goal
 
 Replace the placeholder with a working stock-compatible pass-through.
