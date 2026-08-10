@@ -14,16 +14,19 @@ A selected login-mode account gives the child one private, durable configuration
 
 ## In scope
 
-- Account-directory discovery without a registry and `account login` in native login mode.
+- Account-directory discovery without a registry and `account login [name]` in native login mode.
 - `CLAUDE_CONFIG_DIR` launch injection and a last-used account marker written before the exec.
-- `account list` in human and verb-level JSON forms.
+- `account list` in human and verb-level JSON forms, with local usability decided from cheap metadata alone.
+- The hard login-mode version-floor refusal before the exec, reusing the version-floor catalog entry and its remediation.
+- The `account` verb grammar: a required subcommand, `Usage` for the bare verb and for an unrecognized one, and the wrapper help surface that names it.
 - Account-discovery and login-mode entries in the doctor catalog, with their feature-owned probes and remediation.
 - User-facing documentation and per-rung release gates needed to make the account MVP ready for `0.2.0`.
 
 ## Out of scope
 
-- Token ingest, rotation, status, removal, redaction, precedence warnings, and the scoped child version floor; slice 013 owns them.
-- Reading, copying, refreshing, synchronizing, or fingerprinting child-owned credentials.
+- `account status` and `account remove`, which need the credential lock scope and the confirmation contract; slice 013 owns them.
+- Token ingest, rotation, redaction, and precedence warnings; slice 013 owns them.
+- Reading, copying, refreshing, synchronizing, or fingerprinting child-owned credentials; testing a path for presence is not reading it.
 - Profile selection or composed settings.
 
 ## Governed by
@@ -31,6 +34,7 @@ A selected login-mode account gives the child one private, durable configuration
 - [AGENTS.md](../../../../AGENTS.md)
 - [Session isolation](../../../explanation/session-isolation.md)
 - [Accounts](../../../reference/accounts.md)
+- [Doctor](../../../reference/doctor.md)
 - [Process runtime](../../../reference/process-runtime.md)
 - [XDG storage](../../../reference/xdg-storage.md)
 - [Configuration](../../../reference/configuration.md)
@@ -43,19 +47,22 @@ A selected login-mode account gives the child one private, durable configuration
 ## Acceptance
 
 - When accounts are listed, the wrapper shall derive them from directories without a registry index.
+- When account usability is reported, the wrapper shall decide it from directory security, mode metadata, and the presence of the mode's stored artifact, and shall spawn no child.
 - When native login succeeds, the child shall own one shared saved login under the account configuration directory and the wrapper shall not inspect it.
 - When a login-mode account is selected for launch, the wrapper shall set `CLAUDE_CONFIG_DIR`, set no wrapper token variable, and record the selection before the exec.
+- If a login-mode launch resolves a child below the documented floor or a version that does not parse, then the wrapper shall refuse before the exec and shall emit the catalog remediation.
 - When no account is selected, the wrapper shall inject neither wrapper authentication variable and shall preserve native passthrough.
 - When the account MVP lands, its doctor catalog entries, user documentation, and `0.2.0` release gates shall describe only behavior this rung implements.
 
 ## Rabbit holes
 
 - Token support while the account directory is being established; escape: keep every wrapper-owned secret and lifecycle command in slice 013.
+- Shipping `status` or `remove` for symmetry; escape: listing already answers selection and local usability, and the lock those two need is unimplemented.
 - Wrapper-managed OAuth; escape: delegate native login to the child and never inspect its credential.
 
 ## Done when
 
-Targeted account discovery, native login, launch environment, marker, listing, doctor-catalog, and passthrough tests pass under `cargo nextest`, the `0.2.0` rung documentation is honest, and `just hooks` is green.
+Targeted account discovery, native login, launch environment, marker, listing, usability, version-floor refusal, doctor-catalog, and passthrough tests pass under `cargo nextest`, the `0.2.0` rung documentation is honest, and `just hooks` is green.
 
 ## Revisions
 

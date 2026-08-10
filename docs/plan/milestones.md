@@ -6,8 +6,8 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 005 account-authentication — shaped — 2 implementation sessions — after 009; the `0.2.0` login-mode account rung
-- 007 comprehensive-doctor — shaped — 1 implementation session — after 005 and 012; proves shared reporting over feature-owned checks
+- 007 comprehensive-doctor — shaped — 2 implementation sessions — after 012; the shared report engine every feature rung appends to
+- 005 account-authentication — shaped — 2 implementation sessions — after 007; the `0.2.0` login-mode account rung
 - 008 cli-artifacts — shaped — 1 implementation session — after 005; proves generated artifacts for the account MVP
 - 013 token-account-lifecycle — shaped — 2 implementation sessions — after 007 and 008; the `0.3.0` token lifecycle rung
 - 004 profile-composition — shaped — 2 implementation sessions — after 013; the `0.4.0` single-piece profile rung

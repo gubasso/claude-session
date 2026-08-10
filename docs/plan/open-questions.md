@@ -2,7 +2,7 @@
 
 ## Q-002 — Does the child baseline still guarantee cross-process refresh locking?
 
-Blocks: slice 013 login-mode version-floor acceptance.
+Blocks: slice 005 revalidation of the documented minimum, which the login-mode refusal ships against meanwhile because that check fails closed.
 
 Raised: migrated from the perishable child-version and refresh-lock records.
 
