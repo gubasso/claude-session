@@ -167,7 +167,7 @@ tracked:
   - path: docs/reference/process-runtime.md
     last_checked: 2026-07-30
     cadence: monthly and on slice 003 implementation
-    why: Child directory, version, settings precedence, proxy environment, and Unix signal assumptions can drift.
+    why: Child directory, version, settings precedence, and proxy environment can drift.
     revalidate: >-
       Read current public child directory, authentication, debugging,
       troubleshooting, changelog, CLI, and environment documentation. Run the
@@ -177,16 +177,15 @@ tracked:
       child doctor with two settings paths in both orders, one malformed, and
       confirm the last occurrence alone wins. Re-check the proxy base URL and
       any companion variables required for non-first-party hosts; inheritance,
-      not wrapper injection, remains the seam. During slice 003, send one
-      interrupt to the shared foreground process group and confirm the child
-      observes exactly one, consistent with the current POSIX terminal model.
+      not wrapper injection, remains the seam. Confirm the exec'd child still
+      accepts the wrapper-built argument vector and environment unchanged.
     dependents:
-      - docs/decisions/ADR-0004-spawn-and-wait-child-supervision.md
       - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md
       - docs/decisions/ADR-0025-share-one-native-login-per-account.md
       - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
       - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
       - docs/decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md
+      - docs/decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md
       - docs/explanation/session-isolation.md
       - docs/explanation/wrapper-model.md
 

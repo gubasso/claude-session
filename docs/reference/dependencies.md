@@ -2,7 +2,7 @@
 
 Which crates this project has reviewed, how one enters the manifest, and which are ruled out.
 
-The native-passthrough foundation now uses its reviewed command-line, error, diagnostics, serialization, configuration, path, process, and signal dependencies. Secure session storage added the profile and digest dependencies to the shipped graph, since the first profile and the first composed-settings digest are the triggers those two names were waiting on. Which crates and versions are present remains the manifest and lockfile's fact; later-slice candidates stay reviewed but absent until their triggers occur.
+The native-passthrough foundation now uses its reviewed command-line, error, diagnostics, serialization, configuration, path, and process dependencies. Secure session storage added the profile and digest dependencies to the shipped graph, since the first profile and the first composed-settings digest are the triggers those two names were waiting on. Which crates and versions are present remains the manifest and lockfile's fact; later-slice candidates stay reviewed but absent until their triggers occur.
 
 ## No version numbers here
 
@@ -65,13 +65,12 @@ Both are maintained under the [`rust-cli` organization](https://github.com/rust-
 
 ### Process and system
 
-| Crate         | Why                                                                                                                       | Skip if                                         |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `rustix`      | Safe, direct system calls — ownership checks and process identity — without a raw `unsafe` block                          |                                                 |
-| `sha2`        | The account token's `sha256[..8]` and the composed-settings input digest; RustCrypto, and the only hash the project needs |                                                 |
-| `signal-hook` | The widely-used signal handling crate; async-signal-safe registration                                                     |                                                 |
-| `libc`        | Only where `rustix` has no equivalent                                                                                     | `rustix` covers the need, which it usually does |
-| `tempfile`    | Atomic write-then-rename, and hermetic test directories                                                                   | Never                                           |
+| Crate      | Why                                                                                                                       | Skip if                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `rustix`   | Safe, direct system calls — ownership checks and process identity — without a raw `unsafe` block                          |                                                 |
+| `sha2`     | The account token's `sha256[..8]` and the composed-settings input digest; RustCrypto, and the only hash the project needs |                                                 |
+| `libc`     | Only where `rustix` has no equivalent                                                                                     | `rustix` covers the need, which it usually does |
+| `tempfile` | Atomic write-then-rename, and hermetic test directories                                                                   | Never                                           |
 
 ### Asynchrony
 
@@ -129,6 +128,7 @@ Reviewed, not needed yet. Named here so the decision is not re-made from scratch
 | `sysexits`                 | One hand-rolled enum                             | It cannot express the codes this wrapper owns outside the convention — `1`, `126`, `127`, a child status in `0..=255` — so adopting it would split the code set across two owners ([ADR-0035](../decisions/ADR-0035-convert-the-typed-error-to-a-code-once.md)) |
 | `openssl` (direct)         | The platform's TLS, or none                      | An unnecessary C build dependency for a program that makes no network calls                                                                                                                                                                                     |
 | Rust `keyring` family      | Private file or out-of-process credential helper | Its headless-Linux keyutils backend is memory-only and cannot provide reboot persistence; [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md) keeps secure-store integration outside the process                                      |
+| `signal-hook`              | Nothing — one process needs no forwarding        | Async-signal-safe registration was reviewed for the supervision spawn-and-wait obliges; [ADR-0084](../decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md) replaced the wrapper's image with the child's, leaving no handler to install              |
 
 Pseudo-terminal scraping of child token output is rejected architecturally by [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md). It authorizes no PTY or presentation-parser dependency; no unassessed crate is named.
 

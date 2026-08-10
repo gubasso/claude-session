@@ -14,7 +14,7 @@ Child resolution checks that the path exists and is executable, then spawns. `ac
 
 Chosen option: classify the spawn's `errno` — the spawn is the authoritative attempt, so its failure should name the same condition the pre-flight check would have named.
 
-The pre-flight check is therefore advisory: it exists to produce a good diagnostic early, not to guarantee the spawn succeeds. `ENOEXEC` maps to `ChildNotExecutable`, matching POSIX's definition of exit 126 as "found, but not an executable utility". The table is in [process runtime](../reference/process-runtime.md#spawn-and-wait).
+The pre-flight check is therefore advisory: it exists to produce a good diagnostic early, not to guarantee the spawn succeeds. `ENOEXEC` maps to `ChildNotExecutable`, matching POSIX's definition of exit 126 as "found, but not an executable utility". The table is in [process runtime](../reference/process-runtime.md#the-exec).
 
 `fexecve` is rejected: it complicates interpreted children, does not fit `std::process::Command`, and buys atomicity this unprivileged wrapper does not need — the race window's only consequence is which correct-shaped error the user reads.
 
@@ -30,3 +30,5 @@ The pre-flight check is therefore advisory: it exists to produce a good diagnost
 Implemented
 
 Enacted by [`src/adapters/process.rs`](../../src/adapters/process.rs).
+
+Amended by [ADR-0084](./ADR-0084-exec-the-child-instead-of-supervising-it.md): the launch is now an `execvp`, which POSIX requires to hand an `ENOEXEC` file to `/bin/sh`, so that class cannot reach the wrapper. The rest stand.

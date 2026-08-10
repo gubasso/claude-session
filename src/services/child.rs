@@ -78,16 +78,82 @@ pub(crate) fn resolve<F: FileSystem>(
 }
 
 /// Builds the scrubbed child environment and untouched argument suffix.
+///
+/// This is the bare form, and the one a subroutine question uses: it adds no
+/// composed settings and selects no account, because a verb asking the child
+/// something is the child's caller rather than its passthrough. See [ADR-0068].
+///
+/// [ADR-0068]: ../../docs/decisions/ADR-0068-spawn-the-child-as-a-subroutine.md
 pub(crate) fn invocation(
     context: &AppContext,
     arguments: Vec<OsString>,
 ) -> Result<ChildInvocation, AppError> {
-    let program = resolve(
+    Ok(ChildInvocation::new(
+        program(context)?,
+        arguments,
+        scrubbed(context),
+    ))
+}
+
+/// Resolves the child from the context, which is the launch sequence's first step.
+///
+/// It is a step of its own, and the caller's rather than the builder's, because
+/// the sequence puts it before any storage work: a child that cannot be resolved
+/// — or a recursion the guard refuses — must fail before the wrapper creates an
+/// account directory or materialises a composed entry. See [process runtime].
+///
+/// [process runtime]: ../../docs/reference/process-runtime.md#the-exec
+pub(crate) fn program(context: &AppContext) -> Result<PathBuf, AppError> {
+    resolve(
         &context.adapters().filesystem(),
         context.environment().variables(),
         context.environment().current_exe(),
         context.config(),
-    )?;
+    )
+}
+
+/// Builds the invocation a passthrough launch replaces itself with.
+///
+/// Two additions over [`invocation`], and only these: the composed settings pair
+/// ahead of an untouched user suffix, and the account configuration directory
+/// the child reads its own state from. Both stay OS strings, because the
+/// settings path derives from the XDG bases, whose bytes are arbitrary. The
+/// pair and its precedence belong to [ADR-0028].
+///
+/// The child arrives already resolved, by [`program`], because resolution is an
+/// earlier step of the sequence than the account and profile inputs this reads.
+///
+/// [ADR-0028]: ../../docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
+pub(crate) fn launch(
+    context: &AppContext,
+    program: PathBuf,
+    settings: Option<&Path>,
+    arguments: Vec<OsString>,
+) -> ChildInvocation {
+    let mut vector = Vec::with_capacity(arguments.len() + 2);
+    if let Some(path) = settings {
+        vector.push(OsString::from("--settings"));
+        vector.push(path.as_os_str().to_owned());
+    }
+    vector.extend(arguments);
+    let mut environment = scrubbed(context);
+    if let Some(account) = context.session().account() {
+        environment.push((
+            "CLAUDE_CONFIG_DIR".into(),
+            account.config.as_os_str().to_owned(),
+        ));
+    }
+    ChildInvocation::new(program, vector, environment)
+}
+
+/// Snapshots the environment, removes the wrapper's namespace, restores the marker.
+///
+/// The order is the contract: setting the marker before the scrub would delete
+/// it again. See [ADR-0057].
+///
+/// [ADR-0057]:
+///     ../../docs/decisions/ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md
+fn scrubbed(context: &AppContext) -> Vec<(OsString, OsString)> {
     let mut environment: Vec<_> = context
         .environment()
         .variables()
@@ -96,7 +162,7 @@ pub(crate) fn invocation(
         .cloned()
         .collect();
     environment.push(("CLAUDE_SESSION_REENTRY".into(), "1".into()));
-    Ok(ChildInvocation::new(program, arguments, environment))
+    environment
 }
 
 /// Walks `PATH` once, remembering the first refusal.

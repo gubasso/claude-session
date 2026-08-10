@@ -90,53 +90,54 @@ The stub is what makes passthrough assertions mechanical: not "the command looke
 
 Each of these locks down a contract that is otherwise decorative:
 
-| Test                      | Locks                                                                                               | Owning document                               |
-| ------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Golden argv table         | The whole vector: `argv[0]`, the wrapper prefix, and a suffix preserved in order, count, and bytes  | [CLI surface](./cli-surface.md)               |
-| Exit-code matrix          | Every error variant maps to its documented code, no catch-all                                       | [Exit codes](./exit-codes.md)                 |
-| Child exit fidelity       | A stub exiting with N produces N                                                                    | [Exit codes](./exit-codes.md)                 |
-| Child signal fidelity     | A signal-killed stub produces signal death, or the documented fallback                              | [Exit codes](./exit-codes.md)                 |
-| `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                                           | [CLI surface](./cli-surface.md)               |
-| Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session                          | [Process runtime](./process-runtime.md)       |
-| Recursion guard, identity | A hard-linked wrapper is caught, which path equality would miss                                     | [Process runtime](./process-runtime.md)       |
-| Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`                     | [Process runtime](./process-runtime.md)       |
-| `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126                         | [Process runtime](./process-runtime.md)       |
-| Spawn-failure classes     | A child removed after the pre-flight check exits 127, not `OsError`                                 | [Process runtime](./process-runtime.md)       |
-| Environment isolation     | The stub sees the injected config directory and exactly one `CLAUDE_SESSION_*` key, the marker      | [Process runtime](./process-runtime.md)       |
-| Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                  | [Process runtime](./process-runtime.md)       |
-| Profile isolation         | Two profiles launched from one terminal and one account get different entry paths and bytes         | [XDG storage](./xdg-storage.md)               |
-| Entry key determinism     | Changing a piece's content, resolved path, order, or the strategy table names a different entry     | [XDG storage](./xdg-storage.md)               |
-| Terminal independence     | Identical inputs under different terminal state and different accounts name the same entry          | [XDG storage](./xdg-storage.md)               |
-| Entry immutability        | An existing entry is never rewritten, and a run that finds a matching one composes nothing          | [XDG storage](./xdg-storage.md)               |
-| Sidecar mismatch refusal  | An entry whose recorded digest disagrees with the recomputed one is neither opened nor overwritten  | [XDG storage](./xdg-storage.md)               |
-| Partial pair recovery     | With exactly one member present, both are written from this run's inputs, never the survivor kept   | [XDG storage](./xdg-storage.md)               |
-| Symlink rejection         | A wrapper-managed path that is a symlink is refused                                                 | [XDG storage](./xdg-storage.md)               |
-| Mode enforcement          | An over-permissive directory is corrected, and the check reports `pass`, not `fail`                 | [XDG storage](./xdg-storage.md)               |
-| Unmanaged ancestors       | A `0755` `$HOME` or `.local` is never checked or corrected                                          | [XDG storage](./xdg-storage.md)               |
-| Interrupted write         | An abandoned temporary leaves the previous complete file readable at the final path                 | [XDG storage](./xdg-storage.md)               |
-| Sweep safety              | An orphaned temporary is removed, and one whose process id is live is kept                          | [XDG storage](./xdg-storage.md)               |
-| Cross-process exclusion   | A second writer of a locked scope waits, then exits `LockBusy` at its deadline                      | [XDG storage](./xdg-storage.md)               |
-| In-process exclusion      | Two threads writing one scope serialize, which the file lock alone would not achieve                | [XDG storage](./xdg-storage.md)               |
-| Lock release on death     | A holder killed by `SIGKILL` leaves the next acquisition uncontended                                | [XDG storage](./xdg-storage.md)               |
-| Unknown configuration key | A typo is rejected, naming the key and file                                                         | [Configuration](./configuration.md)           |
-| Merge determinism         | The same pieces produce byte-identical output                                                       | [Configuration](./configuration.md)           |
-| Freshness on piece change | Editing a piece without the profile names a new entry and leaves the old one untouched              | [Configuration](./configuration.md)           |
-| Example round-trip        | Every generated example parses through the real loader                                              | [Configuration](./configuration.md)           |
-| Undocumented field        | A public config field without a description fails generation                                        | [Configuration](./configuration.md)           |
-| Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                                  | [Doctor](./doctor.md)                         |
-| Help snapshot             | Generated help does not change unnoticed                                                            | [CLI surface](./cli-surface.md)               |
-| Denylist membership       | The spellings the pre-split claims are exactly the documented table                                 | [CLI surface](./cli-surface.md)               |
-| Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms                     | [CLI surface](./cli-surface.md)               |
-| Leading-position scope    | A claimed flag after any other token reaches the child                                              | [CLI surface](./cli-surface.md)               |
-| Malformed wrapper flag    | A claimed flag missing its value exits `Usage`; a near-miss forwards                                | [CLI surface](./cli-surface.md)               |
-| Collision audit           | The claimed set meets the child's inventory only where documented                                   | [CLI surface](./cli-surface.md)               |
-| Child version floor       | A `login`-mode launch below the floor fails before spawn; `token` mode does not                     | [Process runtime](./process-runtime.md)       |
-| Confirmation predicate    | A piped invocation with a controlling terminal still prompts                                        | [CLI surface](./cli-surface.md)               |
-| Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable`                   | [CLI surface](./cli-surface.md)               |
-| ADR contract              | Record id, shape, status vocabulary, relationship links, and the word cap                           | [Documentation sweeps](#documentation-sweeps) |
-| Plan-zone contract        | Milestone rows, slice shape, appetite agreement, EARS acceptance, and the question register         | [Documentation sweeps](#documentation-sweeps) |
-| Decorative emphasis       | No bold or italic prose outside code, over every document in the tree                               | [AGENTS.md](../../AGENTS.md)                  |
-| Boundary facts            | `domain/` names no adapter or service, `src/` names no `xtask`, the manifest lists no tooling crate | [Boundary lints](#boundary-lints)             |
+| Test                      | Locks                                                                                                   | Owning document                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Golden argv table         | The whole vector: `argv[0]`, the wrapper prefix, and a suffix preserved in order, count, and bytes      | [CLI surface](./cli-surface.md)               |
+| Exit-code matrix          | Every error variant maps to its documented code, no catch-all                                           | [Exit codes](./exit-codes.md)                 |
+| Child exit fidelity       | A stub exiting with N produces N                                                                        | [Exit codes](./exit-codes.md)                 |
+| Child signal fidelity     | A signal-killed stub produces genuine signal death, never an encoded exit                               | [Exit codes](./exit-codes.md)                 |
+| `--` sentinel             | A wrapper flag after `--` reaches the child uninterpreted                                               | [CLI surface](./cli-surface.md)               |
+| Recursion guard, marker   | The marker variable stops re-entry, including a nested Claude Code session                              | [Process runtime](./process-runtime.md)       |
+| Recursion guard, identity | A hard-linked wrapper is caught, which path equality would miss                                         | [Process runtime](./process-runtime.md)       |
+| Terminal ladder           | A `child_bin` naming a missing file exits 127 and never falls through to `PATH`                         | [Process runtime](./process-runtime.md)       |
+| `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126                             | [Process runtime](./process-runtime.md)       |
+| Exec-failure classes      | A child removed after the pre-flight check exits 127, not `OsError`                                     | [Process runtime](./process-runtime.md)       |
+| Flush before the exec     | The boundary flushes the log sink before it replaces the image, asserted in order rather than by timing | [Process runtime](./process-runtime.md)       |
+| Environment isolation     | The stub sees the injected config directory and exactly one `CLAUDE_SESSION_*` key, the marker          | [Process runtime](./process-runtime.md)       |
+| Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                      | [Process runtime](./process-runtime.md)       |
+| Profile isolation         | Two profiles launched from one terminal and one account get different entry paths and bytes             | [XDG storage](./xdg-storage.md)               |
+| Entry key determinism     | Changing a piece's content, resolved path, order, or the strategy table names a different entry         | [XDG storage](./xdg-storage.md)               |
+| Terminal independence     | Identical inputs under different terminal state and different accounts name the same entry              | [XDG storage](./xdg-storage.md)               |
+| Entry immutability        | An existing entry is never rewritten, and a run that finds a matching one composes nothing              | [XDG storage](./xdg-storage.md)               |
+| Sidecar mismatch refusal  | An entry whose recorded digest disagrees with the recomputed one is neither opened nor overwritten      | [XDG storage](./xdg-storage.md)               |
+| Partial pair recovery     | With exactly one member present, both are written from this run's inputs, never the survivor kept       | [XDG storage](./xdg-storage.md)               |
+| Symlink rejection         | A wrapper-managed path that is a symlink is refused                                                     | [XDG storage](./xdg-storage.md)               |
+| Mode enforcement          | An over-permissive directory is corrected, and the check reports `pass`, not `fail`                     | [XDG storage](./xdg-storage.md)               |
+| Unmanaged ancestors       | A `0755` `$HOME` or `.local` is never checked or corrected                                              | [XDG storage](./xdg-storage.md)               |
+| Interrupted write         | An abandoned temporary leaves the previous complete file readable at the final path                     | [XDG storage](./xdg-storage.md)               |
+| Sweep safety              | An orphaned temporary is removed, and one whose process id is live is kept                              | [XDG storage](./xdg-storage.md)               |
+| Cross-process exclusion   | A second writer of a locked scope waits, then exits `LockBusy` at its deadline                          | [XDG storage](./xdg-storage.md)               |
+| In-process exclusion      | Two threads writing one scope serialize, which the file lock alone would not achieve                    | [XDG storage](./xdg-storage.md)               |
+| Lock release on death     | A holder killed by `SIGKILL` leaves the next acquisition uncontended                                    | [XDG storage](./xdg-storage.md)               |
+| Unknown configuration key | A typo is rejected, naming the key and file                                                             | [Configuration](./configuration.md)           |
+| Merge determinism         | The same pieces produce byte-identical output                                                           | [Configuration](./configuration.md)           |
+| Freshness on piece change | Editing a piece without the profile names a new entry and leaves the old one untouched                  | [Configuration](./configuration.md)           |
+| Example round-trip        | Every generated example parses through the real loader                                                  | [Configuration](./configuration.md)           |
+| Undocumented field        | A public config field without a description fails generation                                            | [Configuration](./configuration.md)           |
+| Check-id coverage         | Every catalog id maps to an `err.kind` that exists                                                      | [Doctor](./doctor.md)                         |
+| Help snapshot             | Generated help does not change unnoticed                                                                | [CLI surface](./cli-surface.md)               |
+| Denylist membership       | The spellings the pre-split claims are exactly the documented table                                     | [CLI surface](./cli-surface.md)               |
+| Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms                         | [CLI surface](./cli-surface.md)               |
+| Leading-position scope    | A claimed flag after any other token reaches the child                                                  | [CLI surface](./cli-surface.md)               |
+| Malformed wrapper flag    | A claimed flag missing its value exits `Usage`; a near-miss forwards                                    | [CLI surface](./cli-surface.md)               |
+| Collision audit           | The claimed set meets the child's inventory only where documented                                       | [CLI surface](./cli-surface.md)               |
+| Child version floor       | A `login`-mode launch below the floor fails before the exec; `token` mode does not                      | [Process runtime](./process-runtime.md)       |
+| Confirmation predicate    | A piped invocation with a controlling terminal still prompts                                            | [CLI surface](./cli-surface.md)               |
+| Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable`                       | [CLI surface](./cli-surface.md)               |
+| ADR contract              | Record id, shape, status vocabulary, relationship links, and the word cap                               | [Documentation sweeps](#documentation-sweeps) |
+| Plan-zone contract        | Milestone rows, slice shape, appetite agreement, EARS acceptance, and the question register             | [Documentation sweeps](#documentation-sweeps) |
+| Decorative emphasis       | No bold or italic prose outside code, over every document in the tree                                   | [AGENTS.md](../../AGENTS.md)                  |
+| Boundary facts            | `domain/` names no adapter or service, `src/` names no `xtask`, the manifest lists no tooling crate     | [Boundary lints](#boundary-lints)             |
 
 ### Naming the implementation a test rejects
 
@@ -144,14 +145,14 @@ A mandatory test names the wrong implementation it rejects only where a naive im
 
 These are the rows where the naive implementation passes and the contract still breaks:
 
-| Test                      | Passes naively, but is wrong                                                                                                                             |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Child signal fidelity     | `exit(128 + N)` where re-raise was available. A shell reports the same number either way; the wait-status macros do not.                                 |
-| Recursion guard, identity | Comparing canonical paths. A hard link to the wrapper is a different path and the same file.                                                             |
-| Spawn-failure classes     | Classifying a child removed between the pre-flight check and the spawn as `OsError`. The pre-flight check is advisory, so the spawn's own errno decides. |
-| Mode enforcement          | Reporting `fail` on a mode that was corrected. A repair is not an unhealthy state, so `doctor --strict` must not fail on one.                            |
-| Partial pair recovery     | Keeping the surviving member of a half-written pair. Both are rewritten from this run's inputs, because the survivor's provenance is unknown.            |
-| In-process exclusion      | Relying on the file lock alone. An advisory lock is held per open file description and cannot exclude a second thread of the same process.               |
+| Test                      | Passes naively, but is wrong                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Recursion guard, identity | Comparing canonical paths. A hard link to the wrapper is a different path and the same file.                                                           |
+| Exec-failure classes      | Classifying a child removed between the pre-flight check and the exec as `OsError`. The pre-flight check is advisory, so the exec's own errno decides. |
+| Flush before the exec     | Reading the log file after a real launch. The worker thread usually wins that race, so the assertion passes with the flush deleted.                    |
+| Mode enforcement          | Reporting `fail` on a mode that was corrected. A repair is not an unhealthy state, so `doctor --strict` must not fail on one.                          |
+| Partial pair recovery     | Keeping the surviving member of a half-written pair. Both are rewritten from this run's inputs, because the survivor's provenance is unknown.          |
+| In-process exclusion      | Relying on the file lock alone. An advisory lock is held per open file description and cannot exclude a second thread of the same process.             |
 
 The three tables below apply that rule at length, because each covers an obligation split across several assertions.
 

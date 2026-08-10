@@ -562,9 +562,10 @@ fn an_empty_config_tree_launches_the_child_unchanged() {
     assert_eq!(&rendered[1..], ["--help-child", "extra"]);
 }
 
-/// Slice 003 prepends `--settings` and removes this test with the same change.
+/// The entry the run resolved is the one the child is told to read, and it
+/// arrives as a two-token prefix ahead of an untouched suffix.
 #[test]
-fn a_selected_profile_does_not_reach_the_child_argv() {
+fn a_selected_profile_reaches_the_child_as_a_settings_prefix() {
     let harness = Harness::new();
     fixtures(&harness);
     assert!(
@@ -580,11 +581,19 @@ fn a_selected_profile_does_not_reach_the_child_argv() {
         .iter()
         .map(|value| String::from_utf8_lossy(value).into_owned())
         .collect();
-    assert!(
-        !rendered.iter().any(|value| value == "--settings"),
-        "the composed entry reached the child: {rendered:?}"
+    let entries = entries(&composed(&harness));
+    let settings = entries
+        .iter()
+        .find(|name| name.starts_with("profile-work-") && !name.ends_with(".compose.json"))
+        .expect("the composed settings document");
+    assert_eq!(
+        &rendered[1..],
+        [
+            "--settings".to_owned(),
+            composed(&harness).join(settings).display().to_string(),
+            "run".to_owned()
+        ]
     );
-    assert_eq!(&rendered[1..], ["run"]);
 }
 
 /// A profile the user asked for and did not get is the silent-wrong-settings

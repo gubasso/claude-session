@@ -56,25 +56,46 @@ fn main() -> ExitCode {
         prepared.environment.variables(),
     );
     // The rest is the conversion ADR-0080 orders: report while the sink is
-    // still alive, flush it, then exit. It stays here, in one piece, because
-    // splitting it puts the flush and the two things it separates in three
-    // places a reader has to hold at once.
+    // still alive, flush it, then exit or exec. It stays here, in one piece,
+    // because splitting it puts the flush and the two things it separates in
+    // three places a reader has to hold at once.
     let ending = match run(prepared) {
         Ok(value) => value,
         Err(error) => DispatchOutcome::Complete(ui::writer::report(&error, mode)),
     };
-    drop(logging);
+    finish(
+        ending,
+        move || drop(logging),
+        |invocation| {
+            use adapters::process::ProcessRunner as _;
+            let error = adapters::process::SystemProcessRunner.exec(invocation);
+            ui::writer::report(&error, mode)
+        },
+    )
+}
+
+/// Runs the boundary's last two steps in the order [ADR-0080] fixes.
+///
+/// The flush and the launch arrive as parameters for one reason: an exec does not
+/// return, so nothing observable afterwards can prove the flush preceded it. Here
+/// the order is a property of one function that a test calls in-process, instead
+/// of a race a real run wins nearly every time and loses in exactly the run a
+/// reader needs the log for.
+///
+/// `launch` reports its own failure and returns the code, because by the time it
+/// runs the sink is gone and standard error is the only channel left.
+///
+/// [ADR-0080]: ../docs/decisions/ADR-0080-order-the-boundary-as-report-flush-exit.md
+fn finish<F, L>(ending: DispatchOutcome, flush: F, launch: L) -> ExitCode
+where
+    F: FnOnce(),
+    L: FnOnce(&domain::child::ChildInvocation) -> u8,
+{
+    flush();
     match ending {
         DispatchOutcome::Complete(code) => ExitCode::from(code),
-        // Dying of the child's signal is what makes a parent see a real
-        // `WIFSIGNALED`. Re-raising does not return; the `128 + N` encoding is
-        // the fallback for when it does, and is what a shell would report.
-        DispatchOutcome::Signaled(signal) => {
-            let _ = signal_hook::low_level::emulate_default_handler(signal);
-            ExitCode::from(
-                u8::try_from(128_i32.saturating_add(signal).clamp(0, 255)).unwrap_or(255),
-            )
-        }
+        // The last thing the wrapper does is stop being the wrapper.
+        DispatchOutcome::Exec(invocation) => ExitCode::from(launch(&invocation)),
     }
 }
 
@@ -103,4 +124,51 @@ fn run(prepared: Prepared) -> Result<DispatchOutcome, AppError> {
     let mode = invocation.output_mode();
     let context = AppContext::new(config, paths, environment, mode);
     commands::dispatch::dispatch(&context, invocation)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DispatchOutcome, ExitCode, domain::child::ChildInvocation, finish};
+    use std::{cell::RefCell, path::PathBuf};
+
+    /// What the boundary did, in the order it did it.
+    fn record(ending: DispatchOutcome, code: u8) -> (Vec<&'static str>, ExitCode) {
+        let steps = RefCell::new(Vec::new());
+        let exit = finish(
+            ending,
+            || steps.borrow_mut().push("flush"),
+            |_| {
+                steps.borrow_mut().push("launch");
+                code
+            },
+        );
+        (steps.into_inner(), exit)
+    }
+
+    fn launch() -> DispatchOutcome {
+        DispatchOutcome::Exec(ChildInvocation::new(
+            PathBuf::from("/usr/bin/claude"),
+            Vec::new(),
+            Vec::new(),
+        ))
+    }
+
+    /// The whole of the flush-before-exec contract, and the only place it can be
+    /// observed: after a real exec there is no process left to assert in, and a
+    /// log file written by a worker thread races the replacement rather than
+    /// ordering against it.
+    #[test]
+    fn the_flush_precedes_the_launch() {
+        let (steps, exit) = record(launch(), 71);
+        assert_eq!(steps, ["flush", "launch"]);
+        assert_eq!(format!("{exit:?}"), format!("{:?}", ExitCode::from(71)));
+    }
+
+    /// A completed verb still flushes, and never reaches the launch.
+    #[test]
+    fn a_completed_verb_flushes_and_does_not_launch() {
+        let (steps, exit) = record(DispatchOutcome::Complete(3), 0);
+        assert_eq!(steps, ["flush"]);
+        assert_eq!(format!("{exit:?}"), format!("{:?}", ExitCode::from(3)));
+    }
 }

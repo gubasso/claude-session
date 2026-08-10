@@ -16,7 +16,7 @@ Chosen option: spawn and wait — `exec` never returns, so post-flight sync-back
 
 Having chosen to stay alive, the wrapper must be behaviourally indistinguishable from `exec` in everything observable: the same exit status, terminal behaviour, and response to an interrupt.
 
-That is met by a specific topology. The child shares the wrapper's foreground process group, so a terminal-generated signal reaches both and the wrapper must not forward it — forwarding double-delivers, and a child counting interrupts misreads one keypress as two. Forwarding is deliberately partial: only what the terminal does not broadcast. See [process runtime](../reference/process-runtime.md).
+That is met by a specific topology. The child shares the wrapper's foreground process group, so a terminal-generated signal reaches both and the wrapper must not forward it — forwarding double-delivers, and a child counting interrupts misreads one keypress as two. Forwarding is deliberately partial: only what the terminal does not broadcast.
 
 ## Consequences
 
@@ -24,10 +24,10 @@ That is met by a specific topology. The child shares the wrapper's foreground pr
 - Good: sharing the process group keeps job control, resize, and interrupt working without the wrapper mediating them.
 - Bad: the wrapper owns signal handling, status mapping, and reaping by hand, each a way to be subtly wrong.
 - Bad: "forward every signal" — the obvious implementation — is a bug here, so the matrix must be followed rather than reasoned out afresh.
-- Bad: a post-flight failure must not change the child's exit status, making error handling after the wait asymmetric with before it. See [exit codes](../reference/exit-codes.md).
+- Bad: a post-flight failure must not change the child's exit status, making error handling after the wait asymmetric with before it.
 
 ## Status
 
-Accepted
+Superseded
 
-Amended by [ADR-0025](./ADR-0025-share-one-native-login-per-account.md): credential and trust-state sync-back no longer justify spawn-and-wait; current supervision and post-flight obligations remain in [process runtime](../reference/process-runtime.md).
+Superseded by [ADR-0084](./ADR-0084-exec-the-child-instead-of-supervising-it.md), which execs the child instead. Amended first by [ADR-0025](./ADR-0025-share-one-native-login-per-account.md): credential and trust-state sync-back no longer justify spawn-and-wait, which left this decision standing on nothing.

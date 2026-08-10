@@ -10,9 +10,9 @@ There are exactly two, and confusing them is the classic wrapper bug.
 
 Before the child runs, a failure is the wrapper's own. It exits with a code from the matrix below, drawn from the BSD `sysexits` convention, and writes a diagnostic to standard error.
 
-Once the child is running, the wrapper's exit status is the child's, reproduced as faithfully as the process model allows. The wrapper contributes nothing. A wrapper that translates a child's exit code into its own scheme breaks every script that wraps it.
+Once the child is running, there is no wrapper. The exec replaced it, so the status the caller sees is the child's own rather than a reproduction of it, and the wrapper contributes nothing because it no longer exists. A wrapper that translated a child's exit code into its own scheme would break every script that wraps it; this one cannot, which is the point of [ADR-0084](../decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md).
 
-The boundary is the successful spawn of a passthrough launch. If the wrapper reached the point of having a live child that owns the invocation, the child owns the answer.
+The boundary is the successful exec of a passthrough launch. Everything on the wrapper's side of it is in the matrix; everything after it belongs to `claude`.
 
 A verb that spawns the child as a subroutine — `account login`, `doctor`, `version` — is not that case. It asked the child a question and reports its own conclusion, so it keeps its own code from the matrix and its own standard output, and attributes the child instead ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)).
 
@@ -78,32 +78,23 @@ It is deliberately not converted to `Internal` (70). A panic and a handled inter
 
 A status already owned by something else is never assigned to a wrapper failure, however well it seems to fit. Each is settled elsewhere on this page; this is the single place to look them up:
 
-| Status                       | Owner                                                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `1`                          | `doctor --strict` alone, and nothing else — [above](#the-one-code-outside-the-taxonomy)                                   |
-| `2`                          | The parser's default, deliberately overridden to `Usage` — [above](#where-this-diverges-from-sysexits)                    |
-| `67`, `68`, `72`, `73`, `76` | `sysexits` categories with no condition in this program — [above](#where-this-diverges-from-sysexits)                     |
-| `101`                        | The Rust runtime — [above](#the-code-the-language-owns)                                                                   |
-| `129`–`165`                  | Signal death. The wrapper reproduces it by re-raising rather than encoding `128 + N` — [below](#child-status-passthrough) |
-| `255`                        | The clamp target of that fallback, never a code in its own right                                                          |
+| Status                       | Owner                                                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `1`                          | `doctor --strict` alone, and nothing else — [above](#the-one-code-outside-the-taxonomy)                  |
+| `2`                          | The parser's default, deliberately overridden to `Usage` — [above](#where-this-diverges-from-sysexits)   |
+| `67`, `68`, `72`, `73`, `76` | `sysexits` categories with no condition in this program — [above](#where-this-diverges-from-sysexits)    |
+| `101`                        | The Rust runtime — [above](#the-code-the-language-owns)                                                  |
+| `129`–`165`                  | Signal death, which is the child's own and never a wrapper encoding — [below](#child-status-passthrough) |
 
 `126` and `127` are the exception that proves the rule: they are shell conventions and the wrapper claims them on purpose, for the reason given above the matrix. Every status in the table is reachable from a wrapper run — but only as the child's, or as the language's, never as a wrapper error's.
 
 ## Child status passthrough
 
-Once the child is running:
+Once the child is running there is nothing left to specify. The exec left one process, so an exit code is the child's exit code and signal death is the child's own death, with a wait status that a parent's `WIFSIGNALED` reads as genuine rather than as a normal exit encoding `128 + N`. No mapping exists to get wrong, and no `128 + N` fallback exists to reach for.
 
-| Child outcome                           | Wrapper's exit status                                                                    |
-| --------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Exited with code N                      | Exits with N, unchanged, for all N in 0–255                                              |
-| Killed by signal N                      | Reproduces the death: resets the signal to its default action and re-raises it on itself |
-| Killed by signal N, re-raise impossible | Exits with 128 + N, clamped to 255                                                       |
+The wrapper's own codes overlap the child's range. That is unavoidable — 64 is a legal child exit code as well as `EX_USAGE` — and it is why the two regimes are documented as a boundary rather than a disjoint numbering. A caller that needs to distinguish them reads standard error: a wrapper-originated failure always writes a diagnostic carrying an `err.kind`, and a child's own status never does.
 
-Re-raising is preferred over exiting with `128 + N` because it is more faithful. A parent examining the wrapper's wait status sees genuine signal death rather than a normal exit that merely encodes one — and those are distinguishable through the wait-status macros. The `128 + N` form is the documented fallback for the case where re-raise cannot be arranged, and it is what a shell reports either way.
-
-The wrapper's own codes overlap this range. That is unavoidable — 64 is a legal child exit code as well as `EX_USAGE` — and it is why the two regimes are documented as a boundary rather than a disjoint numbering. A caller that needs to distinguish them reads standard error: a wrapper-originated failure always writes a diagnostic carrying an `err.kind`, and a passed-through child status never does.
-
-Post-flight failures do not change the exit status of a passthrough invocation. See [process runtime](./process-runtime.md).
+There is no post-flight, so nothing can change a status after the launch. See [process runtime](./process-runtime.md#the-exec).
 
 ## Error message shape
 

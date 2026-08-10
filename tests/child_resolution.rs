@@ -40,8 +40,15 @@ fn path_search_skips_empty_and_remembers_permission_denial() {
     assert!(command.status().expect("wrapper").success());
 }
 
+/// The pre-flight check is advisory, so the exec's own errno decides the class.
+/// A script whose interpreter is missing passes every check the ladder makes —
+/// the file exists, is regular, and is executable — and still cannot run, which
+/// is the only way to observe the exec's classification from outside.
+///
+/// `ENOEXEC` has no leg here because it cannot reach the wrapper: `execvp` hands
+/// an unloadable file to `/bin/sh`, per `docs/reference/process-runtime.md#the-exec`.
 #[test]
-fn spawn_failure_errno_is_classified() {
+fn exec_failure_errno_is_classified() {
     let harness = Harness::new();
     let missing = harness.root().join("missing-interpreter");
     make_executable(&missing, b"#!/definitely/missing/interpreter\n");
@@ -51,14 +58,7 @@ fn spawn_failure_errno_is_classified() {
         .output()
         .expect("wrapper");
     assert_eq!(output.status.code(), Some(127));
-    let invalid = harness.root().join("invalid-format");
-    make_executable(&invalid, b"not an executable format");
-    let output = harness
-        .command()
-        .env("CLAUDE_SESSION_CHILD_BIN", &invalid)
-        .output()
-        .expect("wrapper");
-    assert_eq!(output.status.code(), Some(126));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("error[ChildNotFound]"));
 }
 
 #[test]

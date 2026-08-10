@@ -14,7 +14,7 @@ A wrapper has two kinds of failure: its own, before the child runs, and the chil
 
 Chosen option: split at the spawn — a wrapper that translates its child's exit code breaks every script wrapping it, and a wrapper with only generic codes for its own failures is undiagnosable.
 
-Before the child runs, each failure class maps to a `sysexits` value, plus the shell conventions `126` for found-but-not-executable and `127` for not-found. Once the child runs, its status is reproduced: an exit code passes through unchanged, and signal death is reproduced by re-raising the signal on the wrapper itself, falling back to `128 + N`.
+Before the child runs, each failure class maps to a `sysexits` value, plus the shell conventions `126` for found-but-not-executable and `127` for not-found. Once the child runs, the status the caller reads is the child's own, because the exec left one process behind.
 
 Two properties make it usable. The mapping is exhaustive over a closed error enum with no catch-all arm, so adding a variant without a code fails the build. And every wrapper-originated failure carries a stable `err.kind` on standard error, which is what a script matches on. See [exit codes](../reference/exit-codes.md).
 
@@ -30,4 +30,4 @@ Implemented
 
 Enacted by [`src/error.rs`](../../src/error.rs) and [`src/main.rs`](../../src/main.rs).
 
-Amended by [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) for unused numbers, [ADR-0034](./ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) for `doctor --strict`, and [ADR-0068](./ADR-0068-spawn-the-child-as-a-subroutine.md) for subroutine spawns. Realized by [ADR-0035](./ADR-0035-convert-the-typed-error-to-a-code-once.md).
+Amended by [ADR-0033](./ADR-0033-append-fresh-exit-codes.md) for unused numbers, [ADR-0034](./ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md) for `doctor --strict`, [ADR-0068](./ADR-0068-spawn-the-child-as-a-subroutine.md) for subroutine spawns, and [ADR-0084](./ADR-0084-exec-the-child-instead-of-supervising-it.md) for signal death. Realized by [ADR-0035](./ADR-0035-convert-the-typed-error-to-a-code-once.md).

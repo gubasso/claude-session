@@ -104,13 +104,13 @@ How other tools name a derived artifact, and how they name a user-chosen one. Th
 
 Container-tool context layouts, and the selection mechanics of rustup, pyenv, nvm, asdf, and direnv, were not inspected and are not load-bearing.
 
-## Process supervision
+## Launching the child
 
-| Source                                                                            | Lesson                                                                                                               |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| [Beyond Ctrl-C](https://sunshowers.io/posts/beyond-ctrl-c-signals/)               | A shared foreground process group already receives terminal-generated signals; forwarding them again double-delivers |
-| [Rust CLI signal handling](https://rust-cli.github.io/book/in-depth/signals.html) | Keep real work outside signal handlers                                                                               |
-| [`sysexits(3)`](https://man.freebsd.org/cgi/man.cgi?query=sysexits&sektion=3)     | Wrapper-owned failures use stable categories; child statuses pass through                                            |
+| Source                                                                        | Lesson                                                                                                                      |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| [Beyond Ctrl-C](https://sunshowers.io/posts/beyond-ctrl-c-signals/)           | A wrapper that survives beside its child owes a partial forwarding matrix; the way to owe nothing is to stop surviving      |
+| [`execve(2)`](https://man.archlinux.org/man/execve.2)                         | An image replacement keeps the process id, the descriptors, and the working directory, so transparency needs no maintenance |
+| [`sysexits(3)`](https://man.freebsd.org/cgi/man.cgi?query=sysexits&sektion=3) | Wrapper-owned failures use stable categories; child statuses pass through                                                   |
 
 ## Native child behavior
 

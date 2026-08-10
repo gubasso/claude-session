@@ -1,6 +1,6 @@
 # The wrapper model
 
-`claude-session` is a wrapper: its primary job is to launch another program. That makes it a different kind of CLI from one that does its own work in-process, and most of the design pressure on this codebase comes from that fact. This page explains the model. The exact flag list is in [the CLI surface](../reference/cli-surface.md); the exact signal and resolution tables are in [the process runtime](../reference/process-runtime.md); the exact codes are in [exit codes](../reference/exit-codes.md).
+`claude-session` is a wrapper: its primary job is to launch another program. That makes it a different kind of CLI from one that does its own work in-process, and most of the design pressure on this codebase comes from that fact. This page explains the model. The exact flag list is in [the CLI surface](../reference/cli-surface.md); the exact resolution ladder and launch sequence are in [the process runtime](../reference/process-runtime.md); the exact codes are in [exit codes](../reference/exit-codes.md).
 
 ## The cardinal principle
 
@@ -58,28 +58,25 @@ The consequence for this design: argv is split before it reaches the parser. A s
 
 That pre-parse is a pure function over a list of OS strings. Being pure and total makes it directly unit-testable, and it is: the golden-argv tests in [the testing strategy](./testing-strategy.md) exist precisely because this function is the single point where the passthrough contract can silently break.
 
-## Spawn and wait, not exec
+## Exec, not spawn and wait
 
-Replacing the wrapper's own process image with the child's is the cheapest way to be transparent — no signal forwarding, no exit-status translation, no extra process in the tree. This project does not do it.
+The wrapper does not stay alive beside its child. It resolves the child, prepares whatever the run selected, and then replaces its own process image with the child's ([ADR-0084](../decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md)).
 
-The current reasons are child supervision and post-flight last-used/log finalization. The original credential and trust-state sync-back rationale is historical; amended [ADR-0004](../decisions/ADR-0004-spawn-and-wait-child-supervision.md) and [process runtime](../reference/process-runtime.md) own the current obligations. Choosing to stay alive means owning signal forwarding, terminal semantics, and exit-status fidelity by hand.
+This is a one-shot wrapper, in the sense a shell script is one when it runs `jq` or `curl`: once the inner program is running with the right arguments and the right environment, the wrapper's job is finished. Nothing it owns needs to observe the child's exit. The account last-used marker records which account a run selected, so it is written at launch, and the log sink is flushed just before the replacement.
 
-The wrapper's obligation, having made that choice, is to be behaviourally indistinguishable from `exec` in everything the user can observe: the same exit status, the same terminal behaviour, the same response to Ctrl-C. [ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md) generalizes that obligation past argv and exit status, and names the two classes of divergence a wrapper feature may buy.
+The payoff is that transparency stops being a set of obligations and becomes a structural fact. There is no signal forwarding to get partly wrong, no exit-status translation, no wait status to reproduce, and no second process in the tree — the child inherits the wrapper's process id, so `ps` shows one process and a signal aimed at it lands on `claude`. [ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md) generalizes the default past argv and exit status, and with supervision gone its only exception class is the wrapper's own verbs and intercepted flags.
 
-## Signals and the double-delivery trap
+The cost is stated once so it is not rediscovered as a bug: no wrapper work can ever run after the child. A future obligation of that shape does not get bolted on; it needs a record reversing this one, and it would bring the whole supervision problem back with it.
 
-The naive design — catch every terminal signal and forward it to the child — is wrong, and wrong in a way that is easy to miss in testing.
+## The double-delivery trap this avoids
 
-When the wrapper spawns the child without changing process groups, the child stays in the wrapper's foreground process group. A terminal-generated signal is delivered by the kernel to every process in that group. So Ctrl-C already reaches the child. A wrapper that also forwards it delivers the signal twice, and a child that counts interrupts — one press to interrupt the current operation, two to quit — sees a single press as a double press.
+The reason to state what was avoided is that it is the trap a wrapper falls into by default, and someone will propose it again.
 
-There are two coherent topologies, and the choice must be made once, deliberately:
+A surviving wrapper that spawns the child without changing process groups leaves it in the same foreground process group, where the kernel delivers every terminal-generated signal to both. So Ctrl-C already reaches the child, and a wrapper that also forwards it delivers the signal twice — a child that counts interrupts, one press to interrupt and two to quit, reads a single press as a double press. "Forward everything" is therefore a bug rather than a safe default, and the correct forwarding set is partial, which makes it a table to be maintained rather than a rule to be reasoned out.
 
-- Share the group. Terminal signals reach the child directly. The wrapper forwards only the signals the terminal does not broadcast, and otherwise stays out of the way. Simple, and correct for interactive use.
-- Give the child its own group. The child no longer receives terminal signals at all, so the wrapper must forward every one of them, and must also manage which group owns the terminal so the child can still read from it.
+Giving the child its own process group is worse: it stops receiving terminal signals at all, so the wrapper must forward every one and also manage which group owns the terminal. And job control needs its own mirror on top, because a stopped child under a running wrapper leaves the shell waiting on a live foreground process instead of printing its prompt.
 
-This project takes the first: the child shares the wrapper's foreground process group, and forwarding is deliberately partial. Which signals are forwarded, and which are left to the kernel, is the matrix in [the process runtime](../reference/process-runtime.md). The design consequence worth stating here is that "forward everything" is a bug, not a safe default.
-
-The stop-and-continue signals need one further note. When the child is stopped and the wrapper is not, the shell sees a live foreground process and does not print its prompt. The wrapper must stop itself too — by re-raising the signal on itself once the child has stopped — so that the job-control illusion holds.
+An exec has none of these problems, because there is no second process to disagree with the first.
 
 ## Finding the child, and not finding yourself
 
@@ -113,5 +110,4 @@ The boundary is worth stating plainly because it is the kind of thing that erode
 
 - [Command Line Interface Guidelines](https://clig.dev/)
 - [Beyond Ctrl-C: the dark corners of Unix signal handling](https://sunshowers.io/posts/beyond-ctrl-c-signals/)
-- [Signal handling — Command Line Applications in Rust](https://rust-cli.github.io/book/in-depth/signals.html)
-- [`signal-hook`](https://docs.rs/signal-hook/)
+- [`execve(2)`](https://man.archlinux.org/man/execve.2)

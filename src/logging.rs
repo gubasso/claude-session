@@ -28,7 +28,7 @@ use crate::{
     ui::writer::OutputWriter,
 };
 
-/// Owns the non-blocking worker until post-flight cleanup.
+/// Owns the non-blocking worker until the boundary drops it.
 pub(crate) struct LoggingGuard {
     sender: Option<SyncSender<Option<String>>>,
     worker: Option<JoinHandle<()>>,
@@ -172,7 +172,7 @@ fn escape(value: &str) -> String {
     out
 }
 
-/// Installs exactly one subscriber, returning a guard for post-flight flush.
+/// Installs exactly one subscriber, returning the guard the boundary flushes by dropping.
 pub(crate) fn install(
     paths: &XdgPaths,
     verbosity: Verbosity,

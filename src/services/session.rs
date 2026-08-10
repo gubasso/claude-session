@@ -22,10 +22,6 @@ pub(crate) struct SessionPaths {
 }
 
 /// One account's two directories.
-#[allow(
-    dead_code,
-    reason = "the child reads its config directory in a later slice"
-)]
 #[derive(Clone, Debug)]
 pub(crate) struct Account {
     /// The account identifier.

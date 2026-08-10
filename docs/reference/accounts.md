@@ -24,10 +24,10 @@ The account for an invocation is resolved by the [configuration precedence ladde
 
 1. `--account <name>` — see [the CLI surface](./cli-surface.md#wrapper-owned-flags).
 2. [`default_account`](./configuration.md#keys), from the environment then user configuration. A project file cannot supply it ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
-3. The last-used marker, written whenever an account-backed run completes.
+3. The last-used marker, written whenever an account-backed run launches.
 4. Nothing. Verbs that need an account fail; verbs that do not proceed.
 
-The marker means “the same account as last time”; any explicit selection overrides it. `account status` reports which rung supplied the answer.
+The marker means “the same account as last time”; any explicit selection overrides it. `account status` reports which rung supplied the answer. It records a selection rather than an outcome, so it is written before the launch, which is also the only place it can be written: the wrapper execs the child and observes nothing afterwards ([ADR-0084](../decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md)).
 
 A passthrough with no selected account receives neither wrapper authentication variable.
 
@@ -64,7 +64,7 @@ claude-session --account work -- auth login
 
 A saved login carries two clocks. The access token expires in hours, and its renewal is a non-event: the child refreshes it without the wrapper or the user taking part. The refresh grant is the clock that ends the login, and only re-authenticating resets it. Neither lifetime is a documented guarantee, and no token prefix identifies which of the two a value belongs to — which is why nothing here infers an expiry from a credential.
 
-Concurrent runs of one account share that saved login. From child version 2.1.211 the child coordinates renewal across the processes holding it, so one refresh happens and the rest observe its result. That coordination is why [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md) shares a login rather than copying it, and why a `login`-mode launch below the floor [fails before spawn](./process-runtime.md#child-version-floor).
+Concurrent runs of one account share that saved login. From child version 2.1.211 the child coordinates renewal across the processes holding it, so one refresh happens and the rest observe its result. That coordination is why [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md) shares a login rather than copying it, and why a `login`-mode launch below the floor [fails before the exec](./process-runtime.md#child-version-floor).
 
 An in-TUI `/login` inherits the launch environment and is expected to address the same child-owned location, but that exact child behavior is externally unverified and tracked in [research tracking](./research-tracking.yaml). What `/login` does while token mode is injecting `CLAUDE_CODE_OAUTH_TOKEN` is unverified for a second reason: the injected token outranks any login it writes, so an apparent success there may change nothing the child goes on to use.
 

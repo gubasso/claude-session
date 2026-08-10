@@ -90,10 +90,14 @@ impl Invocation {
 }
 
 /// A command result ready for entry-point status conversion.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+///
+/// `Exec` is not a status: it is the launch handed back unperformed, because the
+/// replacement has to happen after the log flush the entry point owns
+/// ([ADR-0080](../../docs/decisions/ADR-0080-order-the-boundary-as-report-flush-exit.md)).
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum DispatchOutcome {
     Complete(u8),
-    Signaled(i32),
+    Exec(crate::domain::child::ChildInvocation),
 }
 
 /// Pre-splits raw arguments and parses only wrapper-owned bytes.

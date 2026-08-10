@@ -161,7 +161,7 @@ Two `account login` runs against one account still end with one token on disk. T
 
 ## Cleanup and recovery
 
-A normal exit removes nothing. Every artifact in the table outlives the run that wrote it by design: configuration is the user's, the account tree and the composed-settings store are the point of the program, and the log is rotated rather than deleted. The one file a run creates without intending to keep is an atomic-write temporary, and that is consumed by its own rename rather than by a cleanup step. [Post-flight](./process-runtime.md#post-flight) therefore deletes nothing, and that is the contract rather than an omission.
+A normal exit removes nothing. Every artifact in the table outlives the run that wrote it by design: configuration is the user's, the account tree and the composed-settings store are the point of the program, and the log is rotated rather than deleted. The one file a run creates without intending to keep is an atomic-write temporary, and that is consumed by its own rename rather than by a cleanup step. The [launch](./process-runtime.md#the-exec) therefore deletes nothing on its way out, and that is the contract rather than an omission.
 
 A kill leaves exactly two things, and neither can fail the next run ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)):
 

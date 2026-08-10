@@ -35,9 +35,12 @@ pub(crate) enum Outcome {
 }
 
 /// What one run resolved about a profile's composed entry.
+///
+/// The launch reads `settings` and nothing else; the other three are what the
+/// composition verbs report, and they arrive with those verbs.
 #[allow(
     dead_code,
-    reason = "the composed path reaches the child in a later slice"
+    reason = "provenance, digest, and outcome are reported by the composition verbs"
 )]
 #[derive(Clone, Debug)]
 pub(crate) struct ResolvedEntry {

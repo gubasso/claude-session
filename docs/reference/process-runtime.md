@@ -1,8 +1,8 @@
 # Process runtime
 
-Exact contracts for locating, launching, and supervising the child process. For the reasoning, see [the wrapper model](../explanation/wrapper-model.md); for the codes this produces, see [exit codes](./exit-codes.md).
+Exact contracts for locating the child process and becoming it. For the reasoning, see [the wrapper model](../explanation/wrapper-model.md); for the codes this produces, see [exit codes](./exit-codes.md).
 
-Terminal child resolution, recursion guards, environment scrubbing, and minimal spawn-and-wait are implemented. Full supervision remains later-slice design.
+Terminal child resolution, recursion guards, environment scrubbing, and the exec are implemented. The account and profile inputs the launch consumes remain later-slice design.
 
 ## Platform scope
 
@@ -10,7 +10,7 @@ Linux is the supported target, against child `claude` `2.1.220` or newer ([ADR-0
 
 Other Unix systems are neither claimed nor deliberately broken. The contracts below depend on process groups, POSIX signals, controlling terminals, and Unix file modes, all of which they have, but nothing is measured on them and no gate proves them. Windows is explicitly out of scope; adding it is a separate decision, not an incremental port, because the signal and process-group model has no direct equivalent.
 
-The baseline is an evidence rule, not a launch gate. The only version check that refuses to spawn is the [child version floor](#child-version-floor) below.
+The baseline is an evidence rule, not a launch gate. The only version check that refuses to launch is the [child version floor](#child-version-floor) below.
 
 ## Child resolution
 
@@ -35,7 +35,7 @@ Each resolved candidate is validated in order:
 
 A relative `child_bin` is `Config` (78), not `ChildNotFound`: nothing failed to resolve, the setting is wrong. It is not resolved against the working directory, which Rust's own `Command` documentation calls platform-specific and unstable.
 
-Executability is `access(X_OK)`. That check is advisory — it produces a good diagnostic early and does not guarantee the spawn succeeds; see [spawn and wait](#spawn-and-wait).
+Executability is `access(X_OK)`. That check is advisory — it produces a good diagnostic early and does not guarantee the exec succeeds; see [the exec](#the-exec).
 
 The distinction between not-found and not-executable is preserved all the way to the exit code, because the two have completely different fixes.
 
@@ -49,7 +49,7 @@ Zero-length entries are dropped. POSIX calls the zero-length prefix a legacy fea
 
 A candidate rejected for execute permission does not stop the search; it is remembered. If no later entry yields an executable, that memory decides the failure: `ChildNotExecutable` if any candidate was rejected for permission, `ChildNotFound` otherwise. An unset `PATH` is `ChildNotFound`, with no invented default path.
 
-The absolute resolved path is what gets spawned, never the bare name, so the spawn performs no second search of its own and its `errno` names one file.
+The absolute resolved path is what gets exec'd, never the bare name, so the exec performs no second search of its own and its `errno` names one file.
 
 ## Recursion guard
 
@@ -73,7 +73,7 @@ The child's environment is a snapshot of the wrapper's own, scrubbed and then ad
 2. Remove every key whose bytes begin `CLAUDE_SESSION_`, matched ASCII case-sensitively. This sweeps wrapper inputs as well as internals: `CLAUDE_SESSION_CHILD_BIN` and `CLAUDE_SESSION_DEFAULT_PROFILE` are consumed at startup, and a nested wrapper must not re-read a stale one.
 3. Set `CLAUDE_SESSION_REENTRY=1`, the recursion marker.
 4. Set `CLAUDE_CONFIG_DIR` to the account config directory, selecting the account-wide child state — only when an account is selected.
-5. Set `CLAUDE_CODE_OAUTH_TOKEN` to the retrieved token — only in token mode, and only at [step 5 of the spawn sequence](#spawn-and-wait).
+5. Set `CLAUDE_CODE_OAUTH_TOKEN` to the retrieved token — only in token mode, and only at [step 5 of the launch sequence](#the-exec).
 
 Step 2 is the wrapper's only removal, and steps 3 to 5 are its only additions. Everything else the user exported — ambient authentication, `PATH`, locale — reaches the child untouched, which is what makes the child a normal program.
 
@@ -81,7 +81,7 @@ Before launch, the wrapper resolves the stored mode and detects ambient higher-p
 
 The proxy seam is inheritance. A user who fronts `claude` with a local proxy exports the child's base-URL variable, and the wrapper hands it over untouched. `claude-session` composes no injections of its own and implements no proxying, compression, or request rewriting; the rejected injection surface is recorded in [ADR-0057](../decisions/ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md).
 
-Standard input, output, and error are inherited unmodified. The working directory is inherited unmodified.
+Standard input, output, and error are the wrapper's own descriptors, unmodified and not reopened. The working directory is unchanged. Both are structural: an exec replaces the process image and leaves everything the kernel keeps outside it alone.
 
 ## Child argument vector
 
@@ -95,47 +95,21 @@ The original child argument vector follows as an untouched suffix. Its order, by
 
 The settings path is carried as an OS string, not a UTF-8 path: it derives from the XDG base directories, whose bytes are arbitrary ([dependencies](./dependencies.md)).
 
-`argv[0]` is the resolved child's absolute path — the default `Command` passes, which the wrapper does not override. It is the one value that cannot misname the file actually running, which is why `ps` and the child agree; the same argument by which [ADR-0055](../decisions/ADR-0055-compare-executable-identity-by-device-and-inode.md) rejected `argv[0]` as an identity signal.
+`argv[0]` is the resolved child's absolute path — the default `Command` passes, which the wrapper does not override. It is the one value that cannot misname the file actually running, which is why `ps` and the child agree; the same argument by which [ADR-0055](../decisions/ADR-0055-compare-executable-identity-by-device-and-inode.md) rejected `argv[0]` as an identity signal. The process id is the wrapper's own, since the exec reuses it, so `ps` shows one process and a signal aimed at it reaches `claude` itself.
 
 A user-supplied `--settings` replaces the wrapper's composed document. Measured against `claude` 2.1.220 on 2026-07-31, the child keeps only the last occurrence: an earlier settings file is not merged, not validated, and not even read. Since the wrapper's pair is a prefix, the user's own flag always wins and the composed layer is silently discarded. That precedence is accepted rather than repaired — the wrapper cannot detect it without parsing the suffix ([ADR-0047](../decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md)). A user who wants both composes them into one file and passes that.
 
-## Process group topology
+## Signals and job control
 
-The child shares the wrapper's process group. The wrapper does not call `setpgid` for the child and does not create a new session.
+There is no signal handling, and no process group topology to choose. The exec leaves one process where a supervising wrapper would have left two, so the terminal's foreground process group holds `claude` and nothing else: Ctrl-C, Ctrl-Z, `SIGWINCH`, and a `SIGTERM` aimed at the process id all reach the child directly, and there is nothing left to forward, translate, or double-deliver them.
 
-The consequence, and it is the important one: a terminal-generated signal is delivered by the kernel to every process in the foreground process group. Ctrl-C already reaches the child directly. A wrapper that also forwards it delivers the signal twice, and a child that distinguishes one interrupt from two will misread a single keypress.
+This is the largest thing the wrapper gets by not staying alive. The forwarding matrix a supervising wrapper needs — partial by necessity, since forwarding what the terminal already broadcast delivers it twice — is recorded in superseded [ADR-0004](../decisions/ADR-0004-spawn-and-wait-child-supervision.md) and implemented nowhere.
 
-The alternative topology — giving the child its own process group — means the child no longer receives terminal signals at all, so the wrapper must forward every one and must hand terminal ownership to the child's group so the child can still read input. That is more machinery for a wrapper whose child is always the foreground program.
+A signal arriving before the exec meets the wrapper under the disposition it inherited, which is ordinary process startup and needs no contract of its own.
 
-Shared-group is therefore the choice, and it makes forwarding deliberately partial.
+## The exec
 
-## Signal matrix
-
-| Signal               | Terminal broadcasts to the group?    | Wrapper action                                                                                                                                  |
-| -------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SIGINT` (Ctrl-C)    | Yes                                  | Do not forward. The child already received it. The wrapper ignores it for itself and lets the child decide.                                     |
-| `SIGQUIT` (Ctrl-\\)  | Yes                                  | Do not forward. As above.                                                                                                                       |
-| `SIGTSTP` (Ctrl-Z)   | Yes                                  | Do not forward to the child. Wait for the child to stop, then re-raise `SIGSTOP` on the wrapper itself so the shell sees the whole job stopped. |
-| `SIGCONT`            | Yes                                  | Do not forward. Delivered to the group on resume.                                                                                               |
-| `SIGWINCH`           | Yes                                  | Do not forward. Terminal resize reaches the child directly.                                                                                     |
-| `SIGTERM`            | No — usually targeted at one process | Forward to the child, then wait.                                                                                                                |
-| `SIGHUP`             | Sometimes                            | Forward to the child, then wait.                                                                                                                |
-| `SIGUSR1`, `SIGUSR2` | No                                   | Forward to the child.                                                                                                                           |
-| `SIGKILL`, `SIGSTOP` | n/a                                  | Cannot be caught. The child is orphaned and reaped by the init process.                                                                         |
-
-Two rules govern everything in that table:
-
-Forward what the terminal does not broadcast; stay out of the way for what it does. "Forward everything" is a bug.
-
-Re-raise on yourself. After a forwarded signal kills the child, the wrapper reproduces the child's fate rather than exiting with a translated code — it resets the signal to its default action and re-raises it on itself. This is what makes the wrapper's wait status indistinguishable from the child's to the wrapper's own parent. See [exit codes](./exit-codes.md).
-
-Handlers must be async-signal-safe. The implementation registers a flag in the handler and does the real work on a normal thread; it does not allocate, log, or lock inside a handler.
-
-There is a window between the wrapper starting and the child existing. A signal arriving in that window has no child to reach, and the wrapper emulates the signal's default action on itself rather than swallowing it.
-
-## Spawn and wait
-
-The wrapper spawns and waits; it does not `exec`. Current supervision and post-flight obligations are recorded in amended [ADR-0004](../decisions/ADR-0004-spawn-and-wait-child-supervision.md).
+The wrapper performs every obligation it has, then replaces its own process image with the child's ([ADR-0084](../decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md)).
 
 Sequence:
 
@@ -143,49 +117,41 @@ Sequence:
 2. Resolve the account and stored mode, if selected.
 3. Validate private account state and the child-owned config path without reading the child credential.
 4. Resolve the profile and ensure its composed settings entry exists.
-5. In token mode, retrieve and validate the token immediately before spawn.
+5. In token mode, retrieve and validate the token immediately before the exec.
 6. Build the environment and wrapper-owned argv prefix around the untouched user suffix.
-7. Install signal handling.
-8. Spawn and publish the child's process id.
-9. Wait for the child to exit, then clear the published process id.
-10. Run post-flight work.
-11. Map the child's wait status and exit.
+7. Update the account's last-used marker, if an account is selected.
+8. Flush the log sink.
+9. Exec.
 
-Step 7 before step 8 matters: a signal arriving during post-flight has no child to reach, and forwarding to a dead process id risks hitting an unrelated process that has since reused the number.
+Step 8 before step 9 is load-bearing. The log sink is written by a worker thread joined by a guard's destructor, and an exec destroys every thread in the process without running one, so a record still buffered at that moment would be lost from exactly the run a reader most wants a log for ([ADR-0080](../decisions/ADR-0080-order-the-boundary-as-report-flush-exit.md)).
 
-The wrapper waits for the specific child it spawned. It does not reap arbitrary children, and it does not install a handler for child-termination signals — there is one child, and its status is collected by waiting.
+Nothing follows step 9. The wrapper cannot observe the child's exit, so there is no post-flight, no wait status to map, and no failure of its own after the launch. That is why the marker and the flush are the last steps before the exec rather than the first steps after the child.
 
-Step 8 failing is not the same as the child failing. A spawn that never produced a process leaves the wrapper on its own side of [the boundary](./exit-codes.md#two-regimes), so it exits with a wrapper code — never the child's, since there is no child. Which code depends on what refused, because step 1's checks are advisory and the child can be deleted or `chmod -x`'d in between ([ADR-0056](../decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md)):
+An exec that fails leaves the wrapper running and on its own side of [the boundary](./exit-codes.md#two-regimes), so it exits with a wrapper code — never the child's, since there is no child. Which code depends on what refused, because step 1's checks are advisory and the child can be deleted or `chmod -x`'d in between ([ADR-0056](../decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md)):
 
-| Spawn failure                      | `err.kind`           | Code |
+| Exec failure                       | `err.kind`           | Code |
 | ---------------------------------- | -------------------- | ---- |
 | `ErrorKind::NotFound` (`ENOENT`)   | `ChildNotFound`      | 127  |
 | `ErrorKind::PermissionDenied`      | `ChildNotExecutable` | 126  |
-| `raw_os_error() == ENOEXEC`        | `ChildNotExecutable` | 126  |
 | Anything else — `ENOMEM`, `EMFILE` | `OsError`            | 71   |
 
-`ENOEXEC` is read through `raw_os_error` because Rust's `io::ErrorKind` has no variant for it; its meaning — found, exec bit set, unloadable — is exactly what 126 names. `OsError` keeps the scope it claims: the machine refused and the wrapper is working correctly. `Internal` (70) still means the wrapper has a bug.
+`ENOEXEC` — found, exec bit set, unloadable — is absent from that table on purpose. The launch goes through `execvp`, which POSIX requires to interpret such a file with `/bin/sh` instead of reporting the condition, so the wrapper never sees the errno and the resulting status is the shell's. That is what a shell script's own `exec` does with the same file, so it is accepted rather than policed by a format check ([ADR-0056](../decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md)).
 
-## Post-flight
+`OsError` keeps the scope it claims: the machine refused and the wrapper is working correctly. `Internal` (70) still means the wrapper has a bug.
 
-Post-flight work runs after the child exits and before the wrapper does:
+That one diagnostic reaches standard error alone, because step 8 already flushed the sink. It is the second of the two failures [ADR-0080](../decisions/ADR-0080-order-the-boundary-as-report-flush-exit.md) records as unloggable by construction.
 
-- Update the account's last-used marker.
-- Flush logs.
-
-Post-flight failures are reported but do not change the exit code of a passthrough invocation. The child's status is the user's answer to “did my command work”; a marker or log-finalization failure is reported on standard error.
-
-Post-flight deletes nothing, and a wrapper killed before it runs leaves nothing that can fail the next run. What survives a kill, and which run removes it, is in [XDG storage](./xdg-storage.md#cleanup-and-recovery).
+The wrapper deletes nothing on the way out, and a wrapper killed before step 9 leaves nothing that can fail the next run. What survives a kill, and which run removes it, is in [XDG storage](./xdg-storage.md#cleanup-and-recovery).
 
 ## Child version floor
 
-Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor fails before spawn, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
+Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor fails before the exec, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
 
 The check is scoped to what depends on the child's refresh lock. `token` mode and a passthrough with no selected account are never blocked by it. The `doctor` probe still reports version state, but it is voluntary and does not stand in for this precondition.
 
 ## Further reading
 
-- [Beyond Ctrl-C: the dark corners of Unix signal handling](https://sunshowers.io/posts/beyond-ctrl-c-signals/)
-- [Signal handling — Command Line Applications in Rust](https://rust-cli.github.io/book/in-depth/signals.html)
-- [`signal-hook`](https://docs.rs/signal-hook/)
+- [`execve(2)`](https://man.archlinux.org/man/execve.2)
+- [`CommandExt::exec`](https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html#tymethod.exec)
+- [Beyond Ctrl-C: the dark corners of Unix signal handling](https://sunshowers.io/posts/beyond-ctrl-c-signals/), for what a surviving wrapper would owe
 - [`rustix`](https://docs.rs/rustix/)

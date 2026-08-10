@@ -14,9 +14,9 @@ The passthrough contract is stated for argv ([ADR-0002](./ADR-0002-verbatim-argv
 
 Chosen option: a standing default — the user is running `claude`, and any divergence is a cost a named wrapper feature has to justify.
 
-Two exception classes, and only these: the wrapper's own verbs and its short denylist of intercepted flags ([ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md), [ADR-0043](./ADR-0043-match-wrapper-flags-by-exact-leading-spelling.md)), and the supervision that spawn-and-wait obliges ([ADR-0004](./ADR-0004-spawn-and-wait-child-supervision.md)).
+One exception class, and only it: the wrapper's own verbs and its short denylist of intercepted flags ([ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md), [ADR-0043](./ADR-0043-match-wrapper-flags-by-exact-leading-spelling.md)).
 
-The corollary is the load-bearing part: the wrapper introduces no failure mode the child does not have. State a run leaves behind — a lock, a temp file, a published process id — is repaired by the next run rather than blocking it, because a `claude` killed by `SIGKILL` never poisons the next `claude`.
+The corollary is the load-bearing part: the wrapper introduces no failure mode the child does not have. State a run leaves behind — a lock, a temporary file, a half-written entry — is repaired by the next run rather than blocking it, because a `claude` killed by `SIGKILL` never poisons the next `claude`.
 
 ## Consequences
 
@@ -28,3 +28,5 @@ The corollary is the load-bearing part: the wrapper introduces no failure mode t
 ## Status
 
 Accepted
+
+Amended by [ADR-0084](./ADR-0084-exec-the-child-instead-of-supervising-it.md), which removed the second exception class: an exec'd child needs no supervision to diverge over.

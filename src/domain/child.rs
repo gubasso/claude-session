@@ -3,7 +3,7 @@
 use std::{ffi::OsString, path::PathBuf};
 
 /// A fully resolved child invocation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ChildInvocation {
     program: PathBuf,
     arguments: Vec<OsString>,
