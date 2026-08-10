@@ -28,7 +28,7 @@ Every step in this section runs once, ever. A routine release repeats none of th
 
 ## First manual publish
 
-This procedure ships `0.1.0` only after ADR-0022 is satisfied. It does not authorize publishing the placeholder.
+This procedure ships `0.1.0` only after ADR-0022 is satisfied, which the working passthrough now satisfies. Cutting the version remains a separate human decision, and the bootstrap steps above are its unmet prerequisite.
 
 1. Run `./scripts/publish-dry`.
 2. Create the shortest-expiry crates.io token with endpoint `publish-new` and exact crate scope `claude-session`.
@@ -38,6 +38,8 @@ This procedure ships `0.1.0` only after ADR-0022 is satisfied. It does not autho
 6. Immediately return to Trusted Publisher setup and token revocation in the bootstrap procedure.
 
 ## Routine automated release
+
+Every version after `0.1.0` is routine. The slice that ships a rung carries that version's own documentation and gates — the claims it adds to `README.md`, the reference pages its surface changes, and any package content it introduces — as tail work inside the slice. Slice 009 is one-time first-release readiness and is never reopened for a later version.
 
 1. Merge Conventional-Commit work through a reviewed pull request to `develop`.
 2. Wait for release-plz to open or update its release pull request.

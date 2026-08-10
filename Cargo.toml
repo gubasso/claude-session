@@ -33,6 +33,9 @@ exclude = [
   "/install.sh",
   "/justfile",
   "/.markdownlint-cli2.jsonc",
+  # The per-shape MD043 arrays are development tooling like the file above them;
+  # a directory is not covered by the entry that excludes the root config.
+  "/.markdownlint",
   "/dprint.json",
   "/dprint.markdown.json",
   "/statix.toml",

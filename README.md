@@ -2,7 +2,26 @@
 
 A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 
-> Status: pre-implementation. The crate currently builds a placeholder binary. Nothing below describes shipped behaviour beyond the build and development workflow.
+> Status: unreleased. The wrapper forwards to `claude` natively, and `help` and `version` are the only surfaces it owns. Nothing else described in [docs](./docs/README.md) is shipped yet.
+
+## Usage
+
+Anything the wrapper does not own reaches `claude` unchanged — same arguments, same standard streams, same exit status. There is one process by the time the child runs, so signals and terminal behaviour are the child's too.
+
+```bash
+claude-session                       # exactly `claude`
+claude-session -p "hello" --verbose  # forwarded verbatim
+claude-session -- --version          # `--` forces every later argument to the child
+```
+
+Two surfaces belong to the wrapper, and each composes its own output with the child's:
+
+```bash
+claude-session version   # the wrapper's version, then the resolved child's
+claude-session help      # the wrapper's help, then `claude --help`
+```
+
+The account and profile isolation the crate description promises is not shipped. [Milestones](./docs/plan/milestones.md) carries the order it lands in.
 
 ## Design contract
 
@@ -24,7 +43,9 @@ Common starting points:
 
 ## Build from source
 
-There is no published release, and installing from a checkout today installs the placeholder binary. The first crates.io version waits until the wrapper actually forwards to `claude` — see [ADR-0022](./docs/decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md).
+There is no published release. [ADR-0022](./docs/decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md) holds the first crates.io version until the wrapper forwards to `claude`, which it now does; cutting `0.1.0` is a separate human decision, so a checkout is the only way to install today.
+
+Running the result needs `claude` on `PATH`. The wrapper resolves it, hands it the argument vector, and becomes it.
 
 ```bash
 # Clone the repository

@@ -6,7 +6,6 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 009 release-readiness — shaped — 1 implementation session — after 003 and 011; readies `0.1.0` for a human release decision
 - 005 account-authentication — shaped — 2 implementation sessions — after 009; the `0.2.0` login-mode account rung
 - 007 comprehensive-doctor — shaped — 1 implementation session — after 005 and 012; proves shared reporting over feature-owned checks
 - 008 cli-artifacts — shaped — 1 implementation session — after 005; proves generated artifacts for the account MVP
@@ -20,6 +19,7 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 001 native-passthrough-foundation — done — 4 implementation sessions
 - 002 secure-session-storage — done — 3 implementation sessions — gave the state namespace its first durable artifacts
 - 003 native-child-exec — done — 2 implementation sessions — replaced supervision with the exec
+- 009 release-readiness — done — 1 implementation session — readied the `0.1.0` candidate; the forge bootstrap stays the operator's
 - 010 native-repository-gates — done — 1 implementation session — replaced four shell check-scripts
 - 011 entry-point-and-contract-repair — done — 3 implementation sessions — repaired contracts 001 claimed but did not meet
 - 012 human-presentation — done — 2 implementation sessions — decided the colour contract every later renderer applies

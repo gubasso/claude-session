@@ -82,7 +82,7 @@ cargo publish --dry-run
 cargo package --list
 ```
 
-The package includes Cargo files, Rust build inputs, `README.md`, both license files, and the changelog when one exists. It excludes project documentation, CI, helper scripts, release configuration, and development tooling.
+The package includes Cargo files, Rust build inputs, `README.md`, the three license files, and the changelog when one exists. It excludes project documentation, CI, helper scripts, release configuration, and development tooling. A denylist entry anchors one path, so a directory of development tooling needs its own entry rather than inheriting the one that excludes a similarly named file.
 
 An SPDX `license` expression does not make an `include` allowlist automatically carry a plain README or license files; an allowlist must name them. This crate therefore retains an `exclude` denylist. crates.io packages have a 10 MB ceiling.
 
@@ -128,16 +128,18 @@ A yank also cannot un-publish a leaked secret. If one reached the package, rotat
 
 ## Forge enforcement
 
-This is external state the repository cannot assert. Every row below is required before the first release and currently unverified — nothing in the gate reads the forge, so treat this as the target to apply, not a description of what is live.
+This is external state the repository cannot assert. Every row below is required before the first release, and nothing in the gate reads the forge. The observed column is one dated manual reading, not a live check, so a row counts as applied only when re-observed.
 
-| Required state                                                              | Operator action                                                     |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| GitHub default branch is `develop`                                          | Set it in repository settings                                       |
-| Actions have read/write permission and may create and approve pull requests | Enable both in Actions settings                                     |
-| The GitHub App is installed and is `master`'s bypass actor                  | Register or reuse the App, install it, and add it as a bypass actor |
-| `develop` is protected: reviewed, green pull requests                       | Create the `develop` ruleset                                        |
-| `master` is App-only with linear history                                    | Create the `master` ruleset                                         |
-| `v*` release tags are protected                                             | Create the tag ruleset                                              |
+| Required state                                                              | Operator action                                                     | Observed 2026-08-10                                                |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| GitHub default branch is `develop`                                          | Set it in repository settings                                       | Applied: `develop` exists on the remote and is the default branch  |
+| Actions have read/write permission and may create and approve pull requests | Enable both in Actions settings                                     | Not applied: workflow permissions are read, and approval is off    |
+| The GitHub App is installed and is `master`'s bypass actor                  | Register or reuse the App, install it, and add it as a bypass actor | Not applied: neither `RELEASE_PLZ_APP_*` repository secret exists  |
+| `develop` is protected: reviewed, green pull requests                       | Create the `develop` ruleset                                        | Not applied: the repository has no rulesets                        |
+| `master` is App-only with linear history                                    | Create the `master` ruleset                                         | Not applied: the repository has no rulesets, and `master` is local |
+| `v*` release tags are protected                                             | Create the tag ruleset                                              | Not applied: the repository has no rulesets                        |
+
+Five of the six rows are outstanding, so the bootstrap procedure has not run. That blocks the first release rather than the readiness this repository owns: the `0.1.0` candidate is complete on the source side, and the remaining work is the operator's, in the order below.
 
 Ordering is load-bearing: the App bypass actor exists before any ruleset does. A ruleset created first locks the App out of the branch it is the only writer of, and recovering means an administrator relaxing the rule they just made. [The bootstrap procedure](../guides/releasing.md#bootstrap-release-automation-once) performs these in that order.
 

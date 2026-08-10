@@ -23,11 +23,3 @@ Blocks: slice 013 TUI-login warning and remediation acceptance.
 Raised: migrated from the two unverified account facts.
 
 Exit: measurement, exercise login mode and token mode in isolated scratch accounts and record only non-secret outcomes.
-
-## Q-005 — Are the external first-release bootstrap prerequisites complete?
-
-Blocks: slice 009 Done when.
-
-Raised: migrated from the release round's external operator prerequisites.
-
-Exit: measurement, record that `develop`, the GitHub App secrets, and both branch rulesets exist before changing slice 009 to done.
