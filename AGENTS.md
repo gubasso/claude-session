@@ -26,7 +26,7 @@ Record each significant, hard-to-reverse choice in one filled file under `docs/d
 
 ## Current Work
 
-[Milestones](./docs/plan/milestones.md) is the only delivery-status surface, and it carries live work under `## in flight` and terminal work under `## closed`. Open the `active` slice, or promote the first `shaped` slice whose named predecessors are closed, then load only the sources its `Governed by` section names. The slice entry is the execution contract; `tasks.md`, when present, only records cross-session checklist progress.
+[Milestones](./docs/plan/milestones.md) is the only delivery-status surface, and it carries live work under `## in flight` and terminal work under `## closed`. Open the `active` slice, or promote the first `shaped` line under `## in flight`, which execution order makes the next slice whose named predecessors are closed. Then load only the sources its `Governed by` section names. The slice entry is the execution contract; `tasks.md`, when present, only records cross-session checklist progress.
 
 ## Documentation Maintenance
 
@@ -39,7 +39,7 @@ Record each significant, hard-to-reverse choice in one filled file under `docs/d
 - Give each slice a fixed appetite and non-negotiable core. Record a dated revision only when work has begun and `Goal`, `Core`, `Appetite`, or `Acceptance` changes; cutting the end of `In scope` is not a revision.
 - Every slice has one directory entered through `README.md`, titled `# <id> — <Title>`, with `Goal`, `Appetite`, `Core`, `In scope`, `Out of scope`, `Governed by`, `Acceptance`, `Rabbit holes`, `Done when`, and `Revisions`, in that order.
 - Gate every fixed shape with one `MD043` array under `.markdownlint/`, applied by its own `md-*` entry in `.pre-commit-config.yaml` — the slice `README.md`, `milestones.md`, and the decision records. Amend the array to add a section; never copy one into a document, and never name `MD043` in `.markdownlint-cli2.jsonc`, which is merged over the shape and would switch it off silently.
-- Keep one milestone line per slice, in the fixed grammar `<id> <slug> — <status> — <appetite>[ — <note>]`, ordered by id inside its section. Move the line to `## closed` in the same change that ends the work, and never move it back.
+- Keep one milestone line per slice, in the fixed grammar `<id> <slug> — <status> — <appetite>[ — <note>]`. Order `## in flight` by execution, so the top line is the next slice to pick up, and `## closed` by id, because a ledger is read by lookup. A line with a predecessor opens its note with `after <id>[ and <id>]`; every id named there is closed or listed above it, which is what makes the execution order checkable rather than asserted. Move the line to `## closed` in the same change that ends the work, and never move it back.
 - Until the current slice is implemented, add no specification page and open no ADR outside it. Route new blockers to [open questions](./docs/plan/open-questions.md).
 - Implemented slice acceptance may append `-> <nextest-test-id>` only when `scripts/check-acceptance-tests` resolves the exact ID.
 - A `tasks.md` contains only `# Tasks` and flat checkboxes; delete it when the slice becomes `done`. `design.md` is forbidden. `requirements.md` needs the explicit gate marker and replaces, rather than duplicates, acceptance.

@@ -2,27 +2,30 @@
 
 ## Goal
 
-Let a selected YAML profile compose ordered JSON pieces into the native settings document used by a launch.
+Let a user launch `claude-session --profile=dev` from one JSON piece and list the profiles available to select.
 
 ## Appetite
 
-4 implementation sessions.
+2 implementation sessions.
 
 ## Core
 
-Identical inputs yield one immutable byte-identical output and changed inputs yield a new entry.
+Identical one-piece inputs reuse one immutable byte-identical settings entry, and changed inputs name a new entry.
 
 ## In scope
 
-- Per-key merge strategies and complete contributor provenance.
-- Schema-aware structural validation that permits unknown native keys.
-- `config` and `profile` reports with verb-level JSON.
-- Generated examples and schema freshness tooling.
+- Resolution of a profile containing exactly one JSON piece.
+- Content-addressed settings generation and the profile, path, digest, and piece fields of its provenance sidecar.
+- Native `--settings` prefix injection while preserving every user-supplied child argument.
+- The `profile` listing report in human and verb-level JSON forms.
+- Single-piece profile entries in the doctor catalog, with their feature-owned probes and remediation.
+- Regenerated completion and man-page coverage plus user documentation and per-rung release gates for `0.4.0`.
 
 ## Out of scope
 
-- Managing child credentials or trust state.
-- Treating the composed document as the child's entire effective configuration.
+- Ordered multi-piece merging, per-key array strategies, and contributor-chain provenance; slice 014 owns them.
+- The `config` report, schema-aware validation, generated examples, and freshness tooling; slice 014 owns them.
+- Managing child credentials or treating the composed document as the child's entire effective configuration.
 
 ## Governed by
 
@@ -40,20 +43,21 @@ Identical inputs yield one immutable byte-identical output and changed inputs yi
 
 ## Acceptance
 
-- When ordered pieces are composed, the wrapper shall apply recursive object merge, scalar last-wins, and the selected per-key array strategy deterministically.
-- When more than one piece touches a key, the wrapper shall preserve the ordered contributor chain in provenance.
-- If a strategy pointer is invalid or cannot apply, then the wrapper shall reject the composition with its path and source.
-- When a merged document contains an unknown native key, the wrapper shall preserve it and report a warning with provenance.
-- When composition succeeds, the wrapper shall pass the immutable entry through the native `--settings` prefix.
+- When a selected profile names one valid piece, the wrapper shall produce deterministic settings bytes and a provenance sidecar naming that profile and piece.
+- When identical one-piece inputs are selected again, the wrapper shall reuse the complete immutable entry without rewriting it.
+- When the profile bytes, resolved profile path, piece bytes, or resolved piece path change, the wrapper shall name a different entry.
+- When a one-piece profile launch succeeds, the wrapper shall prepend the native `--settings` pair and preserve the user's child argv as an untouched suffix.
+- When profiles are listed, the wrapper shall report the available profile names without claiming unimplemented multi-piece behavior.
+- When the profile MVP lands, its doctor entries, generated CLI artifacts, user documentation, and `0.4.0` release gates shall agree with the implemented grammar.
 
 ## Rabbit holes
 
-- Strictly rejecting the complete native schema; escape: Q-003 must exit by measurement first.
+- Building a merge engine for one piece; escape: pass the single parsed document through deterministic generation and defer composition depth to slice 014.
 - Mtime freshness; escape: content-addressed names make changed inputs name a new entry.
 
 ## Done when
 
-Targeted model, merge, provenance, generation, command, and freshness tests pass under `cargo nextest`.
+Targeted profile resolution, entry-key, immutability, provenance, argv-prefix, listing, doctor-catalog, and generated-artifact tests pass under `cargo nextest`, the `0.4.0` rung documentation is honest, and `just hooks` is green.
 
 ## Revisions
 

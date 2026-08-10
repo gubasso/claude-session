@@ -15,7 +15,7 @@ Report a red baseline before adding unrelated repairs.
 ## Pick up current work
 
 1. Open [milestones](../plan/milestones.md) and read `## in flight`.
-2. Continue the `active` slice, or change the first `shaped` line whose named predecessors are closed to `active`.
+2. Continue the `active` slice, or change the first `shaped` line to `active`. The section is ordered by execution, so that line is the next slice whose named predecessors are closed.
 3. Open that line's slice `README.md`, at `slices/<id>-<slug>/`, and read it completely.
 4. Load only the files named under `Governed by`; they are the slice's implementation filter.
 5. Implement the core first, then `In scope` from top to bottom. If appetite binds, cut from the end.

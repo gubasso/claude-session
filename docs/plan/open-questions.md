@@ -2,7 +2,7 @@
 
 ## Q-002 — Does the child baseline still guarantee cross-process refresh locking?
 
-Blocks: slice 005 login-mode version-floor acceptance.
+Blocks: slice 013 login-mode version-floor acceptance.
 
 Raised: migrated from the perishable child-version and refresh-lock records.
 
@@ -10,7 +10,7 @@ Exit: measurement, revalidate current official release material and run two conc
 
 ## Q-003 — Is the published child settings schema complete enough for strict validation?
 
-Blocks: slice 004's optional validation tightening; permissive unknown-key handling remains the shaped default.
+Blocks: slice 014's optional validation tightening; permissive unknown-key handling remains the shaped default.
 
 Raised: migrated from the schema tracking entry.
 
@@ -18,7 +18,7 @@ Exit: measurement, record whether the current schema both tracks releases and fo
 
 ## Q-004 — Does in-TUI login honor the selected account directory in both stored modes?
 
-Blocks: slice 005 TUI-login warning and remediation acceptance.
+Blocks: slice 013 TUI-login warning and remediation acceptance.
 
 Raised: migrated from the two unverified account facts.
 

@@ -77,7 +77,14 @@ struct Row {
     appetite: String,
     dir: String,
     closed: bool,
+    /// The ids the note names as predecessors, which order `## in flight`.
+    after: Vec<String>,
 }
+
+/// The note's optional leading clause, which makes execution order checkable
+/// rather than asserted. Only the first clause is read, so prose after the
+/// semicolon stays free text.
+const AFTER: &str = "after ";
 
 /// Shell-glob matching with `*` only, because the shapes above were shell
 /// `case` patterns and reproducing them exactly is the point.
@@ -113,6 +120,22 @@ fn identity(head: &str) -> Option<(String, String)> {
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
     shaped.then(|| (id.to_string(), slug.to_string()))
+}
+
+/// The predecessor ids in a note, read from its first clause only. A note that
+/// does not open with the clause names none, which is how a slice with no
+/// predecessor spells the absence.
+fn predecessors(note: Option<&&str>) -> Vec<String> {
+    let Some(clause) = note.and_then(|text| text.split(';').next()) else {
+        return Vec::new();
+    };
+    let Some(ids) = clause.strip_prefix(AFTER) else {
+        return Vec::new();
+    };
+    ids.split(|c: char| !c.is_ascii_digit())
+        .filter(|token| is_identifier(token))
+        .map(str::to_string)
+        .collect()
 }
 
 /// Parses the two-section list. The grammar is fixed so the status surface stays
@@ -173,10 +196,12 @@ fn milestones(text: &str) -> (Vec<Row>, Vec<Violation>) {
             None => counts.push((id.clone(), 1)),
         }
 
-        // Ascending inside a section, so the two runs stay scannable and a
-        // misfiled entry is visible without reading every line.
+        // Ascending inside `## closed`, which is a ledger: the run stays
+        // scannable and a misfiled entry is visible without reading every line.
+        // `## in flight` is ordered by execution instead, and the predecessor
+        // pass below is what proves it.
         let numeric = id.parse::<usize>().unwrap_or(0);
-        if numeric <= previous {
+        if closed && numeric <= previous {
             found.push(Violation::whole(
                 MILESTONES,
                 format!("milestone {id} is out of ascending id order in its section"),
@@ -212,6 +237,7 @@ fn milestones(text: &str) -> (Vec<Row>, Vec<Violation>) {
             appetite: fields[2].to_string(),
             dir,
             closed,
+            after: predecessors(fields.get(3)),
         });
     }
 
@@ -221,6 +247,44 @@ fn milestones(text: &str) -> (Vec<Row>, Vec<Violation>) {
                 MILESTONES,
                 format!("milestone {id} has {count} lines; one status surface means one line"),
             ));
+        }
+    }
+
+    // `## in flight` reads in execution order, so the top line is the next slice
+    // to pick up. That is only true while every predecessor a note names is
+    // already closed or already listed above, which is what this proves. Closed
+    // work is finished, so it satisfies any predecessor from either section.
+    let live: Vec<&Row> = rows.iter().filter(|row| !row.closed).collect();
+    for (index, row) in live.iter().enumerate() {
+        for predecessor in &row.after {
+            let known = rows.iter().find(|other| other.id == *predecessor);
+            let Some(known) = known else {
+                found.push(Violation::whole(
+                    MILESTONES,
+                    format!(
+                        "milestone {} names predecessor {predecessor}, which has no line",
+                        row.id
+                    ),
+                ));
+                continue;
+            };
+            if known.closed {
+                continue;
+            }
+            let above = live
+                .iter()
+                .take(index)
+                .any(|earlier| earlier.id == *predecessor);
+            if !above {
+                found.push(Violation::whole(
+                    MILESTONES,
+                    format!(
+                        "milestone {} is above its predecessor {predecessor}, \
+                        so in flight is not in execution order",
+                        row.id
+                    ),
+                ));
+            }
         }
     }
 
@@ -710,6 +774,7 @@ fn row(status: &str, appetite: &str) -> Row {
         appetite: appetite.to_string(),
         dir: "001-a-slice".to_string(),
         closed: TERMINAL.contains(&status),
+        after: Vec::new(),
     }
 }
 
@@ -725,10 +790,16 @@ const LIST: &str = "# Milestones\n\
     \n\
     - 001 native-passthrough-foundation — done — 4 implementation sessions\n";
 
-/// Two live entries, so a duplicate or a descent can be built from the fixture
-/// rather than hand-written twice.
+/// The live entry, so a duplicate can be built from the fixture rather than
+/// hand-written twice.
 const NINE: &str = "- 009 release-readiness — shaped — 1 implementation session\n";
-const EIGHT: &str = "- 008 cli-artifacts — shaped — 1 implementation session\n";
+
+/// A live predecessor pair, so execution order can be built from the fixture in
+/// either direction. The descending ids are the point: they are legal above,
+/// and only the note decides which line may come first.
+const THIRTEEN: &str = "- 013 token-account-lifecycle — shaped — 2 implementation sessions\n";
+const FOUR: &str =
+    "- 004 profile-composition — shaped — 2 implementation sessions — after 013; the rung\n";
 
 #[test]
 fn a_healthy_slice_is_accepted() {
@@ -828,11 +899,51 @@ fn a_line_in_a_section_that_is_not_an_entry_is_a_violation() {
 }
 
 #[test]
-fn descending_ids_within_a_section_are_a_violation() {
-    let text = LIST.replace(NINE, &format!("{NINE}{EIGHT}"));
+fn descending_ids_within_closed_are_a_violation() {
+    let text = LIST.replace(
+        "- 001 native-passthrough-foundation — done — 4 implementation sessions\n",
+        "- 003 native-child-exec — done — 2 implementation sessions\n\
+        - 002 secure-session-storage — done — 3 implementation sessions\n",
+    );
     let (_, found) = milestones(&text);
     assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
     assert!(found[0].to_string().contains("ascending id order"));
+}
+
+#[test]
+fn descending_ids_within_in_flight_are_accepted() {
+    let text = LIST.replace(NINE, &format!("{THIRTEEN}{FOUR}"));
+    let (_, found) = milestones(&text);
+    assert_clean(&found);
+}
+
+#[test]
+fn an_entry_above_its_live_predecessor_is_a_violation() {
+    let text = LIST.replace(NINE, &format!("{FOUR}{THIRTEEN}"));
+    let (_, found) = milestones(&text);
+    assert_eq!(found.len(), 1, "{}", crate::violation::render(&found));
+    assert!(found[0].to_string().contains("execution order"));
+}
+
+#[test]
+fn a_closed_predecessor_orders_nothing() {
+    let text = LIST.replace(
+        NINE,
+        "- 009 release-readiness — shaped — 1 implementation session — after 001\n",
+    );
+    let (_, found) = milestones(&text);
+    assert_clean(&found);
+}
+
+#[test]
+fn a_predecessor_with_no_line_is_a_violation() {
+    let text = LIST.replace(
+        NINE,
+        "- 009 release-readiness — shaped — 1 implementation session — after 002 and 003\n",
+    );
+    let (_, found) = milestones(&text);
+    assert_eq!(found.len(), 2, "{}", crate::violation::render(&found));
+    assert!(found.iter().all(|v| v.to_string().contains("has no line")));
 }
 
 #[test]
