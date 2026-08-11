@@ -60,6 +60,11 @@
             # installs the hook's pure-JS custom rule, which nixpkgs does not
             # package.
             pkgs.nodejs
+            # util-linux supplies `script` and `setsid`, which the account
+            # login integration tests use to allocate and to detach a
+            # controlling terminal. Without it the tests would read those
+            # binaries off the host PATH, which self-containment forbids.
+            pkgs.util-linux
           ];
           # native deps for -sys crates, uncomment as needed:
           # buildInputs = [ pkgs.openssl ];

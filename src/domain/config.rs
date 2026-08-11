@@ -86,6 +86,10 @@ impl ResolvedConfig {
     pub(crate) const fn account(&self) -> Option<&Identifier> {
         self.default_account.value()
     }
+    /// Returns the account selection provenance.
+    pub(crate) const fn account_source(&self) -> Source {
+        self.default_account.source()
+    }
     /// Returns the selected profile, if any layer supplied one.
     pub(crate) const fn profile(&self) -> Option<&Identifier> {
         self.default_profile.value()

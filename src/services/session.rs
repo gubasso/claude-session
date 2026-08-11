@@ -6,9 +6,7 @@
 
 use std::path::PathBuf;
 
-use crate::{context::AppContext, domain::identifier::Identifier, error::AppError};
-
-use super::storage::guard;
+use crate::{context::AppContext, domain::identifier::Identifier};
 
 /// The paths one run's selection resolves to.
 ///
@@ -37,7 +35,7 @@ impl SessionPaths {
     pub(crate) fn resolve(context: &AppContext) -> Self {
         let paths = context.paths();
         Self {
-            account: context.config().account().map(|id| Account {
+            account: context.account_selection().account().map(|id| Account {
                 id: id.clone(),
                 directory: paths.account(id),
                 config: paths.account_config(id),
@@ -54,29 +52,4 @@ impl SessionPaths {
     pub(crate) const fn profile(&self) -> Option<&Identifier> {
         self.profile.as_ref()
     }
-}
-
-/// Validates and creates this run's account directories, if one is selected.
-///
-/// Uncached and explicit: the guard has to run against the state the operation
-/// will meet, so preparation is a call rather than a value the context holds.
-/// The child-owned `config/` directory is created here because the artifact
-/// table assigns its creation to the account subsystem — the child writes
-/// inside it, the wrapper makes it, at `0700`.
-pub(crate) fn prepare_account(context: &AppContext) -> Result<(), AppError> {
-    let Some(account) = context.session().account() else {
-        return Ok(());
-    };
-    let state = context.paths().state();
-    guard::ensure_directory(state, &account.directory)?;
-    guard::ensure_directory(state, &account.config)?;
-    tracing::debug!(
-        op = "resolve_session",
-        account = account.id.as_str(),
-        directory = %account.directory.display(),
-        config = %account.config.display(),
-        status = "ok",
-        "prepared the account directories"
-    );
-    Ok(())
 }

@@ -46,13 +46,13 @@ A selected login-mode account gives the child one private, durable configuration
 
 ## Acceptance
 
-- When accounts are listed, the wrapper shall derive them from directories without a registry index.
-- When account usability is reported, the wrapper shall decide it from directory security, mode metadata, and the presence of the mode's stored artifact, and shall spawn no child.
-- When native login succeeds, the child shall own one shared saved login under the account configuration directory and the wrapper shall not inspect it.
-- When a login-mode account is selected for launch, the wrapper shall set `CLAUDE_CONFIG_DIR`, set no wrapper token variable, and record the selection before the exec.
-- If a login-mode launch resolves a child below the documented floor or a version that does not parse, then the wrapper shall refuse before the exec and shall emit the catalog remediation.
-- When no account is selected, the wrapper shall inject neither wrapper authentication variable and shall preserve native passthrough.
-- When the account MVP lands, its doctor catalog entries, user documentation, and `0.2.0` release gates shall describe only behavior this rung implements.
+- When accounts are listed, the wrapper shall derive them from directories without a registry index. -> accounts::account_list_discovers_directories_without_a_registry
+- When account usability is reported, the wrapper shall decide it from directory security, mode metadata, and the presence of the mode's stored artifact, and shall spawn no child. -> accounts::account_list_reports_local_usability_without_spawning_a_child
+- When native login succeeds, the child shall own one shared saved login under the account configuration directory and the wrapper shall not inspect it. -> accounts::native_login_delegates_to_the_child_owned_shared_config
+- When a login-mode account is selected for launch, the wrapper shall set `CLAUDE_CONFIG_DIR`, set no wrapper token variable, and record the selection before the exec. -> accounts::marker_is_written_before_the_selected_account_exec
+- If a login-mode launch resolves a child below the documented floor or a version that does not parse, then the wrapper shall refuse before the exec and shall emit the catalog remediation. -> accounts::login_launch_below_the_version_floor_refuses_before_exec
+- When no account is selected, the wrapper shall inject neither wrapper authentication variable and shall preserve native passthrough. -> accounts::unselected_passthrough_never_runs_the_version_probe
+- When the account MVP lands, its doctor catalog entries, user documentation, and `0.2.0` release gates shall describe only behavior this rung implements. -> doctor::the_published_documentation_matches_the_implemented_rung
 
 ## Rabbit holes
 

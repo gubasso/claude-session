@@ -176,7 +176,10 @@ pub(crate) fn run(
     let has_session =
         context.session().account().is_some() || context.session().profile().is_some();
     if context.config_error().is_some() {
-        for check in &CATALOG[6..] {
+        for check in CATALOG
+            .iter()
+            .filter(|check| check.scope() == crate::domain::checks::Scope::Session)
+        {
             results.push(CheckResult::skipped(
                 *check,
                 "wrapper configuration parsing failed",
@@ -204,7 +207,10 @@ pub(crate) fn run(
             &targets,
         ));
     } else {
-        for check in &CATALOG[6..11] {
+        for check in CATALOG
+            .iter()
+            .filter(|check| matches!(check, Check::Storage(_)))
+        {
             results.push(CheckResult::skipped(*check, "no session context applies"));
         }
     }
@@ -223,6 +229,7 @@ pub(crate) fn run(
                 "no profile is selected",
             ));
         }
+        results.extend(crate::services::account::doctor_results(context));
     }
 
     let (child, child_race) = child_report(context, runnable.as_deref())?;

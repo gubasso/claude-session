@@ -2,7 +2,7 @@
 
 The probe catalog, what each check reads, the remediation it prints, and how a run collapses into one exit code.
 
-The `doctor` verb, its report, `--list`, and `--strict` are implemented over the 13 checks whose subjects exist. The two account checks described below remain later design owned by slice `005`.
+The `doctor` verb, its report, `--list`, and `--strict` are implemented over 15 checks.
 
 The catalog below has three consumers and only one of them is an output surface, which is why it lives here rather than in [logging and output](./logging-and-output.md): a reader holding a check id is asking a health question, not a formatting one. That page still owns the streams and the document rules, and [presentation](./presentation.md) owns the appearance rules this one defers to.
 
@@ -43,8 +43,8 @@ Each check has a stable kebab-case id, a scope, a severity, and the `err.kind` a
 | `storage-secret-modes`      | Session | Hard     | `Permission`         | Every wrapper-owned file assigned mode `0600` has that mode, after correction       |
 | `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                |
 | `settings-entry-consistent` | Session | Hard     | `DataFormat`         | A materialized entry's recorded digest matches the one its inputs recompute         |
-
-Slice `005` appends `account-registry-readable` and `credentials-usable` when their account-authentication subjects exist. They are not emitted as permanent `skipped` placeholders and do not appear in current catalog discovery.
+| `account-registry-readable` | Session | Soft     | `Io`                 | The account collection can be enumerated safely                                     |
+| `credentials-usable`        | Session | Soft     | `Auth`               | The selected login account has safe metadata and a child-owned saved-login path     |
 
 Hard means the wrapper cannot function. Soft means a feature is degraded.
 
@@ -66,18 +66,18 @@ Every check that can fail has a row here. A guard cannot quote a remediation tha
 | `wrapper-config-parses`     | `{key}` in `{path}` is not a configuration key. Remove it, or correct it to one of the keys [configuration](./configuration.md#keys) lists.                                                                                               |
 | `child-binary-resolves`     | No `claude` was found. Install it, put it on `PATH`, or set `child_bin` to its absolute path — [process runtime](./process-runtime.md#child-resolution) gives the order the two rungs are tried in.                                       |
 | `child-is-executable`       | `{path}` exists but the current user cannot execute it. Grant execute permission, or point `child_bin` at a different binary.                                                                                                             |
-| `child-version-floor`       | The resolved `claude` reports `{version}`, below the `{minimum}` this wrapper is designed against. Upgrade it; until then, saved-login mode is refused and token mode still works.                                                        |
+| `child-version-floor`       | The resolved `claude` reports `{version}`, below the `{minimum}` this wrapper is designed against. Upgrade it before using a saved-login account.                                                                                         |
 | `storage-paths-no-symlinks` | Move the symbolic link at `{path}` aside and recreate the expected `{expected_type}` there, restoring only content you trust.                                                                                                             |
 | `storage-paths-owned`       | `{path}` is owned by another user, which usually means a restored backup or a file created under `sudo`. Do not change its owner in place — move it aside and let the wrapper recreate it as you.                                         |
 | `storage-paths-typed`       | `{path}` is a `{actual_type}` and this location must be a `{expected_type}`. Move it aside and let the wrapper recreate it; nothing under this path is unrecoverable except an account login.                                             |
 | `storage-directory-modes`   | Could not restrict `{path}` to mode `{expected_mode}`. Check that it is on a filesystem supporting Unix permissions and was created by the current user.                                                                                  |
 | `storage-secret-modes`      | Could not restrict `{path}` to mode `{expected_mode}`. Move the file to storage that supports Unix permissions before using it again.                                                                                                     |
-| `account-registry-readable` | The account registry under `{path}` could not be read. Check that it exists and is readable; if it is missing entirely, `claude-session account login {account}` recreates it.                                                            |
-| `credentials-usable`        | The stored credential for `{account}` is missing, expired, or refused. Run `claude-session account login {account}` to replace it.                                                                                                        |
 | `settings-compose`          | `{path}`, named by profile `{profile}`, does not exist. Create it, correct the name in the profile, or select a different profile.                                                                                                        |
 | `settings-entry-consistent` | The composed entry at `{path}` does not match the digest its inputs recompute, so it was neither opened nor overwritten. Move it aside; the next launch composes a fresh one. Report this — an entry is written once and never rewritten. |
+| `account-registry-readable` | Make `{path}` a readable, private directory owned by the current user, then retry.                                                                                                                                                        |
+| `credentials-usable`        | Run `claude-session account login {account}` to recreate the child-owned saved login and its local metadata.                                                                                                                              |
 
-On a credential path — `oauth-token`, `auth-mode.json`, or the child's `.credentials.json` — the `storage-paths-no-symlinks` template appends one clause, because a link there means something else may have read the secret:
+On a credential path — `oauth-token`, `auth-mode.json`, or the child's `.credentials.json` — a symlink means something else may have read the secret, so one clause is appended. Only `credentials-usable` appends it today, over the selected account's three credential paths; the wrapper-managed storage checks refuse a link on those paths without it. Ownership, type, and symlink defects on the child-owned credential are reported by `credentials-usable` under its published `Auth` kind, and the diagnostic names the concrete ownership cause:
 
 > Anything holding that link may have read this account's credential. Treat it as exposed: run `claude-session account login {account}` for a fresh one, and revoke the old one at the provider.
 
@@ -124,7 +124,7 @@ Checks are grouped by scope in catalog order, and each line carries its status a
 The rows are followed by one line per level, in the fixed order `wrapper`, `child`, `doctor`:
 
 ```text
-wrapper status=pass total=13 passed=13 warned=0 failed=0 skipped=0 hard_failures=0 exit=0
+wrapper status=pass total=15 passed=15 warned=0 failed=0 skipped=0 hard_failures=0 exit=0
 child status=fail exit=1
 doctor status=fail wrapper=0 child=1 exit=69
 ```
@@ -151,7 +151,7 @@ The `child` line carries `exit` when the child returned one and `reason` when it
         "kind": "ChildNotFound"
       }
     ],
-    "summary": { "total": 13, "passed": 13, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0, "exit": 0 }
+    "summary": { "total": 15, "passed": 15, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0, "exit": 0 }
   },
   "child": { "status": "fail", "output": "…", "exit": 1 },
   "schema_version": 1

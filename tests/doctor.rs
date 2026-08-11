@@ -4,7 +4,7 @@ mod support;
 
 use support::Harness;
 
-const IDS: [&str; 13] = [
+const IDS: [&str; 15] = [
     "base-dirs-resolve",
     "runtime-dir-present",
     "wrapper-config-parses",
@@ -18,6 +18,8 @@ const IDS: [&str; 13] = [
     "storage-secret-modes",
     "settings-compose",
     "settings-entry-consistent",
+    "account-registry-readable",
+    "credentials-usable",
 ];
 
 fn healthy(harness: &Harness) -> assert_cmd::Command {
@@ -46,7 +48,7 @@ fn doctor_human_report_preserves_catalog_order_and_text_shape() {
     }
     assert!(text.contains("Host\n[pass]"));
     assert!(text.contains("Session\n"));
-    assert!(text.contains("wrapper status=pass total=13"));
+    assert!(text.contains("wrapper status=pass total=15"));
     assert!(text.contains("\nchild status=pass exit=0\n"));
     assert!(text.contains("\ndoctor status=pass wrapper=0 child=0 exit=0\n"));
     assert!(text.ends_with("\n\n--- claude doctor ---\n\nnative doctor\n"));
@@ -62,12 +64,12 @@ fn doctor_json_report_matches_the_public_catalog() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(value["schema_version"], 1);
     let checks = value["wrapper"]["checks"].as_array().expect("checks");
-    assert_eq!(checks.len(), 13);
+    assert_eq!(checks.len(), 15);
     for (row, id) in checks.iter().zip(IDS) {
         assert_eq!(row["id"], id);
     }
     // Three levels, each stating its own status and code.
-    assert_eq!(value["wrapper"]["summary"]["total"], 13);
+    assert_eq!(value["wrapper"]["summary"]["total"], 15);
     assert_eq!(value["wrapper"]["status"], "pass");
     assert_eq!(value["wrapper"]["summary"]["exit"], 0);
     assert_eq!(value["child"]["status"], "pass");
@@ -91,7 +93,7 @@ fn doctor_list_human_runs_no_probes() {
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let text = String::from_utf8(output.stdout).expect("text");
-    assert_eq!(text.lines().count(), 13);
+    assert_eq!(text.lines().count(), 15);
     assert!(!harness.record_dir().join("argv").exists());
 }
 
@@ -105,7 +107,7 @@ fn doctor_list_json_discovers_the_same_catalog() {
         .expect("list");
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     let rows = value["checks"].as_array().expect("checks");
-    assert_eq!(rows.len(), 13);
+    assert_eq!(rows.len(), 15);
     for (row, id) in rows.iter().zip(IDS) {
         assert_eq!(row["id"], id);
         assert!(row.get("status").is_none());
@@ -143,7 +145,7 @@ fn doctor_skips_inapplicable_session_checks_with_reasons() {
         .iter()
         .filter(|row| row["status"] == "skipped")
         .count();
-    assert_eq!(skipped, 7);
+    assert_eq!(skipped, 9);
 }
 
 #[test]
@@ -178,7 +180,7 @@ fn doctor_continues_after_a_subsystem_failure() {
             .expect("checks")
             .last()
             .expect("last")["id"],
-        "settings-entry-consistent"
+        "credentials-usable"
     );
 }
 
@@ -287,7 +289,7 @@ fn doctor_reports_bootstrap_failures_in_the_requested_mode() {
         .expect("doctor");
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(value["wrapper"]["checks"][0]["status"], "fail");
-    assert_eq!(value["wrapper"]["checks"][12]["status"], "skipped");
+    assert_eq!(value["wrapper"]["checks"][14]["status"], "skipped");
     assert_eq!(value["child"]["status"], "skipped");
     assert_eq!(output.status.code(), Some(69));
 
@@ -302,7 +304,7 @@ fn doctor_reports_bootstrap_failures_in_the_requested_mode() {
     assert_eq!(value["wrapper"]["checks"][2]["status"], "fail");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        13
+        15
     );
 }
 
@@ -319,4 +321,136 @@ fn doctor_flags_are_verb_scoped_and_singleton() {
         .args(["doctor", "--json", "--json"])
         .assert()
         .code(64);
+}
+
+#[test]
+fn doctor_evaluates_selected_account_usability_locally() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    let output = healthy(&harness)
+        .args(["--account", "work", "doctor", "--json"])
+        .output()
+        .expect("doctor");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(value["wrapper"]["checks"][13]["status"], "pass");
+    assert_eq!(value["wrapper"]["checks"][14]["status"], "pass");
+    assert_eq!(
+        std::fs::read(
+            harness
+                .state()
+                .join("accounts/work/config/.credentials.json")
+        )
+        .expect("fixture"),
+        b"child-owned-fixture"
+    );
+
+    std::fs::remove_file(
+        harness
+            .state()
+            .join("accounts/work/config/.credentials.json"),
+    )
+    .expect("remove fixture");
+    let output = healthy(&harness)
+        .args(["--account", "work", "doctor", "--json"])
+        .output()
+        .expect("doctor");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(value["wrapper"]["checks"][14]["status"], "warn");
+    assert_eq!(value["wrapper"]["checks"][14]["kind"], "Auth");
+}
+
+/// Reads a checked-in repository document. A missing input is a failure that
+/// names the path, never a skip: a gate that can quietly decline to run is not
+/// a gate.
+fn document(relative: &str) -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
+    std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("{relative} is required by this gate: {error}"))
+}
+
+/// The body of one `## ` section, up to the next one.
+fn section<'a>(text: &'a str, heading: &'a str) -> &'a str {
+    let start = text.find(heading).unwrap_or_else(|| panic!("{heading}"));
+    let rest = &text[start + heading.len()..];
+    rest.find("\n## ").map_or(rest, |end| &rest[..end])
+}
+
+/// Acceptance line 7 of slice `005`: the rung's doctor catalog entries, its
+/// user documentation, and its release gates describe only behaviour this rung
+/// implements. Prose honesty is enforced by review, but the part that is
+/// mechanical is enforced here: the published catalog table is compared row for
+/// row against the catalog the binary projects, the counts the same page states
+/// are compared against it, and the three claims this rung falsified are pinned
+/// so a revert cannot quietly restore them.
+#[test]
+fn the_published_documentation_matches_the_implemented_rung() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args(["doctor", "--list", "--json"])
+        .output()
+        .expect("list");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    let projected: Vec<(String, String, String)> = value["checks"]
+        .as_array()
+        .expect("checks")
+        .iter()
+        .map(|row| {
+            (
+                row["id"].as_str().expect("id").to_owned(),
+                row["scope"].as_str().expect("scope").to_owned(),
+                row["severity"].as_str().expect("severity").to_owned(),
+            )
+        })
+        .collect();
+
+    let doctor = document("docs/reference/doctor.md");
+    let documented: Vec<(String, String, String)> = section(&doctor, "\n## The catalog\n")
+        .lines()
+        .filter(|line| line.starts_with("| `"))
+        .map(|line| {
+            let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+            assert!(cells.len() >= 6, "unexpected catalog row: {line}");
+            (
+                cells[1].trim_matches('`').to_owned(),
+                cells[2].to_lowercase(),
+                cells[3].to_lowercase(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented, projected,
+        "the published catalog table and the projected catalog must agree"
+    );
+
+    // Every count the page states about the catalog is the same number.
+    let total = projected.len();
+    assert!(
+        doctor.contains(&format!("implemented over {total} checks")),
+        "the stated catalog size must match the projected one"
+    );
+    assert!(doctor.contains(&format!("wrapper status=pass total={total} passed={total}")));
+    assert!(doctor.contains(&format!(
+        "\"summary\": {{ \"total\": {total}, \"passed\": {total}"
+    )));
+
+    // The claims this rung made false. Each was true before the account rung
+    // landed, so each is a revert this gate has to catch.
+    assert!(
+        !doctor.contains("Slice `005` appends"),
+        "the account entries are in the catalog, so the deferral sentence is stale"
+    );
+    assert!(
+        !doctor.contains("token mode still works"),
+        "token mode is not implemented, so the floor remediation must not promise it"
+    );
+    let accounts = document("docs/reference/accounts.md");
+    assert!(
+        !accounts.contains("pre-implementation"),
+        "the login-mode subset is implemented"
+    );
+    assert!(
+        !accounts.contains("`project-config`"),
+        "a project file cannot supply an account, so it is not a selection source"
+    );
 }

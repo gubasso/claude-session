@@ -55,6 +55,7 @@ pub(crate) enum Check {
     ChildVersionFloor,
     Storage(StorageCheck),
     Entry(EntryCheck),
+    Account(AccountCheck),
 }
 
 /// The implemented public catalog, in its append-only order.
@@ -72,6 +73,8 @@ pub(crate) const CATALOG: &[Check] = &[
     Check::Storage(StorageCheck::SecretModes),
     Check::Entry(EntryCheck::Compose),
     Check::Entry(EntryCheck::Consistent),
+    Check::Account(AccountCheck::RegistryReadable),
+    Check::Account(AccountCheck::CredentialsUsable),
 ];
 
 impl Check {
@@ -86,6 +89,7 @@ impl Check {
             Self::ChildVersionFloor => "child-version-floor",
             Self::Storage(value) => value.id(),
             Self::Entry(value) => value.id(),
+            Self::Account(value) => value.id(),
         }
     }
     /// Returns the owning scope.
@@ -97,13 +101,13 @@ impl Check {
             | Self::ChildBinaryResolves
             | Self::ChildIsExecutable
             | Self::ChildVersionFloor => Scope::Host,
-            Self::Storage(_) | Self::Entry(_) => Scope::Session,
+            Self::Storage(_) | Self::Entry(_) | Self::Account(_) => Scope::Session,
         }
     }
     /// Returns the published severity.
     pub(crate) const fn severity(self) -> Severity {
         match self {
-            Self::RuntimeDirPresent | Self::ChildVersionFloor => Severity::Soft,
+            Self::RuntimeDirPresent | Self::ChildVersionFloor | Self::Account(_) => Severity::Soft,
             _ => Severity::Hard,
         }
     }
@@ -118,6 +122,7 @@ impl Check {
             Self::ChildIsExecutable => ErrorKind::ChildNotExecutable,
             Self::Storage(value) => value.kind(),
             Self::Entry(value) => value.kind(),
+            Self::Account(value) => value.kind(),
         }
     }
     /// Returns the remediation template, if this check owns one.
@@ -143,11 +148,11 @@ impl Check {
             )),
             Self::ChildVersionFloor => Some(concat!(
                 "The resolved `claude` reports {version}, below the {minimum} this wrapper is ",
-                "designed against. Upgrade it; until then, saved-login mode is refused and token ",
-                "mode still works."
+                "designed against. Upgrade it before using a saved-login account."
             )),
             Self::Storage(value) => Some(value.remediation()),
             Self::Entry(value) => Some(value.remediation()),
+            Self::Account(value) => Some(value.remediation()),
         }
     }
     /// Substitutes named values into this check's owned remediation.
@@ -157,6 +162,39 @@ impl Check {
             text = text.replace(&format!("{{{name}}}"), value);
         }
         Some(text)
+    }
+}
+
+/// Account-local health checks appended by slice 005.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AccountCheck {
+    RegistryReadable,
+    CredentialsUsable,
+}
+
+impl AccountCheck {
+    pub(crate) const fn id(self) -> &'static str {
+        match self {
+            Self::RegistryReadable => "account-registry-readable",
+            Self::CredentialsUsable => "credentials-usable",
+        }
+    }
+    pub(crate) const fn kind(self) -> ErrorKind {
+        match self {
+            Self::RegistryReadable => ErrorKind::Io,
+            Self::CredentialsUsable => ErrorKind::Auth,
+        }
+    }
+    pub(crate) const fn remediation(self) -> &'static str {
+        match self {
+            Self::RegistryReadable => {
+                "Make `{path}` a readable, private directory owned by the current user, then retry."
+            }
+            Self::CredentialsUsable => {
+                "Run `claude-session account login {account}` to recreate the child-owned saved \
+                login and its local metadata."
+            }
+        }
     }
 }
 
@@ -666,8 +704,20 @@ mod tests {
                 Severity::Hard,
                 ErrorKind::DataFormat,
             ),
+            (
+                "account-registry-readable",
+                Scope::Session,
+                Severity::Soft,
+                ErrorKind::Io,
+            ),
+            (
+                "credentials-usable",
+                Scope::Session,
+                Severity::Soft,
+                ErrorKind::Auth,
+            ),
         ];
-        assert_eq!(CATALOG.len(), 13);
+        assert_eq!(CATALOG.len(), 15);
         for (check, (id, scope, severity, kind)) in CATALOG.iter().zip(expected) {
             assert_eq!(
                 (check.id(), check.scope(), check.severity(), check.kind()),

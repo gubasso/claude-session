@@ -102,6 +102,23 @@ fn a_project_file_inside_a_repository_is_read() {
     );
 }
 
+#[test]
+fn a_project_file_cannot_select_an_account() {
+    let harness = Harness::new();
+    let repo = harness.root().join("repo");
+    fs::create_dir_all(repo.join(".git")).expect("marker");
+    fs::write(
+        repo.join(".claude-session.toml"),
+        "default_account='work'\n",
+    )
+    .expect("project file");
+    let mut command = harness.command();
+    command.current_dir(&repo);
+    let output = command.output().expect("wrapper");
+    assert_eq!(output.status.code(), Some(78));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("default_account"));
+}
+
 /// Outside a repository there is no project layer at all. Without a ceiling the
 /// walk reaches the filesystem root, so a file in the home directory applies to
 /// every invocation made from an unrelated tree.

@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use crate::domain::identifier::Identifier;
 use clap::{ArgAction, Parser, Subcommand};
 
+pub(crate) mod account;
 pub(crate) mod doctor;
 pub(crate) mod help;
 pub(crate) mod version;
@@ -49,6 +50,8 @@ pub(crate) struct Cli {
 /// Implemented wrapper verbs only.
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
+    /// Manage durable child-owned accounts.
+    Account(account::AccountArgs),
     /// Inspect wrapper and child health.
     Doctor(doctor::DoctorArgs),
     /// Show wrapper help followed by native help.

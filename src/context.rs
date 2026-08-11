@@ -4,12 +4,14 @@ use std::sync::OnceLock;
 
 use crate::{
     adapters::{
+        clock::SystemClock,
         environment::{Environment, SystemEnvironment},
         filesystem::SystemFileSystem,
         process::SystemProcessRunner,
+        terminal::SystemTerminal,
     },
     commands::dispatch::OutputMode,
-    domain::{config::ResolvedConfig, paths::XdgPaths},
+    domain::{account::AccountSelection, config::ResolvedConfig, paths::XdgPaths},
     services::session::SessionPaths,
     ui::writer::{Color, OutputWriter},
 };
@@ -19,6 +21,8 @@ use crate::{
 pub(crate) struct Adapters {
     filesystem: SystemFileSystem,
     process: SystemProcessRunner,
+    clock: SystemClock,
+    terminal: SystemTerminal,
 }
 
 impl Adapters {
@@ -30,11 +34,18 @@ impl Adapters {
     pub(crate) const fn process(self) -> SystemProcessRunner {
         self.process
     }
+    pub(crate) const fn clock(self) -> SystemClock {
+        self.clock
+    }
+    pub(crate) const fn terminal(self) -> SystemTerminal {
+        self.terminal
+    }
 }
 
 /// Immutable state for one invocation.
 pub(crate) struct AppContext {
     config: ResolvedConfig,
+    account_selection: AccountSelection,
     paths: XdgPaths,
     environment: SystemEnvironment,
     output_mode: OutputMode,
@@ -53,6 +64,7 @@ impl AppContext {
     /// Constructs the sole context after bootstrap resolution.
     pub(crate) fn new(
         config: ResolvedConfig,
+        account_selection: AccountSelection,
         paths: XdgPaths,
         environment: SystemEnvironment,
         output_mode: OutputMode,
@@ -69,6 +81,7 @@ impl AppContext {
         );
         Self {
             config,
+            account_selection,
             paths,
             environment,
             output_mode,
@@ -82,12 +95,13 @@ impl AppContext {
     /// Constructs a doctor context retaining a failed configuration probe.
     pub(crate) fn with_config_error(
         config: ResolvedConfig,
+        account_selection: AccountSelection,
         paths: XdgPaths,
         environment: SystemEnvironment,
         output_mode: OutputMode,
         error: crate::error::AppError,
     ) -> Self {
-        let mut context = Self::new(config, paths, environment, output_mode);
+        let mut context = Self::new(config, account_selection, paths, environment, output_mode);
         context.config_error = Some(error);
         context
     }
@@ -98,6 +112,9 @@ impl AppContext {
     /// Returns resolved configuration.
     pub(crate) const fn config(&self) -> &ResolvedConfig {
         &self.config
+    }
+    pub(crate) const fn account_selection(&self) -> &AccountSelection {
+        &self.account_selection
     }
     /// Returns resolved XDG paths.
     pub(crate) const fn paths(&self) -> &XdgPaths {

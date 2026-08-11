@@ -99,6 +99,7 @@ fn a_non_utf8_state_home_reaches_the_child_byte_exact() {
 #[test]
 fn a_selected_account_injects_its_config_directory_and_the_marker_alone() {
     let harness = Harness::new();
+    harness.initialize_login("work");
     assert!(
         harness
             .command()
@@ -164,7 +165,7 @@ fn a_wrapper_verb_behind_the_sentinel_reaches_the_child() {
 
 #[test]
 fn unimplemented_verbs_reach_child() {
-    for verb in ["account", "config", "profile", "completion", "man"] {
+    for verb in ["config", "profile", "completion", "man"] {
         let harness = Harness::new();
         assert!(
             harness

@@ -10,7 +10,7 @@ The child's authentication precedence is separate from wrapper configuration pre
 
 Paths for both are in [XDG storage](./xdg-storage.md).
 
-The three-key wrapper configuration loader and provenance model are implemented, as are profile resolution, piece resolution, the default fold, and the sidecar's `profile`, `profile_path`, `digest`, and `pieces` fields. Per-key array strategies, the `keys` contributor map, structural validation, the two verbs, and generated examples remain later-slice design.
+The three-key wrapper configuration loader and provenance model are implemented, including last-used account fallback with `flag`, `environment`, `user-config`, `marker`, or `none` provenance. Profile resolution, piece resolution, the default fold, and the sidecar's `profile`, `profile_path`, `digest`, and `pieces` fields are also implemented. Per-key array strategies, the `keys` contributor map, structural validation, the two configuration verbs, and generated examples remain later-slice design.
 
 ## The wrapper's configuration
 

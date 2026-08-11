@@ -5,7 +5,7 @@ use std::{ffi::OsString, path::PathBuf};
 use clap::Parser;
 
 use crate::{
-    cli::{Cli, Command},
+    cli::{Cli, Command, account::AccountCommand},
     context::AppContext,
     domain::{argv, identifier::Identifier},
     error::{AppError, Diagnostic},
@@ -59,6 +59,17 @@ pub(crate) enum InvocationKind {
         list: bool,
         strict: bool,
     },
+    AccountLogin {
+        name: Option<Identifier>,
+        mode: OutputMode,
+    },
+    AccountList {
+        mode: OutputMode,
+    },
+    /// Requested help for one node of the `account` namespace.
+    AccountHelp {
+        subcommand: Option<&'static str>,
+    },
 }
 
 /// Fully classified wrapper invocation.
@@ -90,7 +101,10 @@ impl Invocation {
     /// Returns the active output mode.
     pub(crate) const fn output_mode(&self) -> OutputMode {
         match self.kind {
-            InvocationKind::Version { mode } | InvocationKind::Doctor { mode, .. } => mode,
+            InvocationKind::Version { mode }
+            | InvocationKind::Doctor { mode, .. }
+            | InvocationKind::AccountLogin { mode, .. }
+            | InvocationKind::AccountList { mode } => mode,
             _ => OutputMode::Human,
         }
     }
@@ -134,7 +148,7 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
         .first()
         .filter(|_| !sentinel)
         .and_then(|value| value.to_str())
-        .filter(|value| matches!(*value, "doctor" | "help" | "version"));
+        .filter(|value| matches!(*value, "account" | "doctor" | "help" | "version"));
     if wrapper_verb.is_some() {
         wrapper.append(&mut child);
     }
@@ -162,6 +176,7 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
         }
     } else {
         match cli.command {
+            Some(Command::Account(value)) => classify_account(value)?,
             Some(Command::Doctor(value)) => InvocationKind::Doctor {
                 mode: if value.json {
                     OutputMode::Json
@@ -171,7 +186,14 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
                 list: value.list,
                 strict: value.strict,
             },
-            Some(Command::Help(_)) => InvocationKind::Help,
+            // `help <verb>` prints exactly what `<verb> --help` prints
+            // (`cli-surface.md#help`), so it routes to the same renderer.
+            Some(Command::Help(value)) => match value.verb {
+                None => InvocationKind::Help,
+                Some(crate::cli::help::HelpTopic::Account) => {
+                    InvocationKind::AccountHelp { subcommand: None }
+                }
+            },
             Some(Command::Version(value)) => InvocationKind::Version {
                 mode: if value.json {
                     OutputMode::Json
@@ -190,6 +212,61 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
     })
 }
 
+/// Renders the `account` node's own help, the diagnostic a bare verb earns.
+fn account_help_text() -> String {
+    let mut root = <Cli as clap::CommandFactory>::command();
+    root.build();
+    root.find_subcommand_mut("account").map_or_else(
+        || "no subcommand was given".to_owned(),
+        |node| node.render_help().to_string(),
+    )
+}
+
+/// Resolves the `account` namespace into one invocation.
+fn classify_account(value: crate::cli::account::AccountArgs) -> Result<InvocationKind, AppError> {
+    let mode = |json: bool| {
+        if json {
+            OutputMode::Json
+        } else {
+            OutputMode::Human
+        }
+    };
+    if value.help_flag {
+        return Ok(InvocationKind::AccountHelp {
+            subcommand: match value.command {
+                None => None,
+                Some(AccountCommand::Login(_)) => Some("login"),
+                Some(AccountCommand::List(_)) => Some("list"),
+            },
+        });
+    }
+    match value.command {
+        // A namespace verb satisfies no invocation on its own
+        // ([ADR-0052](../../docs/decisions/ADR-0052-require-an-explicit-subcommand.md)),
+        // and the verb's own help is that diagnostic (`cli-surface.md#help`),
+        // which is what makes the closed subcommand set discoverable at the
+        // moment the user meets the failure. The parser can no longer raise it
+        // itself, because the subcommand had to become optional for
+        // `account --help`, so the same parser node renders it here.
+        None => Err(AppError::new(
+            crate::error::ErrorKind::Usage,
+            Diagnostic::new(
+                "account requires a subcommand",
+                "account",
+                account_help_text(),
+                "run claude-session account --help",
+            ),
+        )),
+        Some(AccountCommand::Login(value)) => Ok(InvocationKind::AccountLogin {
+            name: value.name,
+            mode: mode(value.json),
+        }),
+        Some(AccountCommand::List(value)) => Ok(InvocationKind::AccountList {
+            mode: mode(value.json),
+        }),
+    }
+}
+
 /// Routes one classified invocation without reparsing.
 pub(crate) fn dispatch(
     context: &AppContext,
@@ -200,6 +277,9 @@ pub(crate) fn dispatch(
         InvocationKind::Help => super::help::run(context),
         InvocationKind::Version { .. } => super::version::run(context),
         InvocationKind::Doctor { list, strict, .. } => super::doctor::run(context, list, strict),
+        InvocationKind::AccountLogin { name, .. } => super::account::login(context, name),
+        InvocationKind::AccountList { .. } => super::account::list(context),
+        InvocationKind::AccountHelp { subcommand } => super::help::verb(context, subcommand),
     }
 }
 

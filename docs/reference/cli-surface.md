@@ -2,7 +2,7 @@
 
 The wrapper's own grammar: what `claude-session` claims, what it forwards, and the parser shape that makes verbatim passthrough work. For the reasoning behind these rules, see [the wrapper model](../explanation/wrapper-model.md).
 
-The passthrough, `help`, `version`, and `doctor` surfaces are implemented. Other verbs remain normative design and undeclared until their slices land.
+The passthrough, `help`, `version`, `doctor`, `account login [name]`, and `account list` surfaces are implemented, and so is requested help for the `account` namespace — `account --help`, `account <subcommand> --help`, and `help account`. Requested help for `doctor` and `version` is not yet a result; that gap is tracked as `Q-006` in [open questions](../plan/open-questions.md). Other account subcommands and options remain normative design and undeclared until their slices land.
 
 ## Invocation shape
 

@@ -2,7 +2,7 @@
 
 Where every artifact lives, who writes it, and what protects it. For the account/profile split, see [session isolation](../explanation/session-isolation.md).
 
-Base resolution, the private state log namespace, the account directories, the composed-settings store and its pair rule, the five security checks, and the lock-free atomic write are implemented. The credential artifacts, the lock scope, and the last-used marker remain normative design.
+Base resolution, the private state log namespace, account directories, login `auth-mode.json`, non-reading saved-login presence checks, the last-used marker, the composed-settings store and its pair rule, the five security checks, and lock-free atomic writes are implemented. `oauth-token`, the credential lock, removal, and token cleanup remain normative future design.
 
 ## Base directories
 

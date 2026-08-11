@@ -83,6 +83,22 @@ impl XdgPaths {
     pub(crate) fn account_config(&self, account: &Identifier) -> PathBuf {
         self.account(account).join("config")
     }
+    /// Returns one account's authentication-mode metadata.
+    pub(crate) fn account_auth_mode(&self, account: &Identifier) -> PathBuf {
+        self.account(account).join("auth-mode.json")
+    }
+    /// Returns one account's future wrapper-owned token path.
+    pub(crate) fn account_oauth_token(&self, account: &Identifier) -> PathBuf {
+        self.account(account).join("oauth-token")
+    }
+    /// Returns the child-owned saved-login path without opening it.
+    pub(crate) fn account_credentials(&self, account: &Identifier) -> PathBuf {
+        self.account_config(account).join(".credentials.json")
+    }
+    /// Returns the last-used account marker.
+    pub(crate) fn last_account(&self) -> PathBuf {
+        self.state.join("state").join("last-account")
+    }
     /// Returns the composed-settings store directory.
     pub(crate) fn composed(&self) -> PathBuf {
         self.state.join("composed")
@@ -131,6 +147,22 @@ mod tests {
         assert_eq!(
             paths.account_config(&work),
             Path::new("/s/claude-session/accounts/work/config")
+        );
+        assert_eq!(
+            paths.account_auth_mode(&work),
+            Path::new("/s/claude-session/accounts/work/auth-mode.json")
+        );
+        assert_eq!(
+            paths.account_oauth_token(&work),
+            Path::new("/s/claude-session/accounts/work/oauth-token")
+        );
+        assert_eq!(
+            paths.account_credentials(&work),
+            Path::new("/s/claude-session/accounts/work/config/.credentials.json")
+        );
+        assert_eq!(
+            paths.last_account(),
+            Path::new("/s/claude-session/state/last-account")
         );
         assert_eq!(paths.composed(), Path::new("/s/claude-session/composed"));
         assert_eq!(

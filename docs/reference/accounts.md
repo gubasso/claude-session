@@ -2,7 +2,7 @@
 
 What an account is, how one is selected, and the contract of every `account` subcommand. The design is recorded in [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md), [ADR-0026](../decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md), [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md), [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md), and [ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md). Paths and permissions live in [XDG storage](./xdg-storage.md).
 
-This describes normative design. The crate is pre-implementation.
+Native login mode, `account login [name]`, `account list`, selection with the last-used marker, and local usability reporting are implemented. Token lifecycle, `account status`, and `account remove` remain normative future design for slice 013.
 
 ## What an account is
 
@@ -129,8 +129,9 @@ Four rules the table does not carry:
 - `list` never spawns the child. `usable` is local state alone: the directory passes [the security checks](./xdg-storage.md#filesystem-security), `auth-mode.json` parses, and the mode's stored artifact is present. One probe per account would be one child per account, and `status` is the verb that was asked about a credential.
 - `status` is the only subcommand carrying `warnings` as data, because shadowing is its subject. Everywhere else a warning is prose on standard error. Where `metadata_consistent` is `false`, `age_seconds` and `estimated_expiry` are omitted rather than computed from a mint time that is not the token's.
 - No field reports upstream revocation. It would be `false` in both modes forever, discriminating nothing ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); the fact is a sentence on standard error.
+- A discovered directory whose `auth-mode.json` is absent or malformed reports `mode: invalid` and `usable: false` in `list`. `invalid` is a report value only and is never written to metadata.
 
-`selection_source` names the rung of [the ladder](#selection) that answered: `flag`, `environment`, `project-config`, `user-config`, `marker`, or `none`. `child_probe` is `{ status, exit_code }` where `status` is `ok`, `failed`, or `unavailable`, and `exit_code` is present only when a child ran.
+`selection_source` names the rung of [the ladder](#selection) that answered: `flag`, `environment`, `user-config`, `marker`, or `none`. `child_probe` is `{ status, exit_code }` where `status` is `ok`, `failed`, or `unavailable`, and `exit_code` is present only when a child ran.
 
 ## Removal
 

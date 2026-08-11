@@ -2,7 +2,7 @@
 
 Exact contracts for locating the child process and becoming it. For the reasoning, see [the wrapper model](../explanation/wrapper-model.md); for the codes this produces, see [exit codes](./exit-codes.md).
 
-Terminal child resolution, recursion guards, environment scrubbing, and the exec are implemented. The account and profile inputs the launch consumes remain later-slice design.
+Terminal child resolution, recursion guards, environment scrubbing, profile composition, login-account validation, the pre-exec marker, and the exec are implemented. Token-mode launch remains later design.
 
 ## Platform scope
 
@@ -115,7 +115,7 @@ Sequence:
 
 1. Resolve and validate the child.
 2. Resolve the account and stored mode, if selected.
-3. Validate private account state and the child-owned config path without reading the child credential.
+3. Validate private account state and the child-owned config path without reading the child credential; for login mode, prove the child version floor.
 4. Resolve the profile and ensure its composed settings entry exists.
 5. In token mode, retrieve and validate the token immediately before the exec.
 6. Build the environment and wrapper-owned argv prefix around the untouched user suffix.
@@ -145,7 +145,7 @@ The wrapper deletes nothing on the way out, and a wrapper killed before step 9 l
 
 ## Child version floor
 
-Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor fails before the exec, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
+Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor fails with `Unavailable` (69) before the marker or exec, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
 
 The check is scoped to what depends on the child's refresh lock. `token` mode and a passthrough with no selected account are never blocked by it. The `doctor` probe still reports version state, but it is voluntary and does not stand in for this precondition.
 

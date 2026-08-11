@@ -26,11 +26,15 @@ pub(crate) fn run(
     arguments: Vec<OsString>,
 ) -> Result<DispatchOutcome, AppError> {
     let program = crate::services::child::program(context)?;
-    crate::services::session::prepare_account(context)?;
+    let account = crate::services::account::validate_selected_launch(context)?;
+    if account.is_some_and(|account| account.mode == crate::domain::account::AuthMode::Login) {
+        crate::services::account::enforce_version_floor(context, &program)?;
+    }
     let entry = match context.session().profile() {
         Some(profile) => Some(crate::services::storage::entry::resolve(context, profile)?),
         None => None,
     };
+    crate::services::account::write_marker(context)?;
     Ok(DispatchOutcome::Exec(crate::services::child::launch(
         context,
         program,

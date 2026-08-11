@@ -92,6 +92,7 @@ fn a_symlinked_managed_component_is_refused_before_its_leaf() {
 #[test]
 fn an_over_permissive_managed_directory_is_corrected_on_every_invocation() {
     let harness = Harness::new();
+    harness.initialize_login("work");
     assert!(
         harness
             .command()
@@ -380,6 +381,7 @@ fn identical_inputs_under_different_accounts_name_one_entry() {
     let harness = Harness::new();
     fixtures(&harness);
     for account in ["a", "b"] {
+        harness.initialize_login(account);
         assert!(
             harness
                 .command()
@@ -434,6 +436,7 @@ fn editing_a_piece_names_a_new_entry_and_leaves_the_old_one() {
 fn unmanaged_ancestors_are_never_checked_or_corrected() {
     let harness = Harness::new();
     fixtures(&harness);
+    harness.initialize_login("work");
     let state_base = harness.root().join("state");
     let home = harness.root().join("home");
     for path in [&state_base, &home] {

@@ -1,4 +1,10 @@
-use std::{ffi::OsString, fs, io::{self, Write}, os::unix::ffi::OsStrExt, path::PathBuf};
+use std::{
+    ffi::OsString,
+    fs,
+    io::{self, Write},
+    os::unix::ffi::OsStrExt,
+    path::PathBuf,
+};
 
 fn write_nul(path: PathBuf, values: impl IntoIterator<Item = OsString>) {
     let mut file = fs::File::create(path).expect("record file");
@@ -12,9 +18,65 @@ fn main() {
     let record = PathBuf::from(std::env::var_os("CS_TEST_RECORD_DIR").expect("record dir"));
     fs::create_dir_all(&record).expect("record directory");
     write_nul(record.join("argv"), std::env::args_os());
-    write_nul(record.join("environ"), std::env::vars_os().flat_map(|(key, value)| [key, value]));
-    write_nul(record.join("cwd"), [std::env::current_dir().expect("cwd").into_os_string()]);
+    write_nul(
+        record.join("environ"),
+        std::env::vars_os().flat_map(|(key, value)| [key, value]),
+    );
+    write_nul(
+        record.join("cwd"),
+        [std::env::current_dir().expect("cwd").into_os_string()],
+    );
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
+    {
+        let mut history = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(record.join("invocations"))
+            .expect("history");
+        for argument in &arguments {
+            history
+                .write_all(argument.as_os_str().as_bytes())
+                .expect("history argument");
+            history.write_all(&[0]).expect("history separator");
+        }
+        history
+            .write_all(&[0])
+            .expect("history invocation separator");
+    }
+    if let Some(marker) = std::env::var_os("CS_TEST_MARKER_PATH") {
+        let visible = if PathBuf::from(marker).is_file() {
+            b"1\n".as_slice()
+        } else {
+            b"0\n".as_slice()
+        };
+        fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(record.join("marker-visible"))
+            .expect("marker record")
+            .write_all(visible)
+            .expect("marker visibility");
+    }
+    if arguments.as_slice() == [OsString::from("auth"), OsString::from("login")]
+        && std::env::var_os("CS_TEST_CREATE_CREDENTIAL").is_some()
+    {
+        let config = PathBuf::from(std::env::var_os("CLAUDE_CONFIG_DIR").expect("config dir"));
+        fs::create_dir_all(&config).expect("config directory");
+        fs::write(
+            config.join(".credentials.json"),
+            b"child-owned-login-bytes",
+        )
+        .expect("credential");
+    }
+    // Simulates drift arriving while the interactive login runs: the account's
+    // configuration directory is replaced by a link to somewhere else. The
+    // wrapper validated the directory before the child started, so only a
+    // revalidation after it returns can catch this.
+    if let Some(target) = std::env::var_os("CS_TEST_SWAP_CONFIG") {
+        let config = PathBuf::from(std::env::var_os("CLAUDE_CONFIG_DIR").expect("config dir"));
+        let _ = fs::remove_dir_all(&config);
+        std::os::unix::fs::symlink(&target, &config).expect("swap config");
+    }
     let prefix = if arguments.as_slice() == [OsString::from("--version")] {
         Some("VERSION")
     } else if arguments.as_slice() == [OsString::from("doctor")] {
@@ -29,6 +91,8 @@ fn main() {
     };
     if let Some(bytes) = selected("STDOUT") {
         io::stdout().write_all(bytes.as_os_str().as_bytes()).expect("stdout");
+    } else if prefix == Some("VERSION") {
+        io::stdout().write_all(b"claude 2.1.211\n").expect("stdout");
     }
     if let Some(bytes) = selected("STDERR") {
         io::stderr().write_all(bytes.as_os_str().as_bytes()).expect("stderr");

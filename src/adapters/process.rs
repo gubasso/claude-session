@@ -24,6 +24,8 @@ pub(crate) trait ProcessRunner {
     /// a question, keeps its own exit code, and therefore has to survive the
     /// answer ([ADR-0068](../../docs/decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)).
     fn run_inherited(&self, invocation: &ChildInvocation) -> Result<ChildOutcome, AppError>;
+    /// Runs an interactive child while reserving wrapper stdout for JSON.
+    fn run_stdout_to_stderr(&self, invocation: &ChildInvocation) -> Result<ChildOutcome, AppError>;
     /// Runs a read-only child subroutine and captures its bytes.
     fn run_captured(&self, invocation: &ChildInvocation) -> Result<CapturedChild, AppError>;
 }
@@ -77,6 +79,26 @@ impl ProcessRunner for SystemProcessRunner {
         let mut child = command(invocation)
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .map_err(|error| launch_error(&error, invocation.program()))?;
+        child.wait().map(outcome).map_err(|error| {
+            AppError::new(
+                crate::error::ErrorKind::OsError,
+                Diagnostic::new(
+                    "waiting for the child subroutine failed",
+                    invocation.program().display().to_string(),
+                    error.to_string(),
+                    "retry the invocation",
+                ),
+            )
+        })
+    }
+    fn run_stdout_to_stderr(&self, invocation: &ChildInvocation) -> Result<ChildOutcome, AppError> {
+        let stderr = io::stderr();
+        let mut child = command(invocation)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::from(stderr))
             .stderr(Stdio::inherit())
             .spawn()
             .map_err(|error| launch_error(&error, invocation.program()))?;
