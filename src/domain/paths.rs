@@ -87,9 +87,22 @@ impl XdgPaths {
     pub(crate) fn account_auth_mode(&self, account: &Identifier) -> PathBuf {
         self.account(account).join("auth-mode.json")
     }
-    /// Returns one account's future wrapper-owned token path.
+    /// Returns one account's wrapper-owned token path.
     pub(crate) fn account_oauth_token(&self, account: &Identifier) -> PathBuf {
         self.account(account).join("oauth-token")
+    }
+    /// Returns one account's credential lock file.
+    ///
+    /// Beside the account rather than inside it, so removal cannot destroy the
+    /// inode that excludes a concurrent login from the tree being removed
+    /// ([ADR-0087](../../docs/decisions/ADR-0087-keep-the-credential-lock-beside-the-account.md)).
+    /// The leading dot keeps it out of discovery twice over: the walk takes
+    /// directories only, and an identifier cannot begin with one.
+    ///
+    /// The sentinel is a lock handle rather than a claim, so it carries no
+    /// security check and is never swept; see the lock scopes in XDG storage.
+    pub(crate) fn account_credentials_lock(&self, account: &Identifier) -> PathBuf {
+        self.accounts().join(format!(".{}.lock", account.as_str()))
     }
     /// Returns the child-owned saved-login path without opening it.
     pub(crate) fn account_credentials(&self, account: &Identifier) -> PathBuf {
@@ -155,6 +168,10 @@ mod tests {
         assert_eq!(
             paths.account_oauth_token(&work),
             Path::new("/s/claude-session/accounts/work/oauth-token")
+        );
+        assert_eq!(
+            paths.account_credentials_lock(&work),
+            Path::new("/s/claude-session/accounts/.work.lock")
         );
         assert_eq!(
             paths.account_credentials(&work),

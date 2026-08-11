@@ -148,7 +148,8 @@ impl Check {
             )),
             Self::ChildVersionFloor => Some(concat!(
                 "The resolved `claude` reports {version}, below the {minimum} this wrapper is ",
-                "designed against. Upgrade it before using a saved-login account."
+                "designed against. Upgrade it before using a saved-login account; token mode ",
+                "still works below the floor."
             )),
             Self::Storage(value) => Some(value.remediation()),
             Self::Entry(value) => Some(value.remediation()),
@@ -191,8 +192,8 @@ impl AccountCheck {
                 "Make `{path}` a readable, private directory owned by the current user, then retry."
             }
             Self::CredentialsUsable => {
-                "Run `claude-session account login {account}` to recreate the child-owned saved \
-                login and its local metadata."
+                "Run `claude-session account login {account}` to recreate this account's stored \
+                authentication and its local metadata."
             }
         }
     }

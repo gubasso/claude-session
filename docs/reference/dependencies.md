@@ -67,7 +67,7 @@ Both are maintained under the [`rust-cli` organization](https://github.com/rust-
 
 | Crate      | Why                                                                                                                       | Skip if                                         |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `rustix`   | Safe, direct system calls — ownership checks and process identity — without a raw `unsafe` block                          |                                                 |
+| `rustix`   | Safe, direct system calls — ownership checks, process identity, and terminal attributes — without a raw `unsafe` block    |                                                 |
 | `sha2`     | The account token's `sha256[..8]` and the composed-settings input digest; RustCrypto, and the only hash the project needs |                                                 |
 | `libc`     | Only where `rustix` has no equivalent                                                                                     | `rustix` covers the need, which it usually does |
 | `tempfile` | Atomic write-then-rename, and hermetic test directories                                                                   | Never                                           |

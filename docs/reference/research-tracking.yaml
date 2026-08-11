@@ -50,7 +50,7 @@ tracked:
       - docs/reference/release-workflow.md
 
   - path: docs/reference/accounts.md
-    last_checked: 2026-07-30
+    last_checked: 2026-08-11
     cadence: monthly
     why: Child authentication commands, precedence, refresh coordination, credential lifetimes, and TUI behavior are externally owned.
     revalidate: >-
@@ -65,10 +65,13 @@ tracked:
       token modes, recording only schema, outcome, and exit status. Run logout
       against scratch state and verify disappearance by metadata only. Observe
       redacted saved-login expiry and token-mode status. Measure credential
-      lifetimes from non-secret timestamps. In isolated scratch accounts,
-      verify whether in-TUI login honors the chosen configuration directory and
-      what it does while a token is injected (slice 005; Q-004). Never record a
-      credential value or child-owned fingerprint.
+      lifetimes from non-secret timestamps. Re-read the credential-management
+      and changelog material that established in-TUI login behaviour, since
+      both facts the wrapper warns about are published rather than measured:
+      that a relocated configuration directory owns the credential file, and
+      that a successful in-session login clears an injected token within that
+      process from 2.1.118. Never record a credential value or child-owned
+      fingerprint.
     dependents:
       - docs/decisions/ADR-0025-share-one-native-login-per-account.md
       - docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md

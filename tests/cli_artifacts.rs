@@ -130,12 +130,32 @@ fn completions_cover_every_documented_shell() {
 #[test]
 fn artifacts_carry_the_account_grammar_and_no_unimplemented_verb() {
     let harness = Harness::new();
-    for (shell, _) in SHELLS {
+    for (shell, account_flag) in SHELLS {
         let script = completion(&harness, shell);
-        for token in ["account", "login", "list"] {
+        // The namespace's whole implemented subcommand set. Both generators
+        // read one parser tree, so a spelling missing here means the tree lost
+        // it rather than that the generator did.
+        for token in ["account", "login", "list", "status", "remove"] {
             assert!(
                 script.contains(token),
-                "the {shell} script omits the account MVP token {token}"
+                "the {shell} script omits the account grammar token {token}"
+            );
+        }
+        // The verb-level flags, in this shell's own spelling — `fish` writes
+        // `-l token` where the others write `--token`, which is the same
+        // difference the account flag above already encodes.
+        let long = |name: &str| {
+            if account_flag.starts_with("-l ") {
+                format!("-l {name}")
+            } else {
+                format!("--{name}")
+            }
+        };
+        for name in ["token", "stdin", "minted-at", "yes"] {
+            let spelling = long(name);
+            assert!(
+                script.contains(&spelling),
+                "the {shell} script omits the account flag {spelling}"
             );
         }
     }

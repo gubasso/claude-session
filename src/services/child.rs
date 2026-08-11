@@ -11,7 +11,7 @@ use crate::{
         filesystem::FileSystem,
     },
     context::AppContext,
-    domain::{child::ChildInvocation, config::ResolvedConfig},
+    domain::{account::AuthMode, child::ChildInvocation, config::ResolvedConfig},
     error::{AppError, Diagnostic},
 };
 
@@ -124,12 +124,19 @@ pub(crate) fn program(context: &AppContext) -> Result<PathBuf, AppError> {
 /// earlier step of the sequence than the account and profile inputs this reads.
 ///
 /// [ADR-0028]: ../../docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
+/// In token mode a third addition applies: the stored token, in the variable
+/// the child documents for it. It is read here rather than earlier because
+/// `xdg-storage.md#how-a-path-is-validated` requires the walk to run against
+/// the state the operation will meet, and this is that operation. An ambient
+/// value of the same name is replaced rather than merged, so a selected token
+/// account launches with its own token.
 pub(crate) fn launch(
     context: &AppContext,
     program: PathBuf,
     settings: Option<&Path>,
     arguments: Vec<OsString>,
-) -> ChildInvocation {
+    mode: Option<AuthMode>,
+) -> Result<ChildInvocation, AppError> {
     let mut vector = Vec::with_capacity(arguments.len() + 2);
     if let Some(path) = settings {
         vector.push(OsString::from("--settings"));
@@ -142,8 +149,16 @@ pub(crate) fn launch(
             "CLAUDE_CONFIG_DIR".into(),
             account.config.as_os_str().to_owned(),
         ));
+        if mode == Some(AuthMode::Token) {
+            let token = crate::services::account::token::read_stored(context, &account.id)?;
+            environment.retain(|(key, _)| key != "CLAUDE_CODE_OAUTH_TOKEN");
+            environment.push((
+                "CLAUDE_CODE_OAUTH_TOKEN".into(),
+                OsString::from(String::from_utf8_lossy(token.expose()).into_owned()),
+            ));
+        }
     }
-    ChildInvocation::new(program, vector, environment)
+    Ok(ChildInvocation::new(program, vector, environment))
 }
 
 /// Snapshots the environment, removes the wrapper's namespace, restores the marker.

@@ -2,7 +2,7 @@
 
 What an account is, how one is selected, and the contract of every `account` subcommand. The design is recorded in [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md), [ADR-0026](../decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md), [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md), [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md), and [ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md). Paths and permissions live in [XDG storage](./xdg-storage.md).
 
-Native login mode, `account login [name]`, `account list`, selection with the last-used marker, and local usability reporting are implemented. Token lifecycle, `account status`, and `account remove` remain normative future design for slice 013.
+Both stored modes are implemented, and so are all four subcommands, selection with the last-used marker, local usability reporting, precedence warnings, and credential redaction. The `token_helper` retrieval boundary is the one part of this page that remains normative future design: its argv protocol is unspecified, so the private `oauth-token` file is the only store.
 
 ## What an account is
 
@@ -42,11 +42,13 @@ Mode is chosen by `account login` and resolved deterministically on every later 
 
 In token mode, `CLAUDE_CODE_OAUTH_TOKEN` outranks a saved login that may also exist in `config/`. The wrapper reports that shadowing but does not remove either credential.
 
-The following ambient child mechanisms outrank the selected subscription account: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `apiKeyHelper`, Bedrock, Vertex, and Foundry configuration. They are never wrapper-managed and never stripped. Their presence may produce a warning only:
+The following ambient child mechanisms outrank the selected subscription account: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `apiKeyHelper`, Bedrock, Vertex, and Foundry configuration. They are never wrapper-managed and never stripped from a launch. Their presence may produce a warning only:
 
 - before launch, on standard error;
 - in `account status`;
 - in `doctor`.
+
+A launch is the only thing that rule governs, because there the ambient credential is the user's own choice about their own session. The token verification probe is the exception, and it is not a launch: it asks the child about one specific candidate, so it clears every environment mechanism above the injected token first. Inheriting one would make the child answer about that credential instead, and any string at all would verify. `apiKeyHelper` is the one it cannot clear, since that lives in the child's settings rather than the environment and the wrapper does not author a settings document to ask a question.
 
 The wrapper never intercepts a slash command.
 
@@ -66,7 +68,9 @@ A saved login carries two clocks. The access token expires in hours, and its ren
 
 Concurrent runs of one account share that saved login. From child version 2.1.211 the child coordinates renewal across the processes holding it, so one refresh happens and the rest observe its result. That coordination is why [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md) shares a login rather than copying it, and why a `login`-mode launch below the floor [fails before the exec](./process-runtime.md#child-version-floor).
 
-An in-TUI `/login` inherits the launch environment and is expected to address the same child-owned location, but that exact child behavior is externally unverified and tracked in [research tracking](./research-tracking.yaml). What `/login` does while token mode is injecting `CLAUDE_CODE_OAUTH_TOKEN` is unverified for a second reason: the injected token outranks any login it writes, so an apparent success there may change nothing the child goes on to use.
+An in-TUI `/login` inherits the launch environment and reaches the same child-owned location: the child relocates `.credentials.json` under `CLAUDE_CONFIG_DIR` and manages that file through `/login` and `/logout`. In token mode it does not silently fail either — from child version 2.1.118, a successful `/login` clears the injected `CLAUDE_CODE_OAUTH_TOKEN` inside the child's own process, so the login it just wrote serves the rest of that session.
+
+That clearing is process-local, which is the whole of the wrapper's concern. It cannot reach the wrapper's stored token, so the next launch injects that token again and shadows the saved login again, and the account's stored mode never changed. A user who ran `/login` and a wrapper that still reports token mode are both correct, and only `account login` changes a mode durably. This is why a token-mode launch says so before the exec rather than after, and why nothing here reads the result of a slash command the wrapper never sees.
 
 ### Long-lived token mode
 
@@ -76,6 +80,10 @@ An in-TUI `/login` inherits the launch environment and is expected to address th
 2. With `--stdin`, read one line from standard input and never prompt.
 3. Reject empty or multi-line input. Do not parse a prefix or infer token lifetime.
 4. Probe the candidate through the child's documented `auth status --json` command, then write the token and mode metadata by [the atomic sequence](./xdg-storage.md#lock-scopes), which owns their order.
+
+Rejecting a multi-line paste means consuming the rest of it as well. A line left queued on the terminal is read by whatever runs next, which after this process exits is the user's shell, so half a credential would arrive there as a command.
+
+While the prompt is up, the interrupt and suspend keys are not signals. Both would end this process without unwinding, leaving the terminal with echo off — an interrupt kills it and a suspend hands the shell back a terminal that does not echo, and neither runs the restore. Instead the interrupt is read as data and answered as a cancellation, which restores the terminal first and then reports; every other control character is refused as malformed. Line editing is untouched, and a prompt nobody wants to answer is left with Enter or end of input, both of which refuse.
 
 `--minted-at` corrects the time used for age and estimated-expiry reporting when a pasted token was minted earlier. Without it, `recorded_at` is the ingest time. Estimated expiry is that time plus 365 days and is always labeled an estimate.
 

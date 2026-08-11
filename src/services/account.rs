@@ -1,18 +1,24 @@
 //! Account selection, discovery, local usability, and launch guards.
 
+pub(crate) mod lock;
+pub(crate) mod remove;
+pub(crate) mod status;
+pub(crate) mod token;
+
 use std::{fs, io::Read as _, path::Path, str::FromStr};
 
 use crate::{
     adapters::{
         clock::{Clock, rfc3339_utc},
+        environment::Environment as _,
         filesystem::SystemFileSystem,
         process::ProcessRunner,
     },
     context::AppContext,
     domain::{
         account::{
-            AccountFinding, AccountSelection, AuthMode, AuthModeMetadata, RecordedAt, ReportMode,
-            SelectionSource,
+            AccountFinding, AccountSelection, AmbientCredential, AuthMode, AuthModeMetadata,
+            RecordedAt, ReportMode, SelectionSource, Warning,
         },
         checks::{AccountCheck, Check, CheckResult},
         child::{ChildInvocation, ChildOutcome, ChildVersion, MINIMUM_CHILD_VERSION},
@@ -177,14 +183,40 @@ pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 2] {
             let credentials_result = match context.account_selection().account() {
                 None => CheckResult::skipped(credentials, "no account is selected"),
                 Some(selected) => match accounts.iter().find(|account| &account.name == selected) {
-                    Some(account) if account.usable && account.mode == ReportMode::Login => {
-                        CheckResult::pass(
-                            credentials,
-                            format!(
-                                "account {} has a usable child-owned saved login",
-                                selected.as_str()
-                            ),
-                        )
+                    // Mode-aware: a token account's usable artifact is the
+                    // wrapper-owned token, and `usable` already knows which
+                    // artifact each mode requires. Requiring login mode here
+                    // would report every healthy token account as broken.
+                    Some(account) if account.usable => {
+                        let warnings = launch_warnings(context, selected, account.mode);
+                        if warnings.is_empty() {
+                            CheckResult::pass(
+                                credentials,
+                                format!(
+                                    "account {} has usable {}-mode authentication",
+                                    selected.as_str(),
+                                    account.mode.spelling()
+                                ),
+                            )
+                        } else {
+                            // Shadowing is a warning on the existing row rather
+                            // than a new check id: the credential is fine, and
+                            // what the user needs to know is that something
+                            // else will be used instead of it.
+                            CheckResult::defect(
+                                credentials,
+                                warnings
+                                    .iter()
+                                    .map(|warning| warning.message())
+                                    .collect::<Vec<_>>()
+                                    .join("; "),
+                                concat!(
+                                    "remove the shadowing credential from the environment, ",
+                                    "or accept that it is what the child will use"
+                                )
+                                .to_owned(),
+                            )
+                        }
                     }
                     _ => {
                         let mut hint = credentials
@@ -211,7 +243,10 @@ pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 2] {
                         CheckResult::defect(
                             credentials,
                             format!(
-                                "account {} is missing, unsafe, or not a usable login account",
+                                concat!(
+                                    "account {} is missing, unsafe, or has no usable ",
+                                    "stored authentication"
+                                ),
                                 selected.as_str()
                             ),
                             hint,
@@ -357,11 +392,55 @@ pub(crate) fn validate_selected_launch(
             account.id.as_str(),
             "the child-owned saved login is missing or unsafe",
         )),
+        // Presence and safety only. The token is not read here and not
+        // fingerprinted here: a launch injects a credential the child then
+        // judges, and a consistency check at this point would invent a failure
+        // the rotation order deliberately made survivable.
+        AuthMode::Token if owned_regular(&context.paths().account_oauth_token(&account.id)) => {
+            Ok(Some(LaunchAccount {
+                mode: AuthMode::Token,
+            }))
+        }
         AuthMode::Token => Err(auth_message(
             account.id.as_str(),
-            "token-mode launch belongs to slice 013 and is not available",
+            "the stored token is missing or unsafe",
         )),
     }
+}
+
+/// Reports every ambient mechanism that outranks a selected account.
+///
+/// Observation only. Each of these belongs to the user's environment, the
+/// wrapper never strips one, and finding one changes nothing it stores — which
+/// is why this returns warnings rather than an error, and why the same list
+/// feeds the pre-launch line, `account status`, and `doctor`.
+pub(crate) fn ambient_warnings(context: &AppContext) -> Vec<Warning> {
+    let variables = context.environment().variables();
+    AmbientCredential::ALL
+        .into_iter()
+        .filter(|credential| {
+            crate::adapters::environment::value(variables, credential.variable())
+                .is_some_and(|value| !value.is_empty())
+        })
+        .map(Warning::Ambient)
+        .collect()
+}
+
+/// Returns the warnings that apply to launching one account.
+///
+/// Token-over-login shadowing is added on top of the ambient set, because a
+/// saved login inside a token account's configuration directory is real state
+/// the user may believe is in use.
+pub(crate) fn launch_warnings(
+    context: &AppContext,
+    account: &Identifier,
+    mode: ReportMode,
+) -> Vec<Warning> {
+    let mut warnings = ambient_warnings(context);
+    if mode == ReportMode::Token && owned_regular(&context.paths().account_credentials(account)) {
+        warnings.push(Warning::TokenOverLogin);
+    }
+    warnings
 }
 
 pub(crate) fn enforce_version_floor(context: &AppContext, program: &Path) -> Result<(), AppError> {
@@ -424,6 +503,14 @@ pub(crate) fn write_marker(context: &AppContext) -> Result<(), AppError> {
     atomic::write(&marker, account.as_str().as_bytes(), 0o600)
 }
 
+/// Commits a completed native login's mode metadata.
+///
+/// Under the credential lock, though login mode mints no wrapper-owned secret.
+/// The scope guards `auth-mode.json` as well as the token, and removal treats
+/// unlinking that file as its own commit — so a login-mode write outside the
+/// lock could land inside a tree a concurrent `account remove` had already
+/// committed to destroying, leaving metadata describing an account that is
+/// being deleted around it.
 pub(crate) fn write_login_metadata(
     context: &AppContext,
     account: &Identifier,
@@ -431,8 +518,35 @@ pub(crate) fn write_login_metadata(
     let metadata = AuthModeMetadata {
         mode: AuthMode::Login,
         recorded_at: RecordedAt::new_unchecked(rfc3339_utc(context.adapters().clock().now())),
+        fingerprint: None,
     };
-    let mut bytes = serde_json::to_vec(&metadata).map_err(|error| {
+    let _lock = hold(context, account)?;
+    write_metadata(context, account, &metadata)?;
+    Ok(metadata)
+}
+
+/// Acquires one account's credential lock at the standard deadline.
+pub(crate) fn hold(
+    context: &AppContext,
+    account: &Identifier,
+) -> Result<lock::CredentialLock, AppError> {
+    lock::acquire(
+        context.paths().state(),
+        &context.paths().account_credentials_lock(account),
+        lock::Deadline::STANDARD,
+    )
+}
+
+/// Encodes and atomically writes one account's mode metadata.
+///
+/// In token mode this rename is the commit, so the caller holds the credential
+/// lock across it and writes the token first. Here it is only a write.
+pub(crate) fn write_metadata(
+    context: &AppContext,
+    account: &Identifier,
+    metadata: &AuthModeMetadata,
+) -> Result<(), AppError> {
+    let mut bytes = serde_json::to_vec(metadata).map_err(|error| {
         AppError::new(
             ErrorKind::Internal,
             Diagnostic::new(
@@ -446,8 +560,7 @@ pub(crate) fn write_login_metadata(
     bytes.push(b'\n');
     let path = context.paths().account_auth_mode(account);
     guard::validate(context.paths().state(), &path, guard::Expected::PrivateFile)?;
-    atomic::write(&path, &bytes, 0o600)?;
-    Ok(metadata)
+    atomic::write(&path, &bytes, 0o600)
 }
 
 /// Reports whether the child left a safe saved login this run may commit.
@@ -477,6 +590,23 @@ pub(crate) fn credentials_committable(
     Ok(owned_regular(&context.paths().account_credentials(account)))
 }
 
+/// Reports whether the last-used marker names this account.
+///
+/// Read directly rather than taken from the resolved selection, because the
+/// selection may have come from a flag or from configuration and this question
+/// is about the marker file alone. A marker that cannot be read answers `false`,
+/// so a removal never clears a selection it could not confirm.
+pub(super) fn marker_names(context: &AppContext, account: &Identifier) -> bool {
+    let marker = context.paths().last_account();
+    SystemFileSystem::open_private_file(&marker)
+        .and_then(|mut handle| {
+            let mut bytes = Vec::new();
+            handle.read_to_end(&mut bytes)?;
+            Ok(bytes)
+        })
+        .is_ok_and(|bytes| bytes == account.as_str().as_bytes())
+}
+
 pub(crate) fn prepare_login(context: &AppContext, account: &Identifier) -> Result<(), AppError> {
     guard::ensure_directory(context.paths().state(), &context.paths().account(account))?;
     guard::ensure_directory(
@@ -485,12 +615,28 @@ pub(crate) fn prepare_login(context: &AppContext, account: &Identifier) -> Resul
     )
 }
 
+/// Reports whether an account has committed mode metadata.
+///
+/// The metadata rename is what makes an account an account, so its presence is
+/// the one test for "somebody finished a login here" that does not depend on
+/// which run is asking.
+pub(crate) fn committed(context: &AppContext, account: &Identifier) -> bool {
+    owned_regular(&context.paths().account_auth_mode(account))
+}
+
 pub(crate) fn remove_incomplete(path: &Path) -> Result<(), AppError> {
     remove_tree(path)
         .map_err(|error| path_error("incomplete account could not be removed", path, &error))
 }
 
-fn remove_tree(path: &Path) -> std::io::Result<()> {
+/// Removes a directory and everything beneath it, in no particular order.
+///
+/// Correct for the two cases that have no commit point: cleaning up a tree this
+/// run just created, and clearing one sub-tree whose internal order nothing
+/// depends on. Ordered removal of an account is a different contract and lives
+/// in [`remove`], because there the first unlink is what makes the removal
+/// irreversible.
+pub(super) fn remove_tree(path: &Path) -> std::io::Result<()> {
     let Some(facts) = SystemFileSystem::look(path)? else {
         return Ok(());
     };

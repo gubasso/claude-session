@@ -15,8 +15,6 @@
 
 Chosen option: take the lock exclusively, then delete the tree with the lock inside it. ADR-0060's rule protects a lock whose guarded files still exist; when the scope itself is destroyed the lock has nothing left to guard, and the remover holds it. A racer blocked on acquisition wakes holding an unlinked inode and fails its rename with `Io` — legible, and not a corrupted account.
 
-The lock stays beside the files it guards, so the artifact table keeps one rule.
-
 The lifecycle lock was rejected: a launch only reads, so locking it inverts ADR-0060's own criterion, and it would serialize nothing the wrapper needs serialized. Removal therefore detects no running child. One already running keeps working through its open descriptors and fails on its next start, which is what `rm` does and adds no failure mode stock `claude` lacks ([ADR-0058](./ADR-0058-behave-as-stock-claude-by-default.md)).
 
 ## Consequences
@@ -28,6 +26,6 @@ The lifecycle lock was rejected: a launch only reads, so locking it inverts ADR-
 
 ## Status
 
-Accepted
+Superseded
 
-Amends [ADR-0060](./ADR-0060-lock-the-writes-that-are-not-derivable.md) — the never-deleted rule holds while the scope exists; destroying the scope destroys its lock.
+Superseded by [ADR-0087](./ADR-0087-keep-the-credential-lock-beside-the-account.md): the first Good above is false. Unlinking the sentinel before the directory leaves a window in which acquisition recreates it, so the two do interleave. Its amendment of [ADR-0060](./ADR-0060-lock-the-writes-that-are-not-derivable.md) lapses with it, and the never-deleted rule holds again without exception.

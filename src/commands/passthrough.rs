@@ -27,8 +27,23 @@ pub(crate) fn run(
 ) -> Result<DispatchOutcome, AppError> {
     let program = crate::services::child::program(context)?;
     let account = crate::services::account::validate_selected_launch(context)?;
-    if account.is_some_and(|account| account.mode == crate::domain::account::AuthMode::Login) {
+    let mode = account.map(|account| account.mode);
+    // The floor guards shared-login refresh coordination, which token mode does
+    // not use: it injects a credential the wrapper stored rather than one the
+    // child renews across processes.
+    if mode == Some(crate::domain::account::AuthMode::Login) {
         crate::services::account::enforce_version_floor(context, &program)?;
+    }
+    // Before the exec, because after it there is no wrapper left to say
+    // anything. Nothing here changes what the child receives; each line
+    // describes a credential the user's own environment or configuration
+    // directory supplies, which the wrapper never strips.
+    if let (Some(selected), Some(mode)) = (context.session().account(), mode) {
+        for warning in
+            crate::services::account::launch_warnings(context, &selected.id, mode.report())
+        {
+            tracing::warn!("{}", warning.message());
+        }
     }
     let entry = match context.session().profile() {
         Some(profile) => Some(crate::services::storage::entry::resolve(context, profile)?),
@@ -40,5 +55,6 @@ pub(crate) fn run(
         program,
         entry.as_ref().map(|resolved| resolved.settings.as_path()),
         arguments,
-    )))
+        mode,
+    )?))
 }

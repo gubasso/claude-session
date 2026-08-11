@@ -21,7 +21,16 @@ claude-session version   # the wrapper's version, then the resolved child's
 claude-session help      # the wrapper's help, then `claude --help`
 ```
 
-The account and profile isolation the crate description promises is not shipped. [Milestones](./docs/plan/milestones.md) carries the order it lands in.
+Accounts give each login its own isolated `claude` configuration directory, in either of two authentication modes:
+
+```bash
+claude-session account login work                  # the child's own browser flow
+claude-session account login ci --token --stdin    # a long-lived subscription token
+claude-session --account work -- --version         # launch under that account
+claude-session account status work                 # mode, health, and what shadows it
+```
+
+The profile isolation the crate description also promises is not shipped. [Milestones](./docs/plan/milestones.md) carries the order it lands in.
 
 ## Design contract
 

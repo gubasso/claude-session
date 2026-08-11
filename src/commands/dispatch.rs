@@ -7,7 +7,11 @@ use clap::Parser;
 use crate::{
     cli::{Cli, Command, account::AccountCommand},
     context::AppContext,
-    domain::{argv, identifier::Identifier},
+    domain::{
+        account::{RecordedAt, TokenIngest, TokenSource},
+        argv,
+        identifier::Identifier,
+    },
     error::{AppError, Diagnostic},
 };
 
@@ -61,9 +65,19 @@ pub(crate) enum InvocationKind {
     },
     AccountLogin {
         name: Option<Identifier>,
+        token: Option<TokenIngest>,
         mode: OutputMode,
     },
     AccountList {
+        mode: OutputMode,
+    },
+    AccountStatus {
+        name: Option<Identifier>,
+        mode: OutputMode,
+    },
+    AccountRemove {
+        name: Identifier,
+        consented: bool,
         mode: OutputMode,
     },
     Completion {
@@ -109,7 +123,9 @@ impl Invocation {
             InvocationKind::Version { mode }
             | InvocationKind::Doctor { mode, .. }
             | InvocationKind::AccountLogin { mode, .. }
-            | InvocationKind::AccountList { mode } => mode,
+            | InvocationKind::AccountList { mode }
+            | InvocationKind::AccountStatus { mode, .. }
+            | InvocationKind::AccountRemove { mode, .. } => mode,
             _ => OutputMode::Human,
         }
     }
@@ -303,6 +319,8 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
                 None => None,
                 Some(AccountCommand::Login(_)) => Some("login"),
                 Some(AccountCommand::List(_)) => Some("list"),
+                Some(AccountCommand::Status(_)) => Some("status"),
+                Some(AccountCommand::Remove(_)) => Some("remove"),
             },
         });
     }
@@ -323,14 +341,65 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
                 "run claude-session account --help",
             ),
         )),
-        Some(AccountCommand::Login(value)) => Ok(InvocationKind::AccountLogin {
-            name: value.name,
-            mode: mode(value.json),
-        }),
+        Some(AccountCommand::Login(value)) => {
+            let json = value.json;
+            Ok(InvocationKind::AccountLogin {
+                name: value.name,
+                token: token_ingest(value.token, value.stdin, value.minted_at)?,
+                mode: mode(json),
+            })
+        }
         Some(AccountCommand::List(value)) => Ok(InvocationKind::AccountList {
             mode: mode(value.json),
         }),
+        Some(AccountCommand::Status(value)) => Ok(InvocationKind::AccountStatus {
+            name: value.name,
+            mode: mode(value.json),
+        }),
+        Some(AccountCommand::Remove(value)) => Ok(InvocationKind::AccountRemove {
+            name: value.name,
+            consented: value.yes,
+            mode: mode(value.json),
+        }),
     }
+}
+
+/// Resolves the token-mode flags into an ingest request, or none.
+///
+/// The parser already refuses `--stdin` and `--minted-at` without `--token`, so
+/// the only validation left is the timestamp's own grammar. It is checked here
+/// rather than at ingest because a malformed value is a usage error, and usage
+/// errors belong before any side effect rather than after a browser flow.
+fn token_ingest(
+    token: bool,
+    stdin: bool,
+    minted_at: Option<String>,
+) -> Result<Option<TokenIngest>, AppError> {
+    if !token {
+        return Ok(None);
+    }
+    let minted_at = minted_at
+        .map(RecordedAt::parse)
+        .transpose()
+        .map_err(|message| {
+            AppError::new(
+                crate::error::ErrorKind::Usage,
+                Diagnostic::new(
+                    "invalid command line",
+                    "--minted-at",
+                    message,
+                    "pass an RFC 3339 UTC time such as 2026-08-11T12:34:56Z",
+                ),
+            )
+        })?;
+    Ok(Some(TokenIngest {
+        source: if stdin {
+            TokenSource::Stdin
+        } else {
+            TokenSource::Terminal
+        },
+        minted_at,
+    }))
 }
 
 /// Routes one classified invocation without reparsing.
@@ -343,8 +412,14 @@ pub(crate) fn dispatch(
         InvocationKind::Help => super::help::run(context),
         InvocationKind::Version { .. } => super::version::run(context),
         InvocationKind::Doctor { list, strict, .. } => super::doctor::run(context, list, strict),
-        InvocationKind::AccountLogin { name, .. } => super::account::login(context, name),
+        InvocationKind::AccountLogin { name, token, .. } => {
+            super::account::login(context, name, token)
+        }
         InvocationKind::AccountList { .. } => super::account::list(context),
+        InvocationKind::AccountStatus { name, .. } => super::account::status(context, name),
+        InvocationKind::AccountRemove {
+            name, consented, ..
+        } => super::account::remove(context, &name, consented),
         InvocationKind::Completion { shell } => super::completion::run(context, shell),
         InvocationKind::Man => super::man::run(context),
         InvocationKind::VerbHelp { verb, subcommand } => {

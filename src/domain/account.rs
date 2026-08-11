@@ -1,6 +1,6 @@
 //! Pure account metadata, selection, and report values.
 
-use crate::domain::{config::Source, identifier::Identifier};
+use crate::domain::{config::Source, identifier::Identifier, secret::Fingerprint};
 
 /// Authentication modes recognized in durable metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -17,13 +17,67 @@ impl AuthMode {
             Self::Token => "token",
         }
     }
+
+    /// Widens a durable mode into the report vocabulary.
+    pub(crate) const fn report(self) -> ReportMode {
+        match self {
+            Self::Login => ReportMode::Login,
+            Self::Token => ReportMode::Token,
+        }
+    }
 }
 
-/// Strict required metadata fields. Future token-only fields are ignored.
+/// Strict required metadata fields, plus the token mode's own.
+///
+/// `fingerprint` is absent in login mode, where there is no wrapper-owned
+/// secret to describe, and present in token mode, where it is what makes a
+/// crash between the pair's two renames detectable. It is optional in the type
+/// rather than in the contract: [`AuthModeMetadata::token_fingerprint`] is the
+/// reader that narrows it, so the absent-in-token-mode case is refused once
+/// instead of becoming a third state every report has to carry.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub(crate) struct AuthModeMetadata {
     pub(crate) mode: AuthMode,
     pub(crate) recorded_at: RecordedAt,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) fingerprint: Option<Fingerprint>,
+}
+
+impl AuthModeMetadata {
+    /// Returns the recorded fingerprint of a token account.
+    ///
+    /// `None` means the metadata is malformed rather than that the account has
+    /// no fingerprint, so a caller reports it as unusable rather than
+    /// substituting a default.
+    pub(crate) const fn token_fingerprint(&self) -> Option<&Fingerprint> {
+        match self.mode {
+            AuthMode::Token => self.fingerprint.as_ref(),
+            AuthMode::Login => None,
+        }
+    }
+}
+
+/// Where a token-mode login reads its candidate.
+///
+/// The two sources are the whole of what the ingest rule permits: a controlling
+/// terminal, or standard input. Argv, an environment variable, a file flag, and
+/// scraped child output are all absent by design rather than unimplemented.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TokenSource {
+    Terminal,
+    Stdin,
+}
+
+/// A token-mode login's ingest request.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct TokenIngest {
+    pub(crate) source: TokenSource,
+    /// The mint time, when the token was not minted during this run.
+    ///
+    /// Absent means the ingest time is the mint time, which is right for a
+    /// token this run just asked the child to produce and wrong for one pasted
+    /// from a password manager months later.
+    pub(crate) minted_at: Option<RecordedAt>,
 }
 
 /// A validated RFC 3339 UTC timestamp.
@@ -183,25 +237,202 @@ pub(crate) struct AccountFinding {
     pub(crate) selected: bool,
 }
 
+/// A credential precedence condition the wrapper reports and never acts on.
+///
+/// One type for three surfaces — the pre-launch line on standard error, the
+/// `warnings` array in `account status`, and the mode-aware `doctor` results —
+/// so a condition is worded once. Every variant describes something that
+/// outranks or shadows the selected account's stored credential; none of them
+/// changes it, because ambient authentication is the user's and a stored mode
+/// is only ever changed by `account login`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Warning {
+    /// An ambient mechanism outranks the selected subscription account.
+    Ambient(AmbientCredential),
+    /// A stored token shadows a saved login that also exists.
+    TokenOverLogin,
+}
+
+impl Warning {
+    /// Returns the one wording every surface uses.
+    pub(crate) fn message(self) -> String {
+        match self {
+            Self::Ambient(credential) => format!(
+                concat!(
+                    "{} outranks the selected account, so the child will",
+                    " authenticate with it; the stored mode is unchanged"
+                ),
+                credential.spelling()
+            ),
+            Self::TokenOverLogin => concat!(
+                "the stored token outranks the saved login in this account's",
+                " configuration directory, so the saved login is not used"
+            )
+            .to_owned(),
+        }
+    }
+}
+
+/// A child credential mechanism that outranks a selected subscription account.
+///
+/// The list is the child's documented precedence ladder above the stored token,
+/// collapsed to what the wrapper can observe from the environment. None is ever
+/// wrapper-managed and none is ever stripped.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AmbientCredential {
+    AuthToken,
+    ApiKey,
+    Bedrock,
+    Vertex,
+    Foundry,
+}
+
+impl AmbientCredential {
+    /// The environment variable that reveals this mechanism.
+    pub(crate) const fn variable(self) -> &'static str {
+        match self {
+            Self::AuthToken => "ANTHROPIC_AUTH_TOKEN",
+            Self::ApiKey => "ANTHROPIC_API_KEY",
+            Self::Bedrock => "CLAUDE_CODE_USE_BEDROCK",
+            Self::Vertex => "CLAUDE_CODE_USE_VERTEX",
+            Self::Foundry => "CLAUDE_CODE_USE_FOUNDRY",
+        }
+    }
+
+    pub(crate) const fn spelling(self) -> &'static str {
+        self.variable()
+    }
+
+    /// Every mechanism, in the child's own precedence order.
+    pub(crate) const ALL: [Self; 5] = [
+        Self::Bedrock,
+        Self::Vertex,
+        Self::Foundry,
+        Self::AuthToken,
+        Self::ApiKey,
+    ];
+}
+
+/// Whether the child answered, and how.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ProbeStatus {
+    Ok,
+    Failed,
+    Unavailable,
+}
+
+impl ProbeStatus {
+    pub(crate) const fn spelling(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Failed => "failed",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+/// One child probe's reportable result.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Probe {
+    pub(crate) status: ProbeStatus,
+    /// Present only when a child actually ran.
+    pub(crate) exit_code: Option<u8>,
+}
+
+/// One account's full status projection.
+///
+/// The five always-present fields answer "which account, and can it be used".
+/// Everything else is present only where it applies, and absent rather than
+/// null where it does not, which is the same document rule every report
+/// follows. `age_seconds` and `estimated_expiry` are additionally withheld when
+/// `metadata_consistent` is false, because computing them from a mint time that
+/// is not the token's would be inventing a fact.
+#[derive(Clone, Debug)]
+pub(crate) struct AccountStatus {
+    pub(crate) account: Identifier,
+    pub(crate) selected: bool,
+    pub(crate) mode: ReportMode,
+    pub(crate) usable: bool,
+    pub(crate) warnings: Vec<Warning>,
+    pub(crate) selection_source: Option<SelectionSource>,
+    pub(crate) recorded_at: Option<RecordedAt>,
+    pub(crate) age_seconds: Option<u64>,
+    pub(crate) estimated_expiry: Option<String>,
+    pub(crate) fingerprint: Option<Fingerprint>,
+    pub(crate) metadata_consistent: Option<bool>,
+    pub(crate) child_login_present: Option<bool>,
+    pub(crate) child_probe: Option<Probe>,
+}
+
+/// What one removal did.
+#[derive(Clone, Debug)]
+pub(crate) struct Removal {
+    pub(crate) account: Identifier,
+    pub(crate) path: std::path::PathBuf,
+    pub(crate) removed: bool,
+    pub(crate) mode: Option<ReportMode>,
+    pub(crate) marker_cleared: Option<bool>,
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
 
     #[test]
-    fn metadata_requires_typed_fields_but_accepts_future_token_fields() {
-        let value: AuthModeMetadata = serde_json::from_str(
-            r#"{"mode":"token","recorded_at":"2026-08-11T12:34:56Z","fingerprint":"sha256[..8]"}"#,
-        )
-        .expect("token metadata");
+    fn token_metadata_round_trips_its_fingerprint() {
+        let document =
+            r#"{"mode":"token","recorded_at":"2026-08-11T12:34:56Z","fingerprint":"3c469e9d"}"#;
+        let value: AuthModeMetadata = serde_json::from_str(document).expect("token metadata");
         assert_eq!(value.mode, AuthMode::Token);
-        assert!(serde_json::from_str::<AuthModeMetadata>(r#"{"mode":"login"}"#).is_err());
-        assert!(
-            serde_json::from_str::<AuthModeMetadata>(
-                r#"{"mode":"other","recorded_at":"2026-08-11T12:34:56Z"}"#
-            )
-            .is_err()
+        assert_eq!(
+            value.token_fingerprint().map(Fingerprint::as_str),
+            Some("3c469e9d")
         );
+        assert_eq!(
+            serde_json::to_string(&value).expect("token metadata renders"),
+            document
+        );
+    }
+
+    /// Login metadata carries no fingerprint key at all rather than a null,
+    /// which is the same absent-not-null rule every report document follows.
+    #[test]
+    fn login_metadata_omits_the_fingerprint_key() {
+        let value = AuthModeMetadata {
+            mode: AuthMode::Login,
+            recorded_at: RecordedAt::new_unchecked("2026-08-11T12:34:56Z".into()),
+            fingerprint: None,
+        };
+        assert_eq!(
+            serde_json::to_string(&value).expect("login metadata renders"),
+            r#"{"mode":"login","recorded_at":"2026-08-11T12:34:56Z"}"#
+        );
+        assert!(value.token_fingerprint().is_none());
+    }
+
+    #[test]
+    fn malformed_metadata_is_refused() {
+        for document in [
+            r#"{"mode":"login"}"#,
+            r#"{"mode":"other","recorded_at":"2026-08-11T12:34:56Z"}"#,
+            r#"{"mode":"token","recorded_at":"2026-08-11T12:34:56Z","fingerprint":"NOTHEX"}"#,
+        ] {
+            assert!(
+                serde_json::from_str::<AuthModeMetadata>(document).is_err(),
+                "{document} must be refused"
+            );
+        }
+    }
+
+    /// A token document without a fingerprint parses, because the field is
+    /// optional in the type, and is then refused by the reader that narrows it.
+    #[test]
+    fn a_token_document_without_a_fingerprint_has_none_to_report() {
+        let value: AuthModeMetadata =
+            serde_json::from_str(r#"{"mode":"token","recorded_at":"2026-08-11T12:34:56Z"}"#)
+                .expect("the field is optional in the type");
+        assert!(value.token_fingerprint().is_none());
     }
 
     #[test]

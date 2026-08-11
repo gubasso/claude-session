@@ -44,7 +44,7 @@ Each check has a stable kebab-case id, a scope, a severity, and the `err.kind` a
 | `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                |
 | `settings-entry-consistent` | Session | Hard     | `DataFormat`         | A materialized entry's recorded digest matches the one its inputs recompute         |
 | `account-registry-readable` | Session | Soft     | `Io`                 | The account collection can be enumerated safely                                     |
-| `credentials-usable`        | Session | Soft     | `Auth`               | The selected login account has safe metadata and a child-owned saved-login path     |
+| `credentials-usable`        | Session | Soft     | `Auth`               | The selected account has safe metadata and its stored mode's credential artifact    |
 
 Hard means the wrapper cannot function. Soft means a feature is degraded.
 
@@ -66,7 +66,7 @@ Every check that can fail has a row here. A guard cannot quote a remediation tha
 | `wrapper-config-parses`     | `{key}` in `{path}` is not a configuration key. Remove it, or correct it to one of the keys [configuration](./configuration.md#keys) lists.                                                                                               |
 | `child-binary-resolves`     | No `claude` was found. Install it, put it on `PATH`, or set `child_bin` to its absolute path — [process runtime](./process-runtime.md#child-resolution) gives the order the two rungs are tried in.                                       |
 | `child-is-executable`       | `{path}` exists but the current user cannot execute it. Grant execute permission, or point `child_bin` at a different binary.                                                                                                             |
-| `child-version-floor`       | The resolved `claude` reports `{version}`, below the `{minimum}` this wrapper is designed against. Upgrade it before using a saved-login account.                                                                                         |
+| `child-version-floor`       | The resolved `claude` reports `{version}`, below the `{minimum}` this wrapper is designed against. Upgrade it before using a saved-login account; token mode still works below the floor.                                                 |
 | `storage-paths-no-symlinks` | Move the symbolic link at `{path}` aside and recreate the expected `{expected_type}` there, restoring only content you trust.                                                                                                             |
 | `storage-paths-owned`       | `{path}` is owned by another user, which usually means a restored backup or a file created under `sudo`. Do not change its owner in place — move it aside and let the wrapper recreate it as you.                                         |
 | `storage-paths-typed`       | `{path}` is a `{actual_type}` and this location must be a `{expected_type}`. Move it aside and let the wrapper recreate it; nothing under this path is unrecoverable except an account login.                                             |
@@ -75,7 +75,7 @@ Every check that can fail has a row here. A guard cannot quote a remediation tha
 | `settings-compose`          | `{path}`, named by profile `{profile}`, does not exist. Create it, correct the name in the profile, or select a different profile.                                                                                                        |
 | `settings-entry-consistent` | The composed entry at `{path}` does not match the digest its inputs recompute, so it was neither opened nor overwritten. Move it aside; the next launch composes a fresh one. Report this — an entry is written once and never rewritten. |
 | `account-registry-readable` | Make `{path}` a readable, private directory owned by the current user, then retry.                                                                                                                                                        |
-| `credentials-usable`        | Run `claude-session account login {account}` to recreate the child-owned saved login and its local metadata.                                                                                                                              |
+| `credentials-usable`        | Run `claude-session account login {account}` to recreate this account's stored authentication and its local metadata.                                                                                                                     |
 
 On a credential path — `oauth-token`, `auth-mode.json`, or the child's `.credentials.json` — a symlink means something else may have read the secret, so one clause is appended. Only `credentials-usable` appends it today, over the selected account's three credential paths; the wrapper-managed storage checks refuse a link on those paths without it. Ownership, type, and symlink defects on the child-owned credential are reported by `credentials-usable` under its published `Auth` kind, and the diagnostic names the concrete ownership cause:
 

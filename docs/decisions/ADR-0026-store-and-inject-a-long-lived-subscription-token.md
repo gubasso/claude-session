@@ -30,6 +30,8 @@ The wrapper never parses or fingerprints the child credential, speaks an OAuth e
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [long-lived token mode](../reference/accounts.md#long-lived-token-mode).
 
 Amended by [ADR-0067](./ADR-0067-commit-a-token-rotation-with-the-metadata-rename.md) — verification before replacement stands; the staging it names is the atomic-write temporary, not an artifact of its own.

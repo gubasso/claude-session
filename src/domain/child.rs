@@ -39,7 +39,13 @@ impl std::fmt::Display for ChildVersion {
 }
 
 /// A fully resolved child invocation.
-#[derive(Clone, Debug, Eq, PartialEq)]
+///
+/// `Debug` is hand-written rather than derived, because the environment vector
+/// carries whatever ambient `ANTHROPIC_API_KEY` the user has and, for a
+/// token-mode launch, the wrapper's own injected token. A derive here would put
+/// a credential into any record that ever formatted an invocation, which is the
+/// leak the output rules forbid at every level and in every field.
+#[derive(Clone, Eq, PartialEq)]
 pub(crate) struct ChildInvocation {
     program: PathBuf,
     arguments: Vec<OsString>,
@@ -82,8 +88,34 @@ pub(crate) enum ChildOutcome {
     Signaled(i32),
 }
 
+impl std::fmt::Debug for ChildInvocation {
+    /// Names the program and the environment's keys, and no value.
+    ///
+    /// Argument bytes are counted rather than printed for the same reason: a
+    /// passthrough suffix is the user's, and the wrapper does not decide that
+    /// none of it is sensitive.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ChildInvocation")
+            .field("program", &self.program)
+            .field("arguments", &self.arguments.len())
+            .field(
+                "environment_keys",
+                &self
+                    .environment
+                    .iter()
+                    .map(|(key, _)| key)
+                    .collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
 /// Captured subroutine output and status.
-#[derive(Debug)]
+///
+/// `Debug` prints lengths rather than bytes: captured output is helper output,
+/// which the output rules place alongside credentials as something never
+/// emitted at any level or in any field.
 pub(crate) struct CapturedChild {
     /// Raw standard output bytes.
     pub(crate) stdout: Vec<u8>,
@@ -91,6 +123,17 @@ pub(crate) struct CapturedChild {
     pub(crate) stderr: Vec<u8>,
     /// The subroutine's status.
     pub(crate) outcome: ChildOutcome,
+}
+
+impl std::fmt::Debug for CapturedChild {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CapturedChild")
+            .field("stdout_bytes", &self.stdout.len())
+            .field("stderr_bytes", &self.stderr.len())
+            .field("outcome", &self.outcome)
+            .finish()
+    }
 }
 
 #[cfg(test)]

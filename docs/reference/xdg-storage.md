@@ -2,7 +2,7 @@
 
 Where every artifact lives, who writes it, and what protects it. For the account/profile split, see [session isolation](../explanation/session-isolation.md).
 
-Base resolution, the private state log namespace, account directories, login `auth-mode.json`, non-reading saved-login presence checks, the last-used marker, the composed-settings store and its pair rule, the five security checks, and lock-free atomic writes are implemented. `oauth-token`, the credential lock, removal, and token cleanup remain normative future design.
+Every artifact and mechanism on this page is implemented: base resolution, the private state log namespace, account directories, `auth-mode.json` in both modes, `oauth-token`, non-reading saved-login presence checks, the last-used marker, the composed-settings store and its pair rule, the five security checks, lock-free atomic writes, the credential lock, and ordered removal.
 
 ## Base directories
 
@@ -39,7 +39,7 @@ Every artifact has one writer.
 | Composed settings        | State  | `composed/profile-<name>-<digest>.json`         | Composition subsystem                                | `0600`                         | Permanent                             |
 | Composition provenance   | State  | `composed/profile-<name>-<digest>.compose.json` | Composition subsystem                                | `0600`                         | Permanent                             |
 | Last-used account marker | State  | `state/last-account`                            | Account subsystem                                    | `0600`                         | Until selection changes               |
-| Write lock               | State  | `.<scope>.lock` beside the files it guards      | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
+| Write lock               | State  | `accounts/.<account>.lock`                      | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
 | Log file                 | State  | `claude-session.log`                            | Logging subsystem                                    | `0600`                         | Rotated                               |
 
 The project configuration file is the one artifact with no XDG base: it lives in the user's repository because that is what makes it per-repository, and it is listed here so the table stays the whole inventory. [Configuration](./configuration.md#project-file-discovery) owns how it is found and what it may set.
@@ -141,17 +141,21 @@ The temporary is created with `O_CREAT | O_EXCL`. Its name makes an abandoned on
 
 A lock exists only where a write is not a function of the files it reads, or where two files carry one invariant:
 
-| Scope                                  | Guards                             | Because                                                                        |
-| -------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
-| `accounts/<account>/.credentials.lock` | `oauth-token` and `auth-mode.json` | Each login mints a new secret, so a reordered rename can persist a revoked one |
+| Scope                      | Guards                             | Because                                                                                                                             |
+| -------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `accounts/.<account>.lock` | `oauth-token` and `auth-mode.json` | Each login mints a new secret, so a reordered rename can persist a revoked one — and removal commits by unlinking the same metadata |
 
 Within that scope the pair is written in one order: `oauth-token` first, then `auth-mode.json`, whose rename commits the rotation ([ADR-0067](../decisions/ADR-0067-commit-a-token-rotation-with-the-metadata-rename.md)). A new token is verified before the lock is taken, so the lock is never held across a child spawn, and the sequence gains no step: verification is not a write.
 
 Composed settings, composition provenance, the last-used marker, and every other wrapper-owned write take no lock. Each is recomputed from its inputs, or is a selection where the most recent write is the right answer. Composed settings and their provenance carry one invariant, and it is expressed in the name: both files are named by the same input digest, so provenance can never describe settings other than the ones beside it.
 
-The lock file is never deleted while its scope exists. Unlinking it lets one holder destroy the file another is about to lock. A permanent empty file is the design, and because it carries no claim, a kill leaves nothing for the next run to break. [`account remove`](./accounts.md#removal) is the one exception, because it destroys the scope itself: it holds the lock, deletes the tree with the lock inside it, and a racer blocked on acquisition wakes on an unlinked inode and fails its rename with `Io` ([ADR-0069](../decisions/ADR-0069-destroy-the-credential-lock-with-its-scope.md)).
+The lock file is never deleted, and there is no exception. Unlinking it lets one holder destroy the file another is about to lock — and worse, a third arrival recreates that name and locks an inode nobody else holds, so both believe they own the scope. This is why the sentinel sits beside the account rather than inside it: [`account remove`](./accounts.md#removal) destroys everything the scope guards without ever touching the thing that identifies it, so acquisition and removal exclude each other for the whole removal ([ADR-0087](../decisions/ADR-0087-keep-the-credential-lock-beside-the-account.md)). A permanent empty file is the design, and because it carries no claim, a kill leaves nothing for the next run to break.
 
-`account remove` is also the scope's second writer. It takes the lock before deleting anything, which is what stops a concurrent `account login` writing into a tree being removed. A launch takes no lock — it only reads — so removal excludes no running child and does not look for one.
+A lock file therefore outlives the account it guarded. Nothing reports it and nothing trips over it: [account discovery](./accounts.md#what-an-account-is) enumerates directories whose names parse as [identifiers](#identifiers), and a leading dot fails both tests. Removing one by hand is safe when no run holds it, and pointless otherwise.
+
+The scope has three writers, and the third is the reason the second column names `auth-mode.json` rather than the token alone. `account login --token` rotates the pair. `account remove` takes the lock before deleting anything, which is what stops a concurrent login writing into a tree being removed. And a native `account login` takes it to commit its own `auth-mode.json`, even though login mode mints no wrapper-owned secret: that file is what removal unlinks as its commit, so a write outside the lock could land inside a tree already committed to destruction. A launch takes no lock — it only reads — so removal excludes no running child and does not look for one.
+
+A failed first login removes the account directory it created, and that cleanup asks whether any `auth-mode.json` exists rather than whether the directory did. The directory's absence was sampled before a child that can run for minutes, so a second login against the same new name may have committed in between; deleting on the older answer would destroy a credential nobody asked to remove.
 
 Acquisition blocks, up to a deadline; past it the run exits [`LockBusy`](./exit-codes.md#wrapper-matrix).
 
@@ -178,7 +182,7 @@ The sweep removes an orphaned temporary from any wrapper-managed directory the i
 
 Composed settings entries are permanent. Each is immutable and named by its inputs, so one accumulates only when a profile or a piece actually changes — a growth curve set by how often the user edits configuration, not by how many terminals they open. Nothing earns an age policy, a prune verb, or a liveness check at that rate ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)); removing a store the user no longer wants is `rm`. The orphan-temporary sweep above is the only thing the wrapper deletes unbidden.
 
-`account remove` removes the local account tree and nothing else. Under the [credential lock](#lock-scopes), it unlinks `auth-mode.json` first — an account without its mode metadata is not an account, so that unlink is the commit, inverting [the rotation order](#lock-scopes) — then `oauth-token`, then the child-owned `config/` and every other artifact beneath the account directory, then `.credentials.lock` and the directory itself. `state/last-account` is unlinked only when it names the removed account.
+`account remove` removes the local account tree and nothing else. Under the [credential lock](#lock-scopes), it unlinks `auth-mode.json` first — an account without its mode metadata is not an account, so that unlink is the commit, inverting [the rotation order](#lock-scopes) — then `oauth-token`, then the child-owned `config/` and every other artifact beneath the account directory, then the directory itself. `state/last-account` is unlinked only when it names the removed account. The lock file is not one of them: it sits beside the account rather than inside it precisely so that removal never has to destroy the inode excluding everyone else ([ADR-0087](../decisions/ADR-0087-keep-the-credential-lock-beside-the-account.md)), and it outlives the account it once guarded, invisible to every report.
 
 Everything else survives, and the list is exhaustive because silence is what makes users delete by hand: composed settings and their provenance, which are keyed by profile and input digest and carry no account component ([ADR-0064](../decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md)); the log file; the whole config base, which is user-authored and never wrapper-written — a configuration layer naming the removed account produces a warning on standard error naming the file and the key, and no edit; every other account; the `accounts/` directory itself, even when the last account goes.
 

@@ -68,6 +68,19 @@ fn main() {
         )
         .expect("credential");
     }
+    // Simulates a second run committing this account while the interactive
+    // login of the run under test is still going. The cleanup on failure must
+    // notice and leave the committed account alone.
+    if std::env::var_os("CS_TEST_COMMIT_METADATA").is_some() {
+        let config = PathBuf::from(std::env::var_os("CLAUDE_CONFIG_DIR").expect("config dir"));
+        let account = config.parent().expect("account directory").to_path_buf();
+        fs::create_dir_all(&account).expect("account directory");
+        fs::write(
+            account.join("auth-mode.json"),
+            b"{\"mode\":\"login\",\"recorded_at\":\"2026-08-11T00:00:00Z\"}\n",
+        )
+        .expect("committed metadata");
+    }
     // Simulates drift arriving while the interactive login runs: the account's
     // configuration directory is replaced by a link to somewhere else. The
     // wrapper validated the directory before the child started, so only a
@@ -77,10 +90,32 @@ fn main() {
         let _ = fs::remove_dir_all(&config);
         std::os::unix::fs::symlink(&target, &config).expect("swap config");
     }
+    // Records whether the wrapper handed this probe a token, and which one, so
+    // a test can prove the candidate reached the child through its environment
+    // rather than through argv. The argv record above already proves the
+    // negative half.
+    if arguments.first() == Some(&OsString::from("auth"))
+        && arguments.get(1) == Some(&OsString::from("status"))
+    {
+        let seen = std::env::var_os("CLAUDE_CODE_OAUTH_TOKEN").unwrap_or_default();
+        fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(record.join("probe-token"))
+            .expect("probe record")
+            .write_all(seen.as_os_str().as_bytes())
+            .expect("probe token");
+    }
     let prefix = if arguments.as_slice() == [OsString::from("--version")] {
         Some("VERSION")
     } else if arguments.as_slice() == [OsString::from("doctor")] {
         Some("DOCTOR")
+    } else if arguments.first() == Some(&OsString::from("auth"))
+        && arguments.get(1) == Some(&OsString::from("status"))
+    {
+        Some("PROBE")
+    } else if arguments.as_slice() == [OsString::from("setup-token")] {
+        Some("SETUP_TOKEN")
     } else {
         None
     };

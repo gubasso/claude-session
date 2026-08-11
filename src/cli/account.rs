@@ -32,16 +32,32 @@ pub(crate) struct AccountArgs {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum AccountCommand {
-    /// Delegate native saved-login setup to the child.
+    /// Delegate native saved-login setup to the child, or store a token.
     Login(LoginArgs),
     /// List locally discovered accounts.
     List(ListArgs),
+    /// Report one account's mode, health, and selection provenance.
+    Status(StatusArgs),
+    /// Remove one account's local state.
+    Remove(RemoveArgs),
 }
 
 #[derive(Args, Debug)]
 pub(crate) struct LoginArgs {
     /// Account to log in; the selected account when omitted.
     pub(crate) name: Option<Identifier>,
+    /// Store a long-lived subscription token instead of a native saved login.
+    #[arg(long)]
+    pub(crate) token: bool,
+    // The two token-only flags require `--token` rather than being silently
+    // ignored without it, because each one alone reads as a request the wrapper
+    // would then not honour.
+    /// Read the token from standard input instead of prompting.
+    #[arg(long, requires = "token")]
+    pub(crate) stdin: bool,
+    /// The time the token was minted, when it was not minted just now.
+    #[arg(long, requires = "token", value_name = "RFC3339")]
+    pub(crate) minted_at: Option<String>,
     /// Emit the report as one JSON document.
     #[arg(long)]
     pub(crate) json: bool,
@@ -49,6 +65,30 @@ pub(crate) struct LoginArgs {
 
 #[derive(Args, Debug)]
 pub(crate) struct ListArgs {
+    /// Emit the report as one JSON document.
+    #[arg(long)]
+    pub(crate) json: bool,
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct StatusArgs {
+    /// Account to report; the selected account when omitted.
+    pub(crate) name: Option<Identifier>,
+    /// Emit the report as one JSON document.
+    #[arg(long)]
+    pub(crate) json: bool,
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct RemoveArgs {
+    // Required, unlike every other account positional. Removal is the one verb
+    // whose subject cannot be inferred from the selection ladder: deleting
+    // "whichever account was used last" is not something a user asks for.
+    /// Account to remove.
+    pub(crate) name: Identifier,
+    /// Remove without confirming.
+    #[arg(long)]
+    pub(crate) yes: bool,
     /// Emit the report as one JSON document.
     #[arg(long)]
     pub(crate) json: bool,

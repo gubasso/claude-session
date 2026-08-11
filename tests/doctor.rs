@@ -441,8 +441,8 @@ fn the_published_documentation_matches_the_implemented_rung() {
         "the account entries are in the catalog, so the deferral sentence is stale"
     );
     assert!(
-        !doctor.contains("token mode still works"),
-        "token mode is not implemented, so the floor remediation must not promise it"
+        doctor.contains("token mode still works"),
+        "token mode is implemented and is not blocked by the floor, so the remediation says so"
     );
     let accounts = document("docs/reference/accounts.md");
     assert!(
@@ -452,5 +452,46 @@ fn the_published_documentation_matches_the_implemented_rung() {
     assert!(
         !accounts.contains("`project-config`"),
         "a project file cannot supply an account, so it is not a selection source"
+    );
+}
+
+/// The `0.3.0` rung's own documentation gate.
+///
+/// Separate from the `0.2.0` one above because each rung owns its claims: this
+/// one asserts the sentences the token lifecycle made false are gone, and the
+/// ones it made true are present. Every assertion here is a revert this catches.
+#[test]
+fn the_token_lifecycle_documentation_matches_the_implemented_grammar() {
+    let accounts = document("docs/reference/accounts.md");
+    assert!(
+        !accounts.contains("future design for slice 013"),
+        "the token lifecycle shipped, so its deferral sentence is stale"
+    );
+    let storage = document("docs/reference/xdg-storage.md");
+    assert!(
+        !storage.contains("remain normative future design"),
+        "the credential lock, the token file, and ordered removal all shipped"
+    );
+    let surface = document("docs/reference/cli-surface.md");
+    assert!(
+        !surface.contains("Other account subcommands and options remain normative design"),
+        "every account subcommand is declared, so nothing is waiting on a later slice"
+    );
+    for spelling in ["`status`", "`remove`", "--token", "--stdin", "--minted-at"] {
+        assert!(
+            surface.contains(spelling),
+            "the CLI surface must name the implemented spelling {spelling}"
+        );
+    }
+    let output = document("docs/reference/logging-and-output.md");
+    assert!(
+        !output.contains("Other verb output remains normative design"),
+        "only the unbuilt verbs are outstanding, and the sentence must say which"
+    );
+    // The one thing the wrapper still does not do on this page, kept honest so
+    // a reader does not infer a helper protocol that has no specification.
+    assert!(
+        accounts.contains("token_helper"),
+        "the unspecified helper boundary stays named rather than quietly dropped"
     );
 }

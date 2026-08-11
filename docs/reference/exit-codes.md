@@ -2,7 +2,7 @@
 
 The wrapper's exit-code matrix, the error message shape, and the rule that governs the boundary between wrapper-originated and child-originated status.
 
-The wrapper matrix, passthrough boundary, `doctor --strict` promotion, account inspection, and native-login operation are implemented. Login failures use `Auth` or `Unavailable`, may carry `child_exit`, and never replace passthrough's native child status.
+The wrapper matrix, passthrough boundary, `doctor --strict` promotion, account inspection, and both account operations are implemented, including `NoInput` for a named account that does not exist and `LockBusy` at the credential lock's acquisition deadline. Login failures use `Auth` or `Unavailable`, may carry `child_exit`, and never replace passthrough's native child status.
 
 ## Two regimes
 

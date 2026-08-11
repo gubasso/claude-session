@@ -27,6 +27,8 @@ Scope is the writes that need it — the account credential pair and the setting
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [the lock scopes](../reference/xdg-storage.md#lock-scopes).
 
 Supersedes [ADR-0059](./ADR-0059-coordinate-concurrent-runs-by-atomic-rename.md); atomic rename remains. Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) to withdraw the settings scope and [ADR-0069](./ADR-0069-destroy-the-credential-lock-with-its-scope.md) to destroy an account lock with its scope.

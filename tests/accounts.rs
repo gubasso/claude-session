@@ -126,7 +126,7 @@ fn account_list_token_probe_never_reads_token_bytes() {
         account.join("auth-mode.json"),
         concat!(
             "{\"mode\":\"token\",\"recorded_at\":\"2026-08-11T00:00:00Z\",",
-            "\"fingerprint\":\"private\"}\n"
+            "\"fingerprint\":\"deadbeef\"}\n"
         ),
     )
     .expect("metadata");
@@ -421,7 +421,7 @@ fn login_launch_below_the_version_floor_refuses_before_exec() {
     assert!(String::from_utf8_lossy(&output.stderr).contains(concat!(
         "The resolved `claude` reports 2.1.210, below the 2.1.211 this ",
         "wrapper is designed against. Upgrade it before using a ",
-        "saved-login account."
+        "saved-login account; token mode still works below the floor."
     )));
     assert_eq!(
         &read_nul(&harness.record_dir().join("argv"))[1..],
@@ -442,7 +442,7 @@ fn login_launch_below_the_version_floor_refuses_before_exec() {
     assert!(String::from_utf8_lossy(&output.stderr).contains(concat!(
         "The resolved `claude` reports unavailable, below the 2.1.211 this ",
         "wrapper is designed against. Upgrade it before using a ",
-        "saved-login account."
+        "saved-login account; token mode still works below the floor."
     )));
     assert_eq!(
         read_invocations(&harness.record_dir().join("invocations")),
@@ -698,4 +698,568 @@ fn native_login_revalidates_the_account_tree_before_committing() {
             .exists(),
         "no metadata may be committed over a credential outside the account tree"
     );
+}
+
+// --- Slice 013: the token account lifecycle -------------------------------
+
+/// Runs one wrapper invocation and returns its parsed JSON report.
+fn account_json(harness: &Harness, arguments: &[&str]) -> serde_json::Value {
+    let output = harness.command().args(arguments).output().expect("wrapper");
+    assert!(
+        output.status.success(),
+        "{:?} failed: {}",
+        arguments,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).expect("json")
+}
+
+/// Acceptance line 1: standard input is one of the two permitted sources, and
+/// the commit lands under the credential lock at the documented modes.
+#[test]
+fn token_ingest_from_stdin_commits_the_pair_privately() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args(["account", "login", "work", "--token", "--stdin", "--json"])
+        .write_stdin("sk-ingest-value\n")
+        .output()
+        .expect("token login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let account = harness.state().join("accounts/work");
+    assert_eq!(
+        fs::read(account.join("oauth-token")).expect("token file"),
+        b"sk-ingest-value"
+    );
+    assert_eq!(mode(&account.join("oauth-token")), 0o600);
+    assert_eq!(mode(&account.join("auth-mode.json")), 0o600);
+    let metadata: serde_json::Value =
+        serde_json::from_slice(&fs::read(account.join("auth-mode.json")).expect("metadata file"))
+            .expect("metadata");
+    assert_eq!(metadata["mode"], "token");
+    assert_eq!(
+        metadata["fingerprint"],
+        support::fingerprint(b"sk-ingest-value")
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(report["mode"], "token");
+    assert_eq!(
+        report["fingerprint"],
+        support::fingerprint(b"sk-ingest-value")
+    );
+    // The lock sentinel survives its own transaction, and lives beside the
+    // account rather than inside it: it is a handle rather than a claim, and
+    // deleting it would let one holder destroy the file another is about to
+    // lock.
+    assert!(
+        harness.state().join("accounts/.work.lock").is_file(),
+        "the sentinel belongs beside the account it guards"
+    );
+    assert!(!account.join(".credentials.lock").exists());
+}
+
+/// The candidate reaches the child through its environment and never through
+/// argv, so it cannot appear in a process listing.
+#[test]
+fn the_verification_probe_carries_the_candidate_in_the_environment_only() {
+    let harness = Harness::new();
+    assert!(
+        harness
+            .assert_command()
+            .args(["account", "login", "work", "--token", "--stdin"])
+            .write_stdin("sk-probe-value\n")
+            .output()
+            .expect("token login")
+            .status
+            .success()
+    );
+    let argv = read_nul(&harness.record_dir().join("argv"));
+    assert_eq!(
+        &argv[1..],
+        &[b"auth".to_vec(), b"status".to_vec(), b"--json".to_vec()]
+    );
+    assert!(
+        !argv.iter().any(|value| value == b"sk-probe-value"),
+        "the token must never reach argv"
+    );
+    assert_eq!(
+        fs::read(harness.record_dir().join("probe-token")).expect("probe record"),
+        b"sk-probe-value",
+        "the probe answers about the candidate, so the candidate must reach it"
+    );
+}
+
+/// A candidate the child refuses never replaces anything, and a failed first
+/// login leaves no account behind.
+#[test]
+fn a_refused_candidate_commits_nothing_and_removes_a_first_account() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args(["account", "login", "work", "--token", "--stdin"])
+        .env("CS_TEST_PROBE_EXIT", "1")
+        .write_stdin("sk-rejected\n")
+        .output()
+        .expect("token login");
+    assert_eq!(output.status.code(), Some(77));
+    assert!(
+        !harness.state().join("accounts/work").exists(),
+        "a failed first login removes the account it created"
+    );
+}
+
+/// Every refused shape is a usage error raised before anything is written, and
+/// the diagnostic never quotes what it refused.
+#[test]
+fn a_malformed_pasted_token_is_refused_without_quoting_it() {
+    for (input, why) in [
+        ("", "no token was supplied"),
+        ("   \n", "no token was supplied"),
+        (
+            "first\nsecond\n",
+            "a token is one line, and more than one arrived",
+        ),
+    ] {
+        let harness = Harness::new();
+        let output = harness
+            .assert_command()
+            .args(["account", "login", "work", "--token", "--stdin"])
+            .write_stdin(input)
+            .output()
+            .expect("token login");
+        assert_eq!(output.status.code(), Some(64), "input {input:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(why), "input {input:?}: {stderr}");
+        assert!(
+            !stderr.contains("first"),
+            "the diagnostic must not quote the refused input: {stderr}"
+        );
+        assert!(!harness.state().join("accounts/work").exists());
+    }
+}
+
+/// Acceptance line 1: without a terminal and without the documented escape, the
+/// verb stops before any side effect and names the escape.
+#[test]
+fn token_entry_without_a_terminal_refuses_before_any_side_effect() {
+    let harness = Harness::new();
+    let output = harness
+        .detached_command(&["account", "login", "work", "--token"])
+        .output()
+        .expect("detached login");
+    assert_eq!(output.status.code(), Some(69));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--token --stdin"), "{stderr}");
+    assert!(!harness.state().join("accounts/work").exists());
+    assert!(!harness.record_dir().join("argv").exists());
+}
+
+/// Acceptance line 3: the floor guards shared-login refresh coordination, which
+/// token mode does not use, so a below-floor child still launches.
+#[test]
+fn a_token_launch_is_not_blocked_by_the_login_mode_version_floor() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-launch-value", b"sk-launch-value");
+    let output = harness
+        .command()
+        .args(["--account", "work", "run"])
+        .env("CS_TEST_VERSION_STDOUT", "2.1.210\n")
+        .output()
+        .expect("launch");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let invocations = read_invocations(&harness.record_dir().join("invocations"));
+    assert_eq!(
+        invocations,
+        vec![vec![b"run".to_vec()]],
+        "token mode runs no version probe and reaches the exec"
+    );
+    let environ = read_nul(&harness.record_dir().join("environ"));
+    let index = environ
+        .iter()
+        .position(|value| value == b"CLAUDE_CODE_OAUTH_TOKEN")
+        .expect("the token is injected");
+    assert_eq!(environ[index + 1], b"sk-launch-value");
+}
+
+/// Acceptance line 2: ambient authentication is preserved and warned about, and
+/// the stored mode is untouched.
+#[test]
+fn ambient_authentication_is_preserved_and_warned_without_changing_the_mode() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-ambient-value", b"sk-ambient-value");
+    let output = harness
+        .command()
+        .args(["--account", "work", "run"])
+        .env("ANTHROPIC_API_KEY", "ambient-key")
+        .output()
+        .expect("launch");
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ANTHROPIC_API_KEY outranks the selected account"),
+        "{stderr}"
+    );
+    let environ = read_nul(&harness.record_dir().join("environ"));
+    let index = environ
+        .iter()
+        .position(|value| value == b"ANTHROPIC_API_KEY")
+        .expect("the ambient key is never stripped");
+    assert_eq!(environ[index + 1], b"ambient-key");
+    let metadata: serde_json::Value = serde_json::from_slice(
+        &fs::read(harness.state().join("accounts/work/auth-mode.json")).expect("metadata file"),
+    )
+    .expect("metadata");
+    assert_eq!(metadata["mode"], "token", "the stored mode is unchanged");
+}
+
+/// Acceptance line 4: mode-aware health, and the crash-between-renames window
+/// reported rather than papered over.
+#[test]
+fn status_reports_mode_aware_health_and_metadata_consistency() {
+    let harness = Harness::new();
+    harness.initialize_token("consistent", b"sk-good", b"sk-good");
+    harness.initialize_token("torn", b"sk-actual", b"sk-described");
+    harness.initialize_login("saved");
+
+    let consistent = account_json(&harness, &["account", "status", "consistent", "--json"]);
+    assert_eq!(consistent["mode"], "token");
+    assert_eq!(consistent["usable"], true);
+    assert_eq!(consistent["metadata_consistent"], true);
+    assert_eq!(consistent["fingerprint"], support::fingerprint(b"sk-good"));
+    assert!(consistent["age_seconds"].is_number());
+    assert_eq!(consistent["estimated_expiry"], "2027-08-11T00:00:00Z");
+    assert_eq!(consistent["child_login_present"], false);
+    assert_eq!(consistent["child_probe"]["status"], "ok");
+
+    let torn = account_json(&harness, &["account", "status", "torn", "--json"]);
+    assert_eq!(torn["metadata_consistent"], false);
+    assert_eq!(
+        torn["fingerprint"],
+        support::fingerprint(b"sk-actual"),
+        "the reported fingerprint identifies the credential actually in force"
+    );
+    assert!(
+        torn["age_seconds"].is_null() && torn["estimated_expiry"].is_null(),
+        "a mint time that is not the token's computes nothing: {torn}"
+    );
+    assert_eq!(torn["usable"], true, "the token itself still works");
+
+    let saved = account_json(&harness, &["account", "status", "saved", "--json"]);
+    assert_eq!(saved["mode"], "login");
+    assert_eq!(saved["usable"], true);
+    assert_eq!(saved["child_login_present"], true);
+    assert!(
+        saved["fingerprint"].is_null() && saved["metadata_consistent"].is_null(),
+        "login mode has no wrapper-owned secret to describe: {saved}"
+    );
+}
+
+/// A status request about an account that does not exist is the one thing this
+/// inspection verb fails on, and it is `NoInput` rather than a report.
+#[test]
+fn status_for_an_absent_account_reports_no_input() {
+    let harness = Harness::new();
+    let output = harness
+        .command()
+        .args(["account", "status", "missing", "--json"])
+        .output()
+        .expect("status");
+    assert_eq!(output.status.code(), Some(66));
+}
+
+/// Token-over-login shadowing is data in this report, because shadowing is its
+/// subject; everywhere else it is prose on standard error.
+#[test]
+fn status_carries_shadowing_as_data_rather_than_prose() {
+    let harness = Harness::new();
+    harness.initialize_token("both", b"sk-token", b"sk-token");
+    fs::write(
+        harness
+            .state()
+            .join("accounts/both/config/.credentials.json"),
+        b"child-owned-fixture",
+    )
+    .expect("saved login fixture");
+    let status = account_json(&harness, &["account", "status", "both", "--json"]);
+    let warnings = status["warnings"].as_array().expect("warnings array");
+    assert!(
+        warnings.iter().any(|warning| warning
+            .as_str()
+            .is_some_and(|text| text.contains("the stored token outranks the saved login"))),
+        "{status}"
+    );
+}
+
+/// Acceptance line 5: only local state goes, in the order whose first unlink is
+/// the commit, and the report says what is still live upstream.
+#[test]
+fn remove_deletes_only_local_state_and_states_that_nothing_was_revoked() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-remove", b"sk-remove");
+    harness.initialize_token("other", b"sk-keep", b"sk-keep");
+    let marker = harness.state().join("state/last-account");
+    fs::create_dir_all(marker.parent().expect("state directory")).expect("marker directory");
+    fs::write(&marker, b"work").expect("marker fixture");
+    fs::set_permissions(&marker, fs::Permissions::from_mode(0o600)).expect("marker mode");
+
+    let output = harness
+        .command()
+        .args(["account", "remove", "work", "--yes", "--json"])
+        .output()
+        .expect("remove");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(report["removed"], true);
+    assert_eq!(report["mode"], "token");
+    assert_eq!(report["marker_cleared"], true);
+    assert!(!harness.state().join("accounts/work").exists());
+    assert!(!marker.exists());
+    assert!(
+        harness.state().join("accounts/other/oauth-token").is_file(),
+        "removal takes one account and nothing else"
+    );
+    assert!(
+        harness.state().join("accounts").is_dir(),
+        "the collection survives its last account"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("not upstream revocation"),
+        "the one place this fact exists is a sentence, and --json must not delete it: {stderr}"
+    );
+}
+
+/// Acceptance line 5: without consent and without a terminal, removal stops
+/// before any side effect; with `--json` the schema changes and nothing else.
+#[test]
+fn remove_without_consent_or_a_terminal_changes_nothing() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-keep-me", b"sk-keep-me");
+    for arguments in [
+        vec!["account", "remove", "work"],
+        vec!["account", "remove", "work", "--json"],
+    ] {
+        let output = harness
+            .detached_command(&arguments)
+            .output()
+            .expect("detached remove");
+        assert_eq!(output.status.code(), Some(69), "{arguments:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("--yes"), "{arguments:?}: {stderr}");
+        assert_eq!(
+            fs::read(harness.state().join("accounts/work/oauth-token")).expect("token file"),
+            b"sk-keep-me"
+        );
+    }
+}
+
+/// The verification probe must answer about the candidate, so it clears the
+/// mechanisms that would otherwise outrank it. Without this an invalid token
+/// verifies whenever an API key happens to be exported.
+#[test]
+fn the_verification_probe_clears_the_credentials_that_outrank_its_candidate() {
+    let harness = Harness::new();
+    let mut command = harness.assert_command();
+    for variable in [
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+    ] {
+        command.env(variable, "ambient");
+    }
+    let output = command
+        .args(["account", "login", "work", "--token", "--stdin"])
+        .write_stdin("sk-isolated\n")
+        .output()
+        .expect("token login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    // The probe is this account's only child invocation, so the recorded
+    // environment is the probe's.
+    let environ = read_nul(&harness.record_dir().join("environ"));
+    for variable in [
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+    ] {
+        assert!(
+            !environ.iter().any(|value| value == variable.as_bytes()),
+            "{variable} would decide the probe's answer instead of the candidate"
+        );
+    }
+    let index = environ
+        .iter()
+        .position(|value| value == b"CLAUDE_CODE_OAUTH_TOKEN")
+        .expect("the candidate reaches the probe");
+    assert_eq!(environ[index + 1], b"sk-isolated");
+}
+
+/// A failed login must not delete an account a concurrent run committed while
+/// its child was still going.
+#[test]
+fn a_failed_first_login_leaves_an_account_another_run_committed() {
+    let harness = Harness::new();
+    let output = harness
+        .terminal_command("account login work")
+        .env("CS_TEST_COMMIT_METADATA", "1")
+        .env("CS_TEST_EXIT", "1")
+        .output()
+        .expect("terminal login");
+    assert!(!output.status.success());
+    assert!(
+        harness
+            .state()
+            .join("accounts/work/auth-mode.json")
+            .is_file(),
+        "the committed account belongs to the run that finished, not to this one"
+    );
+}
+
+/// A multi-line paste is refused rather than truncated, and its remainder is
+/// consumed rather than left queued for the user's shell.
+#[test]
+fn a_multi_line_paste_into_the_terminal_is_refused() {
+    let harness = Harness::new();
+    let mut command = harness.terminal_command("account login work --token");
+    command
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().expect("terminal login");
+    // The paste has to arrive after the prompt. Engaging echo-off flushes
+    // type-ahead by design, so anything written before then is discarded and
+    // the case under test would never be reached.
+    let mut transcript = Vec::new();
+    {
+        use std::io::{Read as _, Write as _};
+        let mut stdout = child.stdout.take().expect("stdout");
+        let mut byte = [0_u8; 1];
+        while !transcript.ends_with(b"not echoed): ") {
+            assert_eq!(
+                stdout.read(&mut byte).expect("prompt"),
+                1,
+                "the prompt never arrived: {}",
+                String::from_utf8_lossy(&transcript)
+            );
+            transcript.push(byte[0]);
+        }
+        let mut stdin = child.stdin.take().expect("stdin");
+        stdin
+            .write_all(b"sk-first-line\nsk-second-line\n")
+            .expect("paste");
+        drop(stdin);
+        stdout.read_to_end(&mut transcript).expect("transcript");
+    }
+    child.wait().expect("terminal login");
+    let terminal = String::from_utf8_lossy(&transcript);
+    assert!(
+        terminal.contains("a token is one line, and more than one arrived"),
+        "the second line must be refused rather than silently dropped: {terminal}"
+    );
+    assert!(
+        !harness.state().join("accounts/work/oauth-token").exists(),
+        "nothing may be stored from a refused paste"
+    );
+}
+
+/// The lock sentinel outlives the account it guarded, because destroying it is
+/// what let a third arrival recreate the name and lock an inode nobody held.
+#[test]
+fn removal_leaves_the_lock_sentinel_and_no_visible_account() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-outlived", b"sk-outlived");
+    assert!(
+        harness
+            .command()
+            .args(["account", "remove", "work", "--yes", "--json"])
+            .output()
+            .expect("remove")
+            .status
+            .success()
+    );
+    assert!(!harness.state().join("accounts/work").exists());
+    let sentinel = harness.state().join("accounts/.work.lock");
+    assert!(
+        sentinel.is_file(),
+        "the sentinel is never deleted, so acquisition and removal exclude each other throughout"
+    );
+    assert_eq!(mode(&sentinel), 0o600);
+    // Invisible twice over: the walk takes directories, and an identifier
+    // cannot begin with a dot.
+    let value = list_json(&harness);
+    assert_eq!(value["accounts"].as_array().expect("accounts").len(), 0);
+    // And it does not obstruct a later account of the same name.
+    assert!(
+        harness
+            .assert_command()
+            .args(["account", "login", "work", "--token", "--stdin"])
+            .write_stdin("sk-reused\n")
+            .output()
+            .expect("token login")
+            .status
+            .success()
+    );
+    assert_eq!(
+        fs::read(harness.state().join("accounts/work/oauth-token")).expect("token file"),
+        b"sk-reused"
+    );
+}
+
+/// The interrupt key cancels the prompt instead of killing the process while
+/// terminal echo is off. Reaching this at all proves `ISIG` was cleared: with
+/// it on the byte would have become a signal and never been read.
+#[test]
+fn an_interrupt_at_the_token_prompt_cancels_instead_of_killing_the_process() {
+    let harness = Harness::new();
+    let mut command = harness.terminal_command("account login work --token");
+    command
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().expect("terminal login");
+    let mut transcript = Vec::new();
+    {
+        use std::io::{Read as _, Write as _};
+        let mut stdout = child.stdout.take().expect("stdout");
+        let mut byte = [0_u8; 1];
+        while !transcript.ends_with(b"not echoed): ") {
+            assert_eq!(stdout.read(&mut byte).expect("prompt"), 1, "prompt");
+            transcript.push(byte[0]);
+        }
+        let mut stdin = child.stdin.take().expect("stdin");
+        stdin.write_all(b"\x03\n").expect("interrupt");
+        drop(stdin);
+        stdout.read_to_end(&mut transcript).expect("transcript");
+    }
+    let status = child.wait().expect("terminal login");
+    let terminal = String::from_utf8_lossy(&transcript);
+    assert!(
+        terminal.contains("entry was cancelled at the prompt"),
+        "the interrupt must be answered rather than signalled: {terminal}"
+    );
+    assert_eq!(
+        status.code(),
+        Some(64),
+        "a cancelled entry is a refusal the wrapper reports, not a death"
+    );
+    assert!(!harness.state().join("accounts/work").exists());
 }

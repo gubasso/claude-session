@@ -33,6 +33,44 @@ pub(crate) fn rfc3339_utc(instant: SystemTime) -> String {
     )
 }
 
+/// Reads an RFC 3339 UTC seconds timestamp back as a system instant.
+///
+/// The inverse of [`rfc3339_utc`], and the arithmetic half only: the shape,
+/// range, and leap-year validation already happened in `RecordedAt::parse`, so
+/// a value that reaches here is well-formed by construction. Timestamps before
+/// the epoch return `None` rather than a clamped instant, because the only
+/// consumers are an age and an expiry estimate and both would be nonsense.
+pub(crate) fn parse_rfc3339_utc(value: &str) -> Option<SystemTime> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 20 {
+        return None;
+    }
+    let number = |range: std::ops::Range<usize>| -> Option<i64> {
+        std::str::from_utf8(bytes.get(range)?).ok()?.parse().ok()
+    };
+    let (year, month, day, hour, minute, second) = (
+        number(0..4)?,
+        number(5..7)?,
+        number(8..10)?,
+        number(11..13)?,
+        number(14..16)?,
+        number(17..19)?,
+    );
+    let seconds = days_from_civil(year, month, day)
+        .checked_mul(86_400)?
+        .checked_add(hour * 3600 + minute * 60 + second)?;
+    UNIX_EPOCH.checked_add(std::time::Duration::from_secs(u64::try_from(seconds).ok()?))
+}
+
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let year = year - i64::from(month <= 2);
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let yoe = year - era * 400;
+    let doy = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
 fn civil_from_days(days: i64) -> (i64, i64, i64) {
     let z = days + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
@@ -48,6 +86,7 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     #[test]
@@ -57,5 +96,33 @@ mod tests {
             rfc3339_utc(UNIX_EPOCH + std::time::Duration::from_hours(264_384)),
             "2000-02-29T00:00:00Z"
         );
+    }
+
+    /// Round-tripping is the assertion that matters, because the two halves
+    /// share no code and an era-arithmetic sign error shows up only here.
+    #[test]
+    fn every_rendered_instant_parses_back_to_itself() {
+        for rendered in [
+            "1970-01-01T00:00:00Z",
+            "2000-02-29T00:00:00Z",
+            "2026-08-11T15:30:20Z",
+            "2027-12-31T23:59:59Z",
+            "2100-03-01T12:00:00Z",
+        ] {
+            let instant = parse_rfc3339_utc(rendered).expect("a rendered instant parses");
+            assert_eq!(rfc3339_utc(instant), rendered);
+        }
+    }
+
+    /// A pre-epoch mint time is refused rather than clamped, since the only
+    /// consumers are an age and an expiry estimate.
+    #[test]
+    fn a_malformed_or_pre_epoch_timestamp_has_no_instant() {
+        for rendered in ["1969-12-31T23:59:59Z", "2026-08-11T15:30:20", ""] {
+            assert!(
+                parse_rfc3339_utc(rendered).is_none(),
+                "{rendered} must have no instant"
+            );
+        }
     }
 }

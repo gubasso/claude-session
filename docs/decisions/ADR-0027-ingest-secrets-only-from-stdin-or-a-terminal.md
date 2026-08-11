@@ -30,4 +30,6 @@ The positional, environment, redundant `--from-file`, and pseudo-terminal scrapi
 
 ## Status
 
-Accepted
+Implemented
+
+Enacted by [long-lived token mode](../reference/accounts.md#long-lived-token-mode).

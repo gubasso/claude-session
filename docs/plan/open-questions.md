@@ -16,14 +16,6 @@ Raised: migrated from the schema tracking entry.
 
 Exit: measurement, record whether the current schema both tracks releases and forbids additional properties.
 
-## Q-004 — Does in-TUI login honor the selected account directory in both stored modes?
-
-Blocks: slice 013 TUI-login warning and remediation acceptance.
-
-Raised: migrated from the two unverified account facts.
-
-Exit: measurement, exercise login mode and token mode in isolated scratch accounts and record only non-secret outcomes.
-
 ## Q-005 — Which page should retire the stale supervised-runtime description?
 
 Blocks: reconciliation of `docs/explanation/architecture.md` with implemented ADR-0084 and the exec-owned process runtime.

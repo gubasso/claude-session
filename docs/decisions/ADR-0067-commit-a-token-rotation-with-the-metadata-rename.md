@@ -25,6 +25,6 @@ No durable staging artifact exists. The atomic-write temporary is consumed by it
 
 ## Status
 
-Accepted
+Implemented
 
 Amends [ADR-0026](./ADR-0026-store-and-inject-a-long-lived-subscription-token.md) — the replacement is still verified before the old token is replaced, but staging is the atomic-write temporary rather than an artifact of its own. The order and its lock scope live in [XDG storage](../reference/xdg-storage.md#lock-scopes).

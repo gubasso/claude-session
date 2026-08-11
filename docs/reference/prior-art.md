@@ -132,7 +132,7 @@ The owning operational contracts are [accounts](./accounts.md), [configuration](
 | `--verbose` is a native flag, and `-v` is the native `--version`                                                | Measured on 2.1.220                                                                   |
 | `auth` and `doctor` are native subcommands                                                                      | Measured on 2.1.220                                                                   |
 | `auth status --json` is available for status probing                                                            | Documented; injected-token reporting details tracked                                  |
-| In-TUI `/login` honors relocated config, and its token-mode behavior                                            | Unverified                                                                            |
+| In-TUI `/login` honors relocated config, and its token-mode behavior                                            | Documented; token-mode clearing is a published fix from 2.1.118                       |
 | Exact access-token and refresh-grant lifetimes                                                                  | Observed, not guaranteed                                                              |
 
 The design floor is child version 2.1.211, enforced at launch by [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md). Everything measured above was measured on Linux against 2.1.220, the documentation baseline set by [ADR-0046](../decisions/ADR-0046-support-linux-and-a-single-child-baseline.md).
