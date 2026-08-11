@@ -75,6 +75,8 @@ pub(crate) enum MergeError {
         pointer: Pointer,
         key: String,
         value: String,
+        /// The piece that supplied the colliding element.
+        piece: usize,
     },
     MergeKeyMissing {
         pointer: Pointer,
@@ -109,6 +111,7 @@ pub(crate) fn compose(
         document: Value::Object(serde_json::Map::new()),
         keys: BTreeMap::new(),
         containers: BTreeMap::new(),
+        element_origins: BTreeMap::new(),
         strategies,
     };
     for (index, piece) in pieces.iter().enumerate() {
@@ -153,6 +156,13 @@ struct Fold<'a> {
     /// so a type conflict against a container can still name the piece that
     /// made it one, which is the whole point of reporting the conflict.
     containers: BTreeMap<Pointer, usize>,
+    /// Which piece supplied each element currently in a merge-by-key array.
+    ///
+    /// Parallel to the array at the same pointer. Not provenance either — the
+    /// array is one leaf and its contributor chain lives in `keys` — but a
+    /// merge-key defect has to name the piece that actually wrote the offending
+    /// element, which is not in general the piece whose arrival detected it.
+    element_origins: BTreeMap<Pointer, Vec<usize>>,
     strategies: &'a StrategyTable,
 }
 
@@ -236,6 +246,9 @@ impl Fold<'_> {
     /// Replaces a leaf and records the chain it displaced.
     fn override_leaf(&mut self, path: &[String], pointer: &Pointer, piece: usize, value: &Value) {
         put(&mut self.document, path, value.clone());
+        // A replaced array keeps none of its elements, so their origins go with
+        // them rather than wrongly attributing the replacement's elements.
+        self.element_origins.remove(pointer);
         let entry = self
             .keys
             .entry(pointer.clone())
@@ -265,16 +278,33 @@ impl Fold<'_> {
             _ => Vec::new(),
         };
         let addition = incoming.as_array().cloned().unwrap_or_default();
-        let merged = match *strategy {
+        // Elements already in place were written by whoever the origin map
+        // recorded; before any strategy has run they all came from the piece
+        // that owns the key.
+        let existing_origins = self
+            .element_origins
+            .get(pointer)
+            .cloned()
+            .unwrap_or_else(|| {
+                let owner = self
+                    .keys
+                    .get(pointer)
+                    .map_or(piece, |provenance| provenance.piece);
+                vec![owner; existing.len()]
+            });
+        let (merged, origins) = match *strategy {
             ArrayStrategy::Concat => {
                 let mut merged = existing;
+                let mut origins = existing_origins;
+                origins.extend(std::iter::repeat_n(piece, addition.len()));
                 merged.extend(addition);
-                merged
+                (merged, origins)
             }
             ArrayStrategy::MergeByKey { ref key } => {
-                merge_by_key(pointer, key, existing, addition, piece)?
+                merge_by_key(pointer, key, existing, &existing_origins, addition, piece)?
             }
         };
+        self.element_origins.insert(pointer.clone(), origins);
         put(&mut self.document, path, Value::Array(merged));
         let entry = self
             .keys
@@ -300,7 +330,7 @@ impl Fold<'_> {
     /// nothing is the same silent-wrong-settings bug the unknown-key rule
     /// exists to prevent (`configuration.md#declaring-a-strategy`).
     fn verify_every_strategy_applied(&self) -> Result<(), MergeError> {
-        for (pointer, _) in self.strategies.iter() {
+        for (pointer, strategy) in self.strategies.iter() {
             let tokens = pointer.tokens();
             match at(&self.document, &tokens) {
                 None => {
@@ -308,7 +338,19 @@ impl Fold<'_> {
                         pointer: pointer.clone(),
                     });
                 }
-                Some(Value::Array(_)) => {}
+                Some(Value::Array(elements)) => {
+                    if let ArrayStrategy::MergeByKey { ref key } = *strategy {
+                        let owner = self
+                            .keys
+                            .get(pointer)
+                            .map_or(0, |provenance| provenance.piece);
+                        let origins = self
+                            .element_origins
+                            .get(pointer)
+                            .map_or(&[][..], Vec::as_slice);
+                        validate_merge_by_key(pointer, key, elements, origins, owner)?;
+                    }
+                }
                 Some(other) => {
                     return Err(MergeError::StrategyTargetNotAnArray {
                         pointer: pointer.clone(),
@@ -326,9 +368,10 @@ fn merge_by_key(
     pointer: &Pointer,
     key: &str,
     existing: Vec<Value>,
+    existing_origins: &[usize],
     addition: Vec<Value>,
     piece: usize,
-) -> Result<Vec<Value>, MergeError> {
+) -> Result<(Vec<Value>, Vec<usize>), MergeError> {
     let identity = |element: &Value, piece: usize| -> Result<String, MergeError> {
         element
             .get(key)
@@ -341,17 +384,23 @@ fn merge_by_key(
             })
     };
     let mut merged: Vec<Value> = Vec::with_capacity(existing.len() + addition.len());
+    let mut origins: Vec<usize> = Vec::with_capacity(existing.len() + addition.len());
     let mut seen: BTreeMap<String, usize> = BTreeMap::new();
-    for element in existing {
-        let value = identity(&element, piece)?;
+    for (index, element) in existing.into_iter().enumerate() {
+        // The element's own piece, not the arriving one: a defect in an element
+        // written two layers ago has to name the layer that wrote it.
+        let origin = existing_origins.get(index).copied().unwrap_or(piece);
+        let value = identity(&element, origin)?;
         if seen.insert(value.clone(), merged.len()).is_some() {
             return Err(MergeError::DuplicateMergeKey {
                 pointer: pointer.clone(),
                 key: key.to_owned(),
                 value,
+                piece: origin,
             });
         }
         merged.push(element);
+        origins.push(origin);
     }
     let mut added: BTreeSet<String> = BTreeSet::new();
     for element in addition {
@@ -361,16 +410,59 @@ fn merge_by_key(
                 pointer: pointer.clone(),
                 key: key.to_owned(),
                 value,
+                piece,
             });
         }
         if let Some(&index) = seen.get(&value) {
             shallow_merge(&mut merged[index], &element);
+            // The matched element now carries both layers' fields; the arriving
+            // one is what a later defect in it should name.
+            origins[index] = piece;
         } else {
             seen.insert(value, merged.len());
             merged.push(element);
+            origins.push(piece);
         }
     }
-    Ok(merged)
+    Ok((merged, origins))
+}
+
+/// Confirms every element of a merge-by-key array carries a unique key.
+///
+/// Runs over the finished array rather than only where two layers collided:
+/// `configuration.md` makes carrying the key a property of the elements a
+/// strategy selects, so an array only one piece ever wrote is as much its
+/// subject as a merged one. Without this, a single-contributor `merge-by-key`
+/// target passed unvalidated straight to the child.
+fn validate_merge_by_key(
+    pointer: &Pointer,
+    key: &str,
+    elements: &[Value],
+    origins: &[usize],
+    owner: usize,
+) -> Result<(), MergeError> {
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    for (index, element) in elements.iter().enumerate() {
+        let piece = origins.get(index).copied().unwrap_or(owner);
+        let value = element
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| MergeError::MergeKeyMissing {
+                pointer: pointer.clone(),
+                key: key.to_owned(),
+                piece,
+            })?;
+        if !seen.insert(value.clone()) {
+            return Err(MergeError::DuplicateMergeKey {
+                pointer: pointer.clone(),
+                key: key.to_owned(),
+                value,
+                piece,
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Merges one matched element into another, recursively over objects.
@@ -582,6 +674,99 @@ mod tests {
         )
         .expect_err("an element without the key cannot be matched");
         assert!(matches!(error, MergeError::MergeKeyMissing { .. }));
+    }
+
+    /// The strategy only ran where two layers collided, so an array only one
+    /// piece ever wrote reached the child unvalidated.
+    #[test]
+    fn merge_by_key_rejects_a_lone_layer_whose_element_lacks_the_key() {
+        let pieces = [value(r#"{"hooks":[{"run":"x"}]}"#)];
+        let error = compose(
+            &pieces,
+            &table("\"/hooks\":\n  strategy: merge-by-key\n  key: matcher\n"),
+        )
+        .expect_err("one layer is as much the strategy's subject as two");
+        match error {
+            MergeError::MergeKeyMissing { piece, ref key, .. } => {
+                assert_eq!(piece, 0);
+                assert_eq!(key, "matcher");
+            }
+            other => panic!("expected a missing merge key, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn merge_by_key_rejects_a_lone_layer_holding_a_duplicate_key_value() {
+        let pieces = [value(
+            r#"{"hooks":[{"matcher":"Bash"},{"matcher":"Bash"}]}"#,
+        )];
+        let error = compose(
+            &pieces,
+            &table("\"/hooks\":\n  strategy: merge-by-key\n  key: matcher\n"),
+        )
+        .expect_err("a duplicate key value is ambiguous in one layer too");
+        match error {
+            MergeError::DuplicateMergeKey {
+                piece, ref value, ..
+            } => {
+                assert_eq!(piece, 0);
+                assert_eq!(value, "Bash");
+            }
+            other => panic!("expected a duplicate merge key, got {other:?}"),
+        }
+    }
+
+    /// The defect is in piece 0; piece 1 merely arrived while it was detected.
+    #[test]
+    fn a_merge_key_defect_names_the_piece_that_wrote_the_element() {
+        let pieces = [
+            value(r#"{"hooks":[{"run":"x"}]}"#),
+            value(r#"{"hooks":[{"matcher":"Edit"}]}"#),
+        ];
+        let error = compose(
+            &pieces,
+            &table("\"/hooks\":\n  strategy: merge-by-key\n  key: matcher\n"),
+        )
+        .expect_err("the earlier element carries no key");
+        match error {
+            MergeError::MergeKeyMissing { piece, .. } => assert_eq!(piece, 0),
+            other => panic!("expected a missing merge key, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_duplicate_across_layers_names_the_arriving_piece() {
+        let pieces = [
+            value(r#"{"hooks":[{"matcher":"Bash"}]}"#),
+            value(r#"{"hooks":[{"matcher":"Edit"},{"matcher":"Edit"}]}"#),
+        ];
+        let error = compose(
+            &pieces,
+            &table("\"/hooks\":\n  strategy: merge-by-key\n  key: matcher\n"),
+        )
+        .expect_err("a duplicate key value is ambiguous");
+        match error {
+            MergeError::DuplicateMergeKey { piece, .. } => assert_eq!(piece, 1),
+            other => panic!("expected a duplicate merge key, got {other:?}"),
+        }
+    }
+
+    /// A replaced array keeps none of its elements, so a later strategy must
+    /// not attribute the replacement's elements to the pieces it displaced.
+    #[test]
+    fn a_replaced_array_drops_its_element_origins() {
+        let composed = fold(
+            &[
+                r#"{"hooks":[{"matcher":"Bash"}]}"#,
+                r#"{"hooks":"replaced"}"#,
+                r#"{"hooks":[{"matcher":"Edit"}]}"#,
+            ],
+            &StrategyTable::default(),
+        );
+        assert_eq!(
+            composed.document,
+            value(r#"{"hooks":[{"matcher":"Edit"}]}"#)
+        );
     }
 
     #[test]

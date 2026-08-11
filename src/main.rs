@@ -152,7 +152,7 @@ fn run(prepared: Prepared) -> Result<DispatchOutcome, AppError> {
             let selection = services::account::resolve_selection(&resolution.config, &paths)?;
             AppContext::new(resolution, selection, paths, environment, mode)
         }
-        Err(error) if invocation.is_doctor() => AppContext::with_config_error(
+        Err(error) if invocation.reports_config_defects() => AppContext::with_config_error(
             config::load::Resolution {
                 config: domain::config::ResolvedConfig::defaults(),
                 consulted: Vec::new(),

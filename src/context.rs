@@ -95,7 +95,9 @@ impl AppContext {
             config_error: None,
         }
     }
-    /// Constructs a doctor context retaining a failed configuration probe.
+    /// Constructs an assertion-verb context retaining a failed configuration
+    /// probe, so `doctor` and `config` can report the defect they were asked
+    /// about instead of failing before they render.
     pub(crate) fn with_config_error(
         resolution: Resolution,
         account_selection: AccountSelection,

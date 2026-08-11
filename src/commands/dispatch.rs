@@ -145,6 +145,18 @@ impl Invocation {
     pub(crate) const fn is_doctor(&self) -> bool {
         matches!(self.kind, InvocationKind::Doctor { .. })
     }
+    /// Reports whether a failed configuration probe is this verb's subject.
+    ///
+    /// The two assertion verbs are asked whether a property holds
+    /// (`exit-codes.md#exit-regimes-by-verb`), so unresolvable configuration is
+    /// the answer they exist to render rather than a reason to abandon the
+    /// report. Every other invocation still fails at the boundary.
+    pub(crate) const fn reports_config_defects(&self) -> bool {
+        matches!(
+            self.kind,
+            InvocationKind::Doctor { .. } | InvocationKind::Config { .. }
+        )
+    }
     /// Returns doctor strict policy when this is a doctor request.
     pub(crate) const fn doctor_strict(&self) -> bool {
         match self.kind {

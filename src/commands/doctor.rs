@@ -215,9 +215,17 @@ pub(crate) fn run(
         }
     }
     if context.config_error().is_none() {
-        if let Some(profile) = context.session().profile() {
+        // One inspection feeds both entry checks and the validity check below,
+        // so the three cannot describe different snapshots of inputs the user
+        // may be editing while doctor runs.
+        let inspected = context
+            .session()
+            .profile()
+            .map(|profile| crate::services::storage::entry::inspect(context, profile));
+        if let (Some(profile), Some(inspected)) = (context.session().profile(), inspected.as_ref())
+        {
             results.extend(crate::services::storage::entry::doctor_results(
-                context, profile,
+                profile, inspected,
             ));
         } else {
             results.push(CheckResult::skipped(
@@ -235,6 +243,7 @@ pub(crate) fn run(
         results.push(crate::services::storage::entry::validity_result(
             context,
             context.session().profile(),
+            inspected.as_ref(),
         ));
     }
 

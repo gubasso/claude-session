@@ -107,12 +107,19 @@ pub(crate) struct EntryReport {
 }
 
 /// Reports the two entry checks without materialising anything.
-pub(crate) fn doctor_results(context: &AppContext, profile: &Identifier) -> Vec<CheckResult> {
+///
+/// Takes the inspection rather than performing one, so a caller that also
+/// renders the profile from it cannot describe two different snapshots of
+/// inputs the user may be editing underneath the command.
+pub(crate) fn doctor_results(
+    profile: &Identifier,
+    inspected: &Result<EntryReport, AppError>,
+) -> Vec<CheckResult> {
     let compose_check = Check::Entry(EntryCheck::Compose);
     let consistent_check = Check::Entry(EntryCheck::Consistent);
-    let report = match inspect(context, profile) {
-        Ok(value) => value,
-        Err(error) => {
+    let report = match *inspected {
+        Ok(ref value) => value,
+        Err(ref error) => {
             // Existence is this check's whole subject. A profile that exists but
             // is unusable belongs to `settings-profile-valid`, and reporting it
             // here too would make one failure look like two.
@@ -178,13 +185,17 @@ pub(crate) fn doctor_results(context: &AppContext, profile: &Identifier) -> Vec<
 /// check's published "passes when" is about existence and its remediation says
 /// to create the file — advice that is wrong for a file that is already there
 /// ([ADR-0018](../../../docs/decisions/ADR-0018-make-every-prerequisite-a-catalog-entry.md)).
-pub(crate) fn validity_result(context: &AppContext, profile: Option<&Identifier>) -> CheckResult {
+pub(crate) fn validity_result(
+    context: &AppContext,
+    profile: Option<&Identifier>,
+    inspected: Option<&Result<EntryReport, AppError>>,
+) -> CheckResult {
     let check = Check::Entry(EntryCheck::Valid);
-    let Some(profile) = profile else {
+    let (Some(profile), Some(inspected)) = (profile, inspected) else {
         return CheckResult::skipped(check, "no profile is selected");
     };
     let path = context.paths().profile_file(profile);
-    match inspect(context, profile) {
+    match *inspected {
         Ok(_) => CheckResult::pass(
             check,
             format!(
@@ -194,10 +205,10 @@ pub(crate) fn validity_result(context: &AppContext, profile: Option<&Identifier>
         ),
         // A missing input is `settings-compose`'s subject, and an unreadable one
         // says nothing about whether the document is valid.
-        Err(error) if error.kind() != ErrorKind::DataFormat => {
+        Err(ref error) if error.kind() != ErrorKind::DataFormat => {
             CheckResult::skipped(check, error.diagnostic().why.clone())
         }
-        Err(error) => CheckResult::defect(
+        Err(ref error) => CheckResult::defect(
             check,
             error.diagnostic().why.clone(),
             check
@@ -364,9 +375,13 @@ fn merge_error(
             ref pointer,
             ref key,
             ref value,
+            piece,
         } => (
-            profile_path.display().to_string(),
-            format!("two elements of {pointer} share the merge key {key} value {value}"),
+            where_path(piece),
+            format!(
+                "two elements of {pointer} share the merge key {key} value {value} in piece {}",
+                name(piece)
+            ),
         ),
         MergeError::MergeKeyMissing {
             ref pointer,

@@ -370,6 +370,38 @@ fn config_exits_with_the_defects_code_when_a_profile_is_malformed() {
     );
 }
 
+/// `config` is an assertion verb, so unresolvable wrapper configuration is the
+/// answer it exists to render rather than a reason to abandon the report. It
+/// previously failed at the boundary, leaving its `wrapper-config-parses`
+/// defect row unreachable.
+#[test]
+fn config_reports_a_malformed_wrapper_configuration_as_a_defect() {
+    let harness = Harness::new();
+    let config = harness.root().join("broken.toml");
+    fs::write(&config, "child_bin = \n").expect("config");
+    let output = harness
+        .command()
+        .args(["--config".into(), config.into_os_string()])
+        .arg("config")
+        .arg("--json")
+        .output()
+        .expect("config runs");
+    assert!(
+        !output.stdout.is_empty(),
+        "the report is rendered before the exit is decided"
+    );
+    let document: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("the report is still JSON");
+    let defect = document["defects"]
+        .as_array()
+        .expect("defects is an array")
+        .iter()
+        .find(|entry| entry["id"] == "wrapper-config-parses")
+        .expect("the catalog row is reported");
+    assert_eq!(defect["status"], "fail");
+    assert_eq!(output.status.code(), Some(78));
+}
+
 #[test]
 fn config_exits_with_no_input_when_a_piece_is_missing() {
     let harness = Harness::new();

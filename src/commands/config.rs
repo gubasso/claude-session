@@ -131,9 +131,10 @@ fn assemble(context: &AppContext) -> Report {
     ];
 
     let selected = context.session().profile().cloned();
-    // One inspection, shared by the profile report, the warnings, and the
-    // defects, so the three cannot describe different snapshots. It never
-    // creates the composed store.
+    // One inspection, borrowed by the profile report, the warnings, and the
+    // defects, so the three cannot describe different snapshots of inputs the
+    // user may be editing while the command runs. It never creates the
+    // composed store.
     let inspected = selected
         .as_ref()
         .map(|name| crate::services::storage::entry::inspect(context, name));
@@ -188,17 +189,23 @@ fn assemble(context: &AppContext) -> Report {
         })
         .unwrap_or_default();
 
+    let defects = defects(context, selected.as_ref(), inspected.as_ref());
+
     Report {
         configuration,
         files: context.consulted_files().to_vec(),
         profile,
-        defects: defects(context, selected.as_ref()),
+        defects,
         warnings,
     }
 }
 
 /// Runs the config-scoped catalog subset, in catalog order.
-fn defects(context: &AppContext, profile: Option<&Identifier>) -> Vec<CheckResult> {
+fn defects(
+    context: &AppContext,
+    profile: Option<&Identifier>,
+    inspected: Option<&Result<crate::services::storage::entry::EntryReport, AppError>>,
+) -> Vec<CheckResult> {
     let mut results = Vec::with_capacity(SCOPED.len());
     results.push(context.config_error().map_or_else(
         || CheckResult::pass(Check::WrapperConfigParses, "wrapper configuration parsed"),
@@ -222,13 +229,15 @@ fn defects(context: &AppContext, profile: Option<&Identifier>) -> Vec<CheckResul
             ));
         }
         Some(name) => {
-            results.extend(crate::services::storage::entry::doctor_results(
-                context, name,
-            ));
+            if let Some(inspected) = inspected {
+                results.extend(crate::services::storage::entry::doctor_results(
+                    name, inspected,
+                ));
+            }
         }
     }
     results.push(crate::services::storage::entry::validity_result(
-        context, profile,
+        context, profile, inspected,
     ));
     results
 }
