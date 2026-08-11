@@ -26,19 +26,16 @@ const SHELLS: [(&str, &str); 5] = [
 ];
 
 /// Verbs whose parser nodes the artifacts must describe.
-const IMPLEMENTED_VERBS: [&str; 7] = [
+const IMPLEMENTED_VERBS: [&str; 8] = [
     "account",
     "completion",
+    "config",
     "doctor",
     "help",
     "man",
     "profile",
     "version",
 ];
-
-/// Verbs the CLI surface documents but no slice has built, so no artifact may
-/// name them.
-const UNIMPLEMENTED_VERBS: [&str; 1] = ["config"];
 
 /// Undoes roff's hyphen escaping so a spelling can be searched for as written.
 ///
@@ -127,12 +124,12 @@ fn completions_cover_every_documented_shell() {
     }
 }
 
-/// Acceptance: artifacts carry the account MVP grammar and no unbuilt grammar.
+/// Acceptance: artifacts carry the whole implemented grammar.
 ///
-/// Exclusion is asserted against the page's subcommand naming rather than the
+/// Presence is asserted against the page's subcommand naming rather than the
 /// completion scripts, because `config` and `profile` are also the spellings of
 /// two wrapper flags — a scan for the bare token would match `--config` and
-/// report a leak that is not one. Proving it once at the page is sound: help,
+/// prove nothing about the verb. Proving it once at the page is sound: help,
 /// completions, and the page read one `Command` tree, so a verb absent from the
 /// tree is absent from all three.
 #[test]
@@ -175,12 +172,8 @@ fn artifacts_carry_the_account_grammar_and_no_unimplemented_verb() {
             "the page omits the {verb} verb"
         );
     }
-    for verb in UNIMPLEMENTED_VERBS {
-        assert!(
-            !page.contains(&format!("claude-session-{verb}")),
-            "the page names {verb}, which no slice has built"
-        );
-    }
+    // Every verb the CLI surface documents is now built, so there is no
+    // exclusion list left to assert. The positive loop above is the whole check.
 }
 
 /// Acceptance: the page is derived from the same parser tree.

@@ -278,6 +278,22 @@ That is the opposite of the rule for the wrapper's own configuration, and the as
 
 Unknown piece keys are surfaced as warnings with provenance rather than errors.
 
+What the wrapper owns, and therefore validates hard, is the profile document, the strategy table and its applicability, cross-piece type conflicts, each piece being well-formed JSON with an object root, and the composed document's own well-formedness. What it does not validate is the types of the child's own settings keys.
+
+Making the warning possible needs a list of the keys the wrapper recognizes. The table is deliberately shallow — top level only, no nesting, no types — because it exists to answer "have I seen this name before" and nothing else. It is mirrored in `src/domain/settings_schema.rs`, which reads from here rather than from `piece.example.json`, whose keys are illustrative only.
+
+| Recognized top-level key | Recognized top-level key |
+| ------------------------ | ------------------------ |
+| `apiKeyHelper`           | `includeCoAuthoredBy`    |
+| `awsAuthRefresh`         | `model`                  |
+| `awsCredentialExport`    | `outputStyle`            |
+| `cleanupPeriodDays`      | `permissions`            |
+| `env`                    | `sandbox`                |
+| `forceLoginMethod`       | `statusLine`             |
+| `hooks`                  | `statusLineCommand`      |
+
+A key outside that table is preserved in the composed document exactly as written and reported as a warning naming the key and the piece that supplied it. The run continues and the exit is unaffected. Tightening this to a rejection is gated by `Q-003` in [open questions](../plan/open-questions.md), which must exit by measurement first: the wrapper must not refuse a setting the child accepts.
+
 ### Child-owned account state
 
 Trust, onboarding, project history, and other native state remain child-owned in the shared account `config/`. The wrapper neither seeds nor synchronizes them.

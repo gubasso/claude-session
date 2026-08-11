@@ -18,6 +18,7 @@ pub(crate) struct HelpArgs {
 pub(crate) enum HelpTopic {
     Account,
     Completion,
+    Config,
     Man,
     Profile,
 }

@@ -145,7 +145,15 @@ fn sentinel_preserves_child_suffix() {
 /// child surface, which only works if the wrapper never looks past it.
 #[test]
 fn a_wrapper_verb_behind_the_sentinel_reaches_the_child() {
-    for verb in ["completion", "doctor", "help", "man", "profile", "version"] {
+    for verb in [
+        "completion",
+        "config",
+        "doctor",
+        "help",
+        "man",
+        "profile",
+        "version",
+    ] {
         let harness = Harness::new();
         assert!(
             harness
@@ -163,25 +171,28 @@ fn a_wrapper_verb_behind_the_sentinel_reaches_the_child() {
     }
 }
 
-/// `config` is documented on the CLI surface but not yet built, so it is still
-/// the child's. The single remaining spelling is named rather than looped over,
-/// because a one-element loop reads as a list that happens to be short.
+/// Every verb the wrapper's own CLI surface documents is now implemented, so
+/// the contract this pins is the general one slice 001 stated: a verb spelling
+/// the parser does not declare stays the child's, unchanged. The fixtures are
+/// real child verbs the wrapper deliberately never claims.
 #[test]
 fn unimplemented_verbs_reach_child() {
-    let verb = "config";
-    let harness = Harness::new();
-    assert!(
-        harness
-            .command()
-            .arg(verb)
-            .status()
-            .expect("wrapper")
-            .success()
-    );
-    assert_eq!(
-        read_nul(&harness.record_dir().join("argv"))[1],
-        verb.as_bytes()
-    );
+    for verb in ["mcp", "update", "agents"] {
+        let harness = Harness::new();
+        assert!(
+            harness
+                .command()
+                .arg(verb)
+                .status()
+                .expect("wrapper")
+                .success()
+        );
+        assert_eq!(
+            read_nul(&harness.record_dir().join("argv"))[1],
+            verb.as_bytes(),
+            "the wrapper claimed the undeclared spelling `{verb}`"
+        );
+    }
 }
 
 #[test]

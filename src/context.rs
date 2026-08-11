@@ -11,6 +11,7 @@ use crate::{
         terminal::SystemTerminal,
     },
     commands::dispatch::OutputMode,
+    config::load::{ConsultedFile, Resolution},
     domain::{account::AccountSelection, config::ResolvedConfig, paths::XdgPaths},
     services::session::SessionPaths,
     ui::writer::{Color, OutputWriter},
@@ -45,6 +46,7 @@ impl Adapters {
 /// Immutable state for one invocation.
 pub(crate) struct AppContext {
     config: ResolvedConfig,
+    consulted: Vec<ConsultedFile>,
     account_selection: AccountSelection,
     paths: XdgPaths,
     environment: SystemEnvironment,
@@ -63,7 +65,7 @@ pub(crate) struct AppContext {
 impl AppContext {
     /// Constructs the sole context after bootstrap resolution.
     pub(crate) fn new(
-        config: ResolvedConfig,
+        resolution: Resolution,
         account_selection: AccountSelection,
         paths: XdgPaths,
         environment: SystemEnvironment,
@@ -80,7 +82,8 @@ impl AppContext {
             writer.stderr_is_terminal(),
         );
         Self {
-            config,
+            config: resolution.config,
+            consulted: resolution.consulted,
             account_selection,
             paths,
             environment,
@@ -94,14 +97,20 @@ impl AppContext {
     }
     /// Constructs a doctor context retaining a failed configuration probe.
     pub(crate) fn with_config_error(
-        config: ResolvedConfig,
+        resolution: Resolution,
         account_selection: AccountSelection,
         paths: XdgPaths,
         environment: SystemEnvironment,
         output_mode: OutputMode,
         error: crate::error::AppError,
     ) -> Self {
-        let mut context = Self::new(config, account_selection, paths, environment, output_mode);
+        let mut context = Self::new(
+            resolution,
+            account_selection,
+            paths,
+            environment,
+            output_mode,
+        );
         context.config_error = Some(error);
         context
     }
@@ -112,6 +121,10 @@ impl AppContext {
     /// Returns resolved configuration.
     pub(crate) const fn config(&self) -> &ResolvedConfig {
         &self.config
+    }
+    /// Returns every configuration file layer that had a candidate path.
+    pub(crate) fn consulted_files(&self) -> &[ConsultedFile] {
+        &self.consulted
     }
     pub(crate) const fn account_selection(&self) -> &AccountSelection {
         &self.account_selection

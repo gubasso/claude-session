@@ -19,6 +19,22 @@ pub(crate) enum Source {
     Cli,
 }
 
+impl Source {
+    /// Returns the spelling both report forms print.
+    ///
+    /// Part of a verb's output schema rather than a display detail, so it has
+    /// one owner instead of one per renderer.
+    pub(crate) const fn spelling(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::User => "user-config",
+            Self::Project => "project-config",
+            Self::Environment => "environment",
+            Self::Cli => "cli",
+        }
+    }
+}
+
 /// A value paired with its winning configuration source.
 #[derive(Clone, Debug)]
 pub(crate) struct Sourced<T> {
@@ -89,6 +105,10 @@ impl ResolvedConfig {
     /// Returns the account selection provenance.
     pub(crate) const fn account_source(&self) -> Source {
         self.default_account.source()
+    }
+    /// Returns the profile selection provenance.
+    pub(crate) const fn profile_source(&self) -> Source {
+        self.default_profile.source()
     }
     /// Returns the selected profile, if any layer supplied one.
     pub(crate) const fn profile(&self) -> Option<&Identifier> {

@@ -84,6 +84,9 @@ pub(crate) enum InvocationKind {
         shell: clap_complete::Shell,
     },
     Man,
+    Config {
+        mode: OutputMode,
+    },
     Profile {
         mode: OutputMode,
     },
@@ -129,6 +132,7 @@ impl Invocation {
             | InvocationKind::AccountList { mode }
             | InvocationKind::AccountStatus { mode, .. }
             | InvocationKind::AccountRemove { mode, .. }
+            | InvocationKind::Config { mode }
             | InvocationKind::Profile { mode } => mode,
             _ => OutputMode::Human,
         }
@@ -176,7 +180,14 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
         .filter(|value| {
             matches!(
                 *value,
-                "account" | "completion" | "doctor" | "help" | "man" | "profile" | "version"
+                "account"
+                    | "completion"
+                    | "config"
+                    | "doctor"
+                    | "help"
+                    | "man"
+                    | "profile"
+                    | "version"
             )
         });
     if wrapper_verb.is_some() {
@@ -205,58 +216,74 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
             mode: OutputMode::Human,
         }
     } else {
-        match cli.command {
-            Some(Command::Account(value)) => classify_account(value)?,
-            Some(Command::Completion(value)) => classify_completion(&value)?,
-            Some(Command::Doctor(value)) => InvocationKind::Doctor {
-                mode: if value.json {
-                    OutputMode::Json
-                } else {
-                    OutputMode::Human
-                },
-                list: value.list,
-                strict: value.strict,
-            },
-            // `help <verb>` prints exactly what `<verb> --help` prints
-            // (`cli-surface.md#help`), so it routes to the same renderer.
-            Some(Command::Help(value)) => {
-                value
-                    .verb
-                    .map_or(InvocationKind::Help, |topic| InvocationKind::VerbHelp {
-                        verb: help_topic_node(topic),
-                        subcommand: None,
-                    })
-            }
-            Some(Command::Man(value)) => {
-                if value.help_flag {
-                    InvocationKind::VerbHelp {
-                        verb: "man",
-                        subcommand: None,
-                    }
-                } else {
-                    InvocationKind::Man
-                }
-            }
-            Some(Command::Profile(value)) => {
-                classify_report("profile", value.help_flag, value.json, |mode| {
-                    InvocationKind::Profile { mode }
-                })
-            }
-            Some(Command::Version(value)) => InvocationKind::Version {
-                mode: if value.json {
-                    OutputMode::Json
-                } else {
-                    OutputMode::Human
-                },
-            },
-            None => InvocationKind::Passthrough(child),
-        }
+        classify_command(cli.command, child)?
     };
     Ok(Invocation {
         config_overrides,
         verbose: cli.verbose,
         quiet: cli.quiet,
         kind,
+    })
+}
+
+/// Resolves the parsed subcommand, or the absence of one, into an invocation.
+///
+/// Separate from `classify` so the pre-split and the verb table each stay one
+/// readable unit as the verb set grows.
+fn classify_command(
+    command: Option<Command>,
+    child: Vec<OsString>,
+) -> Result<InvocationKind, AppError> {
+    Ok(match command {
+        Some(Command::Account(value)) => classify_account(value)?,
+        Some(Command::Completion(value)) => classify_completion(&value)?,
+        Some(Command::Config(value)) => {
+            classify_report("config", value.help_flag, value.json, |mode| {
+                InvocationKind::Config { mode }
+            })
+        }
+        Some(Command::Doctor(value)) => InvocationKind::Doctor {
+            mode: if value.json {
+                OutputMode::Json
+            } else {
+                OutputMode::Human
+            },
+            list: value.list,
+            strict: value.strict,
+        },
+        // `help <verb>` prints exactly what `<verb> --help` prints
+        // (`cli-surface.md#help`), so it routes to the same renderer.
+        Some(Command::Help(value)) => {
+            value
+                .verb
+                .map_or(InvocationKind::Help, |topic| InvocationKind::VerbHelp {
+                    verb: help_topic_node(topic),
+                    subcommand: None,
+                })
+        }
+        Some(Command::Man(value)) => {
+            if value.help_flag {
+                InvocationKind::VerbHelp {
+                    verb: "man",
+                    subcommand: None,
+                }
+            } else {
+                InvocationKind::Man
+            }
+        }
+        Some(Command::Profile(value)) => {
+            classify_report("profile", value.help_flag, value.json, |mode| {
+                InvocationKind::Profile { mode }
+            })
+        }
+        Some(Command::Version(value)) => InvocationKind::Version {
+            mode: if value.json {
+                OutputMode::Json
+            } else {
+                OutputMode::Human
+            },
+        },
+        None => InvocationKind::Passthrough(child),
     })
 }
 
@@ -301,6 +328,7 @@ const fn help_topic_node(topic: crate::cli::help::HelpTopic) -> &'static str {
     match topic {
         crate::cli::help::HelpTopic::Account => "account",
         crate::cli::help::HelpTopic::Completion => "completion",
+        crate::cli::help::HelpTopic::Config => "config",
         crate::cli::help::HelpTopic::Man => "man",
         crate::cli::help::HelpTopic::Profile => "profile",
     }
@@ -455,6 +483,7 @@ pub(crate) fn dispatch(
         } => super::account::remove(context, &name, consented),
         InvocationKind::Completion { shell } => super::completion::run(context, shell),
         InvocationKind::Man => super::man::run(context),
+        InvocationKind::Config { .. } => super::config::run(context),
         InvocationKind::Profile { .. } => super::profile::list(context),
         InvocationKind::VerbHelp { verb, subcommand } => {
             super::help::verb(context, verb, subcommand)

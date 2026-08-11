@@ -6,7 +6,7 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 014 full-profile-composition — shaped — 2 implementation sessions — after 004; the `0.5.0` full-composition rung
+- 014 full-profile-composition — active — 2 implementation sessions — after 004; the `0.5.0` full-composition rung
 - 006 proxy-guide-and-research — shaped — 1 implementation session — after 003; filler only while the next versioned rung is blocked on measurement
 
 ## closed

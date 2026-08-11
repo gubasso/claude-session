@@ -11,6 +11,14 @@ pub(crate) enum DomainError {
     /// Wrapper arguments were malformed.
     #[error("invalid wrapper arguments: {0}")]
     InvalidArguments(String),
+    /// A document parsed but says something the wrapper cannot act on.
+    ///
+    /// Distinct from [`DomainError::InvalidArguments`], which maps to `Usage`:
+    /// a bad strategy pointer inside a profile file is malformed data rather
+    /// than a malformed command line, and `exit-codes.md` publishes
+    /// `DataFormat` for it.
+    #[error("{0}")]
+    Semantic(String),
     /// No home directory was available for XDG defaults.
     #[error("HOME is unavailable")]
     MissingHome,
@@ -229,6 +237,15 @@ impl From<DomainError> for AppError {
                     ),
                 )
             }
+            DomainError::Semantic(message) => Self::new(
+                ErrorKind::DataFormat,
+                Diagnostic::new(
+                    "a wrapper-owned document is not usable",
+                    "profile document",
+                    message,
+                    "correct the document named in the diagnostic above",
+                ),
+            ),
             DomainError::MissingHome => Self::new(
                 ErrorKind::Config,
                 Diagnostic::new(

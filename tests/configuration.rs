@@ -216,3 +216,342 @@ fn an_invalid_identifier_from_any_layer_exits_usage() {
     assert_eq!(output.status.code(), Some(64), "command line:\n{stderr}");
     assert!(stderr.contains("has/slash"), "{stderr}");
 }
+
+// --- The config report verb -------------------------------------------------
+
+const CONFIG_PIECE: &str = r#"{"model":"sonnet","permissions":{"allow":["x"]}}"#;
+const CONFIG_PROFILE: &str = "layers:\n  - base\n";
+
+/// Runs `config --json` and returns the parsed document with the exit code.
+fn config_json(command: &mut std::process::Command) -> (serde_json::Value, Option<i32>) {
+    let output = command.output().expect("config runs");
+    let document = serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+        panic!(
+            "config --json did not emit one document ({error}): {}",
+            String::from_utf8_lossy(&output.stdout)
+        )
+    });
+    (document, output.status.code())
+}
+
+/// Three keys, three different winning layers, so the provenance reported is
+/// per key rather than one answer for the whole file.
+#[test]
+fn config_reports_every_key_with_its_winning_layer() {
+    let harness = Harness::new();
+    let file = harness.root().join("config.toml");
+    fs::write(&file, "default_account = \"work\"\n").expect("config");
+    harness.write_piece("base", CONFIG_PIECE);
+    harness.write_profile("dev", CONFIG_PROFILE);
+
+    let (document, code) = config_json(
+        harness
+            .command()
+            .args(["--config".into(), file.clone().into_os_string()])
+            .args(["--profile", "dev", "config", "--json"]),
+    );
+    assert_eq!(code, Some(0));
+    let configuration = &document["configuration"];
+    // The harness points the wrapper at its recording stub through the
+    // environment, which is exactly the environment layer.
+    assert_eq!(configuration["child_bin"]["source"], "environment");
+    assert_eq!(configuration["default_account"]["source"], "user-config");
+    assert_eq!(configuration["default_account"]["value"], "work");
+    assert_eq!(configuration["default_profile"]["source"], "cli");
+    assert_eq!(configuration["default_profile"]["value"], "dev");
+    assert!(
+        document.get("schema_version").is_none(),
+        "schema_version appears on doctor alone"
+    );
+}
+
+/// An unset key carries its `default` provenance and no value at all.
+#[test]
+fn config_reports_an_unset_key_without_a_value() {
+    let harness = Harness::new();
+    let (document, code) = config_json(harness.command().args(["config", "--json"]));
+    assert_eq!(code, Some(0));
+    let account = &document["configuration"]["default_account"];
+    assert_eq!(account["source"], "default");
+    assert!(
+        account.get("value").is_none(),
+        "an absent optional field is omitted, never null"
+    );
+    assert!(
+        document.get("profile").is_none(),
+        "no profile resolved, so the section is omitted entirely"
+    );
+}
+
+#[test]
+fn config_names_the_files_it_consulted_and_whether_they_existed() {
+    let harness = Harness::new();
+    let file = harness.root().join("absent.toml");
+    let (document, code) = config_json(
+        harness
+            .command()
+            .args(["--config".into(), file.clone().into_os_string()])
+            .args(["config", "--json"]),
+    );
+    assert_eq!(code, Some(0));
+    let files = document["files"].as_array().expect("files array");
+    let row = files
+        .iter()
+        .find(|row| row["layer"] == "user-config")
+        .expect("the user layer is always consulted");
+    assert_eq!(row["path"], file.display().to_string());
+    assert_eq!(row["existed"], false);
+}
+
+#[test]
+fn config_reports_the_active_profile_its_pieces_and_the_entry_path() {
+    let harness = Harness::new();
+    harness.write_piece("base", CONFIG_PIECE);
+    harness.write_profile("dev", CONFIG_PROFILE);
+    let (document, code) =
+        config_json(
+            harness
+                .command()
+                .args(["--profile", "dev", "config", "--json"]),
+        );
+    assert_eq!(code, Some(0));
+    let profile = &document["profile"];
+    assert_eq!(profile["name"], "dev");
+    assert_eq!(profile["pieces"][0]["name"], "base");
+    let settings = profile["entry"]["settings"]
+        .as_str()
+        .expect("settings path");
+    let name = settings.rsplit('/').next().expect("file name");
+    assert!(
+        name.starts_with("profile-dev-") && name.ends_with(".json"),
+        "{name} is not the composed entry grammar"
+    );
+    let stem = name
+        .trim_start_matches("profile-dev-")
+        .trim_end_matches(".json");
+    assert_eq!(stem.len(), 12, "{name}");
+    assert!(stem.bytes().all(|byte| byte.is_ascii_hexdigit()), "{name}");
+}
+
+/// The read-only proof: describing an entry must not bring it into being.
+#[test]
+fn config_exits_zero_when_the_entry_is_not_yet_written() {
+    let harness = Harness::new();
+    harness.write_piece("base", CONFIG_PIECE);
+    harness.write_profile("dev", CONFIG_PROFILE);
+    let (document, code) =
+        config_json(
+            harness
+                .command()
+                .args(["--profile", "dev", "config", "--json"]),
+        );
+    assert_eq!(code, Some(0));
+    assert_eq!(document["profile"]["entry"]["exists"], false);
+    assert!(
+        !harness.state().join("composed").exists(),
+        "the report created the composed store"
+    );
+}
+
+#[test]
+fn config_exits_with_the_defects_code_when_a_profile_is_malformed() {
+    let harness = Harness::new();
+    harness.write_piece("base", CONFIG_PIECE);
+    harness.write_profile("dev", "layers: [\n");
+    let output = harness
+        .command()
+        .args(["--profile", "dev", "config"])
+        .output()
+        .expect("config runs");
+    assert_eq!(output.status.code(), Some(65));
+    assert!(
+        !output.stdout.is_empty(),
+        "the report is rendered before the exit is decided"
+    );
+}
+
+#[test]
+fn config_exits_with_no_input_when_a_piece_is_missing() {
+    let harness = Harness::new();
+    harness.write_profile("dev", CONFIG_PROFILE);
+    let output = harness
+        .command()
+        .args(["--profile", "dev", "config"])
+        .output()
+        .expect("config runs");
+    assert_eq!(output.status.code(), Some(66));
+    assert!(!output.stdout.is_empty());
+}
+
+/// The ADR-0018 parity requirement: one catalog, one remediation, so the two
+/// verbs cannot instruct a user differently about one defect.
+#[test]
+fn config_quotes_the_catalog_remediation_verbatim() {
+    let harness = Harness::new();
+    harness.write_piece("base", CONFIG_PIECE);
+    harness.write_profile("dev", "layers: []\n");
+    let (config, _) = config_json(
+        harness
+            .command()
+            .args(["--profile", "dev", "config", "--json"]),
+    );
+    let (doctor, _) = config_json(
+        harness
+            .command()
+            .env("XDG_RUNTIME_DIR", harness.root().join("runtime"))
+            .args(["--profile", "dev", "doctor", "--json"]),
+    );
+    let hint = |rows: &serde_json::Value| {
+        rows.as_array()
+            .expect("rows")
+            .iter()
+            .find(|row| row["id"] == "settings-profile-valid")
+            .and_then(|row| row["hint"].as_str())
+            .map(str::to_owned)
+    };
+    let from_config = hint(&config["defects"]).expect("config quotes the defect");
+    let from_doctor = hint(&doctor["wrapper"]["checks"]).expect("doctor quotes the defect");
+    assert_eq!(from_config, from_doctor);
+}
+
+#[test]
+fn config_json_and_human_reports_carry_the_same_facts() {
+    let harness = Harness::new();
+    harness.write_piece("base", CONFIG_PIECE);
+    harness.write_profile("dev", CONFIG_PROFILE);
+    let human = harness
+        .command()
+        .args(["--profile", "dev", "config"])
+        .output()
+        .expect("config runs");
+    let text = String::from_utf8(human.stdout).expect("utf-8 report");
+    let (document, _) =
+        config_json(
+            harness
+                .command()
+                .args(["--profile", "dev", "config", "--json"]),
+        );
+    assert!(text.contains("default_profile: dev [cli]"), "{text}");
+    assert!(text.contains("piece: base"), "{text}");
+    assert!(
+        text.contains(
+            document["profile"]["entry"]["digest"]
+                .as_str()
+                .expect("digest")
+        ),
+        "{text}"
+    );
+    assert!(
+        text.contains(
+            document["profile"]["entry"]["settings"]
+                .as_str()
+                .expect("settings")
+        ),
+        "{text}"
+    );
+    for defect in document["defects"].as_array().expect("defects") {
+        assert!(
+            text.contains(defect["id"].as_str().expect("id")),
+            "the human form omits {}: {text}",
+            defect["id"]
+        );
+    }
+    // Never claims the composed entry is the child's whole configuration.
+    assert!(
+        text.contains("not the child's whole effective configuration"),
+        "{text}"
+    );
+}
+
+#[test]
+fn config_writes_data_to_stdout_and_diagnostics_to_stderr() {
+    let harness = Harness::new();
+    harness.write_piece("base", CONFIG_PIECE);
+    harness.write_profile("dev", CONFIG_PROFILE);
+    let output = harness
+        .command()
+        .args(["--profile", "dev", "config"])
+        .output()
+        .expect("config runs");
+    assert!(!output.stdout.is_empty());
+    assert!(
+        output.stderr.is_empty(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// The full profile report: one profile's ordered layers, resolved paths, and
+/// the strategies it declares.
+#[test]
+fn config_reports_one_profiles_ordered_layers_and_resolved_paths() {
+    let harness = Harness::new();
+    harness.write_piece("base", CONFIG_PIECE);
+    harness.write_piece("extra", r#"{"permissions":{"allow":["y"]}}"#);
+    harness.write_profile(
+        "work",
+        concat!(
+            "layers:\n  - base\n  - extra\n",
+            "array_strategies:\n  \"/permissions/allow\":\n    strategy: concat\n"
+        ),
+    );
+    let (document, code) =
+        config_json(
+            harness
+                .command()
+                .args(["--profile", "work", "config", "--json"]),
+        );
+    assert_eq!(code, Some(0));
+    let profile = &document["profile"];
+    let pieces = profile["pieces"].as_array().expect("pieces");
+    assert_eq!(pieces.len(), 2);
+    assert_eq!(pieces[0]["name"], "base");
+    assert_eq!(pieces[1]["name"], "extra");
+    assert!(
+        pieces[0]["path"]
+            .as_str()
+            .expect("path")
+            .ends_with("/settings/base.json")
+    );
+    let strategies = profile["strategies"].as_array().expect("strategies");
+    assert_eq!(strategies.len(), 1);
+    assert_eq!(strategies[0]["pointer"], "/permissions/allow");
+    assert_eq!(strategies[0]["strategy"], "concat");
+    assert!(
+        strategies[0].get("key").is_none(),
+        "concat takes no key, so the field is omitted"
+    );
+}
+
+#[test]
+fn config_help_is_a_result_on_standard_output() {
+    let harness = Harness::new();
+    let flag = harness
+        .command()
+        .args(["config", "--help"])
+        .output()
+        .expect("config --help runs");
+    let verb = harness
+        .command()
+        .args(["help", "config"])
+        .output()
+        .expect("help config runs");
+    assert_eq!(flag.status.code(), Some(0));
+    assert_eq!(verb.status.code(), Some(0));
+    assert!(!flag.stdout.is_empty());
+    assert_eq!(flag.stdout, verb.stdout);
+}
+
+#[test]
+fn config_never_reaches_the_child() {
+    let harness = Harness::new();
+    harness
+        .command()
+        .arg("config")
+        .output()
+        .expect("config runs");
+    assert!(
+        !harness.record_dir().join("argv").exists(),
+        "the config verb is answered by the wrapper"
+    );
+}

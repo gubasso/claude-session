@@ -17,7 +17,7 @@ use super::identifier::Identifier;
 ///
 /// Changing the sidecar's shape bumps this, which renames every entry, which
 /// makes an old sidecar unreachable rather than misread.
-const DOMAIN_TAG: &[u8] = b"claude-session-composed-v1";
+const DOMAIN_TAG: &[u8] = b"claude-session-composed-v2";
 
 /// How many hexadecimal characters name an entry.
 const SHORT: usize = 12;
@@ -130,6 +130,14 @@ mod tests {
             profile_content: [content; 32],
             pieces,
         })
+    }
+
+    /// The tag versions the sidecar's shape, so a shape change that forgot to
+    /// bump it would let an old sidecar be misread instead of renamed out of
+    /// reach. Pinning the literal makes the omission fail here.
+    #[test]
+    fn the_domain_tag_names_the_current_preimage_format() {
+        assert_eq!(DOMAIN_TAG, b"claude-session-composed-v2");
     }
 
     #[test]

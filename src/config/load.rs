@@ -30,20 +30,59 @@ struct FileConfig {
     default_profile: Option<String>,
 }
 
+/// One file layer that was looked at, and whether it was there.
+///
+/// `config` has to report which files were consulted and which existed
+/// (`configuration.md#commands`), and "a missing file is not an error" makes
+/// that fact unrecoverable from the resolved value alone.
+#[derive(Clone, Debug)]
+pub(crate) struct ConsultedFile {
+    /// The path the layer looked at.
+    pub(crate) path: PathBuf,
+    /// The layer it would have supplied.
+    pub(crate) source: Source,
+    /// Whether the file was there.
+    pub(crate) existed: bool,
+}
+
+/// The resolved configuration together with the files it came from.
+#[derive(Clone, Debug)]
+pub(crate) struct Resolution {
+    /// The value precedence produced.
+    pub(crate) config: ResolvedConfig,
+    /// Every file layer with a candidate, in precedence order.
+    pub(crate) consulted: Vec<ConsultedFile>,
+}
+
 /// Resolves defaults, files, environment, then CLI values.
+///
+/// A layer with no candidate contributes no row: the environment and the
+/// command line are not files, and outside a repository there is no project
+/// layer at all.
 pub(crate) fn resolve(
     environment: &impl Environment,
     paths: &XdgPaths,
     overrides: &ConfigOverrides,
-) -> Result<ResolvedConfig, ConfigError> {
+) -> Result<Resolution, ConfigError> {
     let mut resolved = ResolvedConfig::defaults();
+    let mut consulted = Vec::new();
     let user = overrides
         .config
         .clone()
         .unwrap_or_else(|| paths.config().join("config.toml"));
-    apply_file(&mut resolved, &user, Source::User, false)?;
+    let existed = apply_file(&mut resolved, &user, Source::User, false)?;
+    consulted.push(ConsultedFile {
+        path: user,
+        source: Source::User,
+        existed,
+    });
     if let Some(project) = super::project::discover(environment.current_dir()) {
-        apply_file(&mut resolved, &project, Source::Project, true)?;
+        let existed = apply_file(&mut resolved, &project, Source::Project, true)?;
+        consulted.push(ConsultedFile {
+            path: project,
+            source: Source::Project,
+            existed,
+        });
     }
     apply_environment(&mut resolved, environment.variables())?;
     if let Some(account) = overrides.account.clone() {
@@ -52,18 +91,22 @@ pub(crate) fn resolve(
     if let Some(profile) = overrides.profile.clone() {
         resolved.profile_mut().set(profile, Source::Cli);
     }
-    Ok(resolved)
+    Ok(Resolution {
+        config: resolved,
+        consulted,
+    })
 }
 
+/// Applies one file layer, reporting whether the file was there.
 fn apply_file(
     resolved: &mut ResolvedConfig,
     path: &Path,
     source: Source,
     project: bool,
-) -> Result<(), ConfigError> {
+) -> Result<bool, ConfigError> {
     let bytes = match SystemFileSystem::read(path) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
         Err(error) => {
             return Err(ConfigError::Read {
                 path: path.to_path_buf(),
@@ -110,7 +153,7 @@ fn apply_file(
             .profile_mut()
             .set(identifier("default_profile", &value, path)?, source);
     }
-    Ok(())
+    Ok(true)
 }
 
 fn apply_environment(

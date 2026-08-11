@@ -3,6 +3,7 @@
 pub(crate) mod account;
 pub(crate) mod completion;
 pub(crate) mod compose;
+pub(crate) mod config;
 pub(crate) mod dispatch;
 pub(crate) mod doctor;
 pub(crate) mod help;

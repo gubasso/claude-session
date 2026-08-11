@@ -726,8 +726,282 @@ fn one_piece_profile_writes_exact_settings_and_basic_sidecar() {
             .expect("path")
             .ends_with("/settings/base.json")
     );
-    assert!(
-        sidecar.get("keys").is_none(),
-        "the contributor map arrives with the merge engine"
+    // The contributor map arrived with the merge engine. One piece still means
+    // one contributor per key, with none of the optional fields.
+    let keys = sidecar["keys"].as_object().expect("the contributor map");
+    let model = keys["/model"].as_object().expect("one key entry");
+    assert_eq!(model["piece"], "base");
+    assert_eq!(model.len(), 1, "a single-contributor key stays one line");
+}
+
+// --- Full composition: ordered merge, strategies, and provenance -----------
+
+const PIECE_ONE: &str = r#"{"model":"a","env":{"A":"1"},"permissions":{"allow":["x"]}}"#;
+const PROFILE_CONCAT: &str = concat!(
+    "layers:\n  - one\n  - two\n",
+    "array_strategies:\n  \"/permissions/allow\":\n    strategy: concat\n"
+);
+const PROFILE_MERGE_BY_KEY: &str = concat!(
+    "layers:\n  - one\n  - two\n",
+    "array_strategies:\n  \"/hooks\":\n    strategy: merge-by-key\n    key: matcher\n"
+);
+const PIECE_TWO: &str = r#"{"model":"b","env":{"B":"2"},"permissions":{"allow":["y"]}}"#;
+
+/// Reads the composed pair as `(settings, sidecar)` JSON after one launch.
+fn compose_with(harness: &Harness, profile: &str) -> (serde_json::Value, serde_json::Value) {
+    let output = harness
+        .command()
+        .args(["--profile", profile])
+        .output()
+        .expect("wrapper");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
     );
+    let (settings, provenance) = pair(harness);
+    (
+        serde_json::from_slice(&fs::read(&settings).expect("settings")).expect("settings JSON"),
+        serde_json::from_slice(&fs::read(&provenance).expect("provenance")).expect("sidecar JSON"),
+    )
+}
+
+#[test]
+fn ordered_pieces_compose_by_recursive_object_merge() {
+    let harness = Harness::new();
+    harness.write_piece("one", PIECE_ONE);
+    harness.write_piece("two", PIECE_TWO);
+    harness.write_profile("multi", "layers:\n  - one\n  - two\n");
+    let (settings, _) = compose_with(&harness, "multi");
+    assert_eq!(settings["model"], "b");
+    assert_eq!(settings["env"]["A"], "1");
+    assert_eq!(settings["env"]["B"], "2");
+    // No strategy declared, so the later array replaces.
+    assert_eq!(
+        settings["permissions"]["allow"],
+        serde_json::json!(["y"]),
+        "an unlisted array replaces"
+    );
+}
+
+#[test]
+fn a_scalar_takes_the_last_piece_and_the_sidecar_records_the_chain() {
+    let harness = Harness::new();
+    harness.write_piece("one", PIECE_ONE);
+    harness.write_piece("two", PIECE_TWO);
+    harness.write_profile("multi", "layers:\n  - one\n  - two\n");
+    let (settings, sidecar) = compose_with(&harness, "multi");
+    assert_eq!(settings["model"], "b");
+    assert_eq!(sidecar["keys"]["/model"]["piece"], "two");
+    assert_eq!(
+        sidecar["keys"]["/model"]["overrode"],
+        serde_json::json!(["one"])
+    );
+}
+
+#[test]
+fn a_concat_strategy_appends_in_layer_order_with_every_contributor() {
+    let harness = Harness::new();
+    harness.write_piece("one", PIECE_ONE);
+    harness.write_piece("two", PIECE_TWO);
+    harness.write_profile("multi", PROFILE_CONCAT);
+    let (settings, sidecar) = compose_with(&harness, "multi");
+    assert_eq!(
+        settings["permissions"]["allow"],
+        serde_json::json!(["x", "y"])
+    );
+    let entry = &sidecar["keys"]["/permissions/allow"];
+    assert_eq!(entry["strategy"], "concat");
+    assert_eq!(entry["contributors"], serde_json::json!(["one", "two"]));
+    assert_eq!(entry["piece"], "two");
+    assert!(
+        entry.get("overrode").is_none(),
+        "a merged array overrode nobody"
+    );
+}
+
+#[test]
+fn a_merge_by_key_strategy_merges_matched_elements_and_appends_the_rest() {
+    let harness = Harness::new();
+    harness.write_piece(
+        "one",
+        r#"{"hooks":[{"matcher":"Bash","run":"a"},{"matcher":"Edit"}]}"#,
+    );
+    harness.write_piece(
+        "two",
+        r#"{"hooks":[{"matcher":"Bash","timeout":5},{"matcher":"Read"}]}"#,
+    );
+    harness.write_profile("multi", PROFILE_MERGE_BY_KEY);
+    let (settings, sidecar) = compose_with(&harness, "multi");
+    let hooks = settings["hooks"].as_array().expect("hooks array");
+    assert_eq!(hooks.len(), 3);
+    assert_eq!(hooks[0]["matcher"], "Bash");
+    assert_eq!(hooks[0]["run"], "a");
+    assert_eq!(hooks[0]["timeout"], 5);
+    assert_eq!(hooks[1]["matcher"], "Edit");
+    assert_eq!(hooks[2]["matcher"], "Read");
+    assert_eq!(sidecar["keys"]["/hooks"]["strategy"], "merge-by-key");
+}
+
+#[test]
+fn a_single_contributor_key_omits_the_optional_provenance_fields() {
+    let harness = Harness::new();
+    harness.write_piece("one", PIECE_ONE);
+    harness.write_piece("two", PIECE_TWO);
+    harness.write_profile("multi", "layers:\n  - one\n  - two\n");
+    let (_, sidecar) = compose_with(&harness, "multi");
+    let entry = sidecar["keys"]["/env/A"]
+        .as_object()
+        .expect("one key entry");
+    assert_eq!(entry["piece"], "one");
+    assert_eq!(
+        entry.len(),
+        1,
+        "an absent optional field is omitted, never null or empty: {entry:?}"
+    );
+}
+
+#[test]
+fn an_invalid_strategy_pointer_is_rejected_with_its_path_and_source() {
+    let harness = Harness::new();
+    harness.write_piece("one", PIECE_ONE);
+    harness.write_profile(
+        "multi",
+        "layers:\n  - one\narray_strategies:\n  \"/nowhere\":\n    strategy: concat\n",
+    );
+    let output = harness
+        .command()
+        .args(["--profile", "multi"])
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(65), "{stderr}");
+    assert!(stderr.contains("/nowhere"), "{stderr}");
+    assert!(stderr.contains("multi.yaml"), "{stderr}");
+    // The launch prepares the store before it composes, so the directory may
+    // exist; what a refusal must not leave behind is an entry or a temporary.
+    if composed(&harness).exists() {
+        assert!(
+            entries(&composed(&harness)).is_empty(),
+            "a refused composition left {:?} behind",
+            entries(&composed(&harness))
+        );
+    }
+}
+
+#[test]
+fn a_type_conflict_names_the_key_and_both_pieces() {
+    let harness = Harness::new();
+    harness.write_piece("one", r#"{"env":{"A":"1"}}"#);
+    harness.write_piece("two", r#"{"env":"not-an-object"}"#);
+    harness.write_profile("multi", "layers:\n  - one\n  - two\n");
+    let output = harness
+        .command()
+        .args(["--profile", "multi"])
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(65), "{stderr}");
+    assert!(stderr.contains("/env"), "{stderr}");
+    assert!(stderr.contains("one"), "{stderr}");
+    assert!(stderr.contains("two"), "{stderr}");
+    assert!(stderr.contains("object"), "{stderr}");
+    assert!(stderr.contains("string"), "{stderr}");
+}
+
+/// The strategy table is a field of the profile file, so the file's own content
+/// digest covers it. Closes the mandatory strategy-table row.
+#[test]
+fn changing_the_strategy_table_names_a_different_entry() {
+    let harness = Harness::new();
+    harness.write_piece("one", PIECE_ONE);
+    harness.write_piece("two", PIECE_TWO);
+    harness.write_profile("multi", "layers:\n  - one\n  - two\n");
+    compose_with(&harness, "multi");
+    let (first_settings, _) = pair(&harness);
+    let before = fs::read(&first_settings).expect("settings");
+
+    harness.write_profile("multi", PROFILE_CONCAT);
+    assert!(
+        harness
+            .command()
+            .args(["--profile", "multi"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    assert_eq!(
+        entries(&composed(&harness)).len(),
+        4,
+        "the changed table named a second entry"
+    );
+    assert_eq!(
+        fs::read(&first_settings).expect("settings"),
+        before,
+        "the old entry was rewritten"
+    );
+}
+
+#[test]
+fn reordering_the_layer_list_names_a_different_entry() {
+    let harness = Harness::new();
+    harness.write_piece("one", PIECE_ONE);
+    harness.write_piece("two", PIECE_TWO);
+    harness.write_profile("multi", "layers:\n  - one\n  - two\n");
+    compose_with(&harness, "multi");
+    harness.write_profile("multi", "layers:\n  - two\n  - one\n");
+    assert!(
+        harness
+            .command()
+            .args(["--profile", "multi"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    assert_eq!(entries(&composed(&harness)).len(), 4);
+}
+
+/// Permissive about what it forwards: the key survives the fold untouched and
+/// the warning names who supplied it. Rejection is gated by `Q-003`.
+#[test]
+fn an_unknown_native_key_is_preserved_and_warned_with_provenance() {
+    let harness = Harness::new();
+    harness.write_piece("one", r#"{"model":"a","zzzNotAKey":{"deep":1}}"#);
+    harness.write_profile("multi", "layers:\n  - one\n");
+    let output = harness
+        .command()
+        .args(["--profile", "multi"])
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(0), "{stderr}");
+    assert!(stderr.contains("zzzNotAKey"), "{stderr}");
+    assert!(stderr.contains("one"), "{stderr}");
+    let (settings, _) = pair(&harness);
+    let document: serde_json::Value =
+        serde_json::from_slice(&fs::read(&settings).expect("settings")).expect("json");
+    assert_eq!(document["zzzNotAKey"]["deep"], 1, "the key was preserved");
+}
+
+#[test]
+fn an_unknown_key_warning_is_silenced_by_quiet() {
+    let harness = Harness::new();
+    harness.write_piece("one", r#"{"model":"a","zzzNotAKey":true}"#);
+    harness.write_profile("multi", "layers:\n  - one\n");
+    let output = harness
+        .command()
+        .args(["--quiet", "--profile", "multi"])
+        .output()
+        .expect("wrapper");
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        output.stderr.is_empty(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let (settings, _) = pair(&harness);
+    let document: serde_json::Value =
+        serde_json::from_slice(&fs::read(&settings).expect("settings")).expect("json");
+    assert_eq!(document["zzzNotAKey"], true);
 }

@@ -1,9 +1,14 @@
-//! The write-once composed-settings pair: resolve, decide, and write.
+//! The write-once composed-settings pair: inspect, decide, and write.
 //!
 //! This module is for naming a profile's entry from its inputs and reaching one
 //! of the four states the owner page defines — reused, written, replaced, or
-//! refused. It is not for the strategy table, structural validation, or the
-//! sidecar's contributor map, which belong with the composition verbs.
+//! refused. The merge itself belongs to `domain::merge`; what lives here is the
+//! filesystem half.
+//!
+//! Inspection and materialization are deliberately separate functions.
+//! `inspect` reads, hashes, composes in memory, and stats the pair; it never
+//! creates a directory, because `config` has to be able to describe an entry
+//! that does not exist without bringing it into being.
 
 use std::path::{Path, PathBuf};
 
@@ -17,7 +22,11 @@ use crate::{
         encoding::with_lossy_sibling,
         entry::{EntryInputs, PieceDigest, entry_paths, hex, input_digest},
         identifier::Identifier,
+        merge::{Composed, MergeError},
+        pointer::Pointer,
         profile::Profile,
+        settings_schema,
+        strategy::StrategyTable,
     },
     error::{AppError, Diagnostic, ErrorKind},
 };
@@ -55,29 +64,69 @@ pub(crate) struct ResolvedEntry {
     pub(crate) outcome: Outcome,
 }
 
-struct EntryProbe {
-    settings: PathBuf,
-    provenance: PathBuf,
-    digest: String,
-    profile_path: PathBuf,
-    pieces: Vec<(Identifier, PieceDigest)>,
-    bodies: Vec<serde_json::Value>,
+/// One unrecognized top-level settings key and the piece that supplied it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct UnknownKey {
+    /// The key as written.
+    pub(crate) key: String,
+    /// The piece whose value survived the fold for that key.
+    pub(crate) piece: String,
 }
 
-/// Inspects composition inputs and the derived pair without materialising it.
+/// Everything one read-only inspection learned about a profile's entry.
+///
+/// Built from one pass over the inputs, so the key, the content, and the
+/// provenance always describe the same snapshot: reading an input twice would
+/// let a mid-run edit make the three disagree.
+#[allow(
+    dead_code,
+    reason = "the report's full shape is consumed by the composition verbs"
+)]
+#[derive(Clone, Debug)]
+pub(crate) struct EntryReport {
+    /// The settings document's path.
+    pub(crate) settings: PathBuf,
+    /// The provenance sidecar's path.
+    pub(crate) provenance: PathBuf,
+    /// The full input digest, as 64 lowercase hexadecimal characters.
+    pub(crate) digest: String,
+    /// The profile document's resolved absolute path.
+    pub(crate) profile_path: PathBuf,
+    /// The ordered pieces and their digests.
+    pub(crate) pieces: Vec<(Identifier, PieceDigest)>,
+    /// The strategy table the profile declared.
+    pub(crate) strategies: StrategyTable,
+    /// The composed document and its per-key provenance.
+    pub(crate) composed: Composed,
+    /// Top-level keys the wrapper does not recognize, in document order.
+    pub(crate) unknown_keys: Vec<UnknownKey>,
+    /// Whether the settings member is already on disk.
+    pub(crate) settings_exists: bool,
+    /// Whether the provenance member is already on disk.
+    pub(crate) provenance_exists: bool,
+}
+
+/// Reports the two entry checks without materialising anything.
 pub(crate) fn doctor_results(context: &AppContext, profile: &Identifier) -> Vec<CheckResult> {
     let compose_check = Check::Entry(EntryCheck::Compose);
     let consistent_check = Check::Entry(EntryCheck::Consistent);
-    let inspected = inspect_inputs(context, profile);
-    let probe = match inspected {
+    let report = match inspect(context, profile) {
         Ok(value) => value,
         Err(error) => {
-            return vec![
+            // Existence is this check's whole subject. A profile that exists but
+            // is unusable belongs to `settings-profile-valid`, and reporting it
+            // here too would make one failure look like two.
+            let compose = if error.kind() == ErrorKind::NoInput {
                 CheckResult::defect(
                     compose_check,
                     error.diagnostic().why.clone(),
                     error.diagnostic().hint.clone(),
-                ),
+                )
+            } else {
+                CheckResult::skipped(compose_check, "the profile document is not usable")
+            };
+            return vec![
+                compose,
                 CheckResult::skipped(
                     consistent_check,
                     "settings composition did not produce an entry key",
@@ -85,35 +134,36 @@ pub(crate) fn doctor_results(context: &AppContext, profile: &Identifier) -> Vec<
             ];
         }
     };
-    let settings = probe.settings;
-    let provenance = probe.provenance;
-    let digest = probe.digest;
     let compose = CheckResult::pass(
         compose_check,
         format!("profile {} and its pieces compose", profile.as_str()),
     );
-    let has_settings = SystemFileSystem::look(&settings).ok().flatten().is_some();
-    let has_provenance = SystemFileSystem::look(&provenance).ok().flatten().is_some();
-    let consistency = match (has_settings, has_provenance) {
+    let consistency = match (report.settings_exists, report.provenance_exists) {
         (false, false) => CheckResult::skipped(
             consistent_check,
             "the composed entry has not been materialized",
         ),
-        (true, true) if recorded_digest(&provenance).ok().flatten().as_deref() == Some(&digest) => {
+        (true, true)
+            if recorded_digest(&report.provenance)
+                .ok()
+                .flatten()
+                .as_deref()
+                == Some(&report.digest) =>
+        {
             CheckResult::pass(
                 consistent_check,
-                format!("{} matches its input digest", settings.display()),
+                format!("{} matches its input digest", report.settings.display()),
             )
         }
         _ => CheckResult::defect(
             consistent_check,
             format!(
                 "{} is partial, malformed, or inconsistent",
-                settings.display()
+                report.settings.display()
             ),
             consistent_check
                 .hint(&[
-                    ("path", &settings.display().to_string()),
+                    ("path", &report.settings.display().to_string()),
                     ("profile", profile.as_str()),
                 ])
                 .unwrap_or_default(),
@@ -134,19 +184,22 @@ pub(crate) fn validity_result(context: &AppContext, profile: Option<&Identifier>
         return CheckResult::skipped(check, "no profile is selected");
     };
     let path = context.paths().profile_file(profile);
-    // A missing document is `settings-compose`'s subject, and reporting it twice
-    // would make one failure look like two.
-    let Ok(bytes) = SystemFileSystem::read(&path) else {
-        return CheckResult::skipped(check, "the profile document could not be read");
-    };
-    match Profile::parse(&String::from_utf8_lossy(&bytes)) {
+    match inspect(context, profile) {
         Ok(_) => CheckResult::pass(
             check,
-            format!("profile {} is structurally valid", profile.as_str()),
+            format!(
+                "profile {} and its strategy table are usable",
+                profile.as_str()
+            ),
         ),
+        // A missing input is `settings-compose`'s subject, and an unreadable one
+        // says nothing about whether the document is valid.
+        Err(error) if error.kind() != ErrorKind::DataFormat => {
+            CheckResult::skipped(check, error.diagnostic().why.clone())
+        }
         Err(error) => CheckResult::defect(
             check,
-            error.to_string(),
+            error.diagnostic().why.clone(),
             check
                 .hint(&[
                     ("path", &path.display().to_string()),
@@ -157,7 +210,12 @@ pub(crate) fn validity_result(context: &AppContext, profile: Option<&Identifier>
     }
 }
 
-fn inspect_inputs(context: &AppContext, profile: &Identifier) -> Result<EntryProbe, AppError> {
+/// Reads, hashes, and composes one profile's inputs without writing anything.
+///
+/// Read-only by construction: it never calls `guard::ensure_directory` or
+/// `atomic`, so a report command can describe an entry that does not exist
+/// without bringing the store into being.
+pub(crate) fn inspect(context: &AppContext, profile: &Identifier) -> Result<EntryReport, AppError> {
     let paths = context.paths();
     let profile_path = paths.profile_file(profile);
     let profile_bytes = read_input(&profile_path, profile, EntryCheck::Compose)?;
@@ -184,6 +242,9 @@ fn inspect_inputs(context: &AppContext, profile: &Identifier) -> Result<EntryPro
             },
         ));
     }
+    let composed = crate::domain::merge::compose(&bodies, document.strategies())
+        .map_err(|error| merge_error(&error, profile, &profile_path, &pieces))?;
+    let unknown_keys = unknown_keys(&composed, &pieces);
     let canonical_profile = canonical(context, &profile_path)?;
     let digest = input_digest(&EntryInputs {
         profile,
@@ -196,14 +257,132 @@ fn inspect_inputs(context: &AppContext, profile: &Identifier) -> Result<EntryPro
     });
     let full = hex(&digest);
     let (settings, provenance) = entry_paths(&paths.composed(), profile, &digest);
-    Ok(EntryProbe {
+    let settings_exists = SystemFileSystem::look(&settings)
+        .map_err(|error| io_error(&settings, &error))?
+        .is_some();
+    let provenance_exists = SystemFileSystem::look(&provenance)
+        .map_err(|error| io_error(&provenance, &error))?
+        .is_some();
+    Ok(EntryReport {
         settings,
         provenance,
         digest: full,
         profile_path: canonical_profile,
         pieces,
-        bodies,
+        strategies: document.strategies().clone(),
+        composed,
+        unknown_keys,
+        settings_exists,
+        provenance_exists,
     })
+}
+
+/// Collects the composed document's unrecognized top-level keys.
+///
+/// The reported piece is the one whose value survived the fold, which is the
+/// piece a user has to edit. A key with no provenance entry cannot happen —
+/// every leaf is recorded — but an absent one falls back to the last piece
+/// rather than inventing a name.
+fn unknown_keys(composed: &Composed, pieces: &[(Identifier, PieceDigest)]) -> Vec<UnknownKey> {
+    settings_schema::unknown_top_level(&composed.document)
+        .into_iter()
+        .map(|key| {
+            let pointer = Pointer::from_tokens(&[key.to_owned()]);
+            let index = composed
+                .keys
+                .iter()
+                .find(|(at, _)| at == &&pointer || at.as_str().starts_with(&format!("{pointer}/")))
+                .map_or_else(
+                    || pieces.len().saturating_sub(1),
+                    |(_, provenance)| provenance.piece,
+                );
+            // Every leaf is recorded, so the index always resolves; the fallback
+            // names the index rather than inventing a piece name.
+            UnknownKey {
+                key: key.to_owned(),
+                piece: pieces
+                    .get(index)
+                    .map_or_else(|| index.to_string(), |(name, _)| name.as_str().to_owned()),
+            }
+        })
+        .collect()
+}
+
+/// Renders a merge failure as the four-part diagnostic.
+///
+/// `Where` is a concrete resolved path, `Why` names the pointer and the pieces,
+/// and `Hint` is the catalog remediation verbatim, so `config` and `doctor`
+/// cannot quote two different instructions for one failure.
+fn merge_error(
+    error: &MergeError,
+    profile: &Identifier,
+    profile_path: &Path,
+    pieces: &[(Identifier, PieceDigest)],
+) -> AppError {
+    let name = |index: usize| {
+        pieces
+            .get(index)
+            .map_or_else(|| format!("piece {index}"), |(name, _)| name.to_string())
+    };
+    let where_path = |index: usize| {
+        pieces.get(index).map_or_else(
+            || profile_path.display().to_string(),
+            |(_, piece)| piece.path.display().to_string(),
+        )
+    };
+    let (location, why) = match *error {
+        MergeError::NotAnObject { piece } => (
+            where_path(piece),
+            format!("the piece {} is not a JSON object at its root", name(piece)),
+        ),
+        MergeError::TypeConflict {
+            ref pointer,
+            earlier,
+            later,
+            earlier_type,
+            later_type,
+        } => (
+            where_path(later),
+            format!(
+                "{pointer} is a {earlier_type} in piece {} and a {later_type} in piece {}",
+                name(earlier),
+                name(later)
+            ),
+        ),
+        MergeError::StrategyTargetMissing { ref pointer } => (
+            profile_path.display().to_string(),
+            format!("the array strategy for {pointer} matches no key in the composed document"),
+        ),
+        MergeError::StrategyTargetNotAnArray {
+            ref pointer,
+            actual_type,
+        } => (
+            profile_path.display().to_string(),
+            format!("the array strategy for {pointer} names a {actual_type} rather than an array"),
+        ),
+        MergeError::DuplicateMergeKey {
+            ref pointer,
+            ref key,
+            ref value,
+        } => (
+            profile_path.display().to_string(),
+            format!("two elements of {pointer} share the merge key {key} value {value}"),
+        ),
+        MergeError::MergeKeyMissing {
+            ref pointer,
+            ref key,
+            piece,
+        } => (
+            where_path(piece),
+            format!(
+                "an element of {pointer} in piece {} carries no {key} to merge on",
+                name(piece)
+            ),
+        ),
+    };
+    let mut diagnostic = EntryCheck::Valid.diagnostic(profile_path, profile.as_str(), &why);
+    diagnostic.where_ = location;
+    AppError::new(EntryCheck::Valid.kind(), diagnostic)
 }
 
 /// Resolves, and if necessary materialises, one profile's composed entry.
@@ -216,24 +395,15 @@ pub(crate) fn resolve(
     guard::ensure_directory(paths.state(), &store)?;
     atomic::sweep(&store);
 
-    let probe = inspect_inputs(context, profile)?;
-
-    let outcome = materialise(
-        paths.state(),
-        &probe.settings,
-        &probe.provenance,
-        profile,
-        &probe.profile_path,
-        &probe.pieces,
-        &probe.digest,
-        &probe.bodies,
-    )?;
+    let report = inspect(context, profile)?;
+    warn_unknown_keys(profile, &report);
+    let outcome = materialise(paths.state(), profile, &report)?;
 
     tracing::debug!(
         op = "compose_settings",
         profile = profile.as_str(),
-        entry = %probe.settings.display(),
-        digest = &probe.digest[..12],
+        entry = %report.settings.display(),
+        digest = &report.digest[..12],
         outcome = match outcome {
             Outcome::Reused => "reused",
             Outcome::Written => "written",
@@ -244,25 +414,41 @@ pub(crate) fn resolve(
     );
 
     Ok(ResolvedEntry {
-        settings: probe.settings,
-        provenance: probe.provenance,
-        digest: probe.digest,
+        settings: report.settings,
+        provenance: report.provenance,
+        digest: report.digest,
         outcome,
     })
 }
 
+/// Reports every unrecognized key, without failing the run.
+///
+/// The key stays in the written document. Rejecting it is gated by `Q-003`, and
+/// a wrapper that refused a setting the child accepts would be worse than one
+/// that passes it through (`configuration.md#validation`).
+fn warn_unknown_keys(profile: &Identifier, report: &EntryReport) {
+    for unknown in &report.unknown_keys {
+        tracing::warn!(
+            op = "compose_settings",
+            profile = profile.as_str(),
+            key = unknown.key.as_str(),
+            piece = unknown.piece.as_str(),
+            status = "ok",
+            "the composed settings carry a key this wrapper does not recognize"
+        );
+    }
+}
+
 /// Decides among the owner page's four cases and writes when one of them says to.
-#[allow(clippy::too_many_arguments)] // Every argument is one input of the decision.
 fn materialise(
     state: &Path,
-    settings: &Path,
-    provenance: &Path,
     profile: &Identifier,
-    profile_path: &Path,
-    pieces: &[(Identifier, PieceDigest)],
-    digest: &str,
-    bodies: &[serde_json::Value],
+    report: &EntryReport,
 ) -> Result<Outcome, AppError> {
+    let settings = report.settings.as_path();
+    let provenance = report.provenance.as_path();
+    // Re-stat rather than trusting the inspection's snapshot: the decision below
+    // is about what is on disk at the moment of writing.
     let has_settings = SystemFileSystem::look(settings)
         .map_err(|error| io_error(settings, &error))?
         .is_some();
@@ -276,7 +462,7 @@ fn materialise(
         // The comparison costs nothing: the inputs were already read to compute
         // the key. It is what makes "two profiles never share settings" a check
         // rather than a probability.
-        if recorded_digest(provenance)?.as_deref() == Some(digest) {
+        if recorded_digest(provenance)?.as_deref() == Some(&report.digest) {
             return Ok(Outcome::Reused);
         }
         return Err(AppError::new(
@@ -311,28 +497,18 @@ fn materialise(
     } else {
         Outcome::Written
     };
-    atomic::write(settings, &compose(bodies)?, 0o600)?;
-    atomic::write(
-        provenance,
-        &sidecar(profile, profile_path, pieces, digest)?,
-        0o600,
-    )?;
+    atomic::write(settings, &serialize(&report.composed.document)?, 0o600)?;
+    atomic::write(provenance, &sidecar(profile, report)?, 0o600)?;
     Ok(outcome)
 }
 
-/// Folds the pieces left to right into one document.
+/// Serializes the composed document.
 ///
-/// The default fold and nothing more: objects merge key by key, scalars take
-/// the last writer, and an array replaces. That is exactly what
-/// `docs/reference/configuration.md#merge-semantics` defines as the behaviour of
-/// an array no strategy table lists, so implementing it here settles nothing
-/// the strategy work has not already inherited.
-fn compose(bodies: &[serde_json::Value]) -> Result<Vec<u8>, AppError> {
-    let mut folded = serde_json::Value::Object(serde_json::Map::new());
-    for body in bodies {
-        merge(&mut folded, body);
-    }
-    let mut bytes = serde_json::to_vec_pretty(&folded).map_err(|error| {
+/// One form, chosen once. The bytes are what the child reads and what the
+/// immutability tests compare, so changing the rendering without bumping the
+/// domain tag would rewrite every entry under its existing name.
+fn serialize(document: &serde_json::Value) -> Result<Vec<u8>, AppError> {
+    let mut bytes = serde_json::to_vec_pretty(document).map_err(|error| {
         AppError::new(
             ErrorKind::Internal,
             Diagnostic::new(
@@ -347,41 +523,20 @@ fn compose(bodies: &[serde_json::Value]) -> Result<Vec<u8>, AppError> {
     Ok(bytes)
 }
 
-fn merge(into: &mut serde_json::Value, from: &serde_json::Value) {
-    match (into, from) {
-        (serde_json::Value::Object(target), serde_json::Value::Object(source)) => {
-            for (key, value) in source {
-                match target.get_mut(key) {
-                    Some(existing) => merge(existing, value),
-                    None => {
-                        target.insert(key.clone(), value.clone());
-                    }
-                }
-            }
-        }
-        (target, source) => *target = source.clone(),
-    }
-}
-
 /// Renders the provenance sidecar.
 ///
-/// The `keys` contributor map is deliberately absent: it is a by-product of the
-/// merge machinery that resolves per-key strategies, and an empty one would
-/// claim an answer this fold cannot give. There is no version field either —
-/// the digest preimage's domain tag versions the format.
-fn sidecar(
-    profile: &Identifier,
-    profile_path: &Path,
-    pieces: &[(Identifier, PieceDigest)],
-    digest: &str,
-) -> Result<Vec<u8>, AppError> {
+/// There is no version field: the digest preimage's domain tag versions the
+/// format, so changing this shape bumps the tag, which renames every entry and
+/// makes an old sidecar unreachable rather than misread.
+fn sidecar(profile: &Identifier, report: &EntryReport) -> Result<Vec<u8>, AppError> {
     let mut document = serde_json::json!({
         "profile": profile.as_str(),
-        "profile_path": profile_path.display().to_string(),
-        "digest": digest,
+        "profile_path": report.profile_path.display().to_string(),
+        "digest": report.digest.as_str(),
     });
-    with_lossy_sibling(&mut document, "profile_path", profile_path);
-    let entries: Vec<serde_json::Value> = pieces
+    with_lossy_sibling(&mut document, "profile_path", &report.profile_path);
+    let entries: Vec<serde_json::Value> = report
+        .pieces
         .iter()
         .map(|(name, piece)| {
             let mut entry = serde_json::json!({
@@ -393,6 +548,7 @@ fn sidecar(
         })
         .collect();
     document["pieces"] = serde_json::Value::Array(entries);
+    document["keys"] = contributor_map(report);
     let mut bytes = serde_json::to_vec_pretty(&document).map_err(|error| {
         AppError::new(
             ErrorKind::Internal,
@@ -406,6 +562,42 @@ fn sidecar(
     })?;
     bytes.push(b'\n');
     Ok(bytes)
+}
+
+/// Renders the per-key contributor map, in pointer order.
+///
+/// `piece` is always present. Everything else is omitted when it would say
+/// nothing: a single-contributor key stays one line, because an absent optional
+/// field is omitted rather than emitted as null or an empty list
+/// (`logging-and-output.md`).
+fn contributor_map(report: &EntryReport) -> serde_json::Value {
+    let name = |index: usize| {
+        report
+            .pieces
+            .get(index)
+            .map_or_else(|| index.to_string(), |(name, _)| name.as_str().to_owned())
+    };
+    let mut map = serde_json::Map::new();
+    for (pointer, provenance) in &report.composed.keys {
+        let mut entry = serde_json::json!({ "piece": name(provenance.piece) });
+        if !provenance.overrode.is_empty() {
+            entry["overrode"] = provenance
+                .overrode
+                .iter()
+                .map(|index| serde_json::Value::String(name(*index)))
+                .collect();
+        }
+        if let Some(strategy) = provenance.strategy.as_ref() {
+            entry["strategy"] = serde_json::Value::String(strategy.spelling().to_owned());
+            entry["contributors"] = provenance
+                .contributors
+                .iter()
+                .map(|index| serde_json::Value::String(name(*index)))
+                .collect();
+        }
+        map.insert(pointer.as_str().to_owned(), entry);
+    }
+    serde_json::Value::Object(map)
 }
 
 /// Reads the `digest` field a sidecar records.
@@ -501,38 +693,21 @@ mod tests {
         serde_json::from_str(text).expect("json")
     }
 
+    /// The fold's own behaviour is `domain::merge`'s to prove; what this module
+    /// owns is the byte rendering, which the entry key depends on staying fixed.
     #[test]
-    fn objects_merge_recursively_and_scalars_take_the_last_writer() {
-        let bytes = compose(&[
-            value(r#"{"model":"a","env":{"X":"1","Y":"2"}}"#),
-            value(r#"{"model":"b","env":{"Y":"3"}}"#),
-        ])
-        .expect("composes");
-        let folded: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
-        assert_eq!(folded["model"], "b");
-        assert_eq!(folded["env"]["X"], "1");
-        assert_eq!(folded["env"]["Y"], "3");
-    }
-
-    /// Replace is the default an unlisted array takes, and it is what makes the
-    /// fold predictable: what the last piece says is what you get.
-    #[test]
-    fn an_array_replaces_rather_than_appending() {
-        let bytes = compose(&[value(r#"{"allow":["a","b"]}"#), value(r#"{"allow":["c"]}"#)])
-            .expect("composes");
-        let folded: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
-        assert_eq!(folded["allow"], value(r#"["c"]"#));
-    }
-
-    /// The entry is named by its inputs, so the same inputs have to produce the
-    /// same bytes — otherwise a rewrite would be invisible to the digest and
-    /// visible in the file.
-    #[test]
-    fn one_input_set_folds_to_byte_identical_output() {
-        let bodies = [value(r#"{"b":1,"a":2}"#), value(r#"{"c":3}"#)];
+    fn one_document_serializes_to_byte_identical_output() {
+        let document = value(r#"{"a":1,"b":{"c":2}}"#);
         assert_eq!(
-            compose(&bodies).expect("composes"),
-            compose(&bodies).expect("composes")
+            serialize(&document).expect("serializes"),
+            serialize(&document).expect("serializes")
         );
+    }
+
+    #[test]
+    fn the_serialized_document_ends_with_exactly_one_newline() {
+        let bytes = serialize(&value(r#"{"a":1}"#)).expect("serializes");
+        assert!(bytes.ends_with(b"}\n"));
+        assert!(!bytes.ends_with(b"\n\n"));
     }
 }

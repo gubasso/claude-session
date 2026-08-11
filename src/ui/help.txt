@@ -1,9 +1,10 @@
 claude-session preserves native claude behavior while adding isolated sessions.
 
 Unknown arguments are forwarded unchanged. Use `--` to force every following
-argument to the child. Leading `account`, `completion`, `doctor`, `help`, `man`,
-`profile`, and `version` are wrapper-owned. `account login [name]` delegates
-saved-login setup to the child; `account list` reports local account usability.
-`profile` lists the profiles `--profile` can select. `completion` and `man` emit
-shell completions and a man page for this grammar. Unknown and unimplemented
-surfaces remain native passthrough.
+argument to the child. Leading `account`, `completion`, `config`, `doctor`,
+`help`, `man`, `profile`, and `version` are wrapper-owned. `account login [name]`
+delegates saved-login setup to the child; `account list` reports local account
+usability. `profile` lists the profiles `--profile` can select, and `config`
+reports the resolved configuration and the active profile's composed entry.
+`completion` and `man` emit shell completions and a man page for this grammar.
+Unknown surfaces remain native passthrough.

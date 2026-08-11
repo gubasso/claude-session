@@ -7,6 +7,7 @@ use clap::{ArgAction, Parser, Subcommand};
 
 pub(crate) mod account;
 pub(crate) mod completion;
+pub(crate) mod config;
 pub(crate) mod doctor;
 pub(crate) mod help;
 pub(crate) mod man;
@@ -66,6 +67,8 @@ pub(crate) enum Command {
     Account(account::AccountArgs),
     /// Emit shell completions for the wrapper's grammar.
     Completion(completion::CompletionArgs),
+    /// Report resolved wrapper configuration and the active profile.
+    Config(config::ConfigArgs),
     /// Inspect wrapper and child health.
     Doctor(doctor::DoctorArgs),
     /// Show wrapper help followed by native help.

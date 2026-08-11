@@ -148,12 +148,15 @@ fn run(prepared: Prepared) -> Result<DispatchOutcome, AppError> {
     let config = config::load::resolve(&environment, &paths, invocation.config_overrides());
     let mode = invocation.output_mode();
     let context = match config {
-        Ok(config) => {
-            let selection = services::account::resolve_selection(&config, &paths)?;
-            AppContext::new(config, selection, paths, environment, mode)
+        Ok(resolution) => {
+            let selection = services::account::resolve_selection(&resolution.config, &paths)?;
+            AppContext::new(resolution, selection, paths, environment, mode)
         }
         Err(error) if invocation.is_doctor() => AppContext::with_config_error(
-            domain::config::ResolvedConfig::defaults(),
+            config::load::Resolution {
+                config: domain::config::ResolvedConfig::defaults(),
+                consulted: Vec::new(),
+            },
             domain::account::AccountSelection::none(),
             paths,
             environment,
