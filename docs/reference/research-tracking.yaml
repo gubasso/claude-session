@@ -110,7 +110,7 @@ tracked:
       - docs/reference/testing-and-quality.md
 
   - path: docs/reference/configuration.md
-    last_checked: 2026-08-11
+    last_checked: 2026-08-04
     cadence: monthly
     why: The native settings schema, flag constraints, and scope precedence evolve outside this repository.
     revalidate: >-

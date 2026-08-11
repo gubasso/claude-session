@@ -294,6 +294,8 @@ Making the warning possible needs a list of the keys the wrapper recognizes. The
 
 A key outside that table is preserved in the composed document exactly as written and reported as a warning naming the key and the piece that supplied it. The run continues and the exit is unaffected. Tightening this to a rejection is gated by `Q-003` in [open questions](../plan/open-questions.md), which must exit by measurement first: the wrapper must not refuse a setting the child accepts.
 
+The table is known to lag the child's published reference by a wide margin, so a valid native setting outside it warns today. Whether an allowlist that cannot practically track upstream earns this surface at all is `Q-009`, which the same measurement resolves.
+
 ### Child-owned account state
 
 Trust, onboarding, project history, and other native state remain child-owned in the shared account `config/`. The wrapper neither seeds nor synchronizes them.

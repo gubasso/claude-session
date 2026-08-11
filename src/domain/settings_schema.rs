@@ -11,8 +11,11 @@ use serde_json::Value;
 ///
 /// Owner: `docs/reference/configuration.md#validation`, which carries the same
 /// list and the reason it stays shallow. Derived from the keys that page and
-/// `docs/reference/accounts.md` already name, reconciled 2026-08-11. Sorted and
-/// unique, which `the_table_is_sorted_and_unique` enforces.
+/// `docs/reference/accounts.md` already name — not from the child's published
+/// reference, which documents many more. That gap is `Q-009` in
+/// `docs/plan/open-questions.md`, and until it exits this table will warn on
+/// settings the child accepts. Sorted and unique, which
+/// `the_table_is_sorted_and_unique` enforces.
 pub(crate) const KNOWN_TOP_LEVEL: &[&str] = &[
     "apiKeyHelper",
     "awsAuthRefresh",
