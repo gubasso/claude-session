@@ -28,6 +28,6 @@ A hidden verb was rejected on two counts: it puts a development concern on a CLI
 
 ## Status
 
-Accepted
+Implemented
 
-Amends [ADR-0007](./ADR-0007-layered-single-crate-architecture.md) — the workspace trigger it defers has fired.
+Enacted by [the tooling member](../../xtask/src/main.rs) and the library target it depends on. Amends [ADR-0007](./ADR-0007-layered-single-crate-architecture.md) — the workspace trigger it defers has fired.

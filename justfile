@@ -75,6 +75,17 @@ deny:
 doc:
 	{{dev}} cargo doc --all-features --no-deps
 
+# Regenerate the configuration examples and schema from the config types.
+#
+# Unlike `artifacts`, these ARE checked in: they are documentation a user copies,
+# and freshness is a byte comparison the pre-commit hook runs.
+gen-config:
+	{{dev}} cargo xtask gen-config
+
+# Report a stale generated artifact without writing one.
+gen-config-check:
+	{{dev}} cargo xtask gen-config --check
+
 # Regenerate the completions and man page, then smoke them.
 #
 # The output goes under the ignored build directory on purpose: the parser is
@@ -82,9 +93,9 @@ doc:
 # prevent. A grammar-owning slice runs this as tail work.
 artifacts out="target/artifacts":
 	mkdir -p {{out}}
-	{{dev}} cargo run --all-features -- man > {{out}}/claude-session.1
+	{{dev}} cargo run -p claude-session --all-features -- man > {{out}}/claude-session.1
 	for shell in bash elvish fish powershell zsh; do \
-		{{dev}} cargo run --all-features -- completion $shell > {{out}}/claude-session.$shell; \
+		{{dev}} cargo run -p claude-session --all-features -- completion $shell > {{out}}/claude-session.$shell; \
 	done
 	{{dev}} cargo nextest run --profile pre-push --all-features -E 'binary(cli_artifacts)'
 
@@ -134,7 +145,7 @@ reinstall: uninstall install
 
 # Run the CLI locally; forward args, e.g. `just run -- --help`.
 run *ARGS:
-	{{dev}} cargo run --all-features -- {{ARGS}}
+	{{dev}} cargo run -p claude-session --all-features -- {{ARGS}}
 
 # Remove build artifacts.
 clean:

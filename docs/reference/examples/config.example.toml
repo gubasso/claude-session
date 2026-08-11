@@ -1,0 +1,22 @@
+# Example configuration for claude-session.
+#
+# GENERATED from the wrapper's configuration type. Do not edit in place; edit the
+# type and regenerate with `cargo xtask gen-config`.
+#
+# Copy it where it belongs and edit it there:
+#     cp docs/reference/examples/config.example.toml \
+#        "${XDG_CONFIG_HOME:-$HOME/.config}/claude-session/config.toml"
+#
+# The wrapper never writes your configuration. A missing file is not an error.
+#
+# Every value below is an obviously fake placeholder. Replace before use.
+
+# Absolute path to the claude binary to run. Unset searches PATH.
+# child_bin = "/path/to/claude"
+
+# Account to select when --account is absent. Unset falls through to the
+# last-used marker.
+# default_account = "replace-me"
+
+# Profile to compose when --profile is absent. Unset composes nothing.
+# default_profile = "replace-me"

@@ -14,9 +14,9 @@
 
 Chosen option: generate from the config types — copy-don't-scaffold. The type is the single source of truth and the example is derived from it, so it cannot drift.
 
-A generator emits a JSON Schema and an annotated example per reflectable surface: required keys active, optional keys commented out, obviously fake placeholders, and a header naming the copy destination and stating that the wrapper never writes configuration. Generation fails when a public field carries no description, which is what keeps the example self-documenting rather than a wall of bare keys. A surface that cannot be reflected from a type — a settings piece is the child's own format — ships as a hand-maintained example under the same discipline.
+A generator emits a JSON Schema and an annotated example per reflectable surface: required keys active, optional keys commented out, obviously fake placeholders, and a header naming the copy destination. Generation fails when a public field carries no description, which keeps the example self-documenting rather than a wall of bare keys. A surface with no type to reflect — a settings piece is the child's own format — ships hand-maintained under the same discipline.
 
-Freshness is byte comparison against freshly rendered text, not a cache. Rendering is deterministic, so a stale file is exactly one whose contents differ, and an unrelated commit is a natural no-op. Nothing needs invalidating.
+Freshness is byte comparison against freshly rendered text, not a cache. Rendering is deterministic, so a stale file is exactly one whose contents differ. Nothing needs invalidating.
 
 The artifacts, the header, and the gate are specified in [configuration](../reference/configuration.md).
 
@@ -28,6 +28,6 @@ The artifacts, the header, and the gate are specified in [configuration](../refe
 
 ## Status
 
-Accepted
+Implemented
 
-Replaces the configuration scaffold that [the CLI surface](../reference/cli-surface.md) formerly assigned to `init` — a specification line, not a prior decision record. The verb itself is retired by [ADR-0015](./ADR-0015-retire-the-init-verb.md).
+Enacted by [the renderers](../../src/config/render.rs) and the key descriptor beside the type. Replaces the configuration scaffold that [the CLI surface](../reference/cli-surface.md) formerly assigned to `init` — a specification line, not a prior decision record. The verb itself is retired by [ADR-0015](./ADR-0015-retire-the-init-verb.md).

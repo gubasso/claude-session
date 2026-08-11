@@ -6,6 +6,7 @@ use std::{
     str::FromStr,
 };
 
+use super::schema::FileConfig;
 use crate::{
     adapters::{environment::Environment, filesystem::SystemFileSystem},
     commands::dispatch::ConfigOverrides,
@@ -20,15 +21,6 @@ use figment::{
     Figment,
     providers::{Format, Toml},
 };
-use serde::Deserialize;
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct FileConfig {
-    child_bin: Option<PathBuf>,
-    default_account: Option<String>,
-    default_profile: Option<String>,
-}
 
 /// One file layer that was looked at, and whether it was there.
 ///
@@ -208,5 +200,59 @@ const fn environment_spelling(key: &str) -> &'static str {
     match key.as_bytes() {
         b"default_account" => "CLAUDE_SESSION_DEFAULT_ACCOUNT",
         _ => "CLAUDE_SESSION_DEFAULT_PROFILE",
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::*;
+    use crate::config::schema::KEYS;
+
+    /// ADR-0013's "generation fails when a public field carries no description",
+    /// enforced at test time: a document built from `KEYS` must deserialize into
+    /// `FileConfig`, whose `deny_unknown_fields` rejects a described key that is
+    /// not a field, and the length assertion catches a field with no key.
+    #[test]
+    fn every_configuration_field_has_a_described_key() {
+        let mut document = String::new();
+        for key in KEYS {
+            use std::fmt::Write as _;
+            let _ = writeln!(document, "{} = \"placeholder\"", key.name);
+        }
+        let decoded: FileConfig =
+            toml::from_str(&document).expect("every described key is a field");
+        let set = [
+            decoded.child_bin.is_some(),
+            decoded.default_account.is_some(),
+            decoded.default_profile.is_some(),
+        ];
+        assert_eq!(
+            set.iter().filter(|value| **value).count(),
+            KEYS.len(),
+            "a configuration field carries no KEYS entry"
+        );
+    }
+
+    #[test]
+    fn every_key_description_is_non_empty() {
+        for key in KEYS {
+            assert!(!key.description.trim().is_empty(), "{}", key.name);
+        }
+    }
+
+    /// A missing file is not an error, but "which files were consulted" has to
+    /// survive that, or `config` could not report it.
+    #[test]
+    fn an_absent_file_still_records_that_it_was_consulted() {
+        let mut resolved = ResolvedConfig::defaults();
+        let existed = apply_file(
+            &mut resolved,
+            Path::new("/nonexistent/claude-session/config.toml"),
+            Source::User,
+            false,
+        )
+        .expect("an absent file is not an error");
+        assert!(!existed);
     }
 }

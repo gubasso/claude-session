@@ -158,6 +158,17 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
+      # `always_run` with no filenames: a generated example's relationship is to
+      # the whole configuration model rather than to any one changed file, so a
+      # file filter would skip exactly the commit that made it stale.
+      - id: gen-config
+        name: cargo xtask gen-config (generated examples)
+        entry: cargo xtask gen-config
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-commit]
+
       - id: acceptance-test-ids
         name: resolve slice acceptance test IDs
         entry: scripts/check-acceptance-tests

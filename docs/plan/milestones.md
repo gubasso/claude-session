@@ -6,7 +6,6 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 014 full-profile-composition — active — 2 implementation sessions — after 004; the `0.5.0` full-composition rung
 - 006 proxy-guide-and-research — shaped — 1 implementation session — after 003; filler only while the next versioned rung is blocked on measurement
 
 ## closed
@@ -23,3 +22,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 011 entry-point-and-contract-repair — done — 3 implementation sessions — repaired contracts 001 claimed but did not meet
 - 012 human-presentation — done — 2 implementation sessions — decided the colour contract every later renderer applies
 - 013 token-account-lifecycle — done — 2 implementation sessions — after 007 and 008; the `0.3.0` token lifecycle rung; closed Q-004 from published child behaviour rather than a local measurement
+- 014 full-profile-composition — done — 2 implementation sessions — after 004; the `0.5.0` full-composition rung completing the combined 004 and 014 effort

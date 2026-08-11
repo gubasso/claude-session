@@ -1,0 +1,27 @@
+# Example profile for claude-session.
+#
+# GENERATED from the profile type. Do not edit in place; edit the
+# type and regenerate with `cargo xtask gen-config`.
+#
+# Copy it where it belongs and edit it there:
+#     cp docs/reference/examples/profile.example.yaml \
+#        "${XDG_CONFIG_HOME:-$HOME/.config}/claude-session/profiles/dev.yaml"
+#
+# The wrapper never writes your configuration. A missing file is not an error.
+#
+# Every value below is an obviously fake placeholder. Replace before use.
+
+# The ordered piece names, resolved under the settings directory. Later
+# wins.
+layers:
+  - replace-me
+  - replace-me-too
+
+# Per-key exceptions to the default array rule, which is replace. Keyed by
+# RFC 6901 JSON Pointer, so a settings key containing a dot stays
+# addressable. Omit this table entirely to take replace everywhere.
+array_strategies:
+  # Elements appended in layer order.
+  "/permissions/allow": { strategy: concat }
+  # Elements matched on the named field and merged; unmatched ones appended.
+  "/hooks/PreToolUse": { strategy: merge-by-key, key: matcher }

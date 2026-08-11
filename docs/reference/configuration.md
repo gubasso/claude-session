@@ -10,7 +10,7 @@ The child's authentication precedence is separate from wrapper configuration pre
 
 Paths for both are in [XDG storage](./xdg-storage.md).
 
-The three-key wrapper configuration loader and provenance model are implemented, including last-used account fallback with `flag`, `environment`, `user-config`, `marker`, or `none` provenance. Profile resolution, piece resolution, the default fold, single-piece composition, the sidecar's `profile`, `profile_path`, `digest`, and `pieces` fields, and the `profile` listing verb are also implemented. Per-key array strategies, the `keys` contributor map, structural validation, the `config` verb, and generated examples remain later-slice design.
+The three-key wrapper configuration loader and provenance model are implemented, including last-used account fallback with `flag`, `environment`, `user-config`, `marker`, or `none` provenance. Profile resolution, piece resolution, ordered multi-piece composition, per-key array strategies, the full provenance sidecar including its `keys` contributor map, the permissive unknown-key warning, the `profile` and `config` verbs, and the generated examples and schema are also implemented. What remains is strict rejection of an unrecognized native settings key, which `Q-003` in [open questions](../plan/open-questions.md) gates on measurement.
 
 ## The wrapper's configuration
 
@@ -91,12 +91,12 @@ Four artifacts belong under `docs/reference/examples/`, and which are generated 
 
 | Artifact               | Rendered from                                      | Kind            | Present |
 | ---------------------- | -------------------------------------------------- | --------------- | ------- |
-| `config.example.toml`  | the wrapper's configuration type                   | Generated       | No      |
-| `config.schema.json`   | the wrapper's configuration type                   | Generated       | No      |
-| `profile.example.yaml` | the profile type — `layers` and `array_strategies` | Generated       | No      |
+| `config.example.toml`  | the wrapper's configuration type                   | Generated       | Yes     |
+| `config.schema.json`   | the wrapper's configuration type                   | Generated       | Yes     |
+| `profile.example.yaml` | the profile type — `layers` and `array_strategies` | Generated       | Yes     |
 | `piece.example.json`   | nothing — a piece is the child's own format        | Hand-maintained | Yes     |
 
-Only the hand-maintained one exists today. The three generated artifacts arrive with the generator that renders them, which arrives with the [`xtask` member](../explanation/architecture.md#one-shipped-crate-plus-xtask) that hosts it. Until then the freshness rule below has nothing to compare and the `gen-config` gate row is marked deferred in [the gate](./testing-and-quality.md#the-gate).
+All four exist. The three generated ones are rendered by the [`xtask` member](../explanation/architecture.md#one-shipped-crate-plus-xtask) from the configuration key descriptor beside the type, and the freshness rule below compares them byte for byte on every commit.
 
 A piece has no type to reflect over, because its shape is the child's and evolves on the child's schedule. It therefore ships as an authored file under the same discipline as the generated ones: a header, fake values, and copied rather than scaffolded. The only difference is what keeps it correct.
 

@@ -525,21 +525,26 @@ fn profile_mvp_documentation_matches_the_implemented_grammar() {
         "the negative pin the token rung established stays established"
     );
 
+    // The claims this rung made true. The 0.5.0 gate below owns what came after
+    // it, so nothing here pins a wording a later rung legitimately moves.
     let configuration = document("docs/reference/configuration.md");
     assert!(
-        configuration.contains("the `profile` listing verb are also implemented"),
-        "the configuration status paragraph must claim the shipped listing"
+        configuration.contains("Profile resolution, piece resolution,"),
+        "the configuration status paragraph must claim the shipped resolution"
     );
     assert!(
-        configuration
-            .contains("the `config` verb, and generated examples remain later-slice design"),
-        "config is still unbuilt and the page must say so"
+        configuration.contains("the `profile`"),
+        "the configuration status paragraph must name the listing verb"
     );
 
     let output = document("docs/reference/logging-and-output.md");
     assert!(
         !output.contains("the unbuilt `config` and `profile` verbs"),
-        "profile output shipped, so only config remains named"
+        "profile output shipped, so that deferral sentence is stale"
+    );
+    assert!(
+        output.contains("the `profile`"),
+        "the profile reports are named as implemented"
     );
 
     // The exit-code correction this rung landed, pinned at its owner.
@@ -551,5 +556,108 @@ fn profile_mvp_documentation_matches_the_implemented_grammar() {
     assert!(
         malformed.contains("`65`"),
         "the published malformed-profile row is what the implementation now exits with: {malformed}"
+    );
+}
+
+/// The `0.5.0` rung's own documentation gate.
+///
+/// Every assertion is a revert this catches: a sentence the full composition
+/// rung made false, or one it made true and that a rollback would remove.
+#[test]
+fn full_profile_composition_documentation_matches_the_implemented_grammar() {
+    let configuration = document("docs/reference/configuration.md");
+    assert!(
+        !configuration.contains("remain later-slice design"),
+        "every clause of the deferral sentence is now false"
+    );
+    assert!(
+        !configuration.contains("Only the hand-maintained one exists today"),
+        "all four example artifacts exist"
+    );
+    // Both strategy spellings and their constraints stay documented.
+    for spelling in [
+        "`concat`",
+        "`merge-by-key`",
+        "Requires exactly one non-empty `key`",
+        "Never written — it is what an unlisted array does",
+    ] {
+        assert!(
+            configuration.contains(spelling),
+            "the merge table must document {spelling}"
+        );
+    }
+    // The artifact table, by projection rather than by padded row: the column
+    // widths belong to the Markdown formatter, not to this gate.
+    let artifacts: Vec<(String, String, String)> = configuration
+        .lines()
+        .filter(|line| line.starts_with("| `"))
+        .filter(|line| line.contains("example.") || line.contains("schema.json"))
+        .filter(|line| line.matches('|').count() >= 5)
+        .map(|line| {
+            let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+            (
+                cells[1].trim_matches('`').to_owned(),
+                cells[3].to_owned(),
+                cells[4].to_owned(),
+            )
+        })
+        .collect();
+    for (name, kind, present) in [
+        ("config.example.toml", "Generated", "Yes"),
+        ("config.schema.json", "Generated", "Yes"),
+        ("profile.example.yaml", "Generated", "Yes"),
+        ("piece.example.json", "Hand-maintained", "Yes"),
+    ] {
+        assert!(
+            artifacts.iter().any(|(artifact, actual_kind, actual)| {
+                artifact == name && actual_kind == kind && actual == present
+            }),
+            "the artifact table must list {name} as {kind}/{present}: {artifacts:?}"
+        );
+    }
+
+    // The permissive unknown-key rule and its gate survive.
+    assert!(
+        configuration.contains("It does not reject unknown keys in the child's settings"),
+        "the permissive rule is what Q-003 gates tightening of"
+    );
+    assert!(
+        configuration.contains("`Q-003`"),
+        "the gate on strict rejection stays named"
+    );
+    let questions = document("docs/plan/open-questions.md");
+    assert!(
+        questions.contains("permissive unknown-key handling remains the shaped default"),
+        "Q-003 still specifies permissive handling"
+    );
+
+    // The exclusions both slices placed out of scope.
+    assert!(
+        configuration.contains("Where composition stops"),
+        "the composed entry is not the child's whole effective configuration"
+    );
+
+    let surface = document("docs/reference/cli-surface.md");
+    assert!(
+        surface.contains("`config --help`"),
+        "config help is a result"
+    );
+
+    let testing = document("docs/reference/testing-and-quality.md");
+    assert!(
+        !testing.contains("deferred — no `xtask` member yet"),
+        "the gen-config gate row is backed by a hook now"
+    );
+
+    let architecture = document("docs/explanation/architecture.md");
+    assert!(
+        !architecture.contains("The conversion has not happened"),
+        "the workspace conversion happened"
+    );
+
+    let readme = document("README.md");
+    assert!(
+        readme.contains("config  # what resolved, from where, and into what"),
+        "the README shows the config verb"
     );
 }

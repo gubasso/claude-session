@@ -44,4 +44,4 @@ if ! cargo_publish_auth_configured; then
 fi
 
 echo "==> cargo publish"
-cargo publish "$@"
+cargo publish -p claude-session "$@"

@@ -2,7 +2,7 @@
 
 Test tools, test lanes, the gate map, and which contract each mandatory test locks down. The approach and its rationale are in [the testing strategy](../explanation/testing-strategy.md).
 
-The native passthrough, secure session storage, profile composition, doctor, presentation, login-account MVP, and generated-artifact rows are implemented. Remaining later-slice rows stay normative design until their owners land.
+The native passthrough, secure session storage, full profile composition, doctor, presentation, login-account MVP, generated-artifact, and generated-example rows are implemented. Remaining later-slice rows stay normative design until their owners land.
 
 ## Test kinds
 
@@ -11,7 +11,7 @@ The native passthrough, secure session storage, profile composition, doctor, pre
 | Unit        | Inline `#[cfg(test)] mod tests` in `src/` | `kind(bin)`; `kind(lib)` once a library target exists | One function or module in isolation                                   |
 | Integration | `tests/*.rs`                              | `kind(test)`                                          | The seam between components, against a stub child or a temporary tree |
 | End-to-end  | Continuous integration only               | —                                                     | The whole product against the real `claude`                           |
-| Doc tests   | `///` examples                            | Not run by `nextest`                                  | Requires a library target; none exists                                |
+| Doc tests   | `///` examples                            | Not run by `nextest`                                  | Runs against the tooling-facing library target                        |
 
 The defining property of an integration test is that it tests an interaction, not that it touches something real. A test running the compiled binary against a recording stub is an integration test.
 
@@ -240,7 +240,7 @@ The Backing column says whether the hook exists today. `deferred` means the row 
 | `cargo audit`                                | push         | Advisories                                     | present                                                                   |
 | `cargo deny`                                 | push         | Advisories, bans, sources, licences            | partial — see [dependencies](./dependencies.md#lockfile-and-supply-chain) |
 | `cargo machete`                              | push         | Unused dependencies                            | present                                                                   |
-| `cargo xtask gen-config`                     | commit       | Generated examples match the config types      | deferred — no `xtask` member yet                                          |
+| `cargo xtask gen-config`                     | commit       | Generated examples match the config types      | present                                                                   |
 | `dprint`                                     | commit       | Markdown and JSON formatting                   | present                                                                   |
 | `markdownlint-cli2`                          | commit       | Markdown structure and link integrity          | present                                                                   |
 | `md-slice-readme`, `md-milestones`, `md-adr` | commit       | Fixed heading shapes, one array per shape      | present                                                                   |

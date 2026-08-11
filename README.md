@@ -2,7 +2,7 @@
 
 A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 
-> Status: unreleased. The wrapper forwards to `claude` natively and owns `help`, `version`, `doctor`, the `account` namespace, `completion`, `man`, and `profile`. Everything else described in [docs](./docs/README.md) is design ahead of the code.
+> Status: unreleased. The wrapper forwards to `claude` natively and owns `help`, `version`, `doctor`, the `account` namespace, `completion`, `man`, `profile`, and `config`. Everything else described in [docs](./docs/README.md) is design ahead of the code.
 
 ## Usage
 
@@ -39,7 +39,24 @@ printf 'layers:\n  - base\n' > ~/.config/claude-session/profiles/dev.yaml
 
 claude-session profile               # the profiles `--profile` can select
 claude-session --profile dev         # launch with the composed settings
+claude-session --profile dev config  # what resolved, from where, and into what
 ```
+
+Composition is ordered and explainable. Later pieces win, and a key that needs appending rather than replacing says so:
+
+```bash
+echo '{"permissions":{"allow":["Bash(git status:*)"]}}' \
+  > ~/.config/claude-session/settings/git.json
+cat > ~/.config/claude-session/profiles/dev.yaml <<'YAML'
+layers:
+  - base
+  - git
+array_strategies:
+  "/permissions/allow": { strategy: concat }
+YAML
+```
+
+The provenance sidecar beside each composed entry records, per key, which piece won and which it overrode.
 
 The composed document reaches the child as an additional native settings layer, so a `--settings` of your own still replaces it and the working directory's own settings still load beneath it. [Milestones](./docs/plan/milestones.md) carries the order the rest lands in.
 

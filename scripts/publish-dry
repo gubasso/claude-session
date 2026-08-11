@@ -8,9 +8,9 @@ project_root="$(cd -- "$script_dir/.." && pwd)"
 cd -- "$project_root"
 
 echo "==> cargo publish --dry-run"
-cargo publish --dry-run "$@"
+cargo publish -p claude-session --dry-run "$@"
 
 echo "==> cargo package --list"
-cargo package --list
+cargo package --list -p claude-session
 
 echo "==> Dry-run readiness complete. No crates.io token was required."

@@ -1,0 +1,21 @@
+[package]
+name = "xtask"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.97"
+# Development tooling, never a release artifact. The shipped crate excludes this
+# directory, and this keeps a stray `cargo publish --workspace` from reaching it.
+publish = false
+
+[dependencies]
+# By path, which is ADR-0014's shape: the dependency runs from the tooling member
+# to the shipped crate and never the other way.
+claude-session = { path = ".." }
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

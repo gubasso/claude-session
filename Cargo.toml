@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "xtask"]
+
 [package]
 name = "claude-session"
 version = "0.1.0"
@@ -47,7 +50,19 @@ exclude = [
   # and release-plz build from the checkout, so the release path is unaffected.
   "/tests",
   "/uninstall.sh",
+  # A second workspace member is development tooling, and a denylist entry
+  # anchors one path, so the directory needs its own line beside the alias file.
+  "/xtask",
+  "/.cargo",
 ]
+
+[lib]
+name = "claude_session"
+path = "src/lib.rs"
+
+[[bin]]
+name = "claude-session"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.6.5", features = ["derive", "env", "wrap_help"] }
