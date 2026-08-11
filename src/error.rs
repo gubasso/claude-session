@@ -162,7 +162,7 @@ impl Diagnostic {
 /// closed set and already owns the code, so a parallel variant list only gives
 /// the two ways to drift apart, and every match over it has to be written again
 /// each time the set grows.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct AppError {
     kind: ErrorKind,
     diagnostic: Diagnostic,
@@ -281,22 +281,29 @@ impl From<ConfigError> for AppError {
                     ),
                 }
             }
-            ConfigError::Decode { path, .. } => Self::new(
-                ErrorKind::Config,
-                Diagnostic::new(
-                    "configuration file is invalid",
-                    path.display().to_string(),
-                    why,
-                    "correct the named key or value",
-                ),
-            ),
+            ConfigError::Decode { path, message } => {
+                let key = message.split('`').nth(1).unwrap_or("the named key");
+                Self::new(
+                    ErrorKind::Config,
+                    Diagnostic::new(
+                        "configuration file is invalid",
+                        path.display().to_string(),
+                        why,
+                        crate::domain::checks::Check::WrapperConfigParses
+                            .hint(&[("key", key), ("path", &path.display().to_string())])
+                            .unwrap_or_default(),
+                    ),
+                )
+            }
             ConfigError::Value { key, .. } => Self::new(
                 ErrorKind::Config,
                 Diagnostic::new(
                     "configuration value is invalid",
                     key,
                     why,
-                    "correct the named value",
+                    crate::domain::checks::Check::WrapperConfigParses
+                        .hint(&[("key", key), ("path", "the named configuration layer")])
+                        .unwrap_or_default(),
                 ),
             ),
             // `Usage`, not `Config`, whichever layer supplied it. Both

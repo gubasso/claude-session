@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use crate::{
     adapters::filesystem::{PathFacts, SystemFileSystem},
-    domain::checks::StorageCheck,
+    domain::checks::{Check, CheckResult, CheckStatus, StorageCheck},
     error::{AppError, Diagnostic, ErrorKind},
 };
 
@@ -43,6 +43,205 @@ impl Expected {
     }
 }
 
+/// One selected-session path and its assigned artifact type.
+#[derive(Clone, Copy)]
+pub(crate) struct ProbeTarget<'a> {
+    pub(crate) path: &'a Path,
+    pub(crate) expected: Expected,
+}
+
+/// Observes all five storage conditions over selected paths without creating them.
+pub(crate) fn probe(root: &Path, targets: &[ProbeTarget<'_>]) -> Vec<CheckResult> {
+    probe_internal(root, targets).0
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "the five ordered safety predicates remain one walk"
+)]
+fn probe_internal(
+    root: &Path,
+    targets: &[ProbeTarget<'_>],
+) -> (Vec<CheckResult>, Option<AppError>) {
+    let checks = [
+        StorageCheck::NoSymlinks,
+        StorageCheck::Owned,
+        StorageCheck::Typed,
+        StorageCheck::DirectoryModes,
+        StorageCheck::SecretModes,
+    ];
+    let mut results: Vec<CheckResult> = checks
+        .iter()
+        .map(|check| {
+            CheckResult::pass(
+                Check::Storage(*check),
+                "all applicable selected-session paths are healthy",
+            )
+        })
+        .collect();
+    let mut first_error = None;
+    for target in targets {
+        let components = match managed_components(root, target.path) {
+            Ok(value) => value,
+            Err(error) => return (results, Some(error)),
+        };
+        let last = components.len().saturating_sub(1);
+        let mut current = root.to_path_buf();
+        for (index, component) in components.into_iter().enumerate() {
+            if index > 0 {
+                current.push(component);
+            }
+            let expected = if index == last {
+                target.expected
+            } else {
+                Expected::Directory
+            };
+            let facts = match SystemFileSystem::look(&current) {
+                Ok(Some(value)) => value,
+                Ok(None) => break,
+                Err(error) => return (results, Some(io_error(&current, &error))),
+            };
+            if facts.symlink {
+                record_defect(
+                    &mut results,
+                    StorageCheck::NoSymlinks,
+                    &current,
+                    expected,
+                    "symbolic link",
+                    None,
+                    &mut first_error,
+                );
+                for result in &mut results[1..] {
+                    if result.status == CheckStatus::Pass {
+                        *result = CheckResult::skipped(
+                            result.check,
+                            format!(
+                                "{} is a symbolic link and cannot be followed safely",
+                                current.display()
+                            ),
+                        );
+                    }
+                }
+                break;
+            }
+            if facts.uid != current_uid() {
+                record_defect(
+                    &mut results,
+                    StorageCheck::Owned,
+                    &current,
+                    expected,
+                    "path owned by another user",
+                    None,
+                    &mut first_error,
+                );
+                skip_mode(
+                    &mut results,
+                    expected,
+                    &current,
+                    "ownership could not be established",
+                );
+            }
+            if !matches_type(facts, expected) {
+                record_defect(
+                    &mut results,
+                    StorageCheck::Typed,
+                    &current,
+                    expected,
+                    actual_type(facts),
+                    None,
+                    &mut first_error,
+                );
+                skip_mode(
+                    &mut results,
+                    expected,
+                    &current,
+                    "the artifact type is unsafe",
+                );
+                continue;
+            }
+            if facts.uid == current_uid() && facts.mode != expected.mode() {
+                let check = match expected {
+                    Expected::Directory => StorageCheck::DirectoryModes,
+                    Expected::PrivateFile => StorageCheck::SecretModes,
+                };
+                if let Err(error) = correct_mode(&current, facts, expected) {
+                    let index = checks
+                        .iter()
+                        .position(|candidate| *candidate == check)
+                        .unwrap_or(0);
+                    if results[index].status == CheckStatus::Pass {
+                        first_error.get_or_insert_with(|| error.clone());
+                        results[index] = CheckResult::defect(
+                            Check::Storage(check),
+                            error.diagnostic().why.clone(),
+                            error.diagnostic().hint.clone(),
+                        );
+                    }
+                } else {
+                    let index = checks
+                        .iter()
+                        .position(|candidate| *candidate == check)
+                        .unwrap_or(0);
+                    // Aggregation over several targets is monotonic: one
+                    // corrected path never erases a failure or a skip an
+                    // earlier path recorded on the same check, or the walk
+                    // could report `pass` for a condition it left unrepaired.
+                    if results[index].status == CheckStatus::Pass {
+                        results[index] = CheckResult::pass(
+                            Check::Storage(check),
+                            format!(
+                                "corrected {} from {:04o} to {:04o}",
+                                current.display(),
+                                facts.mode,
+                                expected.mode()
+                            ),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    (results, first_error)
+}
+
+fn skip_mode(results: &mut [CheckResult], expected: Expected, path: &Path, reason: &str) {
+    let index = match expected {
+        Expected::Directory => 3,
+        Expected::PrivateFile => 4,
+    };
+    if results[index].status == CheckStatus::Pass {
+        results[index] = CheckResult::skipped(
+            results[index].check,
+            format!("{}: {reason}", path.display()),
+        );
+    }
+}
+
+fn record_defect(
+    results: &mut [CheckResult],
+    check: StorageCheck,
+    path: &Path,
+    expected: Expected,
+    actual: &str,
+    mode: Option<u32>,
+    first_error: &mut Option<AppError>,
+) {
+    let index = match check {
+        StorageCheck::NoSymlinks => 0,
+        StorageCheck::Owned => 1,
+        StorageCheck::Typed => 2,
+        StorageCheck::DirectoryModes => 3,
+        StorageCheck::SecretModes => 4,
+    };
+    if results[index].status == CheckStatus::Pass {
+        let diagnostic = check.diagnostic(path, expected.spelling(), actual, mode);
+        let error = AppError::new(check.kind(), diagnostic.clone());
+        first_error.get_or_insert(error);
+        results[index] =
+            CheckResult::defect(Check::Storage(check), diagnostic.why, diagnostic.hint);
+    }
+}
+
 /// Validates every managed component of `path` below `root`.
 ///
 /// The walk stops at the first component that does not exist: a path being
@@ -52,33 +251,26 @@ impl Expected {
 /// state that operation will meet, so caching one would be caching the answer
 /// to a question about a moment that has passed.
 pub(crate) fn validate(root: &Path, path: &Path, expected: Expected) -> Result<(), AppError> {
-    walk(root, path, expected, false)
+    probe_internal(root, &[ProbeTarget { path, expected }])
+        .1
+        .map_or(Ok(()), Err)
 }
 
 /// Validates and idempotently creates every managed directory component.
 pub(crate) fn ensure_directory(root: &Path, path: &Path) -> Result<(), AppError> {
-    walk(root, path, Expected::Directory, true)
-}
-
-fn walk(root: &Path, path: &Path, expected: Expected, create: bool) -> Result<(), AppError> {
+    validate(root, path, Expected::Directory)?;
     let components = managed_components(root, path)?;
-    let last = components.len().saturating_sub(1);
     let mut current = root.to_path_buf();
     for (index, component) in components.into_iter().enumerate() {
         if index > 0 {
             current.push(component);
         }
-        let leaf = index == last;
-        let want = if leaf { expected } else { Expected::Directory };
-        match SystemFileSystem::look(&current).map_err(|error| io_error(&current, &error))? {
-            None => {
-                if !create {
-                    return Ok(());
-                }
-                SystemFileSystem::create_dir_private(&current)
-                    .map_err(|error| io_error(&current, &error))?;
-            }
-            Some(facts) => inspect(&current, facts, want)?,
+        if SystemFileSystem::look(&current)
+            .map_err(|error| io_error(&current, &error))?
+            .is_none()
+        {
+            SystemFileSystem::create_dir_private(&current)
+                .map_err(|error| io_error(&current, &error))?;
         }
     }
     Ok(())
@@ -89,6 +281,7 @@ fn walk(root: &Path, path: &Path, expected: Expected, create: bool) -> Result<()
 /// Order matters only in that a link is refused before anything reads through
 /// it. The type and ownership checks are independent, and the mode check is a
 /// correction rather than a refusal, so it runs last.
+#[cfg(test)]
 fn inspect(path: &Path, facts: PathFacts, expected: Expected) -> Result<(), AppError> {
     if facts.symlink {
         return Err(refuse(
@@ -374,6 +567,50 @@ mod tests {
         )
         .expect_err("an unopenable private file");
         assert!(error.diagnostic().why.contains("storage-secret-modes"));
+    }
+
+    /// The walk folds several targets into five rows, so a later target that
+    /// corrects a mode must not erase what an earlier one recorded on the same
+    /// row. Reporting `pass` there would drop the row out of the hard-failure
+    /// count and let `doctor` exit zero over an unrepaired condition.
+    #[test]
+    fn a_corrected_mode_does_not_erase_an_earlier_targets_verdict() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let root = tempfile::tempdir().expect("tempdir");
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o700))
+            .expect("root mode");
+
+        // An earlier target whose leaf has the wrong type, which skips the
+        // directory-mode row because that row cannot be judged.
+        let wrong = root.path().join("wrong");
+        std::fs::write(&wrong, b"{}").expect("fixture");
+
+        // A later target whose mode drifts and is corrected successfully.
+        let drifted = root.path().join("drifted");
+        std::fs::create_dir(&drifted).expect("fixture");
+        std::fs::set_permissions(&drifted, std::fs::Permissions::from_mode(0o755)).expect("drift");
+
+        let results = probe(
+            root.path(),
+            &[
+                ProbeTarget {
+                    path: &wrong,
+                    expected: Expected::Directory,
+                },
+                ProbeTarget {
+                    path: &drifted,
+                    expected: Expected::Directory,
+                },
+            ],
+        );
+
+        assert_eq!(results[2].status, CheckStatus::Fail, "the type row failed");
+        assert_eq!(
+            results[3].status,
+            CheckStatus::Skipped,
+            "the later correction must not overwrite the earlier skip"
+        );
     }
 
     #[test]

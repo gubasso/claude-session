@@ -13,7 +13,7 @@ use crate::{
     adapters::filesystem::{FileSystem, SystemFileSystem},
     context::AppContext,
     domain::{
-        checks::EntryCheck,
+        checks::{Check, CheckResult, EntryCheck},
         entry::{EntryInputs, PieceDigest, entry_paths, hex, input_digest},
         identifier::Identifier,
         profile::Profile,
@@ -54,32 +54,83 @@ pub(crate) struct ResolvedEntry {
     pub(crate) outcome: Outcome,
 }
 
-/// Resolves, and if necessary materialises, one profile's composed entry.
-pub(crate) fn resolve(
-    context: &AppContext,
-    profile: &Identifier,
-) -> Result<ResolvedEntry, AppError> {
-    let paths = context.paths();
-    let store = paths.composed();
-    guard::ensure_directory(paths.state(), &store)?;
-    atomic::sweep(&store);
+struct EntryProbe {
+    settings: PathBuf,
+    provenance: PathBuf,
+    digest: String,
+    profile_path: PathBuf,
+    pieces: Vec<(Identifier, PieceDigest)>,
+    bodies: Vec<serde_json::Value>,
+}
 
-    // The config base is user-authored and `0644` by design, so it carries no
-    // security check and is read without a guard walk.
+/// Inspects composition inputs and the derived pair without materialising it.
+pub(crate) fn doctor_results(context: &AppContext, profile: &Identifier) -> Vec<CheckResult> {
+    let compose_check = Check::Entry(EntryCheck::Compose);
+    let consistent_check = Check::Entry(EntryCheck::Consistent);
+    let inspected = inspect_inputs(context, profile);
+    let probe = match inspected {
+        Ok(value) => value,
+        Err(error) => {
+            return vec![
+                CheckResult::defect(
+                    compose_check,
+                    error.diagnostic().why.clone(),
+                    error.diagnostic().hint.clone(),
+                ),
+                CheckResult::skipped(
+                    consistent_check,
+                    "settings composition did not produce an entry key",
+                ),
+            ];
+        }
+    };
+    let settings = probe.settings;
+    let provenance = probe.provenance;
+    let digest = probe.digest;
+    let compose = CheckResult::pass(
+        compose_check,
+        format!("profile {} and its pieces compose", profile.as_str()),
+    );
+    let has_settings = SystemFileSystem::look(&settings).ok().flatten().is_some();
+    let has_provenance = SystemFileSystem::look(&provenance).ok().flatten().is_some();
+    let consistency = match (has_settings, has_provenance) {
+        (false, false) => CheckResult::skipped(
+            consistent_check,
+            "the composed entry has not been materialized",
+        ),
+        (true, true) if recorded_digest(&provenance).ok().flatten().as_deref() == Some(&digest) => {
+            CheckResult::pass(
+                consistent_check,
+                format!("{} matches its input digest", settings.display()),
+            )
+        }
+        _ => CheckResult::defect(
+            consistent_check,
+            format!(
+                "{} is partial, malformed, or inconsistent",
+                settings.display()
+            ),
+            consistent_check
+                .hint(&[
+                    ("path", &settings.display().to_string()),
+                    ("profile", profile.as_str()),
+                ])
+                .unwrap_or_default(),
+        ),
+    };
+    vec![compose, consistency]
+}
+
+fn inspect_inputs(context: &AppContext, profile: &Identifier) -> Result<EntryProbe, AppError> {
+    let paths = context.paths();
     let profile_path = paths.profile_file(profile);
     let profile_bytes = read_input(&profile_path, profile, EntryCheck::Compose)?;
     let document = Profile::parse(&String::from_utf8_lossy(&profile_bytes)).map_err(|error| {
         AppError::new(
-            ErrorKind::DataFormat,
-            Diagnostic::new(
-                "the profile document is invalid",
-                profile_path.display().to_string(),
-                error.to_string(),
-                "correct the profile: it needs a non-empty `layers` list and no unknown keys",
-            ),
+            EntryCheck::Compose.kind(),
+            EntryCheck::Compose.diagnostic(&profile_path, profile.as_str(), &error.to_string()),
         )
     })?;
-
     let mut pieces = Vec::with_capacity(document.layers().len());
     let mut bodies = Vec::with_capacity(document.layers().len());
     for name in document.layers() {
@@ -94,34 +145,56 @@ pub(crate) fn resolve(
             },
         ));
     }
-
-    let digests: Vec<PieceDigest> = pieces.iter().map(|(_, piece)| piece.clone()).collect();
     let canonical_profile = canonical(context, &profile_path)?;
     let digest = input_digest(&EntryInputs {
         profile,
         profile_path: &canonical_profile,
         profile_content: sha256(&profile_bytes),
-        pieces: &digests,
+        pieces: &pieces
+            .iter()
+            .map(|(_, piece)| piece.clone())
+            .collect::<Vec<_>>(),
     });
     let full = hex(&digest);
-    let (settings, provenance) = entry_paths(&store, profile, &digest);
+    let (settings, provenance) = entry_paths(&paths.composed(), profile, &digest);
+    Ok(EntryProbe {
+        settings,
+        provenance,
+        digest: full,
+        profile_path: canonical_profile,
+        pieces,
+        bodies,
+    })
+}
+
+/// Resolves, and if necessary materialises, one profile's composed entry.
+pub(crate) fn resolve(
+    context: &AppContext,
+    profile: &Identifier,
+) -> Result<ResolvedEntry, AppError> {
+    let paths = context.paths();
+    let store = paths.composed();
+    guard::ensure_directory(paths.state(), &store)?;
+    atomic::sweep(&store);
+
+    let probe = inspect_inputs(context, profile)?;
 
     let outcome = materialise(
         paths.state(),
-        &settings,
-        &provenance,
+        &probe.settings,
+        &probe.provenance,
         profile,
-        &canonical_profile,
-        &pieces,
-        &full,
-        &bodies,
+        &probe.profile_path,
+        &probe.pieces,
+        &probe.digest,
+        &probe.bodies,
     )?;
 
     tracing::debug!(
         op = "compose_settings",
         profile = profile.as_str(),
-        entry = %settings.display(),
-        digest = &full[..12],
+        entry = %probe.settings.display(),
+        digest = &probe.digest[..12],
         outcome = match outcome {
             Outcome::Reused => "reused",
             Outcome::Written => "written",
@@ -132,9 +205,9 @@ pub(crate) fn resolve(
     );
 
     Ok(ResolvedEntry {
-        settings,
-        provenance,
-        digest: full,
+        settings: probe.settings,
+        provenance: probe.provenance,
+        digest: probe.digest,
         outcome,
     })
 }

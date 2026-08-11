@@ -2,7 +2,7 @@
 
 The probe catalog, what each check reads, the remediation it prints, and how a run collapses into one exit code.
 
-The five `storage-*` checks and the two `settings-*` checks are implemented at their guard call sites, quoting the remediations below. The `doctor` verb, its report, `--list`, and `--strict` remain normative design.
+The `doctor` verb, its report, `--list`, and `--strict` are implemented over the 13 checks whose subjects exist. The two account checks described below remain later design owned by slice `005`.
 
 The catalog below has three consumers and only one of them is an output surface, which is why it lives here rather than in [logging and output](./logging-and-output.md): a reader holding a check id is asking a health question, not a formatting one. That page still owns the streams and the document rules, and [presentation](./presentation.md) owns the appearance rules this one defers to.
 
@@ -41,10 +41,10 @@ Each check has a stable kebab-case id, a scope, a severity, and the `err.kind` a
 | `storage-paths-typed`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path has the file type the artifact table assigns it |
 | `storage-directory-modes`   | Session | Hard     | `Permission`         | Every wrapper-managed directory has mode `0700`, after automatic correction         |
 | `storage-secret-modes`      | Session | Hard     | `Permission`         | Every wrapper-owned file assigned mode `0600` has that mode, after correction       |
-| `account-registry-readable` | Session | Soft     | `Io`                 | Account directories and auth-mode metadata are readable and parse                   |
-| `credentials-usable`        | Session | Soft     | `Auth`               | The current account's selected login or token mode is usable                        |
 | `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                |
 | `settings-entry-consistent` | Session | Hard     | `DataFormat`         | A materialized entry's recorded digest matches the one its inputs recompute         |
+
+Slice `005` appends `account-registry-readable` and `credentials-usable` when their account-authentication subjects exist. They are not emitted as permanent `skipped` placeholders and do not appear in current catalog discovery.
 
 Hard means the wrapper cannot function. Soft means a feature is degraded.
 
@@ -93,41 +93,72 @@ A mode check that corrects drift reports `pass`, recording the old and new modes
 
 A soft check that is inert — a feature the user does not use — reports `skipped` with a reason and never gates. Failing `doctor` because the user has not configured accounts they do not want punishes them for not using a feature. Session-scope checks are skipped when no session context applies. Skips never affect the exit code.
 
-Exit is `0` when no hard check fails, and otherwise the `err.kind` code of the first failing hard check in catalog order — which is why the table's order is itself contractual.
+The wrapper level exits `0` when no hard check fails, and otherwise the `err.kind` code of the first failing hard check in catalog order — which is why the table's order is itself contractual.
+
+That is one of three levels a composed run reports, and [the three levels](#the-three-levels) below owns how they combine into the status the process returns.
 
 `doctor --strict` adds one rule and nothing else: if the run would have exited `0` but any check reported `warn`, it exits `1` instead. It changes no check, no severity, and no output, and it can never make a passing catalog fail. It exists so a CI gate is one flag rather than a JSON parser; the status itself is owned by [exit codes](./exit-codes.md#the-one-code-outside-the-taxonomy) and [ADR-0034](../decisions/ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md).
 
-`doctor --list` prints the catalog — every id, scope, and severity — without running anything, so a script can discover what it may match on.
+### The three levels
+
+A composed run has two answers, so it reports three levels, each stating its own status and its own code ([ADR-0085](../decisions/ADR-0085-carry-the-child-report-level-into-the-verdict.md)):
+
+| Level     | Status from                                | Code                                                         |
+| --------- | ------------------------------------------ | ------------------------------------------------------------ |
+| `wrapper` | this page's catalog                        | `0`, or the first hard failure's `err.kind` in catalog order |
+| `child`   | the child's own `doctor` run               | the child's own exit status, verbatim                        |
+| `doctor`  | the worse of the two, with `--strict` last | the status the process returns                               |
+
+The child is the application the wrapper exists to run, so its level crosses unchanged: a child that reports a problem makes the verdict `fail`, without `--strict` and with no way to soften it into a warning. The verdict then exits `Unavailable`, because a subroutine verb answers in the wrapper's own matrix ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)) — the child's own code is reported as data beside it rather than becoming the process status. A wrapper hard failure outranks the child and keeps its own code, because a wrapper defect usually explains the child's.
+
+Every level publishes the counts that produced it. A caller never has to explain the exit with a value the report omits, which is the failure mode this shape exists to prevent.
+
+`doctor --list` prints the catalog — every id, scope, and severity — without running anything, so a script can discover what it may match on. Human list output is one non-padded `id scope severity` line per check. `doctor --list --json` emits one document with `schema_version: 1` and an ordered `checks` array whose objects contain only `id`, `scope`, and `severity`.
 
 ## The report
 
 The report is the verb's result, so it goes to standard output; progress and diagnostics go to standard error, which is what makes `doctor --json 2>/dev/null` safe to pipe.
 
-Checks are grouped by scope in catalog order, and each line carries its status as a bracketed word — `[pass]`, `[warn]`, `[fail]`, `[skipped]` — never a glyph or a colour alone, for the reason [presentation](./presentation.md#the-contract) gives. A `warn` or `fail` is followed by an indented `hint:` line carrying the Hint part of the [error shape](./exit-codes.md#error-message-shape); a `skipped` check states its reason instead. The report ends with one summary line giving the counts and the exit the run produced.
+Checks are grouped by scope in catalog order, and each line carries its status as a bracketed word — `[pass]`, `[warn]`, `[fail]`, `[skipped]` — never a glyph or a colour alone, for the reason [presentation](./presentation.md#the-contract) gives. A `warn` or `fail` is followed by an indented `hint:` line carrying the Hint part of the [error shape](./exit-codes.md#error-message-shape); a `skipped` check states its reason instead.
 
-`doctor --json` emits that same run as one document:
+The rows are followed by one line per level, in the fixed order `wrapper`, `child`, `doctor`:
+
+```text
+wrapper status=pass total=13 passed=13 warned=0 failed=0 skipped=0 hard_failures=0 exit=0
+child status=fail exit=1
+doctor status=fail wrapper=0 child=1 exit=69
+```
+
+The `child` line carries `exit` when the child returned one and `reason` when it did not — a signal, or the condition that stopped it from running. On the `doctor` line, `child=none` names the same absence. When the child never ran, that line is the whole account of it, and no delimiter or section follows.
+
+`doctor --json` emits that same run as one document, with one object per level:
 
 ```json
 {
-  "status": "pass",
-  "checks": [
-    {
-      "id": "child-binary-resolves",
-      "scope": "host",
-      "severity": "hard",
-      "status": "pass",
-      "message": "…",
-      "hint": "…",
-      "reason": "…",
-      "kind": "ChildNotFound"
-    }
-  ],
-  "summary": { "total": 15, "passed": 15, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0 },
+  "status": "fail",
+  "exit": 69,
+  "wrapper": {
+    "status": "pass",
+    "checks": [
+      {
+        "id": "child-binary-resolves",
+        "scope": "host",
+        "severity": "hard",
+        "status": "pass",
+        "message": "…",
+        "hint": "…",
+        "reason": "…",
+        "kind": "ChildNotFound"
+      }
+    ],
+    "summary": { "total": 13, "passed": 13, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0, "exit": 0 }
+  },
+  "child": { "status": "fail", "output": "…", "exit": 1 },
   "schema_version": 1
 }
 ```
 
-`hint` and `kind` appear on a `warn` or `fail` only, and `reason` only on a `skipped` — so no check ever carries both. `kind` is the `err.kind` from [exit codes](./exit-codes.md). Omitted rather than `null`, per [machine output](./logging-and-output.md#machine-output). `summary.hard_failures` is the field that predicts the exit: zero means `0`.
+`hint` and `kind` appear on a `warn` or `fail` only, and `reason` only on a `skipped` — so no check ever carries both. `kind` is the `err.kind` from [exit codes](./exit-codes.md). Omitted rather than `null`, per [machine output](./logging-and-output.md#machine-output). `wrapper.summary.hard_failures` is the field that predicts that level's exit: zero means `0`. The document's own `exit` is the verdict's, and [the three levels](#the-three-levels) says how the two relate.
 
 This is the one document carrying `schema_version`, because its check ids are the public identifiers a script matches on and nothing else the wrapper emits makes that promise.
 
@@ -135,7 +166,9 @@ This is the one document carrying `schema_version`, because its check ids are th
 
 `doctor` ends by running `claude doctor` and passing its output through unmodified, after the wrapper's summary line and under the delimiter [logging and output](./logging-and-output.md#composed-output) owns. The child's report is never parsed, reformatted, or summarized: the wrapper claims the verb name only because it composes with the child's rather than replacing it ([ADR-0045](../decisions/ADR-0045-compose-doctor-with-the-child-report.md)), which it is allowed to do because both reports only read and print ([ADR-0079](../decisions/ADR-0079-compose-every-overlapping-surface-with-the-child.md)).
 
-Its exit status enters the catalog as one soft check — zero passes, anything else warns — so it can promote under `--strict` but can never turn a healthy wrapper into a hard failure over a program the wrapper does not own. Under `--json` the child's report is one opaque string field beside its status, which is what keeps the document's schema independent of the child's formatting. If the child cannot be resolved or spawned at all, that is already a hard check of the wrapper's own and this section is skipped with that reason.
+The child result is a level of its own, not a catalog row: it has no stable check id and is excluded from `--list`, ordered hard-failure selection, and every wrapper summary count. Its `status` is `pass`, `fail`, or `skipped`; `output` is one opaque string, `exit` is present for a normal exit, and `reason` is present when there is no code to report. A nonzero exit or a signal is `fail`, and [the three levels](#the-three-levels) carries it into the verdict unsoftened. If the child cannot be resolved or spawned, the corresponding wrapper-owned catalog row carries the hard failure and the child level is skipped with the same prerequisite reason.
+
+`doctor` is the one composed surface that captures the child's output rather than letting it inherit standard output, because the verdict is only knowable once the child has exited and [composed output](./logging-and-output.md#composed-output) requires the wrapper's own bytes to come first. The bytes are replayed unchanged; nothing follows them.
 
 The child version floor is a perishable fact: the child is externally owned and changes on its own schedule. It is registered in [research tracking](./research-tracking.yaml), and the check is defensive — an unparsable version string is reported, not fatal.
 

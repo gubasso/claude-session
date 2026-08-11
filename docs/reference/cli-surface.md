@@ -2,7 +2,7 @@
 
 The wrapper's own grammar: what `claude-session` claims, what it forwards, and the parser shape that makes verbatim passthrough work. For the reasoning behind these rules, see [the wrapper model](../explanation/wrapper-model.md).
 
-The passthrough, `help`, and `version` surfaces are implemented. Later verbs remain normative design and undeclared until their slices land.
+The passthrough, `help`, `version`, and `doctor` surfaces are implemented. Other verbs remain normative design and undeclared until their slices land.
 
 ## Invocation shape
 
@@ -104,6 +104,16 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 | `man`        | Emit man pages generated from the wrapper's grammar                       | [Help](#help)                                |
 | `version`    | Print the wrapper's version and the resolved child's path and version     | [Version output](#version-output)            |
 | `help`       | Print the wrapper's help, or one verb's                                   | [Help](#help)                                |
+
+### Doctor flags
+
+These spellings are scoped to `doctor` and were measured against the child `doctor` surface recorded in the checked-in inventory.
+
+| Flag       | Meaning                                              | Child status |
+| ---------- | ---------------------------------------------------- | ------------ |
+| `--json`   | Emit one versioned JSON report or list               | Free         |
+| `--list`   | Project catalog metadata without any probes          | Free         |
+| `--strict` | Promote a warning to exit one when otherwise healthy | Free         |
 
 Two verb names overlap the child's, measured against `claude` 2.1.220 on 2026-08-06, and the read-only test in [when the child owns the same name](#when-the-child-owns-the-same-name) resolves each:
 

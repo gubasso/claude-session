@@ -14,7 +14,7 @@ The wrapper claims `doctor` ([the CLI surface](../reference/cli-surface.md#wrapp
 
 Chosen option: compose — the two reports answer different questions, and a user running `claude-session doctor` wants both.
 
-`claude-session doctor` emits its own report first, then spawns `claude doctor` and passes that output through unmodified under its own heading. The child's report is never parsed, summarized, or reformatted; its exit status enters the wrapper's report as one probe, zero being healthy and any other value a warning under the existing severity rules ([ADR-0034](./ADR-0034-exit-one-when-doctor-strict-promotes-a-warning.md)). Under `--json` the child's report is one opaque string field beside its status, so [ADR-0032](./ADR-0032-give-each-verb-its-own-json-document.md)'s schema never depends on the child's formatting.
+`claude-session doctor` emits its own report first, then spawns `claude doctor` and passes that output through unmodified under its own heading. The child's report is never parsed, summarized, or reformatted; its exit status is its own level, zero healthy and anything else carried across ([ADR-0085](./ADR-0085-carry-the-child-report-level-into-the-verdict.md)). Under `--json` the child's report is one opaque string field beside its status, so [ADR-0032](./ADR-0032-give-each-verb-its-own-json-document.md)'s schema never depends on the child's formatting.
 
 This generalizes: a wrapper verb may keep a name the child also owns only when it runs the child's command as part of its own and reports the result, and the overlap is recorded with that reasoning in the CLI surface. Every other collision is renamed or reached through `--`.
 
@@ -30,3 +30,5 @@ This generalizes: a wrapper verb may keep a name the child also owns only when i
 Accepted
 
 Amended by [ADR-0079](./ADR-0079-compose-every-overlapping-surface-with-the-child.md), which supplies the test this record generalized without stating: composition is available where the shared surface is read-only, and required there.
+
+Amended by [ADR-0085](./ADR-0085-carry-the-child-report-level-into-the-verdict.md): the child's level enters the verdict, not a probe.

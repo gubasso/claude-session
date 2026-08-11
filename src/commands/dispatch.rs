@@ -51,7 +51,14 @@ pub(crate) struct ConfigOverrides {
 pub(crate) enum InvocationKind {
     Passthrough(Vec<OsString>),
     Help,
-    Version { mode: OutputMode },
+    Version {
+        mode: OutputMode,
+    },
+    Doctor {
+        mode: OutputMode,
+        list: bool,
+        strict: bool,
+    },
 }
 
 /// Fully classified wrapper invocation.
@@ -83,8 +90,23 @@ impl Invocation {
     /// Returns the active output mode.
     pub(crate) const fn output_mode(&self) -> OutputMode {
         match self.kind {
-            InvocationKind::Version { mode } => mode,
+            InvocationKind::Version { mode } | InvocationKind::Doctor { mode, .. } => mode,
             _ => OutputMode::Human,
+        }
+    }
+    /// Reports whether this request only projects static catalog metadata.
+    pub(crate) const fn is_doctor_list(&self) -> bool {
+        matches!(self.kind, InvocationKind::Doctor { list: true, .. })
+    }
+    /// Reports whether the wrapper owns this invocation as doctor.
+    pub(crate) const fn is_doctor(&self) -> bool {
+        matches!(self.kind, InvocationKind::Doctor { .. })
+    }
+    /// Returns doctor strict policy when this is a doctor request.
+    pub(crate) const fn doctor_strict(&self) -> bool {
+        match self.kind {
+            InvocationKind::Doctor { strict, .. } => strict,
+            _ => false,
         }
     }
 }
@@ -112,7 +134,7 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
         .first()
         .filter(|_| !sentinel)
         .and_then(|value| value.to_str())
-        .filter(|value| matches!(*value, "help" | "version"));
+        .filter(|value| matches!(*value, "doctor" | "help" | "version"));
     if wrapper_verb.is_some() {
         wrapper.append(&mut child);
     }
@@ -140,6 +162,15 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
         }
     } else {
         match cli.command {
+            Some(Command::Doctor(value)) => InvocationKind::Doctor {
+                mode: if value.json {
+                    OutputMode::Json
+                } else {
+                    OutputMode::Human
+                },
+                list: value.list,
+                strict: value.strict,
+            },
             Some(Command::Help(_)) => InvocationKind::Help,
             Some(Command::Version(value)) => InvocationKind::Version {
                 mode: if value.json {
@@ -168,6 +199,7 @@ pub(crate) fn dispatch(
         InvocationKind::Passthrough(arguments) => super::passthrough::run(context, arguments),
         InvocationKind::Help => super::help::run(context),
         InvocationKind::Version { .. } => super::version::run(context),
+        InvocationKind::Doctor { list, strict, .. } => super::doctor::run(context, list, strict),
     }
 }
 

@@ -41,14 +41,40 @@ struct Prepared {
 }
 
 fn main() -> ExitCode {
-    let prepared = match prepare(SystemEnvironment::capture()) {
+    let environment = SystemEnvironment::capture();
+    let invocation = match commands::dispatch::classify(environment.args()) {
+        Ok(value) => value,
+        Err(error) => return ExitCode::from(ui::writer::report(&error, OutputMode::Human)),
+    };
+    if invocation.is_doctor_list() {
+        let code = crate::ui::doctor::list(
+            &crate::ui::writer::OutputWriter::system(),
+            invocation.output_mode() == OutputMode::Json,
+        )
+        .map_or_else(
+            |error| ui::writer::report(&error, invocation.output_mode()),
+            |()| 0,
+        );
+        return ExitCode::from(code);
+    }
+    let doctor = invocation.is_doctor();
+    let mode = invocation.output_mode();
+    let strict = invocation.doctor_strict();
+    let prepared = match prepare(environment.clone(), invocation) {
         Ok(value) => value,
         // No namespace is known yet, so this one failure reaches standard error
         // and nothing else. ADR-0080 records why that is a boundary condition
         // rather than a gap.
+        Err(error) if doctor => {
+            return ExitCode::from(commands::doctor::without_paths(
+                &environment,
+                mode,
+                strict,
+                &error,
+            ));
+        }
         Err(error) => return ExitCode::from(ui::writer::report(&error, OutputMode::Human)),
     };
-    let mode = prepared.invocation.output_mode();
     let logging = logging::install(
         &prepared.paths,
         prepared.invocation.verbosity(),
@@ -103,8 +129,7 @@ where
 ///
 /// Separate from `main` only because `?` is illegal in a function returning
 /// `ExitCode`. Folding it back in would trade one match for two.
-fn prepare(environment: SystemEnvironment) -> Result<Prepared, AppError> {
-    let invocation = commands::dispatch::classify(environment.args())?;
+fn prepare(environment: SystemEnvironment, invocation: Invocation) -> Result<Prepared, AppError> {
     let paths = XdgPaths::resolve(environment.variables())?;
     Ok(Prepared {
         environment,
@@ -120,9 +145,19 @@ fn run(prepared: Prepared) -> Result<DispatchOutcome, AppError> {
         invocation,
         paths,
     } = prepared;
-    let config = config::load::resolve(&environment, &paths, invocation.config_overrides())?;
+    let config = config::load::resolve(&environment, &paths, invocation.config_overrides());
     let mode = invocation.output_mode();
-    let context = AppContext::new(config, paths, environment, mode);
+    let context = match config {
+        Ok(config) => AppContext::new(config, paths, environment, mode),
+        Err(error) if invocation.is_doctor() => AppContext::with_config_error(
+            domain::config::ResolvedConfig::defaults(),
+            paths,
+            environment,
+            mode,
+            error.into(),
+        ),
+        Err(error) => return Err(error.into()),
+    };
     commands::dispatch::dispatch(&context, invocation)
 }
 

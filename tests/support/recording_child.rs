@@ -14,13 +14,28 @@ fn main() {
     write_nul(record.join("argv"), std::env::args_os());
     write_nul(record.join("environ"), std::env::vars_os().flat_map(|(key, value)| [key, value]));
     write_nul(record.join("cwd"), [std::env::current_dir().expect("cwd").into_os_string()]);
-    if let Some(bytes) = std::env::var_os("CS_TEST_STDOUT") {
+    let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
+    let prefix = if arguments.as_slice() == [OsString::from("--version")] {
+        Some("VERSION")
+    } else if arguments.as_slice() == [OsString::from("doctor")] {
+        Some("DOCTOR")
+    } else {
+        None
+    };
+    let selected = |suffix: &str| {
+        prefix
+            .and_then(|prefix| std::env::var_os(format!("CS_TEST_{prefix}_{suffix}")))
+            .or_else(|| std::env::var_os(format!("CS_TEST_{suffix}")))
+    };
+    if let Some(bytes) = selected("STDOUT") {
         io::stdout().write_all(bytes.as_os_str().as_bytes()).expect("stdout");
     }
-    if let Some(bytes) = std::env::var_os("CS_TEST_STDERR") {
+    if let Some(bytes) = selected("STDERR") {
         io::stderr().write_all(bytes.as_os_str().as_bytes()).expect("stderr");
     }
     if std::env::var_os("CS_TEST_ABORT").is_some() { std::process::abort(); }
-    let code = std::env::var("CS_TEST_EXIT").ok().and_then(|value| value.parse().ok()).unwrap_or(0);
+    let code = selected("EXIT")
+        .and_then(|value| value.to_str().and_then(|value| value.parse().ok()))
+        .unwrap_or(0);
     std::process::exit(code);
 }

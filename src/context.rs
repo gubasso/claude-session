@@ -46,6 +46,7 @@ pub(crate) struct AppContext {
     // validation would answer a question about a moment that has passed.
     session: OnceLock<SessionPaths>,
     adapters: Adapters,
+    config_error: Option<crate::error::AppError>,
 }
 
 impl AppContext {
@@ -75,7 +76,24 @@ impl AppContext {
             color,
             session: OnceLock::new(),
             adapters: Adapters::default(),
+            config_error: None,
         }
+    }
+    /// Constructs a doctor context retaining a failed configuration probe.
+    pub(crate) fn with_config_error(
+        config: ResolvedConfig,
+        paths: XdgPaths,
+        environment: SystemEnvironment,
+        output_mode: OutputMode,
+        error: crate::error::AppError,
+    ) -> Self {
+        let mut context = Self::new(config, paths, environment, output_mode);
+        context.config_error = Some(error);
+        context
+    }
+    /// Returns the retained configuration defect, when bootstrap observed one.
+    pub(crate) const fn config_error(&self) -> Option<&crate::error::AppError> {
+        self.config_error.as_ref()
     }
     /// Returns resolved configuration.
     pub(crate) const fn config(&self) -> &ResolvedConfig {

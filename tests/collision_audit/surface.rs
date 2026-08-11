@@ -10,6 +10,7 @@ use crate::audit::{SURFACE, Violation};
 
 const FLAGS_HEADING: &str = "## Wrapper-owned flags";
 const VERBS_HEADING: &str = "## Wrapper verbs";
+const DOCTOR_FLAGS_HEADING: &str = "### Doctor flags";
 
 const FLAGS_HEADER: &[&str] = &[
     "Flag",
@@ -19,6 +20,7 @@ const FLAGS_HEADER: &[&str] = &[
 ];
 const VERBS_HEADER: &[&str] = &["Verb", "Purpose", "Grammar specified in"];
 const OVERLAP_HEADER: &[&str] = &["Child verb", "Shared surface", "Resolution", "Reason"];
+const DOCTOR_FLAGS_HEADER: &[&str] = &["Flag", "Meaning", "Child status"];
 
 /// Floors, not exact counts, so the tables may grow. Lowering one takes a commit
 /// that has to explain itself.
@@ -86,9 +88,11 @@ pub(crate) struct Surface {
     pub(crate) flags: Vec<ClaimedFlag>,
     pub(crate) verbs: Vec<ClaimedVerb>,
     pub(crate) overlaps: Vec<Overlap>,
+    pub(crate) doctor_flags: Vec<ClaimedFlag>,
     flag_rows: usize,
     verb_rows: usize,
     overlap_rows: usize,
+    doctor_flag_rows: usize,
 }
 
 struct Row {
@@ -104,26 +108,33 @@ struct Table {
 pub(crate) fn parse(md: &str) -> Result<Surface, Vec<Violation>> {
     let (tables, mut found) = scan(md);
 
-    // Two tables share the wrapper-verbs heading, so they are told apart by
-    // header. Requiring an exact count is what stops a third table from being
-    // silently ignored, which is the same defect as matching none.
+    // The verb metadata table is the sole table directly under its heading;
+    // scoped doctor metadata follows under its own heading. Requiring an exact
+    // count stops another table from being silently ignored, the same defect as
+    // matching none.
     let under_verbs = tables
         .iter()
         .filter(|(heading, _)| heading == VERBS_HEADING)
         .count();
-    if under_verbs != 2 {
+    if under_verbs != 1 {
         found.push(Violation::whole(
             SURFACE,
-            format!("`{VERBS_HEADING}` holds {under_verbs} tables and the audit reads exactly two"),
+            format!("`{VERBS_HEADING}` holds {under_verbs} tables and the audit reads exactly one"),
         ));
     }
 
     let flags_table = pick(&tables, FLAGS_HEADING, FLAGS_HEADER, &mut found);
     let verbs_table = pick(&tables, VERBS_HEADING, VERBS_HEADER, &mut found);
-    let overlap_table = pick(&tables, VERBS_HEADING, OVERLAP_HEADER, &mut found);
+    let overlap_table = pick(&tables, DOCTOR_FLAGS_HEADING, OVERLAP_HEADER, &mut found);
+    let doctor_flags_table = pick(
+        &tables,
+        DOCTOR_FLAGS_HEADING,
+        DOCTOR_FLAGS_HEADER,
+        &mut found,
+    );
 
-    let (Some(flags_table), Some(verbs_table), Some(overlap_table)) =
-        (flags_table, verbs_table, overlap_table)
+    let (Some(flags_table), Some(verbs_table), Some(overlap_table), Some(doctor_flags_table)) =
+        (flags_table, verbs_table, overlap_table, doctor_flags_table)
     else {
         return Err(found);
     };
@@ -193,6 +204,22 @@ pub(crate) fn parse(md: &str) -> Result<Surface, Vec<Violation>> {
         }));
     }
 
+    let mut doctor_flags = Vec::new();
+    for row in &doctor_flags_table.rows {
+        match spellings(&row.cells[0], row.line, true).and_then(|values| {
+            statuses(&row.cells[2], row.line, &values).map_err(|mut errors| errors.remove(0))
+        }) {
+            Ok(values) => {
+                doctor_flags.extend(values.into_iter().map(|(spelling, status)| ClaimedFlag {
+                    spelling,
+                    line: row.line,
+                    status,
+                }))
+            }
+            Err(error) => found.push(error),
+        }
+    }
+
     if !found.is_empty() {
         return Err(found);
     }
@@ -201,9 +228,11 @@ pub(crate) fn parse(md: &str) -> Result<Surface, Vec<Violation>> {
         flags,
         verbs,
         overlaps,
+        doctor_flags,
         flag_rows: flags_table.rows.len(),
         verb_rows: verbs_table.rows.len(),
         overlap_rows: overlap_table.rows.len(),
+        doctor_flag_rows: doctor_flags_table.rows.len(),
     })
 }
 
@@ -216,6 +245,7 @@ pub(crate) fn contracts(surface: &Surface) -> Vec<Violation> {
         ("wrapper-owned flags", surface.flag_rows, FLAG_ROW_FLOOR),
         ("wrapper verbs", surface.verb_rows, VERB_ROW_FLOOR),
         ("verb overlap", surface.overlap_rows, OVERLAP_ROW_FLOOR),
+        ("doctor flags", surface.doctor_flag_rows, 3),
     ] {
         if rows < floor {
             found.push(Violation::whole(
@@ -223,6 +253,18 @@ pub(crate) fn contracts(surface: &Surface) -> Vec<Violation> {
                 format!(
                     "the {name} table parsed to {rows} rows and the audit expects at least {floor}"
                 ),
+            ));
+        }
+    }
+    for sentinel in ["--json", "--list", "--strict"] {
+        if !surface
+            .doctor_flags
+            .iter()
+            .any(|flag| flag.spelling == sentinel)
+        {
+            found.push(Violation::whole(
+                SURFACE,
+                format!("the doctor flags table did not parse `{sentinel}`"),
             ));
         }
     }

@@ -2,7 +2,7 @@
 
 Every byte the wrapper writes, and where it goes. How a human-facing byte looks once it gets there is [presentation](./presentation.md)'s.
 
-The passthrough, diagnostic, logging, and composed read-only output foundation is implemented. Later verb output remains normative design.
+The passthrough, diagnostic, logging, and composed `help`, `version`, and `doctor` output are implemented. Other verb output remains normative design.
 
 ## The stream contract
 
@@ -60,9 +60,11 @@ One delimiter line separates the two, with a blank line on each side:
 
 Between the dashes is the exact command that produced what follows, so a reader can reproduce the second half on its own. The form is fixed: ASCII, and no padding to the terminal's width. Padding would make the result depend on the terminal it was printed into, which a golden test cannot pin and a pipe has no use for. The line is one of the surfaces [presentation](./presentation.md#coloured-surfaces) permits colour on, and carries nothing the command name does not already state.
 
-The child's bytes pass through unchanged — not parsed, not re-indented, not re-wrapped, not summarized — and nothing follows them. The wrapper claimed the name in order to add its own answer, not to edit the child's. In human format that is literal: the wrapper writes its output and the delimiter, flushes, and the child inherits standard output, so no wrapper code ever holds those bytes.
+The child's bytes pass through unchanged — not parsed, not re-indented, not re-wrapped, not summarized — and nothing follows them. The wrapper claimed the name in order to add its own answer, not to edit the child's. In human format that is usually literal: the wrapper writes its output and the delimiter, flushes, and the child inherits standard output, so no wrapper code ever holds those bytes.
 
-The composed section is part of the result, so `--quiet` does not suppress it and a redirected standard output receives it. JSON mode is the one case that captures instead of inheriting, because the document has already claimed standard output: there is no delimiter, and the child's output is one opaque string field beside its status on the document the verb owns. When the child cannot be resolved or spawned, one line naming that condition takes the place of the section, and its absence does not change the exit status.
+`doctor` is the one surface that captures instead, because its verdict includes the child's status ([ADR-0085](../decisions/ADR-0085-carry-the-child-report-level-into-the-verdict.md)) and that status is only knowable once the child has exited. Capturing is what lets the wrapper's own bytes still come first. It changes nothing a reader sees: the captured bytes are replayed unchanged, standard error is replayed to standard error, and nothing follows them.
+
+The composed section is part of the result, so `--quiet` does not suppress it and a redirected standard output receives it. JSON mode always captures, because the document has already claimed standard output: there is no delimiter, and the child's output is one opaque string field beside its status on the document the verb owns. When the child cannot be resolved or spawned, one line naming that condition takes the place of the section, and its absence does not change the exit status.
 
 ## Verbosity
 

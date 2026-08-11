@@ -46,11 +46,8 @@ pub(crate) fn run(context: &AppContext) -> Result<DispatchOutcome, AppError> {
                             "child wrote version diagnostics"
                         );
                     }
-                    let version = std::str::from_utf8(&captured.stdout)
-                        .ok()
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .map(str::to_owned);
+                    let version = crate::domain::child::ChildVersion::parse(&captured.stdout)
+                        .map(|value| value.to_string());
                     ChildVersion {
                         status: if successful && version.is_some() {
                             "ok"

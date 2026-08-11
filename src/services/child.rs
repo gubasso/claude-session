@@ -165,6 +165,11 @@ fn scrubbed(context: &AppContext) -> Vec<(OsString, OsString)> {
     environment
 }
 
+/// Returns the bare environment used by child inspection subroutines.
+pub(crate) fn subroutine_environment(context: &AppContext) -> Vec<(OsString, OsString)> {
+    scrubbed(context)
+}
+
 /// Walks `PATH` once, remembering the first refusal.
 ///
 /// A candidate that exists but cannot be executed decides 126 only if nothing

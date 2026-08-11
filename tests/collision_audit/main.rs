@@ -70,6 +70,12 @@ fn claimed_verbs_match_the_child_inventory() {
 }
 
 #[test]
+fn doctor_flags_match_the_child_subcommand_inventory() {
+    let found = audit::doctor_flags(&load_surface(), &load_inventory());
+    assert!(found.is_empty(), "{}", render(&found));
+}
+
+#[test]
 fn prose_datelines_match_the_fixture() {
     let found = audit::datelines(&read(SURFACE), &load_inventory());
     assert!(found.is_empty(), "{}", render(&found));
@@ -114,6 +120,12 @@ fn document(flags: &str, verbs: &str, overlaps: &str) -> String {
         | Verb | Purpose | Grammar specified in |\n\
         | ---- | ------- | -------------------- |\n\
         {verbs}\n\
+        ### Doctor flags\n\n\
+        | Flag | Meaning | Child status |\n\
+        | ---- | ------- | ------------ |\n\
+        | `--json` | m | Free |\n\
+        | `--list` | m | Free |\n\
+        | `--strict` | m | Free |\n\n\
         | Child verb | Shared surface | Resolution | Reason |\n\
         | ---------- | -------------- | ---------- | ------ |\n\
         {overlaps}"
@@ -164,6 +176,38 @@ fn a_collision_claim_over_an_absent_flag_is_a_violation() {
         "{}",
         render(&found)
     );
+}
+
+#[test]
+fn a_doctor_subcommand_collision_is_a_violation() {
+    let surface = parsed(
+        "| `--quiet` | m | w | Free |\n\n",
+        DOCTOR_VERB,
+        DOCTOR_COMPOSED,
+    );
+    let inventory = INVENTORY.replace(
+        "    doctor:\n        - \"--help\"",
+        "    doctor:\n        - \"--help\"\n        - \"--json\"",
+    );
+    let found = audit::doctor_flags(
+        &surface,
+        &inventory::parse(&inventory).expect("fixture parses"),
+    );
+    assert_eq!(found.len(), 1, "{}", render(&found));
+    assert!(found[0].to_string().contains("`--json`"));
+}
+
+#[test]
+fn a_missing_doctor_flag_table_is_rejected() {
+    let text = document(
+        "| `--quiet` | m | w | Free |\n\n",
+        DOCTOR_VERB,
+        DOCTOR_COMPOSED,
+    );
+    let start = text.find("### Doctor flags").expect("heading");
+    let end = text[start..].find("| Child verb").expect("overlap") + start;
+    let without = format!("{}{}", &text[..start], &text[end..]);
+    assert!(surface::parse(&without).is_err());
 }
 
 #[test]

@@ -2,7 +2,7 @@
 
 The wrapper's exit-code matrix, the error message shape, and the rule that governs the boundary between wrapper-originated and child-originated status.
 
-The wrapper matrix and passthrough status boundary are implemented. Later verb regimes remain normative design.
+The wrapper matrix, passthrough boundary, and `doctor --strict` promotion are implemented. Other verb regimes remain normative design.
 
 ## Two regimes
 
@@ -15,6 +15,8 @@ Once the child is running, there is no wrapper. The exec replaced it, so the sta
 The boundary is the successful exec of a passthrough launch. Everything on the wrapper's side of it is in the matrix; everything after it belongs to `claude`.
 
 A verb that spawns the child as a subroutine — `account login`, `doctor`, `version` — is not that case. It asked the child a question and reports its own conclusion, so it keeps its own code from the matrix and its own standard output, and attributes the child instead ([ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md)).
+
+Keeping the code is not softening the answer. Where such a verb composes with the child's own report, the child's level crosses unchanged — a child that reports failure fails the run — and the verb answers `Unavailable` (69), reporting the child's own code as data beside it ([ADR-0085](../decisions/ADR-0085-carry-the-child-report-level-into-the-verdict.md)). The matrix stays closed and the child's status stays legible; [`doctor`](./doctor.md#the-three-levels) owns what the composed report looks like.
 
 ## Wrapper matrix
 

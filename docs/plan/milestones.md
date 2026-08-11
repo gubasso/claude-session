@@ -6,7 +6,6 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 007 comprehensive-doctor — shaped — 2 implementation sessions — after 012; the shared report engine every feature rung appends to
 - 005 account-authentication — shaped — 2 implementation sessions — after 007; the `0.2.0` login-mode account rung
 - 008 cli-artifacts — shaped — 1 implementation session — after 005; proves generated artifacts for the account MVP
 - 013 token-account-lifecycle — shaped — 2 implementation sessions — after 007 and 008; the `0.3.0` token lifecycle rung
@@ -19,6 +18,7 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 001 native-passthrough-foundation — done — 4 implementation sessions
 - 002 secure-session-storage — done — 3 implementation sessions — gave the state namespace its first durable artifacts
 - 003 native-child-exec — done — 2 implementation sessions — replaced supervision with the exec
+- 007 comprehensive-doctor — done — 2 implementation sessions — after 012; the shared report engine every feature rung appends to
 - 009 release-readiness — done — 1 implementation session — readied the `0.1.0` candidate; the forge bootstrap stays the operator's
 - 010 native-repository-gates — done — 1 implementation session — replaced four shell check-scripts
 - 011 entry-point-and-contract-repair — done — 3 implementation sessions — repaired contracts 001 claimed but did not meet

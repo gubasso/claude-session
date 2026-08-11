@@ -176,6 +176,37 @@ pub(crate) fn verbs(surface: &Surface, inventory: &Inventory) -> Vec<Violation> 
     out
 }
 
+pub(crate) fn doctor_flags(surface: &Surface, inventory: &Inventory) -> Vec<Violation> {
+    let mut out = Vec::new();
+    let measured = inventory.subcommand_flags.get("doctor");
+    for claimed in &surface.doctor_flags {
+        let present = measured.is_some_and(|flags| flags.contains(&claimed.spelling));
+        match (claimed.status, present) {
+            (Status::Free, true) => out.push(Violation::at(
+                SURFACE,
+                claimed.line,
+                format!(
+                    "doctor flag `{}` is documented free but appears in the child doctor inventory",
+                    claimed.spelling
+                ),
+            )),
+            (Status::Collides, false) => out.push(Violation::at(
+                SURFACE,
+                claimed.line,
+                format!(
+                    concat!(
+                        "doctor flag `{}` is documented colliding but is absent from the ",
+                        "child doctor inventory"
+                    ),
+                    claimed.spelling
+                ),
+            )),
+            _ => {}
+        }
+    }
+    out
+}
+
 /// The prose in the surface names the same version and date the fixture carries.
 /// Without this, regenerating the fixture and forgetting the prose leaves the
 /// page a confident lie that nothing else would catch.
