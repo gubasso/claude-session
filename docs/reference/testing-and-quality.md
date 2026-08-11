@@ -2,7 +2,7 @@
 
 Test tools, test lanes, the gate map, and which contract each mandatory test locks down. The approach and its rationale are in [the testing strategy](../explanation/testing-strategy.md).
 
-The native passthrough, secure session storage, profile composition, doctor, presentation, and login-account MVP rows are implemented. Remaining later-slice rows stay normative design until their owners land.
+The native passthrough, secure session storage, profile composition, doctor, presentation, login-account MVP, and generated-artifact rows are implemented. Remaining later-slice rows stay normative design until their owners land.
 
 ## Test kinds
 
@@ -131,6 +131,7 @@ Each of these locks down a contract that is otherwise decorative:
 | Doctor child composition  | A failed child report fails the verdict without `--strict`, and a wrapper hard failure outranks its code  | [Doctor](./doctor.md)                         |
 | Doctor remediation parity | A guard and the report use the catalog-owned remediation without paraphrase                               | [Doctor](./doctor.md)                         |
 | Help snapshot             | Generated help does not change unnoticed                                                                  | [CLI surface](./cli-surface.md)               |
+| Generated artifacts       | Completions and the man page carry the implemented wrapper grammar and leak no child flag                 | [CLI surface](./cli-surface.md)               |
 | Denylist membership       | The spellings the pre-split claims are exactly the documented table                                       | [CLI surface](./cli-surface.md)               |
 | Spelling matrix           | Exact matching: no abbreviation, no bundling, no case folding, both value forms                           | [CLI surface](./cli-surface.md)               |
 | Leading-position scope    | A claimed flag after any other token reaches the child                                                    | [CLI surface](./cli-surface.md)               |

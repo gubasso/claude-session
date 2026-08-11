@@ -69,7 +69,11 @@
           # native deps for -sys crates, uncomment as needed:
           # buildInputs = [ pkgs.openssl ];
           # nativeBuildInputs = [ pkgs.pkg-config ];
-          shellHook = ''echo "claude-session dev shell ready (toolchain from rust-toolchain.toml)"'';
+          # The greeting goes to standard error, because `nix develop --command`
+          # shares the command's stdout: on stdout this banner is prepended to
+          # whatever the command emits, which silently corrupts every redirected
+          # artifact (`just artifacts`, `just run -- man > page.1`).
+          shellHook = ''echo "claude-session dev shell ready (toolchain from rust-toolchain.toml)" >&2'';
         };
       }
     );

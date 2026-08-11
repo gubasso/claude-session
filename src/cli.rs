@@ -6,14 +6,25 @@ use crate::domain::identifier::Identifier;
 use clap::{ArgAction, Parser, Subcommand};
 
 pub(crate) mod account;
+pub(crate) mod completion;
 pub(crate) mod doctor;
 pub(crate) mod help;
+pub(crate) mod man;
 pub(crate) mod version;
 
 /// The small wrapper-owned grammar.
+// `about` and `version` are set explicitly because the man page publishes both
+// and `--help` publishes neither: `long_about` shadows `about` in help, and the
+// automatic version flag is disabled. Left to the derive, the page's `NAME`
+// section — what `whatis` and `apropos` index — would carry this struct's own
+// doc comment, and its `.TH` title would carry an empty version. Setting
+// `version` adds metadata only; `disable_version_flag` still owns the spelling,
+// which `--version` composes with the child's (`cli-surface.md#version-output`).
 #[derive(Debug, Parser)]
 #[command(
     name = "claude-session",
+    about = "preserve native claude behavior while adding isolated sessions",
+    version = env!("CARGO_PKG_VERSION"),
     disable_version_flag = true,
     disable_help_flag = true,
     infer_long_args = false,
@@ -52,10 +63,14 @@ pub(crate) struct Cli {
 pub(crate) enum Command {
     /// Manage durable child-owned accounts.
     Account(account::AccountArgs),
+    /// Emit shell completions for the wrapper's grammar.
+    Completion(completion::CompletionArgs),
     /// Inspect wrapper and child health.
     Doctor(doctor::DoctorArgs),
     /// Show wrapper help followed by native help.
     Help(help::HelpArgs),
+    /// Emit a man page generated from the wrapper's grammar.
+    Man(man::ManArgs),
     /// Show wrapper and native version information.
     Version(version::VersionArgs),
 }

@@ -66,8 +66,13 @@ pub(crate) enum InvocationKind {
     AccountList {
         mode: OutputMode,
     },
-    /// Requested help for one node of the `account` namespace.
-    AccountHelp {
+    Completion {
+        shell: clap_complete::Shell,
+    },
+    Man,
+    /// Requested help for one wrapper verb, or one node inside its namespace.
+    VerbHelp {
+        verb: &'static str,
         subcommand: Option<&'static str>,
     },
 }
@@ -148,7 +153,12 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
         .first()
         .filter(|_| !sentinel)
         .and_then(|value| value.to_str())
-        .filter(|value| matches!(*value, "account" | "doctor" | "help" | "version"));
+        .filter(|value| {
+            matches!(
+                *value,
+                "account" | "completion" | "doctor" | "help" | "man" | "version"
+            )
+        });
     if wrapper_verb.is_some() {
         wrapper.append(&mut child);
     }
@@ -177,6 +187,7 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
     } else {
         match cli.command {
             Some(Command::Account(value)) => classify_account(value)?,
+            Some(Command::Completion(value)) => classify_completion(&value)?,
             Some(Command::Doctor(value)) => InvocationKind::Doctor {
                 mode: if value.json {
                     OutputMode::Json
@@ -188,12 +199,24 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
             },
             // `help <verb>` prints exactly what `<verb> --help` prints
             // (`cli-surface.md#help`), so it routes to the same renderer.
-            Some(Command::Help(value)) => match value.verb {
-                None => InvocationKind::Help,
-                Some(crate::cli::help::HelpTopic::Account) => {
-                    InvocationKind::AccountHelp { subcommand: None }
+            Some(Command::Help(value)) => {
+                value
+                    .verb
+                    .map_or(InvocationKind::Help, |topic| InvocationKind::VerbHelp {
+                        verb: help_topic_node(topic),
+                        subcommand: None,
+                    })
+            }
+            Some(Command::Man(value)) => {
+                if value.help_flag {
+                    InvocationKind::VerbHelp {
+                        verb: "man",
+                        subcommand: None,
+                    }
+                } else {
+                    InvocationKind::Man
                 }
-            },
+            }
             Some(Command::Version(value)) => InvocationKind::Version {
                 mode: if value.json {
                     OutputMode::Json
@@ -212,13 +235,55 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
     })
 }
 
-/// Renders the `account` node's own help, the diagnostic a bare verb earns.
-fn account_help_text() -> String {
+/// Renders one verb node's own help, the diagnostic a bare verb earns.
+///
+/// The same parser node answers `<verb> --help`, so the help shown on failure
+/// and the help given on request cannot drift apart.
+fn node_help_text(verb: &str) -> String {
     let mut root = <Cli as clap::CommandFactory>::command();
     root.build();
-    root.find_subcommand_mut("account").map_or_else(
+    root.find_subcommand_mut(verb).map_or_else(
         || "no subcommand was given".to_owned(),
         |node| node.render_help().to_string(),
+    )
+}
+
+/// Maps a requested-help topic to the parser node that answers it.
+const fn help_topic_node(topic: crate::cli::help::HelpTopic) -> &'static str {
+    match topic {
+        crate::cli::help::HelpTopic::Account => "account",
+        crate::cli::help::HelpTopic::Completion => "completion",
+        crate::cli::help::HelpTopic::Man => "man",
+    }
+}
+
+/// Resolves the `completion` verb into one invocation.
+fn classify_completion(
+    value: &crate::cli::completion::CompletionArgs,
+) -> Result<InvocationKind, AppError> {
+    if value.help_flag {
+        return Ok(InvocationKind::VerbHelp {
+            verb: "completion",
+            subcommand: None,
+        });
+    }
+    // The shell had to become optional so `completion --help` could parse, so
+    // the parser can no longer raise this itself and the same node renders it
+    // here. An unrecognized shell is still the parser's own `Usage`, because
+    // the value is a closed `ValueEnum`.
+    value.shell.map_or_else(
+        || {
+            Err(AppError::new(
+                crate::error::ErrorKind::Usage,
+                Diagnostic::new(
+                    "completion requires a shell",
+                    "completion",
+                    node_help_text("completion"),
+                    "run claude-session completion --help",
+                ),
+            ))
+        },
+        |shell| Ok(InvocationKind::Completion { shell }),
     )
 }
 
@@ -232,7 +297,8 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
         }
     };
     if value.help_flag {
-        return Ok(InvocationKind::AccountHelp {
+        return Ok(InvocationKind::VerbHelp {
+            verb: "account",
             subcommand: match value.command {
                 None => None,
                 Some(AccountCommand::Login(_)) => Some("login"),
@@ -253,7 +319,7 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
             Diagnostic::new(
                 "account requires a subcommand",
                 "account",
-                account_help_text(),
+                node_help_text("account"),
                 "run claude-session account --help",
             ),
         )),
@@ -279,7 +345,11 @@ pub(crate) fn dispatch(
         InvocationKind::Doctor { list, strict, .. } => super::doctor::run(context, list, strict),
         InvocationKind::AccountLogin { name, .. } => super::account::login(context, name),
         InvocationKind::AccountList { .. } => super::account::list(context),
-        InvocationKind::AccountHelp { subcommand } => super::help::verb(context, subcommand),
+        InvocationKind::Completion { shell } => super::completion::run(context, shell),
+        InvocationKind::Man => super::man::run(context),
+        InvocationKind::VerbHelp { verb, subcommand } => {
+            super::help::verb(context, verb, subcommand)
+        }
     }
 }
 

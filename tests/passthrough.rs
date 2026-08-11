@@ -145,7 +145,7 @@ fn sentinel_preserves_child_suffix() {
 /// child surface, which only works if the wrapper never looks past it.
 #[test]
 fn a_wrapper_verb_behind_the_sentinel_reaches_the_child() {
-    for verb in ["doctor", "help", "version"] {
+    for verb in ["completion", "doctor", "help", "man", "version"] {
         let harness = Harness::new();
         assert!(
             harness
@@ -165,7 +165,7 @@ fn a_wrapper_verb_behind_the_sentinel_reaches_the_child() {
 
 #[test]
 fn unimplemented_verbs_reach_child() {
-    for verb in ["config", "profile", "completion", "man"] {
+    for verb in ["config", "profile"] {
         let harness = Harness::new();
         assert!(
             harness

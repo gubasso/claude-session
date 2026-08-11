@@ -2,7 +2,7 @@
 
 Every byte the wrapper writes, and where it goes. How a human-facing byte looks once it gets there is [presentation](./presentation.md)'s.
 
-The passthrough, diagnostic, logging, composed `help`, `version`, and `doctor` output, and account login/list human and JSON reports are implemented. Other verb output remains normative design.
+The passthrough, diagnostic, logging, composed `help`, `version`, and `doctor` output, account login/list human and JSON reports, and the raw `completion` and `man` results are implemented. Other verb output remains normative design.
 
 ## The stream contract
 

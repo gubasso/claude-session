@@ -17,4 +17,6 @@ pub(crate) struct HelpArgs {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 pub(crate) enum HelpTopic {
     Account,
+    Completion,
+    Man,
 }

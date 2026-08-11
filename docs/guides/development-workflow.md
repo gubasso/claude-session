@@ -32,10 +32,13 @@ Follow the [four-edit rule](../explanation/architecture.md#adding-a-verb-the-fou
 
 Send results to standard output and diagnostics to standard error through the single writer. Add verb-level `--json` only when the invocation produces scriptable data, then add the integration test and help snapshot.
 
+Grammar changes reach the completions and the man page through the same parser tree, and nothing generated is checked in. Run `just artifacts` as tail work to regenerate into the ignored build directory and smoke the result.
+
 ```bash
 just lint
 just test-unit
 just test-integration
+just artifacts
 ```
 
 ## Add a dependency

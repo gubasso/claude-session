@@ -10,26 +10,29 @@ use crate::{
     ui::writer::output_error,
 };
 
-/// Emits one `account` node's parser-derived help as a result.
+/// Emits one verb node's parser-derived help as a result.
 ///
-/// Nothing is composed onto it: `account` was renamed precisely so the child
-/// owns no surface of that name (`cli-surface.md#help`), so there is no child
-/// help to append. Requested help is a result, which is why this writes to
-/// standard output and completes with `0` rather than raising `Usage`.
+/// Nothing is composed onto it: no verb routed here appears in the child's
+/// inventory — `account` was renamed precisely so the child owns no surface of
+/// that name, and `completion` and `man` are wrapper-only (`cli-surface.md#help`)
+/// — so there is no child help to append. Requested help is a result, which is
+/// why this writes to standard output and completes with `0` rather than
+/// raising `Usage`.
 pub(crate) fn verb(
     context: &AppContext,
+    verb: &str,
     subcommand: Option<&str>,
 ) -> Result<DispatchOutcome, AppError> {
     let mut root = Cli::command();
     root.build();
     let node = root
-        .find_subcommand_mut("account")
-        .ok_or_else(|| render_error("account is not a wrapper verb"))?;
+        .find_subcommand_mut(verb)
+        .ok_or_else(|| render_error("the request names no wrapper verb"))?;
     let node = match subcommand {
         None => node,
         Some(name) => node
             .find_subcommand_mut(name)
-            .ok_or_else(|| render_error("account has no such subcommand"))?,
+            .ok_or_else(|| render_error("the verb has no such subcommand"))?,
     };
     let mut bytes = node.render_long_help().to_string().into_bytes();
     bytes.push(b'\n');

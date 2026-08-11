@@ -75,6 +75,19 @@ deny:
 doc:
 	{{dev}} cargo doc --all-features --no-deps
 
+# Regenerate the completions and man page, then smoke them.
+#
+# The output goes under the ignored build directory on purpose: the parser is
+# the only source, and a checked-in copy is the drift this recipe exists to
+# prevent. A grammar-owning slice runs this as tail work.
+artifacts out="target/artifacts":
+	mkdir -p {{out}}
+	{{dev}} cargo run --all-features -- man > {{out}}/claude-session.1
+	for shell in bash elvish fish powershell zsh; do \
+		{{dev}} cargo run --all-features -- completion $shell > {{out}}/claude-session.$shell; \
+	done
+	{{dev}} cargo nextest run --profile pre-push --all-features -E 'binary(cli_artifacts)'
+
 # --- Hooks ------------------------------------------------------------------
 
 # Install the pre-commit, commit-msg, and pre-push hooks.

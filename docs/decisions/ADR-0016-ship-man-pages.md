@@ -31,4 +31,4 @@ Man pages describe the wrapper's grammar only, for the reason [ADR-0002](./ADR-0
 
 Accepted
 
-Amends [ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md) — the claimed verb set grows by one.
+Amends [ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md) — the claimed verb set grows by one. Amended by [ADR-0086](./ADR-0086-emit-one-man-page-to-standard-output.md) — the named-directory form is deferred, so the verb writes one page to standard output.

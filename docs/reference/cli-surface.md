@@ -2,7 +2,7 @@
 
 The wrapper's own grammar: what `claude-session` claims, what it forwards, and the parser shape that makes verbatim passthrough work. For the reasoning behind these rules, see [the wrapper model](../explanation/wrapper-model.md).
 
-The passthrough, `help`, `version`, `doctor`, `account login [name]`, and `account list` surfaces are implemented, and so is requested help for the `account` namespace — `account --help`, `account <subcommand> --help`, and `help account`. Requested help for `doctor` and `version` is not yet a result; that gap is tracked as `Q-006` in [open questions](../plan/open-questions.md). Other account subcommands and options remain normative design and undeclared until their slices land.
+The passthrough, `help`, `version`, `doctor`, `account login [name]`, `account list`, `completion <shell>`, and `man` surfaces are implemented, and so is requested help for the `account` namespace and for the two generator verbs — `account --help`, `account <subcommand> --help`, `completion --help`, `man --help`, and the matching `help <verb>` spellings. Requested help for `doctor` and `version` is not yet a result; that gap is tracked as `Q-006` in [open questions](../plan/open-questions.md). Other account subcommands and options remain normative design and undeclared until their slices land.
 
 ## Invocation shape
 
@@ -203,10 +203,12 @@ The five are the full set the generator supports, so the list is the dependency'
 Man pages are generated from the same parser tree. Because help, completions, and man pages all read one `Command` tree, the flag list has a single source and no surface can drift from another. The authored prose file included into long help is included into the man page too. See [ADR-0016](../decisions/ADR-0016-ship-man-pages.md).
 
 ```text
-claude-session man [--out-dir <dir>]
+claude-session man
 ```
 
-Without `--out-dir`, `man` writes roff to standard output. With it, the page set is written into that directory — one page for the wrapper and one per verb — and standard output stays empty, so a packager can render at build time while a user previews without installing anything. Neither form takes `--json`: roff is not data.
+`man` writes one roff page — the wrapper's own — to standard output, so a user previews with `man -l -` and a packager renders `claude-session man > claude-session.1` at build time. Per-verb pages need a named output directory, which is deferred until a packager needs one ([ADR-0086](../decisions/ADR-0086-emit-one-man-page-to-standard-output.md)); each verb's detail stays reachable through its own requested help. The verb takes no `--json`: roff is not data.
+
+The page states an `about` and a version that `--help` never shows, because the authored long help shadows the one and the wrapper's own `--version` composes the other. Left to the parser's defaults the `NAME` section — what `whatis` and `apropos` index — would carry an internal phrase, so both are set explicitly on the root command.
 
 ## Version output
 
