@@ -2,7 +2,7 @@
 
 The probe catalog, what each check reads, the remediation it prints, and how a run collapses into one exit code.
 
-The `doctor` verb, its report, `--list`, and `--strict` are implemented over 15 checks.
+The `doctor` verb, its report, `--list`, and `--strict` are implemented over 16 checks.
 
 The catalog below has three consumers and only one of them is an output surface, which is why it lives here rather than in [logging and output](./logging-and-output.md): a reader holding a check id is asking a health question, not a formatting one. That page still owns the streams and the document rules, and [presentation](./presentation.md) owns the appearance rules this one defers to.
 
@@ -28,23 +28,24 @@ A guard that fails emits its check's remediation verbatim — not a paraphrase �
 
 Each check has a stable kebab-case id, a scope, a severity, and the `err.kind` a failure of it exits with.
 
-| Id                          | Scope   | Severity | `err.kind`           | Passes when                                                                         |
-| --------------------------- | ------- | -------- | -------------------- | ----------------------------------------------------------------------------------- |
-| `base-dirs-resolve`         | Host    | Hard     | `Unavailable`        | Config and state resolve to absolute, usable paths                                  |
-| `runtime-dir-present`       | Host    | Soft     | `Unavailable`        | Present; absent is reported, not failed                                             |
-| `wrapper-config-parses`     | Host    | Hard     | `Config`             | Parses, with no unknown keys                                                        |
-| `child-binary-resolves`     | Host    | Hard     | `ChildNotFound`      | Found via the ladder in [process runtime](./process-runtime.md)                     |
-| `child-is-executable`       | Host    | Hard     | `ChildNotExecutable` | Executable by the current user                                                      |
-| `child-version-floor`       | Host    | Soft     | `Unavailable`        | At or above the documented minimum                                                  |
-| `storage-paths-no-symlinks` | Session | Hard     | `Permission`         | No existing wrapper-managed path component is a symbolic link                       |
-| `storage-paths-owned`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path component is owned by the current user          |
-| `storage-paths-typed`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path has the file type the artifact table assigns it |
-| `storage-directory-modes`   | Session | Hard     | `Permission`         | Every wrapper-managed directory has mode `0700`, after automatic correction         |
-| `storage-secret-modes`      | Session | Hard     | `Permission`         | Every wrapper-owned file assigned mode `0600` has that mode, after correction       |
-| `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                |
-| `settings-entry-consistent` | Session | Hard     | `DataFormat`         | A materialized entry's recorded digest matches the one its inputs recompute         |
-| `account-registry-readable` | Session | Soft     | `Io`                 | The account collection can be enumerated safely                                     |
-| `credentials-usable`        | Session | Soft     | `Auth`               | The selected account has safe metadata and its stored mode's credential artifact    |
+| Id                          | Scope   | Severity | `err.kind`           | Passes when                                                                                                    |
+| --------------------------- | ------- | -------- | -------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `base-dirs-resolve`         | Host    | Hard     | `Unavailable`        | Config and state resolve to absolute, usable paths                                                             |
+| `runtime-dir-present`       | Host    | Soft     | `Unavailable`        | Present; absent is reported, not failed                                                                        |
+| `wrapper-config-parses`     | Host    | Hard     | `Config`             | Parses, with no unknown keys                                                                                   |
+| `child-binary-resolves`     | Host    | Hard     | `ChildNotFound`      | Found via the ladder in [process runtime](./process-runtime.md)                                                |
+| `child-is-executable`       | Host    | Hard     | `ChildNotExecutable` | Executable by the current user                                                                                 |
+| `child-version-floor`       | Host    | Soft     | `Unavailable`        | At or above the documented minimum                                                                             |
+| `storage-paths-no-symlinks` | Session | Hard     | `Permission`         | No existing wrapper-managed path component is a symbolic link                                                  |
+| `storage-paths-owned`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path component is owned by the current user                                     |
+| `storage-paths-typed`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path has the file type the artifact table assigns it                            |
+| `storage-directory-modes`   | Session | Hard     | `Permission`         | Every wrapper-managed directory has mode `0700`, after automatic correction                                    |
+| `storage-secret-modes`      | Session | Hard     | `Permission`         | Every wrapper-owned file assigned mode `0600` has that mode, after correction                                  |
+| `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                                           |
+| `settings-entry-consistent` | Session | Hard     | `DataFormat`         | A materialized entry's recorded digest matches the one its inputs recompute                                    |
+| `account-registry-readable` | Session | Soft     | `Io`                 | The account collection can be enumerated safely                                                                |
+| `credentials-usable`        | Session | Soft     | `Auth`               | The selected account has safe metadata and its stored mode's credential artifact                               |
+| `settings-profile-valid`    | Session | Hard     | `DataFormat`         | The resolved profile document, and the array strategy table it declares, are structurally valid and applicable |
 
 Hard means the wrapper cannot function. Soft means a feature is degraded.
 
@@ -76,6 +77,7 @@ Every check that can fail has a row here. A guard cannot quote a remediation tha
 | `settings-entry-consistent` | The composed entry at `{path}` does not match the digest its inputs recompute, so it was neither opened nor overwritten. Move it aside; the next launch composes a fresh one. Report this — an entry is written once and never rewritten. |
 | `account-registry-readable` | Make `{path}` a readable, private directory owned by the current user, then retry.                                                                                                                                                        |
 | `credentials-usable`        | Run `claude-session account login {account}` to recreate this account's stored authentication and its local metadata.                                                                                                                     |
+| `settings-profile-valid`    | The profile at `{path}`, named `{profile}`, parsed but is not usable: correct the layer list or the array strategy it declares, then run the launch again.                                                                                |
 
 On a credential path — `oauth-token`, `auth-mode.json`, or the child's `.credentials.json` — a symlink means something else may have read the secret, so one clause is appended. Only `credentials-usable` appends it today, over the selected account's three credential paths; the wrapper-managed storage checks refuse a link on those paths without it. Ownership, type, and symlink defects on the child-owned credential are reported by `credentials-usable` under its published `Auth` kind, and the diagnostic names the concrete ownership cause:
 
@@ -124,7 +126,7 @@ Checks are grouped by scope in catalog order, and each line carries its status a
 The rows are followed by one line per level, in the fixed order `wrapper`, `child`, `doctor`:
 
 ```text
-wrapper status=pass total=15 passed=15 warned=0 failed=0 skipped=0 hard_failures=0 exit=0
+wrapper status=pass total=16 passed=16 warned=0 failed=0 skipped=0 hard_failures=0 exit=0
 child status=fail exit=1
 doctor status=fail wrapper=0 child=1 exit=69
 ```
@@ -151,7 +153,7 @@ The `child` line carries `exit` when the child returned one and `reason` when it
         "kind": "ChildNotFound"
       }
     ],
-    "summary": { "total": 15, "passed": 15, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0, "exit": 0 }
+    "summary": { "total": 16, "passed": 16, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0, "exit": 0 }
   },
   "child": { "status": "fail", "output": "…", "exit": 1 },
   "schema_version": 1

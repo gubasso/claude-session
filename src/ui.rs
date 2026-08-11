@@ -2,4 +2,5 @@
 
 pub(crate) mod account;
 pub(crate) mod doctor;
+pub(crate) mod profile;
 pub(crate) mod writer;

@@ -145,7 +145,7 @@ fn sentinel_preserves_child_suffix() {
 /// child surface, which only works if the wrapper never looks past it.
 #[test]
 fn a_wrapper_verb_behind_the_sentinel_reaches_the_child() {
-    for verb in ["completion", "doctor", "help", "man", "version"] {
+    for verb in ["completion", "doctor", "help", "man", "profile", "version"] {
         let harness = Harness::new();
         assert!(
             harness
@@ -163,23 +163,25 @@ fn a_wrapper_verb_behind_the_sentinel_reaches_the_child() {
     }
 }
 
+/// `config` is documented on the CLI surface but not yet built, so it is still
+/// the child's. The single remaining spelling is named rather than looped over,
+/// because a one-element loop reads as a list that happens to be short.
 #[test]
 fn unimplemented_verbs_reach_child() {
-    for verb in ["config", "profile"] {
-        let harness = Harness::new();
-        assert!(
-            harness
-                .command()
-                .arg(verb)
-                .status()
-                .expect("wrapper")
-                .success()
-        );
-        assert_eq!(
-            read_nul(&harness.record_dir().join("argv"))[1],
-            verb.as_bytes()
-        );
-    }
+    let verb = "config";
+    let harness = Harness::new();
+    assert!(
+        harness
+            .command()
+            .arg(verb)
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    assert_eq!(
+        read_nul(&harness.record_dir().join("argv"))[1],
+        verb.as_bytes()
+    );
 }
 
 #[test]

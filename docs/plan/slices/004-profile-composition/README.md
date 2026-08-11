@@ -43,12 +43,12 @@ Identical one-piece inputs reuse one immutable byte-identical settings entry, an
 
 ## Acceptance
 
-- When a selected profile names one valid piece, the wrapper shall produce deterministic settings bytes and a provenance sidecar naming that profile and piece.
+- When a selected profile names one valid piece, the wrapper shall produce deterministic settings bytes and a provenance sidecar naming that profile and piece. -> session_storage::one_piece_profile_writes_exact_settings_and_basic_sidecar
 - When identical one-piece inputs are selected again, the wrapper shall reuse the complete immutable entry without rewriting it.
-- When the profile bytes, resolved profile path, piece bytes, or resolved piece path change, the wrapper shall name a different entry.
+- When the profile bytes, resolved profile path, piece bytes, or resolved piece path change, the wrapper shall name a different entry. -> session_storage::editing_a_piece_names_a_new_entry_and_leaves_the_old_one
 - When a one-piece profile launch succeeds, the wrapper shall prepend the native `--settings` pair and preserve the user's child argv as an untouched suffix.
-- When profiles are listed, the wrapper shall report the available profile names without claiming unimplemented multi-piece behavior.
-- When the profile MVP lands, its doctor entries, generated CLI artifacts, user documentation, and `0.4.0` release gates shall agree with the implemented grammar.
+- When profiles are listed, the wrapper shall report the available profile names without claiming unimplemented multi-piece behavior. -> profiles::profile_lists_the_available_names_in_order
+- When the profile MVP lands, its doctor entries, generated CLI artifacts, user documentation, and `0.4.0` release gates shall agree with the implemented grammar. -> doctor::profile_mvp_documentation_matches_the_implemented_grammar
 
 ## Rabbit holes
 

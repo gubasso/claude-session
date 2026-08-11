@@ -8,4 +8,5 @@ pub(crate) mod doctor;
 pub(crate) mod help;
 pub(crate) mod man;
 pub(crate) mod passthrough;
+pub(crate) mod profile;
 pub(crate) mod version;

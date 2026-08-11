@@ -6,7 +6,6 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 004 profile-composition — shaped — 2 implementation sessions — after 013; the `0.4.0` single-piece profile rung
 - 014 full-profile-composition — shaped — 2 implementation sessions — after 004; the `0.5.0` full-composition rung
 - 006 proxy-guide-and-research — shaped — 1 implementation session — after 003; filler only while the next versioned rung is blocked on measurement
 
@@ -15,6 +14,7 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 001 native-passthrough-foundation — done — 4 implementation sessions
 - 002 secure-session-storage — done — 3 implementation sessions — gave the state namespace its first durable artifacts
 - 003 native-child-exec — done — 2 implementation sessions — replaced supervision with the exec
+- 004 profile-composition — done — 2 implementation sessions — after 013; the `0.4.0` single-piece profile rung inside the combined 004 and 014 effort
 - 005 account-authentication — done — 2 implementation sessions — after 007; the `0.2.0` login-mode account rung; cut the bespoke Rust PTY harness in favor of the pinned devShell allocator
 - 007 comprehensive-doctor — done — 2 implementation sessions — after 012; the shared report engine every feature rung appends to
 - 008 cli-artifacts — done — 1 implementation session — after 005; deferred the man-page output directory to ADR-0086 rather than ship a form no packager needed

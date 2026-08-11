@@ -75,6 +75,7 @@ pub(crate) const CATALOG: &[Check] = &[
     Check::Entry(EntryCheck::Consistent),
     Check::Account(AccountCheck::RegistryReadable),
     Check::Account(AccountCheck::CredentialsUsable),
+    Check::Entry(EntryCheck::Valid),
 ];
 
 impl Check {
@@ -527,6 +528,8 @@ impl StorageCheck {
 pub(crate) enum EntryCheck {
     /// A resolved profile, and every piece it names, exists.
     Compose,
+    /// A resolved profile document, and the strategy table it declares, are usable.
+    Valid,
     /// A materialized entry's recorded digest matches the one its inputs recompute.
     Consistent,
 }
@@ -536,6 +539,7 @@ impl EntryCheck {
     pub(crate) const fn id(self) -> &'static str {
         match self {
             Self::Compose => "settings-compose",
+            Self::Valid => "settings-profile-valid",
             Self::Consistent => "settings-entry-consistent",
         }
     }
@@ -544,7 +548,7 @@ impl EntryCheck {
     pub(crate) const fn kind(self) -> ErrorKind {
         match self {
             Self::Compose => ErrorKind::NoInput,
-            Self::Consistent => ErrorKind::DataFormat,
+            Self::Valid | Self::Consistent => ErrorKind::DataFormat,
         }
     }
 
@@ -554,6 +558,11 @@ impl EntryCheck {
             Self::Compose => {
                 "{path}, named by profile {profile}, does not exist. Create it, correct \
                 the name in the profile, or select a different profile."
+            }
+            Self::Valid => {
+                "The profile at {path}, named {profile}, parsed but is not usable: \
+                correct the layer list or the array strategy it declares, then run the \
+                launch again."
             }
             Self::Consistent => {
                 "The composed entry at {path} does not match the digest its inputs \
@@ -624,105 +633,118 @@ mod tests {
         );
     }
 
+    /// The whole published catalog, written out rather than derived, for the
+    /// same reason as [`STORAGE_CATALOG`]: a table generated from the enum would
+    /// agree with the enum by construction. Hoisted to a constant because the
+    /// literal is the point, and it must stay one flat list as the catalog
+    /// grows.
+    const FULL_CATALOG: &[(&str, Scope, Severity, ErrorKind)] = &[
+        (
+            "base-dirs-resolve",
+            Scope::Host,
+            Severity::Hard,
+            ErrorKind::Unavailable,
+        ),
+        (
+            "runtime-dir-present",
+            Scope::Host,
+            Severity::Soft,
+            ErrorKind::Unavailable,
+        ),
+        (
+            "wrapper-config-parses",
+            Scope::Host,
+            Severity::Hard,
+            ErrorKind::Config,
+        ),
+        (
+            "child-binary-resolves",
+            Scope::Host,
+            Severity::Hard,
+            ErrorKind::ChildNotFound,
+        ),
+        (
+            "child-is-executable",
+            Scope::Host,
+            Severity::Hard,
+            ErrorKind::ChildNotExecutable,
+        ),
+        (
+            "child-version-floor",
+            Scope::Host,
+            Severity::Soft,
+            ErrorKind::Unavailable,
+        ),
+        (
+            "storage-paths-no-symlinks",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::Permission,
+        ),
+        (
+            "storage-paths-owned",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::Permission,
+        ),
+        (
+            "storage-paths-typed",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::Permission,
+        ),
+        (
+            "storage-directory-modes",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::Permission,
+        ),
+        (
+            "storage-secret-modes",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::Permission,
+        ),
+        (
+            "settings-compose",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::NoInput,
+        ),
+        (
+            "settings-entry-consistent",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::DataFormat,
+        ),
+        (
+            "account-registry-readable",
+            Scope::Session,
+            Severity::Soft,
+            ErrorKind::Io,
+        ),
+        (
+            "credentials-usable",
+            Scope::Session,
+            Severity::Soft,
+            ErrorKind::Auth,
+        ),
+        (
+            "settings-profile-valid",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::DataFormat,
+        ),
+    ];
+
     #[test]
     fn complete_catalog_metadata_and_order_are_pinned() {
-        let expected = [
-            (
-                "base-dirs-resolve",
-                Scope::Host,
-                Severity::Hard,
-                ErrorKind::Unavailable,
-            ),
-            (
-                "runtime-dir-present",
-                Scope::Host,
-                Severity::Soft,
-                ErrorKind::Unavailable,
-            ),
-            (
-                "wrapper-config-parses",
-                Scope::Host,
-                Severity::Hard,
-                ErrorKind::Config,
-            ),
-            (
-                "child-binary-resolves",
-                Scope::Host,
-                Severity::Hard,
-                ErrorKind::ChildNotFound,
-            ),
-            (
-                "child-is-executable",
-                Scope::Host,
-                Severity::Hard,
-                ErrorKind::ChildNotExecutable,
-            ),
-            (
-                "child-version-floor",
-                Scope::Host,
-                Severity::Soft,
-                ErrorKind::Unavailable,
-            ),
-            (
-                "storage-paths-no-symlinks",
-                Scope::Session,
-                Severity::Hard,
-                ErrorKind::Permission,
-            ),
-            (
-                "storage-paths-owned",
-                Scope::Session,
-                Severity::Hard,
-                ErrorKind::Permission,
-            ),
-            (
-                "storage-paths-typed",
-                Scope::Session,
-                Severity::Hard,
-                ErrorKind::Permission,
-            ),
-            (
-                "storage-directory-modes",
-                Scope::Session,
-                Severity::Hard,
-                ErrorKind::Permission,
-            ),
-            (
-                "storage-secret-modes",
-                Scope::Session,
-                Severity::Hard,
-                ErrorKind::Permission,
-            ),
-            (
-                "settings-compose",
-                Scope::Session,
-                Severity::Hard,
-                ErrorKind::NoInput,
-            ),
-            (
-                "settings-entry-consistent",
-                Scope::Session,
-                Severity::Hard,
-                ErrorKind::DataFormat,
-            ),
-            (
-                "account-registry-readable",
-                Scope::Session,
-                Severity::Soft,
-                ErrorKind::Io,
-            ),
-            (
-                "credentials-usable",
-                Scope::Session,
-                Severity::Soft,
-                ErrorKind::Auth,
-            ),
-        ];
-        assert_eq!(CATALOG.len(), 15);
-        for (check, (id, scope, severity, kind)) in CATALOG.iter().zip(expected) {
+        assert_eq!(CATALOG.len(), FULL_CATALOG.len());
+        assert_eq!(CATALOG.len(), 16);
+        for (check, (id, scope, severity, kind)) in CATALOG.iter().zip(FULL_CATALOG) {
             assert_eq!(
                 (check.id(), check.scope(), check.severity(), check.kind()),
-                (id, scope, severity, kind)
+                (*id, *scope, *severity, *kind)
             );
         }
     }

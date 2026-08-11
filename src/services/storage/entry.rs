@@ -14,6 +14,7 @@ use crate::{
     context::AppContext,
     domain::{
         checks::{Check, CheckResult, EntryCheck},
+        encoding::with_lossy_sibling,
         entry::{EntryInputs, PieceDigest, entry_paths, hex, input_digest},
         identifier::Identifier,
         profile::Profile,
@@ -121,14 +122,52 @@ pub(crate) fn doctor_results(context: &AppContext, profile: &Identifier) -> Vec<
     vec![compose, consistency]
 }
 
+/// Reports whether the selected profile document is structurally usable.
+///
+/// Its own catalog entry rather than a leg of `settings-compose`, because that
+/// check's published "passes when" is about existence and its remediation says
+/// to create the file — advice that is wrong for a file that is already there
+/// ([ADR-0018](../../../docs/decisions/ADR-0018-make-every-prerequisite-a-catalog-entry.md)).
+pub(crate) fn validity_result(context: &AppContext, profile: Option<&Identifier>) -> CheckResult {
+    let check = Check::Entry(EntryCheck::Valid);
+    let Some(profile) = profile else {
+        return CheckResult::skipped(check, "no profile is selected");
+    };
+    let path = context.paths().profile_file(profile);
+    // A missing document is `settings-compose`'s subject, and reporting it twice
+    // would make one failure look like two.
+    let Ok(bytes) = SystemFileSystem::read(&path) else {
+        return CheckResult::skipped(check, "the profile document could not be read");
+    };
+    match Profile::parse(&String::from_utf8_lossy(&bytes)) {
+        Ok(_) => CheckResult::pass(
+            check,
+            format!("profile {} is structurally valid", profile.as_str()),
+        ),
+        Err(error) => CheckResult::defect(
+            check,
+            error.to_string(),
+            check
+                .hint(&[
+                    ("path", &path.display().to_string()),
+                    ("profile", profile.as_str()),
+                ])
+                .unwrap_or_default(),
+        ),
+    }
+}
+
 fn inspect_inputs(context: &AppContext, profile: &Identifier) -> Result<EntryProbe, AppError> {
     let paths = context.paths();
     let profile_path = paths.profile_file(profile);
     let profile_bytes = read_input(&profile_path, profile, EntryCheck::Compose)?;
+    // A profile that exists but does not parse is a different failure from one
+    // that is missing: `Compose` covers existence, `Valid` covers usability, and
+    // `exit-codes.md` publishes `DataFormat` for the second.
     let document = Profile::parse(&String::from_utf8_lossy(&profile_bytes)).map_err(|error| {
         AppError::new(
-            EntryCheck::Compose.kind(),
-            EntryCheck::Compose.diagnostic(&profile_path, profile.as_str(), &error.to_string()),
+            EntryCheck::Valid.kind(),
+            EntryCheck::Valid.diagnostic(&profile_path, profile.as_str(), &error.to_string()),
         )
     })?;
     let mut pieces = Vec::with_capacity(document.layers().len());
@@ -341,9 +380,7 @@ fn sidecar(
         "profile_path": profile_path.display().to_string(),
         "digest": digest,
     });
-    if let Some(encoded) = lossy_bytes(profile_path) {
-        document["profile_path_b64"] = serde_json::Value::String(encoded);
-    }
+    with_lossy_sibling(&mut document, "profile_path", profile_path);
     let entries: Vec<serde_json::Value> = pieces
         .iter()
         .map(|(name, piece)| {
@@ -351,9 +388,7 @@ fn sidecar(
                 "name": name.as_str(),
                 "path": piece.path.display().to_string(),
             });
-            if let Some(encoded) = lossy_bytes(&piece.path) {
-                entry["path_b64"] = serde_json::Value::String(encoded);
-            }
+            with_lossy_sibling(&mut entry, "path", &piece.path);
             entry
         })
         .collect();
@@ -371,40 +406,6 @@ fn sidecar(
     })?;
     bytes.push(b'\n');
     Ok(bytes)
-}
-
-/// Returns the base64 of a path whose display form is not byte-exact.
-///
-/// A path is an OS byte string and JSON is not. Where the two agree the display
-/// form is the whole answer and a sibling field would discriminate nothing;
-/// where they do not, the display form has already lost bytes.
-fn lossy_bytes(path: &Path) -> Option<String> {
-    use std::os::unix::ffi::OsStrExt as _;
-    let raw = path.as_os_str().as_bytes();
-    if path.to_str().is_some() {
-        return None;
-    }
-    Some(base64(raw))
-}
-
-/// Encodes bytes as standard, padded base64.
-fn base64(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let mut buffer = [0_u8; 3];
-        buffer[..chunk.len()].copy_from_slice(chunk);
-        let packed = u32::from(buffer[0]) << 16 | u32::from(buffer[1]) << 8 | u32::from(buffer[2]);
-        for index in 0..4 {
-            if index <= chunk.len() {
-                let shift = 18 - index * 6;
-                out.push(char::from(ALPHABET[((packed >> shift) & 0x3F) as usize]));
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
 }
 
 /// Reads the `digest` field a sidecar records.
@@ -533,26 +534,5 @@ mod tests {
             compose(&bodies).expect("composes"),
             compose(&bodies).expect("composes")
         );
-    }
-
-    #[test]
-    fn a_utf8_path_carries_no_base64_sibling() {
-        assert_eq!(lossy_bytes(Path::new("/c/settings/base.json")), None);
-    }
-
-    #[test]
-    fn a_non_utf8_path_carries_its_raw_bytes() {
-        use std::{ffi::OsString, os::unix::ffi::OsStringExt as _};
-        let path = PathBuf::from(OsString::from_vec(vec![b'/', b'p', 0x80]));
-        assert_eq!(lossy_bytes(&path), Some("L3CA".to_owned()));
-    }
-
-    #[test]
-    fn base64_pads_every_partial_group() {
-        assert_eq!(base64(b""), "");
-        assert_eq!(base64(b"f"), "Zg==");
-        assert_eq!(base64(&b"foobar"[..2]), "Zm8=");
-        assert_eq!(base64(b"foo"), "Zm9v");
-        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
     }
 }

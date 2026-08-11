@@ -4,7 +4,7 @@ mod support;
 
 use support::Harness;
 
-const IDS: [&str; 15] = [
+const IDS: [&str; 16] = [
     "base-dirs-resolve",
     "runtime-dir-present",
     "wrapper-config-parses",
@@ -20,6 +20,7 @@ const IDS: [&str; 15] = [
     "settings-entry-consistent",
     "account-registry-readable",
     "credentials-usable",
+    "settings-profile-valid",
 ];
 
 fn healthy(harness: &Harness) -> assert_cmd::Command {
@@ -48,7 +49,7 @@ fn doctor_human_report_preserves_catalog_order_and_text_shape() {
     }
     assert!(text.contains("Host\n[pass]"));
     assert!(text.contains("Session\n"));
-    assert!(text.contains("wrapper status=pass total=15"));
+    assert!(text.contains("wrapper status=pass total=16"));
     assert!(text.contains("\nchild status=pass exit=0\n"));
     assert!(text.contains("\ndoctor status=pass wrapper=0 child=0 exit=0\n"));
     assert!(text.ends_with("\n\n--- claude doctor ---\n\nnative doctor\n"));
@@ -64,12 +65,12 @@ fn doctor_json_report_matches_the_public_catalog() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(value["schema_version"], 1);
     let checks = value["wrapper"]["checks"].as_array().expect("checks");
-    assert_eq!(checks.len(), 15);
+    assert_eq!(checks.len(), 16);
     for (row, id) in checks.iter().zip(IDS) {
         assert_eq!(row["id"], id);
     }
     // Three levels, each stating its own status and code.
-    assert_eq!(value["wrapper"]["summary"]["total"], 15);
+    assert_eq!(value["wrapper"]["summary"]["total"], 16);
     assert_eq!(value["wrapper"]["status"], "pass");
     assert_eq!(value["wrapper"]["summary"]["exit"], 0);
     assert_eq!(value["child"]["status"], "pass");
@@ -93,7 +94,7 @@ fn doctor_list_human_runs_no_probes() {
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let text = String::from_utf8(output.stdout).expect("text");
-    assert_eq!(text.lines().count(), 15);
+    assert_eq!(text.lines().count(), 16);
     assert!(!harness.record_dir().join("argv").exists());
 }
 
@@ -107,7 +108,7 @@ fn doctor_list_json_discovers_the_same_catalog() {
         .expect("list");
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     let rows = value["checks"].as_array().expect("checks");
-    assert_eq!(rows.len(), 15);
+    assert_eq!(rows.len(), 16);
     for (row, id) in rows.iter().zip(IDS) {
         assert_eq!(row["id"], id);
         assert!(row.get("status").is_none());
@@ -145,7 +146,7 @@ fn doctor_skips_inapplicable_session_checks_with_reasons() {
         .iter()
         .filter(|row| row["status"] == "skipped")
         .count();
-    assert_eq!(skipped, 9);
+    assert_eq!(skipped, 10);
 }
 
 #[test]
@@ -180,7 +181,7 @@ fn doctor_continues_after_a_subsystem_failure() {
             .expect("checks")
             .last()
             .expect("last")["id"],
-        "credentials-usable"
+        "settings-profile-valid"
     );
 }
 
@@ -304,7 +305,7 @@ fn doctor_reports_bootstrap_failures_in_the_requested_mode() {
     assert_eq!(value["wrapper"]["checks"][2]["status"], "fail");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        15
+        16
     );
 }
 
@@ -493,5 +494,62 @@ fn the_token_lifecycle_documentation_matches_the_implemented_grammar() {
     assert!(
         accounts.contains("token_helper"),
         "the unspecified helper boundary stays named rather than quietly dropped"
+    );
+}
+
+/// The `0.4.0` rung's own documentation gate.
+///
+/// One rung, one gate: this asserts the sentences single-piece profile
+/// composition and the `profile` verb made false are gone, and that `config`
+/// is still honestly named as unbuilt.
+#[test]
+fn profile_mvp_documentation_matches_the_implemented_grammar() {
+    let readme = document("README.md");
+    assert!(
+        !readme
+            .contains("The profile isolation the crate description also promises is not shipped"),
+        "profile composition shipped, so the disclaimer is stale"
+    );
+    assert!(
+        !readme.contains("`help` and `version` are the only surfaces it owns"),
+        "seven surfaces are owned, so the two-surface claim is stale"
+    );
+
+    let surface = document("docs/reference/cli-surface.md");
+    assert!(
+        surface.contains("`profile --help`"),
+        "requested help for profile is implemented, so the surface names it"
+    );
+    assert!(
+        !surface.contains("Other account subcommands and options remain normative design"),
+        "the negative pin the token rung established stays established"
+    );
+
+    let configuration = document("docs/reference/configuration.md");
+    assert!(
+        configuration.contains("the `profile` listing verb are also implemented"),
+        "the configuration status paragraph must claim the shipped listing"
+    );
+    assert!(
+        configuration
+            .contains("the `config` verb, and generated examples remain later-slice design"),
+        "config is still unbuilt and the page must say so"
+    );
+
+    let output = document("docs/reference/logging-and-output.md");
+    assert!(
+        !output.contains("the unbuilt `config` and `profile` verbs"),
+        "profile output shipped, so only config remains named"
+    );
+
+    // The exit-code correction this rung landed, pinned at its owner.
+    let codes = document("docs/reference/exit-codes.md");
+    let malformed = codes
+        .lines()
+        .find(|line| line.contains("A resolved profile is malformed or has an empty `layers`"))
+        .expect("the profile-resolution table names the malformed case");
+    assert!(
+        malformed.contains("`65`"),
+        "the published malformed-profile row is what the implementation now exits with: {malformed}"
     );
 }

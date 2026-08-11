@@ -2,7 +2,7 @@
 
 A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 
-> Status: unreleased. The wrapper forwards to `claude` natively, and `help` and `version` are the only surfaces it owns. Nothing else described in [docs](./docs/README.md) is shipped yet.
+> Status: unreleased. The wrapper forwards to `claude` natively and owns `help`, `version`, `doctor`, the `account` namespace, `completion`, `man`, and `profile`. Everything else described in [docs](./docs/README.md) is design ahead of the code.
 
 ## Usage
 
@@ -14,7 +14,7 @@ claude-session -p "hello" --verbose  # forwarded verbatim
 claude-session -- --version          # `--` forces every later argument to the child
 ```
 
-Two surfaces belong to the wrapper, and each composes its own output with the child's:
+Two of the wrapper's surfaces compose their own output with the child's:
 
 ```bash
 claude-session version   # the wrapper's version, then the resolved child's
@@ -30,7 +30,18 @@ claude-session --account work -- --version         # launch under that account
 claude-session account status work                 # mode, health, and what shadows it
 ```
 
-The profile isolation the crate description also promises is not shipped. [Milestones](./docs/plan/milestones.md) carries the order it lands in.
+Profiles compose user-authored settings pieces into one child settings document, selected per launch:
+
+```bash
+mkdir -p ~/.config/claude-session/settings ~/.config/claude-session/profiles
+echo '{"model":"sonnet"}' > ~/.config/claude-session/settings/base.json
+printf 'layers:\n  - base\n' > ~/.config/claude-session/profiles/dev.yaml
+
+claude-session profile               # the profiles `--profile` can select
+claude-session --profile dev         # launch with the composed settings
+```
+
+The composed document reaches the child as an additional native settings layer, so a `--settings` of your own still replaces it and the working directory's own settings still load beneath it. [Milestones](./docs/plan/milestones.md) carries the order the rest lands in.
 
 ## Design contract
 

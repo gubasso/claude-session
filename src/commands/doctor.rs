@@ -230,6 +230,12 @@ pub(crate) fn run(
             ));
         }
         results.extend(crate::services::account::doctor_results(context));
+        // After the account pair, because the pushed order has to match the
+        // catalog's and `settings-profile-valid` is its newest, last entry.
+        results.push(crate::services::storage::entry::validity_result(
+            context,
+            context.session().profile(),
+        ));
     }
 
     let (child, child_race) = child_report(context, runnable.as_deref())?;

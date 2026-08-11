@@ -116,11 +116,13 @@ impl XdgPaths {
     pub(crate) fn composed(&self) -> PathBuf {
         self.state.join("composed")
     }
+    /// Returns the directory holding one profile document per profile.
+    pub(crate) fn profiles(&self) -> PathBuf {
+        self.config.join("profiles")
+    }
     /// Returns the profile document for one profile name.
     pub(crate) fn profile_file(&self, profile: &Identifier) -> PathBuf {
-        self.config
-            .join("profiles")
-            .join(format!("{}.yaml", profile.as_str()))
+        self.profiles().join(format!("{}.yaml", profile.as_str()))
     }
     /// Returns the settings piece file for one piece name.
     pub(crate) fn piece_file(&self, piece: &Identifier) -> PathBuf {
@@ -182,6 +184,7 @@ mod tests {
             Path::new("/s/claude-session/state/last-account")
         );
         assert_eq!(paths.composed(), Path::new("/s/claude-session/composed"));
+        assert_eq!(paths.profiles(), Path::new("/c/claude-session/profiles"));
         assert_eq!(
             paths.profile_file(&work),
             Path::new("/c/claude-session/profiles/work.yaml")

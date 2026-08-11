@@ -10,6 +10,7 @@ pub(crate) mod completion;
 pub(crate) mod doctor;
 pub(crate) mod help;
 pub(crate) mod man;
+pub(crate) mod profile;
 pub(crate) mod version;
 
 /// The small wrapper-owned grammar.
@@ -71,6 +72,8 @@ pub(crate) enum Command {
     Help(help::HelpArgs),
     /// Emit a man page generated from the wrapper's grammar.
     Man(man::ManArgs),
+    /// List the profiles available to select.
+    Profile(profile::ProfileArgs),
     /// Show wrapper and native version information.
     Version(version::VersionArgs),
 }

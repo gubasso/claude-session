@@ -6,6 +6,7 @@ pub(crate) mod checks;
 pub(crate) mod child;
 pub(crate) mod config;
 pub(crate) mod consent;
+pub(crate) mod encoding;
 pub(crate) mod entry;
 pub(crate) mod identifier;
 pub(crate) mod paths;

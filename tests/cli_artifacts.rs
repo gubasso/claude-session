@@ -26,11 +26,19 @@ const SHELLS: [(&str, &str); 5] = [
 ];
 
 /// Verbs whose parser nodes the artifacts must describe.
-const IMPLEMENTED_VERBS: [&str; 6] = ["account", "completion", "doctor", "help", "man", "version"];
+const IMPLEMENTED_VERBS: [&str; 7] = [
+    "account",
+    "completion",
+    "doctor",
+    "help",
+    "man",
+    "profile",
+    "version",
+];
 
 /// Verbs the CLI surface documents but no slice has built, so no artifact may
 /// name them.
-const UNIMPLEMENTED_VERBS: [&str; 2] = ["config", "profile"];
+const UNIMPLEMENTED_VERBS: [&str; 1] = ["config"];
 
 /// Undoes roff's hyphen escaping so a spelling can be searched for as written.
 ///

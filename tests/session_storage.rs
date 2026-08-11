@@ -618,3 +618,116 @@ fn a_missing_piece_names_the_profile_and_the_path() {
     assert!(stderr.contains("work.json"), "{stderr}");
     assert!(stderr.contains("profile work"), "{stderr}");
 }
+
+/// The published `exit-codes.md` row: a profile that exists but does not parse
+/// is `DataFormat`, not `NoInput`. It is a distinct failure from a missing one,
+/// and the check that reports it says so.
+#[test]
+fn a_malformed_profile_is_a_data_format_error() {
+    let harness = Harness::new();
+    harness.write_piece("base", PIECE_BASE);
+    harness.write_profile("work", "layers: [\n");
+
+    let output = harness
+        .command()
+        .args(["--profile", "work"])
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(65), "{stderr}");
+    assert!(stderr.contains("settings-profile-valid"), "{stderr}");
+    assert!(stderr.contains("work.yaml"), "{stderr}");
+}
+
+#[test]
+fn an_empty_layer_list_is_a_data_format_error() {
+    let harness = Harness::new();
+    harness.write_piece("base", PIECE_BASE);
+    harness.write_profile("work", "layers: []\n");
+
+    let output = harness
+        .command()
+        .args(["--profile", "work"])
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(65), "{stderr}");
+    assert!(stderr.contains("settings-profile-valid"), "{stderr}");
+    assert!(stderr.contains("work.yaml"), "{stderr}");
+}
+
+/// The boundary the two tests above move: existence stays `settings-compose`
+/// and `NoInput`, so the split is proven rather than assumed.
+#[test]
+fn a_missing_profile_is_still_a_no_input_error() {
+    let harness = Harness::new();
+    harness.write_piece("base", PIECE_BASE);
+
+    let output = harness
+        .command()
+        .args(["--profile", "work"])
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(66), "{stderr}");
+    assert!(stderr.contains("settings-compose"), "{stderr}");
+}
+
+/// The one-piece acceptance sentence, whole: deterministic bytes, the private
+/// mode, and a sidecar naming the profile and its single piece. `keys` is
+/// asserted absent, because an empty contributor map would claim an answer this
+/// rung's fold cannot give.
+#[test]
+fn one_piece_profile_writes_exact_settings_and_basic_sidecar() {
+    let harness = Harness::new();
+    harness.write_piece("base", PIECE_BASE);
+    harness.write_profile("solo", "layers:\n  - base\n");
+
+    assert!(
+        harness
+            .command()
+            .args(["--profile", "solo"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let (settings, provenance) = pair(&harness);
+    assert_eq!(mode(&settings), 0o600);
+    assert_eq!(mode(&provenance), 0o600);
+
+    let composed_document: serde_json::Value =
+        serde_json::from_slice(&fs::read(&settings).expect("settings")).expect("settings is JSON");
+    let piece: serde_json::Value = serde_json::from_str(PIECE_BASE).expect("piece is JSON");
+    assert_eq!(
+        composed_document, piece,
+        "one piece composes to exactly itself"
+    );
+
+    let sidecar: serde_json::Value =
+        serde_json::from_slice(&fs::read(&provenance).expect("provenance")).expect("sidecar");
+    assert_eq!(sidecar["profile"], "solo");
+    assert!(
+        sidecar["profile_path"]
+            .as_str()
+            .expect("profile_path")
+            .ends_with("/profiles/solo.yaml")
+    );
+    assert_eq!(
+        sidecar["digest"].as_str().expect("digest").len(),
+        64,
+        "the sidecar records the full digest"
+    );
+    let pieces = sidecar["pieces"].as_array().expect("pieces");
+    assert_eq!(pieces.len(), 1);
+    assert_eq!(pieces[0]["name"], "base");
+    assert!(
+        pieces[0]["path"]
+            .as_str()
+            .expect("path")
+            .ends_with("/settings/base.json")
+    );
+    assert!(
+        sidecar.get("keys").is_none(),
+        "the contributor map arrives with the merge engine"
+    );
+}

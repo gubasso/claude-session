@@ -84,6 +84,9 @@ pub(crate) enum InvocationKind {
         shell: clap_complete::Shell,
     },
     Man,
+    Profile {
+        mode: OutputMode,
+    },
     /// Requested help for one wrapper verb, or one node inside its namespace.
     VerbHelp {
         verb: &'static str,
@@ -125,7 +128,8 @@ impl Invocation {
             | InvocationKind::AccountLogin { mode, .. }
             | InvocationKind::AccountList { mode }
             | InvocationKind::AccountStatus { mode, .. }
-            | InvocationKind::AccountRemove { mode, .. } => mode,
+            | InvocationKind::AccountRemove { mode, .. }
+            | InvocationKind::Profile { mode } => mode,
             _ => OutputMode::Human,
         }
     }
@@ -172,7 +176,7 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
         .filter(|value| {
             matches!(
                 *value,
-                "account" | "completion" | "doctor" | "help" | "man" | "version"
+                "account" | "completion" | "doctor" | "help" | "man" | "profile" | "version"
             )
         });
     if wrapper_verb.is_some() {
@@ -233,6 +237,11 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
                     InvocationKind::Man
                 }
             }
+            Some(Command::Profile(value)) => {
+                classify_report("profile", value.help_flag, value.json, |mode| {
+                    InvocationKind::Profile { mode }
+                })
+            }
             Some(Command::Version(value)) => InvocationKind::Version {
                 mode: if value.json {
                     OutputMode::Json
@@ -264,12 +273,36 @@ fn node_help_text(verb: &str) -> String {
     )
 }
 
+/// Resolves a report verb whose whole grammar is `--json` and requested help.
+///
+/// Requested help is checked before the mode, because help is a result the verb
+/// never reaches (`cli-surface.md#help`).
+fn classify_report(
+    verb: &'static str,
+    help_flag: bool,
+    json: bool,
+    kind: impl FnOnce(OutputMode) -> InvocationKind,
+) -> InvocationKind {
+    if help_flag {
+        return InvocationKind::VerbHelp {
+            verb,
+            subcommand: None,
+        };
+    }
+    kind(if json {
+        OutputMode::Json
+    } else {
+        OutputMode::Human
+    })
+}
+
 /// Maps a requested-help topic to the parser node that answers it.
 const fn help_topic_node(topic: crate::cli::help::HelpTopic) -> &'static str {
     match topic {
         crate::cli::help::HelpTopic::Account => "account",
         crate::cli::help::HelpTopic::Completion => "completion",
         crate::cli::help::HelpTopic::Man => "man",
+        crate::cli::help::HelpTopic::Profile => "profile",
     }
 }
 
@@ -422,6 +455,7 @@ pub(crate) fn dispatch(
         } => super::account::remove(context, &name, consented),
         InvocationKind::Completion { shell } => super::completion::run(context, shell),
         InvocationKind::Man => super::man::run(context),
+        InvocationKind::Profile { .. } => super::profile::list(context),
         InvocationKind::VerbHelp { verb, subcommand } => {
             super::help::verb(context, verb, subcommand)
         }

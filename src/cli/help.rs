@@ -19,4 +19,5 @@ pub(crate) enum HelpTopic {
     Account,
     Completion,
     Man,
+    Profile,
 }
