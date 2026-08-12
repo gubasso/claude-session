@@ -2,11 +2,11 @@
 
 ## Q-002 — Does the child baseline still guarantee cross-process refresh locking?
 
-Blocks: slice 005 revalidation of the documented minimum, which the login-mode refusal ships against meanwhile because that check fails closed.
+Blocks: slice 005 revalidation of the documented minimum, which the login-mode refusal ships against meanwhile because that check fails closed, and the 2026-08-12 dates on the process-runtime and xdg-storage entries, which record the lock and the isolated-directory credential placement as unproven.
 
 Raised: migrated from the perishable child-version and refresh-lock records.
 
-Exit: measurement, revalidate current official release material and run two concurrent processes across refresh without recording credentials.
+Exit: measurement, revalidate current official release material and run two concurrent processes across refresh without recording credentials. The 2026-08-12 pass did not: renewal fires on the child's schedule, and published fixes above the baseline show that behaviour still moving, so the window has to be observed rather than forced.
 
 ## Q-005 — Which page should retire the stale supervised-runtime description?
 

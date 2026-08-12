@@ -6,8 +6,6 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 006 external-fact-revalidation — shaped — 1 implementation session — after 015 and 003; the revalidation left once the proxy guide was cut as an unearned carry
-
 ## closed
 
 - 001 native-passthrough-foundation — done — 4 implementation sessions
@@ -15,6 +13,7 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 003 native-child-exec — done — 2 implementation sessions — replaced supervision with the exec
 - 004 profile-composition — done — 2 implementation sessions — after 013; the `0.4.0` single-piece profile rung inside the combined 004 and 014 effort
 - 005 account-authentication — done — 2 implementation sessions — after 007; the `0.2.0` login-mode account rung; cut the bespoke Rust PTY harness in favor of the pinned devShell allocator
+- 006 external-fact-revalidation — done — 1 implementation session — after 015 and 003; revalidated the two entries nearest their cadence and left the refresh lock and the isolated-directory login unproven under Q-002
 - 007 comprehensive-doctor — done — 2 implementation sessions — after 012; the shared report engine every feature rung appends to
 - 008 cli-artifacts — done — 1 implementation session — after 005; deferred the man-page output directory to ADR-0086 rather than ship a form no packager needed
 - 009 release-readiness — done — 1 implementation session — readied the `0.1.0` candidate; the forge bootstrap stays the operator's

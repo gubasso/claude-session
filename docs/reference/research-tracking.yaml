@@ -167,7 +167,7 @@ tracked:
       - docs/explanation/session-isolation.md
 
   - path: docs/reference/process-runtime.md
-    last_checked: 2026-07-30
+    last_checked: 2026-08-12
     cadence: monthly and on slice 003 implementation
     why: Child directory, version, settings precedence, and proxy environment can drift.
     revalidate: >-
@@ -175,9 +175,14 @@ tracked:
       troubleshooting, changelog, CLI, and environment documentation. Run the
       child with its configuration-directory variable pointed at empty scratch
       state and confirm configuration and login placement. Re-check the
-      shared-login version floor and parseable version output (Q-002). Run the
-      child doctor with two settings paths in both orders, one malformed, and
-      confirm the last occurrence alone wins. The proxy seam is not tracked:
+      parseable version output and the shared-login version floor; the refresh
+      lock that floor exists for cannot be forced, so it stays unproven under
+      Q-002 rather than carrying this entry's date. Confirm the last settings
+      occurrence alone wins through a child surface that reads the file: pass a
+      settings document whose effect is visible without a network call against
+      a malformed one, in both orders, and read what the child reports. The
+      child's own health verb does not read a settings file and measures
+      nothing here. The proxy seam is not tracked:
       the wrapper neither sets nor reads the child's base-URL variable, so this
       repository carries no name for it to drift (ADR-0089). Confirm the exec'd child still
       accepts the wrapper-built argument vector and environment unchanged.
@@ -209,18 +214,22 @@ tracked:
       - release-plz.toml
 
   - path: docs/reference/xdg-storage.md
-    last_checked: 2026-07-30
+    last_checked: 2026-08-12
     cadence: monthly
     why: Child credential placement, XDG runtime guarantees, and dependency handling of invalid XDG values are external facts.
     revalidate: >-
       Read current public child authentication and environment documentation,
       then authenticate into an isolated configuration directory and confirm
-      credential location by metadata only. Re-read the XDG base-directory
-      specification for runtime guarantees and confirm explicit degradation in
-      a container; treat absence claims for cron and remote login as unverified
-      until measured. Re-check the directories crate's source and public docs
-      to confirm empty or relative XDG values are discarded in favor of the
-      specification default.
+      credential location by metadata only. That login is unperformed as of the
+      date above, so placement is unproven alongside Q-002: the child reports
+      no saved login from an isolated directory while the default one holds a
+      credential, which locates the lookup but not the file. Re-read the XDG
+      base-directory specification for the runtime-directory guarantees this
+      project declines to depend on, rather than for a degradation it never
+      performs. Re-check the directories crate's source and public docs to
+      confirm empty or relative XDG values are discarded in favor of the
+      specification default, which is what the rejected-dependency ruling
+      rests on.
     dependents:
       - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md
       - docs/decisions/ADR-0025-share-one-native-login-per-account.md
