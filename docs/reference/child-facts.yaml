@@ -65,16 +65,16 @@ carried:
       - tests/support/recording_child.rs
 
   - fact: ANTHROPIC_AUTH_TOKEN
-    obligation: contested
-    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    obligation: scope-our-claim
+    why: Read but never set, so the wrapper can report that the account it selected was defeated. Membership is the whole carry; the order among these is the child's to arbitrate.
     sites:
       - docs/reference/accounts.md
       - src/domain/account.rs
       - tests/accounts.rs
 
   - fact: ANTHROPIC_API_KEY
-    obligation: contested
-    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    obligation: scope-our-claim
+    why: Read but never set, so the wrapper can report that the account it selected was defeated. Membership is the whole carry; the order among these is the child's to arbitrate.
     sites:
       - docs/reference/accounts.md
       - src/domain/account.rs
@@ -82,22 +82,22 @@ carried:
       - tests/accounts.rs
 
   - fact: CLAUDE_CODE_USE_BEDROCK
-    obligation: contested
-    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    obligation: scope-our-claim
+    why: Read but never set, so the wrapper can report that the account it selected was defeated. Membership is the whole carry; the order among these is the child's to arbitrate.
     sites:
       - src/domain/account.rs
       - tests/accounts.rs
 
   - fact: CLAUDE_CODE_USE_VERTEX
-    obligation: contested
-    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    obligation: scope-our-claim
+    why: Read but never set, so the wrapper can report that the account it selected was defeated. Membership is the whole carry; the order among these is the child's to arbitrate.
     sites:
       - src/domain/account.rs
       - tests/accounts.rs
 
   - fact: CLAUDE_CODE_USE_FOUNDRY
-    obligation: contested
-    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    obligation: scope-our-claim
+    why: Read but never set, so the wrapper can report that the account it selected was defeated. Membership is the whole carry; the order among these is the child's to arbitrate.
     sites:
       - src/domain/account.rs
       - tests/accounts.rs

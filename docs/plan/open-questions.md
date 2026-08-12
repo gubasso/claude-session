@@ -31,11 +31,3 @@ Blocks: whether `docs/reference/xdg-storage.md#composed-settings-entries` keeps 
 Raised: the slice 014 review observed that reuse turns solely on the sidecar's recorded digest matching the one the inputs recompute, and that the digest never ranges over the settings file's own bytes. A sidecar reduced to a correct `digest` field alone is therefore accepted, and a corrupted settings member is reused unread. The implementation matches its owner page verbatim, and the page claims the check makes "two profiles never share settings" a check rather than a probability — it never claims tamper resistance.
 
 Exit: ADR, decide whether the entry invariant is "named by its inputs" or "verified against its inputs", then amend the owner page and the reuse path together. The cost of the second reading is a byte comparison on every launch; the case it defends against presupposes the user corrupting their own mode `0600`, guard-validated state.
-
-## Q-010 — Is observing the child's credential precedence the wrapper's business?
-
-Blocks: whether `src/domain/account.rs` keeps `AmbientCredential`, the five child-owned variables it names, and the warning they power, which [child facts](../reference/child-facts.yaml) carries as contested rather than justified.
-
-Raised: the slice 015 sweep found the list is the child's own precedence ladder copied into wrapper source, which is the shape [ADR-0089](../decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md) rules against, while the warning it powers is about the wrapper's own account selection being silently defeated, which is the wrapper's business rather than the child's.
-
-Exit: ADR, decide whether a warning about the wrapper's own promise justifies copying a ladder that grows on the child's schedule, then either register the carry against an obligation or delete the list and the surfaces reading it. A sixth mechanism the child ships makes the list quietly wrong, and nothing fails. Slice 016 takes this up.

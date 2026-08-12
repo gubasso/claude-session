@@ -42,13 +42,13 @@ Mode is chosen by `account login` and resolved deterministically on every later 
 
 In token mode, `CLAUDE_CODE_OAUTH_TOKEN` outranks a saved login that may also exist in `config/`. The wrapper reports that shadowing but does not remove either credential.
 
-The following ambient child mechanisms outrank the selected subscription account: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `apiKeyHelper`, Bedrock, Vertex, and Foundry configuration. They are never wrapper-managed and never stripped from a launch. Their presence may produce a warning only:
+The following ambient child mechanisms outrank the selected subscription account: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `apiKeyHelper`, Bedrock, Vertex, and Foundry configuration. They are never wrapper-managed and never stripped from a launch. Which of them the child would prefer over another is the child's own arbitration and is not modelled here. The wrapper observes the environment mechanisms among them, so their presence may produce a warning only:
 
 - before launch, on standard error;
 - in `account status`;
 - in `doctor`.
 
-A launch is the only thing that rule governs, because there the ambient credential is the user's own choice about their own session. The token verification probe is the exception, and it is not a launch: it asks the child about one specific candidate, so it clears every environment mechanism above the injected token first. Inheriting one would make the child answer about that credential instead, and any string at all would verify. `apiKeyHelper` is the one it cannot clear, since that lives in the child's settings rather than the environment and the wrapper does not author a settings document to ask a question.
+A launch is the only thing that rule governs, because there the ambient credential is the user's own choice about their own session. The token verification probe is the exception, and it is not a launch: it asks the child about one specific candidate, so it clears every environment mechanism that would outrank the injected token first. Inheriting one would make the child answer about that credential instead, and any string at all would verify. `apiKeyHelper` is the one it cannot clear, since that lives in the child's settings rather than the environment and the wrapper does not author a settings document to ask a question.
 
 The wrapper never intercepts a slash command.
 

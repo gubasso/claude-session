@@ -419,7 +419,7 @@ pub(crate) fn ambient_warnings(context: &AppContext) -> Vec<Warning> {
     AmbientCredential::ALL
         .into_iter()
         .filter(|credential| {
-            crate::adapters::environment::value(variables, credential.variable())
+            crate::adapters::environment::value(variables, credential.spelling())
                 .is_some_and(|value| !value.is_empty())
         })
         .map(Warning::Ambient)

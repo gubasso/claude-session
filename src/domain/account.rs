@@ -275,9 +275,10 @@ impl Warning {
 
 /// A child credential mechanism that outranks a selected subscription account.
 ///
-/// The list is the child's documented precedence ladder above the stored token,
-/// collapsed to what the wrapper can observe from the environment. None is ever
-/// wrapper-managed and none is ever stripped.
+/// Membership is the whole carry, and it is here so the wrapper can say its own
+/// account selection was defeated (ADR-0089). Which mechanism the child would
+/// prefer among these is the child's to arbitrate, so no order is asserted.
+/// None is ever wrapper-managed and none is ever stripped from a launch.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AmbientCredential {
     AuthToken,
@@ -288,8 +289,9 @@ pub(crate) enum AmbientCredential {
 }
 
 impl AmbientCredential {
-    /// The environment variable that reveals this mechanism.
-    pub(crate) const fn variable(self) -> &'static str {
+    /// The environment variable that reveals this mechanism, which is also the
+    /// only name any surface prints for it.
+    pub(crate) const fn spelling(self) -> &'static str {
         match self {
             Self::AuthToken => "ANTHROPIC_AUTH_TOKEN",
             Self::ApiKey => "ANTHROPIC_API_KEY",
@@ -299,17 +301,14 @@ impl AmbientCredential {
         }
     }
 
-    pub(crate) const fn spelling(self) -> &'static str {
-        self.variable()
-    }
-
-    /// Every mechanism, in the child's own precedence order.
+    /// Every mechanism, in declaration order, which is a reading order and not
+    /// a ranking.
     pub(crate) const ALL: [Self; 5] = [
+        Self::AuthToken,
+        Self::ApiKey,
         Self::Bedrock,
         Self::Vertex,
         Self::Foundry,
-        Self::AuthToken,
-        Self::ApiKey,
     ];
 }
 

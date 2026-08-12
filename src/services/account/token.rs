@@ -364,7 +364,7 @@ fn account_environment(
         environment.retain(|(key, _)| {
             !AmbientCredential::ALL
                 .iter()
-                .any(|credential| key == credential.variable())
+                .any(|credential| key == credential.spelling())
         });
         environment.push((
             "CLAUDE_CODE_OAUTH_TOKEN".into(),
