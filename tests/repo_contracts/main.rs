@@ -1,6 +1,6 @@
 //! The repository's contracts on itself: the decision record shape, the plan
-//! zone shape, prose emphasis, and the two architectural boundaries no lint can
-//! express.
+//! zone shape, prose emphasis, the child-owned facts this repository is allowed
+//! to carry, and the two architectural boundaries no lint can express.
 //!
 //! Every gate here reads checked-in repository files and nothing else. It never
 //! spawns a process, never uses the network, and never reads host state, so it
@@ -29,6 +29,7 @@
 
 mod adrs;
 mod boundaries;
+mod child_facts;
 mod emphasis;
 mod markdown;
 mod plan_zone;

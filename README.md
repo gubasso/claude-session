@@ -58,6 +58,8 @@ YAML
 
 The provenance sidecar beside each composed entry records, per key, which piece won and which it overrode.
 
+The keys above are illustrative. A piece is written in the child's own settings format, and the wrapper models none of it: it validates that the composition is well defined, then forwards every key you wrote, whatever it is called.
+
 The composed document reaches the child as an additional native settings layer, so a `--settings` of your own still replaces it and the working directory's own settings still load beneath it. [Milestones](./docs/plan/milestones.md) carries the order the rest lands in.
 
 ## Design contract

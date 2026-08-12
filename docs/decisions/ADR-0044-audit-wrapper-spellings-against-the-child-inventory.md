@@ -27,7 +27,7 @@ Letting the child win was rejected: resolving names at run time requires the mod
 - Bad: a child release can turn a green build red without any wrapper change.
 - Bad: verbosity loses its short form.
 
-See [the CLI surface](../reference/cli-surface.md#when-the-child-owns-the-same-name) and the `child-flag-and-verb-inventory` fact in [research tracking](../reference/research-tracking.yaml).
+See [the CLI surface](../reference/cli-surface.md#when-the-child-owns-the-same-name).
 
 ## Status
 
@@ -36,3 +36,5 @@ Implemented
 See [audit](../../tests/collision_audit/main.rs).
 
 Amends [ADR-0003](./ADR-0003-reserve-a-small-wrapper-cli-surface.md).
+
+Amended by [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md).

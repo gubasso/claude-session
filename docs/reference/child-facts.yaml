@@ -1,0 +1,103 @@
+# Registry of child-owned names this repository carries.
+#
+# One entry per child-owned identifier that appears anywhere in the tree, with
+# the wrapper obligation that requires it (ADR-0089). This file answers "why do
+# we carry it at all"; ./research-tracking.yaml answers "has it drifted". The two
+# lists are not the same set, and a fact needs an entry here before it can earn
+# one there.
+#
+# `obligation` is one of:
+#   launch          the wrapper sets it, or passes it in the argument vector
+#   no-collision    the child's own spelling, which passthrough must not claim
+#   scope-our-claim child behaviour carried so the wrapper does not over-claim
+#   contested       carried today, with an open question deciding whether it stays
+#
+# `contested` is temporary by construction: its `why` names the question, and the
+# entry leaves when the question exits. It is not a fourth obligation.
+#
+# Every entry is enforced by ../../tests/repo_contracts/child_facts.rs, which
+# fails on an occurrence at an unlisted site and on an entry that matches
+# nothing. Registration is therefore mechanical and complete for these names.
+# Child behaviour carried as prose — settings precedence, credential lifetimes —
+# is governed by the same obligation test in ADR-0089 but is not machine
+# checkable, and is enforced at review only.
+#
+# Discovery scans for `ANTHROPIC_`, `CLAUDE_CODE_`, and `CLAUDE_CONFIG_`. The
+# wrapper's own `CLAUDE_SESSION_` prefix is not a child fact and is not scanned.
+
+carried:
+  - fact: CLAUDE_CONFIG_DIR
+    obligation: launch
+    why: The wrapper sets it to point the child at the selected account's own state, which is what makes an account an account.
+    sites:
+      - docs/decisions/ADR-0025-share-one-native-login-per-account.md
+      - docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md
+      - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
+      - docs/decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md
+      - docs/decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md
+      - docs/explanation/session-isolation.md
+      - docs/explanation/wrapper-model.md
+      - docs/plan/slices/005-account-authentication/README.md
+      - docs/reference/accounts.md
+      - docs/reference/configuration.md
+      # The switcher rows name the mechanism those projects select an account
+      # with, which is the one this wrapper sets. The comparison does not exist
+      # without it.
+      - docs/reference/prior-art.md
+      - docs/reference/process-runtime.md
+      - src/commands/account.rs
+      - src/services/account/token.rs
+      - src/services/child.rs
+      - tests/accounts.rs
+      - tests/passthrough.rs
+      - tests/support/recording_child.rs
+
+  - fact: CLAUDE_CODE_OAUTH_TOKEN
+    obligation: launch
+    why: The wrapper sets it in token mode, immediately before the exec, from the secret it stored.
+    sites:
+      - docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md
+      - docs/reference/accounts.md
+      - docs/reference/process-runtime.md
+      - src/services/account/token.rs
+      - src/services/child.rs
+      - tests/accounts.rs
+      - tests/support/recording_child.rs
+
+  - fact: ANTHROPIC_AUTH_TOKEN
+    obligation: contested
+    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    sites:
+      - docs/reference/accounts.md
+      - src/domain/account.rs
+      - tests/accounts.rs
+
+  - fact: ANTHROPIC_API_KEY
+    obligation: contested
+    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    sites:
+      - docs/reference/accounts.md
+      - src/domain/account.rs
+      - src/domain/child.rs
+      - tests/accounts.rs
+
+  - fact: CLAUDE_CODE_USE_BEDROCK
+    obligation: contested
+    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    sites:
+      - src/domain/account.rs
+      - tests/accounts.rs
+
+  - fact: CLAUDE_CODE_USE_VERTEX
+    obligation: contested
+    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    sites:
+      - src/domain/account.rs
+      - tests/accounts.rs
+
+  - fact: CLAUDE_CODE_USE_FOUNDRY
+    obligation: contested
+    why: Read but never set, to warn that a selected account is outranked. Q-010 decides whether observing the child's precedence ladder is the wrapper's business.
+    sites:
+      - src/domain/account.rs
+      - tests/accounts.rs

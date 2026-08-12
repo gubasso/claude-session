@@ -126,7 +126,6 @@ tracked:
     dependents:
       - docs/decisions/ADR-0010-compose-native-settings-from-declared-layers.md
       - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
-      - docs/reference/prior-art.md
       - docs/reference/process-runtime.md
 
   - path: docs/reference/dependencies.md
@@ -178,9 +177,9 @@ tracked:
       state and confirm configuration and login placement. Re-check the
       shared-login version floor and parseable version output (Q-002). Run the
       child doctor with two settings paths in both orders, one malformed, and
-      confirm the last occurrence alone wins. Re-check the proxy base URL and
-      any companion variables required for non-first-party hosts; inheritance,
-      not wrapper injection, remains the seam. Confirm the exec'd child still
+      confirm the last occurrence alone wins. The proxy seam is not tracked:
+      the wrapper neither sets nor reads the child's base-URL variable, so this
+      repository carries no name for it to drift (ADR-0089). Confirm the exec'd child still
       accepts the wrapper-built argument vector and environment unchanged.
     dependents:
       - docs/decisions/ADR-0006-place-files-by-xdg-ownership.md

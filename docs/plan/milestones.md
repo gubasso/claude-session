@@ -6,7 +6,8 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 006 proxy-guide-and-research — shaped — 1 implementation session — after 003; filler only while the next versioned rung is blocked on measurement
+- 015 child-fact-delegation — active — 2 implementation sessions — after 014; makes the rule ADR-0088 implied checkable before another slice is shaped against it
+- 006 external-fact-revalidation — shaped — 1 implementation session — after 015 and 003; the revalidation left once the proxy guide was cut as an unearned carry
 
 ## closed
 

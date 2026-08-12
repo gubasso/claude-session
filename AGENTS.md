@@ -20,6 +20,10 @@ Repository knowledge is load-bearing. External material may be a public citation
 
 Build for a present need. A flag, verb, configuration key, document, or abstraction must discriminate from its siblings through a current use. Prefer one surface that answers the need to several speculative surfaces; record a rejected option instead of shipping it early ([ADR-0051](./docs/decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
+## Delegation
+
+The child owns its own schema, its own validation, and its own error messages. Carry one of its names, schemas, or behaviours only when a wrapper obligation cannot be met without it: launching it, avoiding a collision with a spelling it already claims, or keeping the wrapper from over-claiming its own effect. Register every carried identifier in [child facts](./docs/reference/child-facts.yaml) against that obligation; a carry meeting none of the three is removed rather than recorded, and a contested one becomes an open question ([ADR-0089](./docs/decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md)). This binds shaping as much as implementation: a slice that can only be delivered by importing a child-owned fact is not a slice to shape.
+
 ## Decisions
 
 Record each significant, hard-to-reverse choice in one filled file under `docs/decisions/`, using [the template](./docs/decisions/template.md). To change a binding rule, follow its current owner first; add or supersede an ADR only when the significance test is met, update the owner and rejecting mechanism together, and label review-only enforcement honestly.

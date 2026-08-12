@@ -27,3 +27,5 @@ The boundary is ownership, not caution. The wrapper parses and validates the pro
 Accepted
 
 Amends [ADR-0010](./ADR-0010-compose-native-settings-from-declared-layers.md), whose permissive-with-warnings validation this replaces with no validation at all outside the composition's own structure. Amends [ADR-0049](./ADR-0049-collapse-config-inspection-into-one-verb.md) by removing the unknown-key warnings from what `config` reports. Enacted in `src/services/storage/entry.rs` and `docs/reference/configuration.md#validation`.
+
+Amended by [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md), which generalizes it.

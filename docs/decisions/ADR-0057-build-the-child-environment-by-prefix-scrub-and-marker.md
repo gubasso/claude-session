@@ -29,3 +29,5 @@ Injection is rejected because the proxy seam is inheritance — the child reads 
 Implemented
 
 Enacted by [`src/services/child.rs`](../../src/services/child.rs).
+
+Amended by [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md), which names its obligation.

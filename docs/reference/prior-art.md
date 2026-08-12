@@ -4,6 +4,8 @@ Public projects and specifications inspected while designing `claude-session`. T
 
 Facts marked observed or unverified are externally owned and tracked in [research tracking](./research-tracking.yaml).
 
+The child's own behaviour is not prior art and is not recorded here. What the wrapper must know to launch, to avoid a collision, or to keep from over-claiming its effect lives with the contract that needs it — [accounts](./accounts.md), [configuration](./configuration.md), [process runtime](./process-runtime.md) — and nowhere else ([ADR-0089](../decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md)).
+
 Last surveyed: 2026-08-03.
 
 ## Argv splitting and flag reservation
@@ -111,31 +113,6 @@ Container-tool context layouts, and the selection mechanics of rustup, pyenv, nv
 | [Beyond Ctrl-C](https://sunshowers.io/posts/beyond-ctrl-c-signals/)           | A wrapper that survives beside its child owes a partial forwarding matrix; the way to owe nothing is to stop surviving      |
 | [`execve(2)`](https://man.archlinux.org/man/execve.2)                         | An image replacement keeps the process id, the descriptors, and the working directory, so transparency needs no maintenance |
 | [`sysexits(3)`](https://man.freebsd.org/cgi/man.cgi?query=sysexits&sektion=3) | Wrapper-owned failures use stable categories; child statuses pass through                                                   |
-
-## Native child behavior
-
-The owning operational contracts are [accounts](./accounts.md), [configuration](./configuration.md), and [process runtime](./process-runtime.md). Freshness and revalidation procedures live in [research tracking](./research-tracking.yaml).
-
-| Behavior                                                                                                        | Verification status                                                                   |
-| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Auth precedence includes ambient cloud/API/helper credentials, then `CLAUDE_CODE_OAUTH_TOKEN`, then saved login | Documented                                                                            |
-| `setup-token` produces a long-lived subscription token for `CLAUDE_CODE_OAUTH_TOKEN`                            | Documented; presentation format deliberately not consumed                             |
-| `CLAUDE_CONFIG_DIR` relocates configuration and saved-login storage                                             | Documented                                                                            |
-| Processes sharing one saved login coordinate refresh from 2.1.211                                               | Documented and load-bearing                                                           |
-| `--settings` accepts an additional settings document, or an inline JSON string                                  | Documented                                                                            |
-| `--settings` requires a regular file no larger than 2 MiB                                                       | Documented                                                                            |
-| Settings precedence is managed, then command-line, then local, then project, then user                          | Documented; managed cannot be overridden                                              |
-| Across the child's own scopes, array-valued settings concatenate and de-duplicate                               | Documented; the inverse of the wrapper's piece default                                |
-| `--setting-sources` selects which of `user,project,local` load                                                  | Documented; deliberately unclaimed by the wrapper                                     |
-| Given repeated `--settings`, only the last is read                                                              | Measured on 2.1.220; earlier files are not merged or validated                        |
-| `--settings` is accepted at top level and on `agents`; not on every subcommand                                  | Documented for `agents`; the 2.1.220 measurement said top-level only, so this drifted |
-| `--verbose` is a native flag, and `-v` is the native `--version`                                                | Measured on 2.1.220                                                                   |
-| `auth` and `doctor` are native subcommands                                                                      | Measured on 2.1.220                                                                   |
-| `auth status --json` is available for status probing                                                            | Documented; injected-token reporting details tracked                                  |
-| In-TUI `/login` honors relocated config, and its token-mode behavior                                            | Documented; token-mode clearing is a published fix from 2.1.118                       |
-| Exact access-token and refresh-grant lifetimes                                                                  | Observed, not guaranteed                                                              |
-
-The design floor is child version 2.1.211, enforced at launch by [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md). Everything measured above was measured on Linux against 2.1.220, the documentation baseline set by [ADR-0046](../decisions/ADR-0046-support-linux-and-a-single-child-baseline.md).
 
 ## Baselines
 
