@@ -22,7 +22,7 @@ if [[ -n $duplicates ]]; then
 fi
 
 mapfile -t actual < <(cargo nextest list --all-features | awk '
-  $1 ~ /::bin\/claude-session$/ { print $2; next }
+  $1 ~ /::bin\// { print $2; next }
   { prefix=$1; sub(/^claude-session::/, "", prefix); print prefix "::" $2 }
 ')
 

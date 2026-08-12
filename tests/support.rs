@@ -53,7 +53,7 @@ impl Harness {
         self.root.path().join("record")
     }
     pub(crate) fn command(&self) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_claude-session"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_claude-session-rs"));
         command.env_clear();
         for (name, suffix) in [
             ("HOME", "home"),
@@ -103,7 +103,7 @@ impl Harness {
             .arg("--wait")
             .arg(devshell_binary("timeout"))
             .args(TERMINAL_DEADLINE)
-            .arg(env!("CARGO_BIN_EXE_claude-session"))
+            .arg(env!("CARGO_BIN_EXE_claude-session-rs"))
             .args(arguments)
             .current_dir(self.root.path());
         command
@@ -134,7 +134,7 @@ impl Harness {
                 "{} {} {} {arguments}",
                 devshell_binary("timeout").display(),
                 TERMINAL_DEADLINE.join(" "),
-                env!("CARGO_BIN_EXE_claude-session"),
+                env!("CARGO_BIN_EXE_claude-session-rs"),
             ))
             .arg("/dev/null")
             .current_dir(self.root.path());

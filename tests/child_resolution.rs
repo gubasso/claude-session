@@ -76,7 +76,7 @@ fn reentry_marker_prevents_recursion() {
 #[test]
 fn hard_link_identity_prevents_recursion() {
     let harness = Harness::new();
-    let binary = std::path::Path::new(env!("CARGO_BIN_EXE_claude-session"));
+    let binary = std::path::Path::new(env!("CARGO_BIN_EXE_claude-session-rs"));
     let link_dir =
         tempfile::tempdir_in(binary.parent().expect("binary parent")).expect("link directory");
     let link = link_dir.path().join("wrapper-link");

@@ -60,8 +60,12 @@ exclude = [
 name = "claude_session"
 path = "src/lib.rs"
 
+# Temporary: installs beside the existing `claude-session` binary rather than
+# replacing it. The clap command name in src/cli.rs is unchanged, so help, the
+# XDG namespace, and the CLAUDE_SESSION_ prefix are unaffected. Restore the
+# name here, and in the CARGO_BIN_EXE_ references under tests/, to go back.
 [[bin]]
-name = "claude-session"
+name = "claude-session-rs"
 path = "src/main.rs"
 
 [dependencies]
