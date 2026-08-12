@@ -38,4 +38,4 @@ Blocks: whether `src/domain/account.rs` keeps `AmbientCredential`, the five chil
 
 Raised: the slice 015 sweep found the list is the child's own precedence ladder copied into wrapper source, which is the shape [ADR-0089](../decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md) rules against, while the warning it powers is about the wrapper's own account selection being silently defeated, which is the wrapper's business rather than the child's.
 
-Exit: ADR, decide whether a warning about the wrapper's own promise justifies copying a ladder that grows on the child's schedule, then either register the carry against an obligation or delete the list and the surfaces reading it. A sixth mechanism the child ships makes the list quietly wrong, and nothing fails.
+Exit: ADR, decide whether a warning about the wrapper's own promise justifies copying a ladder that grows on the child's schedule, then either register the carry against an obligation or delete the list and the surfaces reading it. A sixth mechanism the child ships makes the list quietly wrong, and nothing fails. Slice 016 takes this up.
