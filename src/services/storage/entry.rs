@@ -23,9 +23,7 @@ use crate::{
         entry::{EntryInputs, PieceDigest, entry_paths, hex, input_digest},
         identifier::Identifier,
         merge::{Composed, MergeError},
-        pointer::Pointer,
         profile::Profile,
-        settings_schema,
         strategy::StrategyTable,
     },
     error::{AppError, Diagnostic, ErrorKind},
@@ -64,15 +62,6 @@ pub(crate) struct ResolvedEntry {
     pub(crate) outcome: Outcome,
 }
 
-/// One unrecognized top-level settings key and the piece that supplied it.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct UnknownKey {
-    /// The key as written.
-    pub(crate) key: String,
-    /// The piece whose value survived the fold for that key.
-    pub(crate) piece: String,
-}
-
 /// Everything one read-only inspection learned about a profile's entry.
 ///
 /// Built from one pass over the inputs, so the key, the content, and the
@@ -98,8 +87,6 @@ pub(crate) struct EntryReport {
     pub(crate) strategies: StrategyTable,
     /// The composed document and its per-key provenance.
     pub(crate) composed: Composed,
-    /// Top-level keys the wrapper does not recognize, in document order.
-    pub(crate) unknown_keys: Vec<UnknownKey>,
     /// Whether the settings member is already on disk.
     pub(crate) settings_exists: bool,
     /// Whether the provenance member is already on disk.
@@ -255,7 +242,6 @@ pub(crate) fn inspect(context: &AppContext, profile: &Identifier) -> Result<Entr
     }
     let composed = crate::domain::merge::compose(&bodies, document.strategies())
         .map_err(|error| merge_error(&error, profile, &profile_path, &pieces))?;
-    let unknown_keys = unknown_keys(&composed, &pieces);
     let canonical_profile = canonical(context, &profile_path)?;
     let digest = input_digest(&EntryInputs {
         profile,
@@ -282,41 +268,9 @@ pub(crate) fn inspect(context: &AppContext, profile: &Identifier) -> Result<Entr
         pieces,
         strategies: document.strategies().clone(),
         composed,
-        unknown_keys,
         settings_exists,
         provenance_exists,
     })
-}
-
-/// Collects the composed document's unrecognized top-level keys.
-///
-/// The reported piece is the one whose value survived the fold, which is the
-/// piece a user has to edit. A key with no provenance entry cannot happen —
-/// every leaf is recorded — but an absent one falls back to the last piece
-/// rather than inventing a name.
-fn unknown_keys(composed: &Composed, pieces: &[(Identifier, PieceDigest)]) -> Vec<UnknownKey> {
-    settings_schema::unknown_top_level(&composed.document)
-        .into_iter()
-        .map(|key| {
-            let pointer = Pointer::from_tokens(&[key.to_owned()]);
-            let index = composed
-                .keys
-                .iter()
-                .find(|(at, _)| at == &&pointer || at.as_str().starts_with(&format!("{pointer}/")))
-                .map_or_else(
-                    || pieces.len().saturating_sub(1),
-                    |(_, provenance)| provenance.piece,
-                );
-            // Every leaf is recorded, so the index always resolves; the fallback
-            // names the index rather than inventing a piece name.
-            UnknownKey {
-                key: key.to_owned(),
-                piece: pieces
-                    .get(index)
-                    .map_or_else(|| index.to_string(), |(name, _)| name.as_str().to_owned()),
-            }
-        })
-        .collect()
 }
 
 /// Renders a merge failure as the four-part diagnostic.
@@ -411,7 +365,6 @@ pub(crate) fn resolve(
     atomic::sweep(&store);
 
     let report = inspect(context, profile)?;
-    warn_unknown_keys(profile, &report);
     let outcome = materialise(paths.state(), profile, &report)?;
 
     tracing::debug!(
@@ -434,24 +387,6 @@ pub(crate) fn resolve(
         digest: report.digest,
         outcome,
     })
-}
-
-/// Reports every unrecognized key, without failing the run.
-///
-/// The key stays in the written document. Rejecting it is gated by `Q-003`, and
-/// a wrapper that refused a setting the child accepts would be worse than one
-/// that passes it through (`configuration.md#validation`).
-fn warn_unknown_keys(profile: &Identifier, report: &EntryReport) {
-    for unknown in &report.unknown_keys {
-        tracing::warn!(
-            op = "compose_settings",
-            profile = profile.as_str(),
-            key = unknown.key.as_str(),
-            piece = unknown.piece.as_str(),
-            status = "ok",
-            "the composed settings carry a key this wrapper does not recognize"
-        );
-    }
 }
 
 /// Decides among the owner page's four cases and writes when one of them says to.

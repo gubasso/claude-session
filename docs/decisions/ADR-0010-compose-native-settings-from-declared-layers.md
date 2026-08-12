@@ -18,17 +18,17 @@ The user authors read-only JSON pieces, each a fragment in the child's format, a
 
 Three details are load-bearing. Merge is deterministic — same inputs, byte-identical output — or the freshness check and diffs are both useless. Arrays replace by default, with concatenation and merge-by-key opt-in per key, because a global array strategy is wrong for half of any real settings file. And a provenance sidecar records which piece set each leaf key.
 
-Validation is deliberately asymmetric: strict about the structure the wrapper owns, permissive about unknown keys in the child's schema, which evolves independently. See [configuration](../reference/configuration.md).
+Validation is asymmetric: strict about the structure the wrapper owns, silent about the child's schema, which evolves independently. See [configuration](../reference/configuration.md).
 
 ## Consequences
 
 - Good: provenance makes composition debuggable in one command rather than by bisecting files.
 - Good: the child sees an ordinary settings file and needs no awareness of the wrapper.
 - Bad: the freshness check must consider every referenced piece, not just the manifest; checking only the manifest leaves stale settings after a piece edit, a bug that is hard to diagnose.
-- Bad: permissive validation means a typo in a child settings key is a warning, not an error.
+- Bad: a typo in a child settings key is not the wrapper's to catch.
 
 ## Status
 
 Accepted
 
-Amended by [ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md) for native-flag delivery, [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) for input-addressed storage, and [ADR-0050](./ADR-0050-name-the-profile-surface-once.md) for the profile name. The composition model remains unchanged.
+Amended by [ADR-0028](./ADR-0028-pass-composed-settings-with-the-native-flag.md) for native-flag delivery, [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) for input-addressed storage, [ADR-0050](./ADR-0050-name-the-profile-surface-once.md) for the profile name, and [ADR-0088](./ADR-0088-model-nothing-the-child-already-owns.md), which drops the unknown-key warning below entirely. The composition model remains unchanged.

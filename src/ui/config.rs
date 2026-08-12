@@ -12,8 +12,8 @@ use crate::{
     ui::writer::{OutputWriter, output_error},
 };
 
-/// Renders the resolved configuration, its files, the active profile, its
-/// defects, and its warnings.
+/// Renders the resolved configuration, its files, the active profile, and its
+/// defects.
 ///
 /// Both forms project from one `Report`, so neither can omit a field the other
 /// carries. No colour: `config` renders none of the closed set of coloured
@@ -95,13 +95,6 @@ fn text(report: &Report) -> Vec<u8> {
         if let Some(hint) = defect.hint.as_ref() {
             out.push_str(&format!("    hint: {hint}\n"));
         }
-    }
-    out.push_str("warnings\n");
-    for warning in &report.warnings {
-        out.push_str(&format!(
-            "  {} is not a recognized settings key, from piece {}\n",
-            warning.key, warning.piece
-        ));
     }
     // The composed entry is one native layer among several, so a reader is told
     // so here rather than left to infer otherwise
@@ -201,12 +194,6 @@ fn document(report: &Report) -> Result<Vec<u8>, AppError> {
             entry
         })
         .collect();
-    let warnings: Vec<serde_json::Value> = report
-        .warnings
-        .iter()
-        .map(|warning| serde_json::json!({ "key": warning.key, "piece": warning.piece }))
-        .collect();
-
     // Arrays are present even when empty; a genuinely optional object is
     // omitted (`logging-and-output.md`). No `schema_version`: that appears on
     // `doctor` alone.
@@ -214,7 +201,6 @@ fn document(report: &Report) -> Result<Vec<u8>, AppError> {
         "configuration": serde_json::Value::Object(configuration),
         "files": files,
         "defects": defect_rows(report),
-        "warnings": warnings,
     });
     if let Some(profile) = report.profile.as_ref() {
         value["profile"] = profile_section(profile);

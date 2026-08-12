@@ -114,12 +114,10 @@ tracked:
     cadence: monthly
     why: The native settings schema, flag constraints, and scope precedence evolve outside this repository.
     revalidate: >-
-      Read the current public settings and CLI references and the published
-      schema. Record whether the schema still lags releases or permits
-      additional properties; tighten validation only when both conditions end
-      (Q-003). Re-derive the recognized top-level key table in the validation
-      section and reconcile it with src/domain/settings_schema.rs, which mirrors
-      it. Launch with a temporary settings file and confirm the
+      Read the current public settings and CLI references. The key names
+      themselves are not tracked and never enter this repository (ADR-0088);
+      what is tracked is the shape of the boundary around them. Launch with a
+      temporary settings file and confirm the
       setting, regular-file rule, 2 MiB cap, and accepted command positions.
       Re-read managed, command-line, local-project, shared-project, and user
       precedence; verify array concatenation/de-duplication and the
@@ -130,7 +128,6 @@ tracked:
       - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
       - docs/reference/prior-art.md
       - docs/reference/process-runtime.md
-      - src/domain/settings_schema.rs
 
   - path: docs/reference/dependencies.md
     last_checked: 2026-08-06

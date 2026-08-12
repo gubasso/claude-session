@@ -327,8 +327,9 @@ impl Fold<'_> {
     /// Confirms every declared pointer addressed an array that exists.
     ///
     /// An error rather than a warning: a strategy that silently applies to
-    /// nothing is the same silent-wrong-settings bug the unknown-key rule
-    /// exists to prevent (`configuration.md#declaring-a-strategy`).
+    /// nothing leaves the user with settings their profile says they do not
+    /// have, which is the failure the wrapper's own strict configuration rules
+    /// exist to prevent (`configuration.md#declaring-a-strategy`).
     fn verify_every_strategy_applied(&self) -> Result<(), MergeError> {
         for (pointer, strategy) in self.strategies.iter() {
             let tokens = pointer.tokens();
@@ -414,7 +415,12 @@ fn merge_by_key(
             });
         }
         if let Some(&index) = seen.get(&value) {
-            shallow_merge(&mut merged[index], &element);
+            // The element's own piece, before the arriving one takes it over:
+            // a conflict inside the match is between those two layers.
+            let earlier = origins.get(index).copied().unwrap_or(piece);
+            let mut path = pointer.tokens();
+            path.push(index.to_string());
+            shallow_merge(&mut merged[index], &element, &mut path, earlier, piece)?;
             // The matched element now carries both layers' fields; the arriving
             // one is what a later defect in it should name.
             origins[index] = piece;
@@ -467,22 +473,53 @@ fn validate_merge_by_key(
 
 /// Merges one matched element into another, recursively over objects.
 ///
-/// Element-level and provenance-free: the array is one leaf, so what happens
-/// inside a matched pair is part of that leaf's value rather than a second
-/// level of contributor accounting.
-fn shallow_merge(into: &mut Value, from: &Value) {
+/// Provenance-free but not rule-free. The array stays one leaf, so nothing here
+/// adds a second level of contributor accounting; the type-conflict rule of
+/// `configuration.md#merge-semantics` still holds, because it is a property of
+/// the merge being well defined rather than of who gets credited. `path`
+/// carries the element's own pointer — the array's, plus its index — so a
+/// refusal names where it happened rather than only which array it was in.
+fn shallow_merge(
+    into: &mut Value,
+    from: &Value,
+    path: &mut Vec<String>,
+    earlier: usize,
+    later: usize,
+) -> Result<(), MergeError> {
     match (into, from) {
         (Value::Object(target), Value::Object(source)) => {
             for (key, value) in source {
                 match target.get_mut(key) {
-                    Some(existing) => shallow_merge(existing, value),
+                    Some(existing) => {
+                        path.push(key.clone());
+                        let result = shallow_merge(existing, value, path, earlier, later);
+                        path.pop();
+                        result?;
+                    }
                     None => {
                         target.insert(key.clone(), value.clone());
                     }
                 }
             }
+            Ok(())
         }
-        (target, source) => *target = source.clone(),
+        (target, source) => {
+            // The same test `absorb_member` applies at the top level: only a
+            // container facing a non-container is incompatible. Two scalars of
+            // different types remain an ordinary override.
+            let (earlier_type, later_type) = (type_name(target), type_name(source));
+            if (earlier_type == "object") != (later_type == "object") {
+                return Err(MergeError::TypeConflict {
+                    pointer: Pointer::from_tokens(path),
+                    earlier,
+                    later,
+                    earlier_type,
+                    later_type,
+                });
+            }
+            *target = source.clone();
+            Ok(())
+        }
     }
 }
 
@@ -787,6 +824,71 @@ mod tests {
             }
             other => panic!("expected a type conflict, got {other:?}"),
         }
+    }
+
+    /// The rule holds at every depth. A matched pair is still a merge, so the
+    /// pointer it reports reaches into the element rather than stopping at the
+    /// array, even though the array remains one provenance leaf.
+    #[test]
+    fn a_type_conflict_inside_a_matched_element_is_refused() {
+        let pieces = [
+            value(r#"{"hooks":[{"matcher":"Bash","command":"log.sh"}]}"#),
+            value(r#"{"hooks":[{"matcher":"Bash","command":{"run":"log.sh"}}]}"#),
+        ];
+        let error = compose(
+            &pieces,
+            &table("\"/hooks\":\n  strategy: merge-by-key\n  key: matcher\n"),
+        )
+        .expect_err("string versus object inside the match");
+        match error {
+            MergeError::TypeConflict {
+                pointer: at,
+                earlier,
+                later,
+                earlier_type,
+                later_type,
+            } => {
+                assert_eq!(at.as_str(), "/hooks/0/command");
+                assert_eq!((earlier, later), (0, 1));
+                assert_eq!((earlier_type, later_type), ("string", "object"));
+            }
+            other => panic!("expected a type conflict, got {other:?}"),
+        }
+    }
+
+    /// Two scalars are an ordinary override wherever they meet, so extending
+    /// the refusal inward must not turn every differing field into an error.
+    #[test]
+    fn differing_scalar_types_inside_a_matched_element_still_override() {
+        let composed = fold(
+            &[
+                r#"{"hooks":[{"matcher":"Bash","timeout":"30"}]}"#,
+                r#"{"hooks":[{"matcher":"Bash","timeout":30}]}"#,
+            ],
+            &table("\"/hooks\":\n  strategy: merge-by-key\n  key: matcher\n"),
+        );
+        assert_eq!(composed.document["hooks"][0]["timeout"], value("30"));
+    }
+
+    /// Both defects are present; the merge reaches the conflict while folding
+    /// and the duplicate scan only runs over the finished array, so the order
+    /// is a property of the traversal rather than of which the user cares
+    /// about more. Pinned because it is otherwise decided by call sequence.
+    #[test]
+    fn a_type_conflict_is_reported_before_a_duplicate_merge_key() {
+        let pieces = [
+            value(r#"{"hooks":[{"matcher":"Bash","command":"a"}]}"#),
+            value(concat!(
+                r#"{"hooks":[{"matcher":"Bash","command":{"run":"b"}},"#,
+                r#"{"matcher":"Edit"},{"matcher":"Edit"}]}"#
+            )),
+        ];
+        let error = compose(
+            &pieces,
+            &table("\"/hooks\":\n  strategy: merge-by-key\n  key: matcher\n"),
+        )
+        .expect_err("both a conflict and a duplicate");
+        assert!(matches!(error, MergeError::TypeConflict { .. }));
     }
 
     #[test]

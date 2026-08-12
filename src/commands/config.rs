@@ -54,12 +54,6 @@ pub(crate) struct ProfileReport {
     pub(crate) exists: bool,
 }
 
-/// One unrecognized top-level settings key.
-pub(crate) struct WarningReport {
-    pub(crate) key: String,
-    pub(crate) piece: String,
-}
-
 /// Everything `config` reports, in one value both renderers project from.
 ///
 /// One typed value rather than two renderers assembling their own, so the human
@@ -70,7 +64,6 @@ pub(crate) struct Report {
     /// Absent when no layer resolved a profile name.
     pub(crate) profile: Option<ProfileReport>,
     pub(crate) defects: Vec<CheckResult>,
-    pub(crate) warnings: Vec<WarningReport>,
 }
 
 /// The config-scoped subset of the one probe catalog.
@@ -97,9 +90,9 @@ pub(crate) fn run(context: &AppContext) -> Result<DispatchOutcome, AppError> {
 
 /// Folds the defects into an exit the same way `doctor` does.
 ///
-/// The first failing hard check in catalog order, or `0`. An unwritten entry
-/// and an unknown-key warning are both `0`: `exit-codes.md` makes them advisory,
-/// because neither is a question the user asked that went unanswered.
+/// The first failing hard check in catalog order, or `0`. An unwritten entry is
+/// `0`: `exit-codes.md` makes it advisory, because it is not a question the
+/// user asked that went unanswered.
 fn verdict(report: &Report) -> u8 {
     report
         .defects
@@ -174,21 +167,6 @@ fn assemble(context: &AppContext) -> Report {
         _ => None,
     };
 
-    let warnings = inspected
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .map(|entry| {
-            entry
-                .unknown_keys
-                .iter()
-                .map(|unknown| WarningReport {
-                    key: unknown.key.clone(),
-                    piece: unknown.piece.clone(),
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
     let defects = defects(context, selected.as_ref(), inspected.as_ref());
 
     Report {
@@ -196,7 +174,6 @@ fn assemble(context: &AppContext) -> Report {
         files: context.consulted_files().to_vec(),
         profile,
         defects,
-        warnings,
     }
 }
 

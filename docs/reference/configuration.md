@@ -10,7 +10,7 @@ The child's authentication precedence is separate from wrapper configuration pre
 
 Paths for both are in [XDG storage](./xdg-storage.md).
 
-The three-key wrapper configuration loader and provenance model are implemented, including last-used account fallback with `flag`, `environment`, `user-config`, `marker`, or `none` provenance. Profile resolution, piece resolution, ordered multi-piece composition, per-key array strategies, the full provenance sidecar including its `keys` contributor map, the permissive unknown-key warning, the `profile` and `config` verbs, and the generated examples and schema are also implemented. What remains is strict rejection of an unrecognized native settings key, which `Q-003` in [open questions](../plan/open-questions.md) gates on measurement.
+The three-key wrapper configuration loader and provenance model are implemented, including last-used account fallback with `flag`, `environment`, `user-config`, `marker`, or `none` provenance. Profile resolution, piece resolution, ordered multi-piece composition, per-key array strategies, the full provenance sidecar including its `keys` contributor map, the `profile` and `config` verbs, and the generated examples and schema are also implemented. This page describes no unimplemented behaviour.
 
 ## The wrapper's configuration
 
@@ -164,7 +164,7 @@ The flag is `--profile <name>`; the configuration key and its environment spelli
 
 With nothing set and no `--profile`, no name is resolved, so nothing is composed and no `--settings` layer is passed — an empty config tree launches the child unchanged, which the passthrough contract requires.
 
-A name that is resolved must exist. `profiles/<name>.yaml` missing is `NoInput`, whichever layer supplied the name: a profile the user asked for and did not get is the silent-wrong-settings bug the unknown-key rule exists to prevent. See [exit codes](./exit-codes.md#exit-regimes-by-verb).
+A name that is resolved must exist. `profiles/<name>.yaml` missing is `NoInput`, whichever layer supplied the name: a profile the user asked for and did not get would launch the child under settings the user believes are something else, which is the failure every strict rule on this page exists to prevent. See [exit codes](./exit-codes.md#exit-regimes-by-verb).
 
 A profile name becomes a path component in the composed-settings store, so it must satisfy [the identifier rules](./xdg-storage.md#identifiers); a name that does not exits `Usage`, whichever layer supplied it.
 
@@ -211,9 +211,9 @@ A pointer, not a dotted path: the child renders nested settings keys dotted — 
 | Pointer matching no key    | `DataFormat`                                                           |
 | Duplicate merge-key values | `DataFormat`                                                           |
 
-Matched objects merge recursively; unmatched elements append in layer order. A strategy that silently applies to nothing is the same silent-wrong-settings bug the [unknown-key rule](#schema) exists to prevent, which is why the third row is an error rather than a warning.
+Matched objects merge recursively; unmatched elements append in layer order. A strategy that silently applies to nothing leaves a profile promising settings the composed document does not carry, which is why the third row is an error rather than a warning.
 
-A type conflict — one piece making a key an object and another a string — is an error, not a silent overwrite. It names the key path, both pieces, and both types.
+A type conflict — one piece making a key an object and another a string — is an error, not a silent overwrite. It names the key path, both pieces, and both types. The rule holds at every depth, including inside a pair of `merge-by-key` elements that matched: the reported pointer reaches the field that conflicted, and the array stays one entry in the provenance sidecar. Two values that are merely different types, neither of them an object, remain an ordinary override wherever they meet.
 
 Merging is deterministic: the same inputs produce byte-identical output, with object keys in a stable order. It is what lets an entry be named by its inputs at all, and it makes diffs useful.
 
@@ -272,29 +272,13 @@ A user's own `--settings` still replaces the wrapper's by last occurrence, accep
 
 ### Validation
 
-Validation is deliberately pragmatic. The wrapper validates the structure it owns and the well-formedness of the whole. It does not reject unknown keys in the child's settings, because the child's schema evolves on its own schedule and a wrapper that rejects a valid new setting is worse than one that passes it through.
+Validation stops where ownership stops. The wrapper validates the structure it owns, strictly and by parsing into a type. It knows nothing about the child's settings keys — not their names, not their types, not whether they exist — because the child owns that schema, validates it, and reports its own errors. A wrapper that also modelled it would be a second, always-lagging copy of something already handled, and the first thing such a copy does is reject a setting the child accepts.
 
-That is the opposite of the rule for the wrapper's own configuration, and the asymmetry is the point: strict about what we own, permissive about what we forward. It is the passthrough contract applied to configuration.
+That is the same asymmetry the wrapper's own configuration states from the other side: strict about what we own, permissive about what we forward. It is the passthrough contract applied to configuration.
 
-Unknown piece keys are surfaced as warnings with provenance rather than errors.
+What the wrapper owns, and therefore parses and validates hard, is the profile document, the strategy table and its applicability, cross-piece type conflicts, each piece being well-formed JSON with an object root, and the composed document's own well-formedness. Each of those is a property of the composition itself rather than of what any key means. A type conflict is refused not because the wrapper knows what the key is for, but because two pieces disagreeing about whether it is a container leaves no defined merge.
 
-What the wrapper owns, and therefore validates hard, is the profile document, the strategy table and its applicability, cross-piece type conflicts, each piece being well-formed JSON with an object root, and the composed document's own well-formedness. What it does not validate is the types of the child's own settings keys.
-
-Making the warning possible needs a list of the keys the wrapper recognizes. The table is deliberately shallow — top level only, no nesting, no types — because it exists to answer "have I seen this name before" and nothing else. It is mirrored in `src/domain/settings_schema.rs`, which reads from here rather than from `piece.example.json`, whose keys are illustrative only.
-
-| Recognized top-level key | Recognized top-level key |
-| ------------------------ | ------------------------ |
-| `apiKeyHelper`           | `includeCoAuthoredBy`    |
-| `awsAuthRefresh`         | `model`                  |
-| `awsCredentialExport`    | `outputStyle`            |
-| `cleanupPeriodDays`      | `permissions`            |
-| `env`                    | `sandbox`                |
-| `forceLoginMethod`       | `statusLine`             |
-| `hooks`                  | `statusLineCommand`      |
-
-A key outside that table is preserved in the composed document exactly as written and reported as a warning naming the key and the piece that supplied it. The run continues and the exit is unaffected. Tightening this to a rejection is gated by `Q-003` in [open questions](../plan/open-questions.md), which must exit by measurement first: the wrapper must not refuse a setting the child accepts.
-
-The table is known to lag the child's published reference by a wide margin, so a valid native setting outside it warns today. Whether an allowlist that cannot practically track upstream earns this surface at all is `Q-009`, which the same measurement resolves.
+Beyond that boundary the wrapper's only obligation is to generate the composed document consistently. Every key a piece supplies reaches the child exactly as written, whatever it is called. Nothing is warned about, nothing is filtered, and nothing is reported.
 
 ### Child-owned account state
 
@@ -313,7 +297,7 @@ Both accept `--json`, and both write data to standard output and diagnostics to 
 
 `--profile` is declared on the two invocations that act on it — the bare launch, which composes that profile's settings for the child, and `config`, which resolves and reports it. It is not a global flag, because on every other verb it would name a value nothing reads ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
-`config` validates, so it is an assertion verb: a structural defect or type conflict exits with that defect's code, while unknown-piece-key warnings stay advisory at `0`. The exact table is in [exit codes](./exit-codes.md#exit-regimes-by-verb).
+`config` validates, so it is an assertion verb: a structural defect or type conflict exits with that defect's code, while an entry not yet written stays advisory at `0`. The exact table is in [exit codes](./exit-codes.md#exit-regimes-by-verb).
 
 The checks it runs are the config-scoped subset of [the one probe catalog](./doctor.md#the-catalog) `doctor` runs in full, so the two cannot disagree and quote one remediation wording ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)). `doctor` reports health and never renders configuration.
 

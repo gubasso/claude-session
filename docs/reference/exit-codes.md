@@ -156,15 +156,14 @@ A verb that exits non-zero because the answer was unwelcome cannot be used in a 
 
 Assertion — `config` and `doctor`. These are asked whether something holds, so answering "no" with `0` would make them useless as a gate. `config` validates as part of reporting ([ADR-0049](../decisions/ADR-0049-collapse-config-inspection-into-one-verb.md)), which is why it sits here rather than with the inspection verbs despite also rendering data:
 
-| Invocation                               | Exit | Why                                                                      |
-| ---------------------------------------- | ---- | ------------------------------------------------------------------------ |
-| `config`, structurally sound             | `0`  | The assertion holds                                                      |
-| `config`, unknown-key warnings only      | `0`  | Warnings are advisory by design; see [configuration](./configuration.md) |
-| `config`, entry not yet written          | `0`  | Reported state, and the next launch writes it                            |
-| `config`, structural or type defect      | code | `DataFormat` or `Config`, by which defect it was                         |
-| `doctor`, soft check failing             | `0`  | A degraded optional feature does not stop the wrapper working            |
-| `doctor`, soft check failing, `--strict` | `1`  | The caller moved the threshold                                           |
-| `doctor`, hard check failing             | code | The wrapper genuinely cannot function                                    |
+| Invocation                               | Exit | Why                                                           |
+| ---------------------------------------- | ---- | ------------------------------------------------------------- |
+| `config`, structurally sound             | `0`  | The assertion holds                                           |
+| `config`, entry not yet written          | `0`  | Reported state, and the next launch writes it                 |
+| `config`, structural or type defect      | code | `DataFormat` or `Config`, by which defect it was              |
+| `doctor`, soft check failing             | `0`  | A degraded optional feature does not stop the wrapper working |
+| `doctor`, soft check failing, `--strict` | `1`  | The caller moved the threshold                                |
+| `doctor`, hard check failing             | code | The wrapper genuinely cannot function                         |
 
 Both draw the same line in the same place: a defect the subject can still function with is advisory and exits `0`, one it cannot is fatal. `--strict` exists so a caller who disagrees about where that line sits can move it without the verb having to guess.
 

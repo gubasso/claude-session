@@ -962,13 +962,16 @@ fn reordering_the_layer_list_names_a_different_entry() {
     assert_eq!(entries(&composed(&harness)).len(), 4);
 }
 
-/// Permissive about what it forwards: the key survives the fold untouched and
-/// the warning names who supplied it. Rejection is gated by `Q-003`.
+/// The delegation boundary, stated positively. The wrapper has no model of the
+/// child's settings keys, so a key it has never heard of is composed and
+/// forwarded exactly like any other and produces no diagnostic of its own
+/// ([ADR-0088](../docs/decisions/ADR-0088-model-nothing-the-child-already-owns.md)).
 #[test]
-fn an_unknown_native_key_is_preserved_and_warned_with_provenance() {
+fn a_key_the_wrapper_does_not_model_is_composed_and_forwarded_unchanged() {
     let harness = Harness::new();
     harness.write_piece("one", r#"{"model":"a","zzzNotAKey":{"deep":1}}"#);
-    harness.write_profile("multi", "layers:\n  - one\n");
+    harness.write_piece("two", r#"{"zzzNotAKey":{"other":2}}"#);
+    harness.write_profile("multi", "layers:\n  - one\n  - two\n");
     let output = harness
         .command()
         .args(["--profile", "multi"])
@@ -976,32 +979,14 @@ fn an_unknown_native_key_is_preserved_and_warned_with_provenance() {
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(0), "{stderr}");
-    assert!(stderr.contains("zzzNotAKey"), "{stderr}");
-    assert!(stderr.contains("one"), "{stderr}");
-    let (settings, _) = pair(&harness);
-    let document: serde_json::Value =
-        serde_json::from_slice(&fs::read(&settings).expect("settings")).expect("json");
-    assert_eq!(document["zzzNotAKey"]["deep"], 1, "the key was preserved");
-}
-
-#[test]
-fn an_unknown_key_warning_is_silenced_by_quiet() {
-    let harness = Harness::new();
-    harness.write_piece("one", r#"{"model":"a","zzzNotAKey":true}"#);
-    harness.write_profile("multi", "layers:\n  - one\n");
-    let output = harness
-        .command()
-        .args(["--quiet", "--profile", "multi"])
-        .output()
-        .expect("wrapper");
-    assert_eq!(output.status.code(), Some(0));
     assert!(
-        output.stderr.is_empty(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
+        !stderr.contains("zzzNotAKey"),
+        "an unmodelled key is not the wrapper's to mention: {stderr}"
     );
     let (settings, _) = pair(&harness);
     let document: serde_json::Value =
         serde_json::from_slice(&fs::read(&settings).expect("settings")).expect("json");
-    assert_eq!(document["zzzNotAKey"], true);
+    // Merged by the ordinary rules, not special-cased: both pieces contributed.
+    assert_eq!(document["zzzNotAKey"]["deep"], 1);
+    assert_eq!(document["zzzNotAKey"]["other"], 2);
 }

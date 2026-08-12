@@ -14,5 +14,4 @@ pub(crate) mod paths;
 pub(crate) mod pointer;
 pub(crate) mod profile;
 pub(crate) mod secret;
-pub(crate) mod settings_schema;
 pub(crate) mod strategy;

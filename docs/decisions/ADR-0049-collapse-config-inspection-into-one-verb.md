@@ -30,4 +30,4 @@ Chosen option: one bare `config` verb. It reports the resolved wrapper configura
 
 Accepted
 
-Amended by [ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md) to collapse `profile list`, and by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) to report entry existence instead of mtime freshness. The one-verb decision remains.
+Amended by [ADR-0051](./ADR-0051-let-every-surface-element-discriminate.md) to collapse `profile list`, by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) to report entry existence instead of mtime freshness, and by [ADR-0088](./ADR-0088-model-nothing-the-child-already-owns.md), which drops the unknown-key warnings this record's chosen option lists from what the verb reports. The one-verb decision remains.

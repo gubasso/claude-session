@@ -2,7 +2,7 @@
 
 Every byte the wrapper writes, and where it goes. How a human-facing byte looks once it gets there is [presentation](./presentation.md)'s.
 
-The passthrough, diagnostic, logging, composed `help`, `version`, and `doctor` output, all four `account` human and JSON reports, the precedence warnings, credential redaction, the `profile` and `config` human and JSON reports, and the raw `completion` and `man` results are implemented. An unrecognized child settings key is reported as a warning on standard error, which `--quiet` silences, and as structured data in the `config` report.
+The passthrough, diagnostic, logging, composed `help`, `version`, and `doctor` output, all four `account` human and JSON reports, the precedence warnings, credential redaction, the `profile` and `config` human and JSON reports, and the raw `completion` and `man` results are implemented.
 
 ## The stream contract
 

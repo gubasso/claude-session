@@ -616,19 +616,15 @@ fn full_profile_composition_documentation_matches_the_implemented_grammar() {
         );
     }
 
-    // The permissive unknown-key rule and its gate survive.
+    // Validation stops at the boundary: the wrapper's own surfaces are parsed
+    // strictly, and nothing models the child's settings keys.
     assert!(
-        configuration.contains("It does not reject unknown keys in the child's settings"),
-        "the permissive rule is what Q-003 gates tightening of"
+        configuration.contains("strict about what we own, permissive about what we forward"),
+        "the delegation boundary is what validation is scoped by"
     );
     assert!(
-        configuration.contains("`Q-003`"),
-        "the gate on strict rejection stays named"
-    );
-    let questions = document("docs/plan/open-questions.md");
-    assert!(
-        questions.contains("permissive unknown-key handling remains the shaped default"),
-        "Q-003 still specifies permissive handling"
+        !configuration.contains("Recognized top-level key"),
+        "no allowlist of the child's settings keys may return"
     );
 
     // The exclusions both slices placed out of scope.
