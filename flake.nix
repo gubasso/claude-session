@@ -10,6 +10,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       rust-overlay,
       flake-utils,
@@ -22,12 +23,61 @@
           inherit system;
           overlays = [ (import rust-overlay) ];
         };
+        inherit (pkgs) lib;
         # Reads channel + components + targets straight from rust-toolchain.toml.
         toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+        # Build with the pinned toolchain rather than whatever rustc nixpkgs
+        # carries, so the package and the devShell agree on the compiler
+        # (ADR-0019).
+        rustPlatform = pkgs.makeRustPlatform {
+          cargo = toolchain;
+          rustc = toolchain;
+        };
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        # An explicit file set, because `src = ./.` would drag `target/` and the
+        # whole docs tree into the store and rebuild the package on any of them.
+        # `xtask/` is here only because it is a workspace member cargo must
+        # resolve, not because the wrapper needs it at runtime.
+        src = lib.fileset.toSource {
+          root = ./.;
+          fileset = lib.fileset.unions [
+            ./Cargo.toml
+            ./Cargo.lock
+            ./.cargo
+            ./src
+            ./xtask
+          ];
+        };
       in
       {
         # `nix fmt` uses the RFC 166 formatter (also on PATH for the pre-commit hook).
         formatter = pkgs.nixfmt;
+
+        packages.default = rustPlatform.buildRustPackage {
+          pname = "claude-session-rs";
+          inherit (cargoToml.package) version;
+          inherit src;
+          cargoLock.lockFile = ./Cargo.lock;
+          # Only the wrapper binary; `xtask` is a development entry point that
+          # nothing installs.
+          cargoBuildFlags = [
+            "--package"
+            "claude-session"
+          ];
+          # The suite reads `docs/` and shells out to `script`/`setsid`, neither
+          # of which the build sandbox has, so the gate stays with `just hooks`
+          # (docs/reference/testing-and-quality.md).
+          doCheck = false;
+          meta = {
+            inherit (cargoToml.package) description;
+            homepage = cargoToml.package.repository;
+            license = with lib.licenses; [
+              mit
+              asl20
+            ];
+            mainProgram = "claude-session-rs";
+          };
+        };
 
         devShells.default = pkgs.mkShell {
           packages = [
@@ -65,6 +115,10 @@
             # controlling terminal. Without it the tests would read those
             # binaries off the host PATH, which self-containment forbids.
             pkgs.util-linux
+            # The wrapper itself, so entering the shell (or `direnv allow`) puts
+            # `claude-session-rs` on PATH without a separate install step. Built
+            # from this tree, so it rebuilds when `src/` or the manifests change.
+            self.packages.${system}.default
           ];
           # native deps for -sys crates, uncomment as needed:
           # buildInputs = [ pkgs.openssl ];
