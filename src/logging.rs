@@ -187,7 +187,7 @@ pub(crate) fn install(
         report_unavailable(&error);
         return empty();
     }
-    let log_path = paths.state().join("claude-session.log");
+    let log_path = paths.state().join("claude-session-rs.log");
     rotate(&log_path);
     let mut file = match SystemFileSystem::open_private_log(&log_path) {
         Ok(file) => file,

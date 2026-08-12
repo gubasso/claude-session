@@ -24,7 +24,7 @@ pub(crate) mod version;
 // which `--version` composes with the child's (`cli-surface.md#version-output`).
 #[derive(Debug, Parser)]
 #[command(
-    name = "claude-session",
+    name = "claude-session-rs",
     about = "preserve native claude behavior while adding isolated sessions",
     version = env!("CARGO_PKG_VERSION"),
     disable_version_flag = true,

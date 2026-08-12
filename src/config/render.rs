@@ -33,7 +33,7 @@ fn header(kind: &str, source: &str, destination: &[&str]) -> String {
         out.push_str(text);
         out.push('\n');
     };
-    line(&format!("# Example {kind} for claude-session."));
+    line(&format!("# Example {kind} for claude-session-rs."));
     line("#");
     line(&format!(
         "# GENERATED from {source}. Do not edit in place; edit the"
@@ -62,7 +62,7 @@ pub fn config_example_toml() -> String {
         "the wrapper's configuration type",
         &[
             "cp docs/reference/examples/config.example.toml \\",
-            "   \"${XDG_CONFIG_HOME:-$HOME/.config}/claude-session/config.toml\"",
+            "   \"${XDG_CONFIG_HOME:-$HOME/.config}/claude-session-rs/config.toml\"",
         ],
     );
     for key in KEYS {
@@ -121,7 +121,7 @@ pub fn config_schema_json() -> String {
     let mut out = String::new();
     out.push_str("{\n");
     out.push_str("  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n");
-    out.push_str("  \"title\": \"claude-session configuration\",\n");
+    out.push_str("  \"title\": \"claude-session-rs configuration\",\n");
     out.push_str("  \"type\": \"object\",\n");
     out.push_str("  \"additionalProperties\": false,\n");
     out.push_str(&required_line);
@@ -140,7 +140,7 @@ pub fn profile_example_yaml() -> String {
         "the profile type",
         &[
             "cp docs/reference/examples/profile.example.yaml \\",
-            "   \"${XDG_CONFIG_HOME:-$HOME/.config}/claude-session/profiles/dev.yaml\"",
+            "   \"${XDG_CONFIG_HOME:-$HOME/.config}/claude-session-rs/profiles/dev.yaml\"",
         ],
     );
     for field in PROFILE_FIELDS {

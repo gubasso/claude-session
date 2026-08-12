@@ -101,7 +101,7 @@ fn help_output_matches_snapshot() {
 --- claude --help ---
 
 ");
-    assert!(text.contains("Usage: claude-session"));
+    assert!(text.contains("Usage: claude-session-rs"));
     assert!(text.contains("--- claude --help ---"));
     assert!(text.ends_with("native-help"));
 }
@@ -157,7 +157,10 @@ fn passthrough_errors_never_pollute_stdout() {
     let harness = Harness::new();
     let output = harness
         .command()
-        .env("CLAUDE_SESSION_CHILD_BIN", harness.root().join("missing"))
+        .env(
+            "CLAUDE_SESSION_RS_CHILD_BIN",
+            harness.root().join("missing"),
+        )
         .output()
         .expect("wrapper");
     assert!(output.stdout.is_empty());
@@ -167,18 +170,18 @@ fn passthrough_errors_never_pollute_stdout() {
 #[test]
 fn log_mode_rotation_and_record_shape() {
     let harness = Harness::new();
-    let state = harness.root().join("state/claude-session");
+    let state = harness.root().join("state/claude-session-rs");
     fs::create_dir_all(&state).expect("state fixture");
     fs::write(
-        state.join("claude-session.log"),
+        state.join("claude-session-rs.log"),
         vec![b'x'; 8 * 1024 * 1024],
     )
     .expect("large log");
     assert!(harness.bound_command().status().expect("wrapper").success());
-    let log_path = state.join("claude-session.log");
+    let log_path = state.join("claude-session-rs.log");
     let metadata = fs::metadata(&log_path).expect("active log");
     assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
-    assert!(state.join("claude-session.log.1").is_file());
+    assert!(state.join("claude-session-rs.log.1").is_file());
     let log = fs::read_to_string(log_path).expect("UTF-8 structured log");
     for field in [
         "ts=",
@@ -205,14 +208,17 @@ fn a_failing_invocation_records_its_error_in_the_log() {
     let harness = Harness::new();
     let output = harness
         .command()
-        .env("CLAUDE_SESSION_CHILD_BIN", harness.root().join("missing"))
+        .env(
+            "CLAUDE_SESSION_RS_CHILD_BIN",
+            harness.root().join("missing"),
+        )
         .output()
         .expect("wrapper");
     assert!(!output.status.success());
     let log = fs::read_to_string(
         harness
             .root()
-            .join("state/claude-session/claude-session.log"),
+            .join("state/claude-session-rs/claude-session-rs.log"),
     )
     .expect("UTF-8 structured log");
     assert!(
@@ -236,7 +242,10 @@ fn the_verbosity_ladder_governs_the_diagnostic_mirror() {
         let output = harness
             .command()
             .args(args)
-            .env("CLAUDE_SESSION_CHILD_BIN", harness.root().join("missing"))
+            .env(
+                "CLAUDE_SESSION_RS_CHILD_BIN",
+                harness.root().join("missing"),
+            )
             .output()
             .expect("wrapper");
         String::from_utf8_lossy(&output.stderr).into_owned()
@@ -279,7 +288,7 @@ fn a_spawn_failure_names_its_condition_in_place_of_the_section() {
     let output = harness
         .command()
         .arg("--version")
-        .env("CLAUDE_SESSION_CHILD_BIN", &unloadable)
+        .env("CLAUDE_SESSION_RS_CHILD_BIN", &unloadable)
         .output()
         .expect("wrapper");
     let stdout = String::from_utf8_lossy(&output.stdout);

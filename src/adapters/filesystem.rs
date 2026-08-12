@@ -95,7 +95,7 @@ impl SystemFileSystem {
     ///
     /// Logging calls this before a context or the guard's error type exists, so
     /// it stays best-effort and narrow: the unmanaged ancestors are created
-    /// however the umask says, and only the `claude-session` component itself
+    /// however the umask says, and only the `claude-session-rs` component itself
     /// is refused, validated, and made private.
     pub(crate) fn create_private_dir(path: &Path) -> io::Result<()> {
         match fs::symlink_metadata(path) {

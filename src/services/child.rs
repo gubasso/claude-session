@@ -26,12 +26,14 @@ pub(crate) fn resolve<F: FileSystem>(
     current_exe: &Path,
     config: &ResolvedConfig,
 ) -> Result<PathBuf, AppError> {
-    if environment::value(environment, "CLAUDE_SESSION_REENTRY").is_some_and(|value| value == "1") {
+    if environment::value(environment, "CLAUDE_SESSION_RS_REENTRY")
+        .is_some_and(|value| value == "1")
+    {
         return Err(AppError::new(
             crate::error::ErrorKind::ChildRecursion,
             Diagnostic::new(
                 "recursive wrapper invocation refused",
-                "CLAUDE_SESSION_REENTRY",
+                "CLAUDE_SESSION_RS_REENTRY",
                 "the child environment contains the wrapper marker",
                 "remove wrapper recursion from child_bin or PATH",
             ),
@@ -173,10 +175,10 @@ fn scrubbed(context: &AppContext) -> Vec<(OsString, OsString)> {
         .environment()
         .variables()
         .iter()
-        .filter(|(key, _)| !key.as_encoded_bytes().starts_with(b"CLAUDE_SESSION_"))
+        .filter(|(key, _)| !key.as_encoded_bytes().starts_with(b"CLAUDE_SESSION_RS_"))
         .cloned()
         .collect();
-    environment.push(("CLAUDE_SESSION_REENTRY".into(), "1".into()));
+    environment.push(("CLAUDE_SESSION_RS_REENTRY".into(), "1".into()));
     environment
 }
 
@@ -379,7 +381,7 @@ mod tests {
     fn the_reentry_marker_refuses_before_any_filesystem_access() {
         let error = resolve(
             &FakeFs::default(),
-            &env(&[("CLAUDE_SESSION_REENTRY", "1")]),
+            &env(&[("CLAUDE_SESSION_RS_REENTRY", "1")]),
             Path::new("/usr/bin/claude-session"),
             &ResolvedConfig::defaults(),
         )

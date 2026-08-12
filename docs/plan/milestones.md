@@ -6,6 +6,8 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
+- 019 original-namespace-restoration — shaped — 1 implementation session — after 018; waits on the predecessor's deprecation, which is the entry condition rather than the work
+
 ## closed
 
 - 001 native-passthrough-foundation — done — 4 implementation sessions
@@ -25,3 +27,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 015 child-fact-delegation — done — 2 implementation sessions — after 014; made the rule ADR-0088 implied checkable, and left one contested carry to 016
 - 016 ambient-credential-scope — done — 1 implementation session — after 015; settled the ambient carry by amending ADR-0089 rather than opening a record beside it
 - 017 mandatory-session-binding — done — 2 implementation sessions — after 016; makes a bound account and profile the precondition for an exec
+- 018 legacy-coexistence-namespace — done — 2 implementation sessions — after 017; frees every name the shell predecessor claims so both installs can sit on one machine

@@ -17,7 +17,7 @@ fn configuration_precedence_and_provenance() {
     let status = harness
         .bound_command()
         .args(["--config".into(), config.into_os_string()])
-        .env("CLAUDE_SESSION_CHILD_BIN", &env_child)
+        .env("CLAUDE_SESSION_RS_CHILD_BIN", &env_child)
         .status()
         .expect("wrapper");
     assert!(status.success());
@@ -51,7 +51,7 @@ fn project_discovery_stops_at_repository_boundary() {
     fs::create_dir_all(repo.join(".git")).expect("marker");
     fs::create_dir_all(&child).expect("cwd");
     fs::write(
-        harness.root().join(".claude-session.toml"),
+        harness.root().join(".claude-session-rs.toml"),
         "child_bin='/not/allowed'\n",
     )
     .expect("outer");
@@ -90,7 +90,11 @@ fn a_project_file_inside_a_repository_is_read() {
     let nested = repo.join("nested");
     fs::create_dir_all(repo.join(".git")).expect("marker");
     fs::create_dir_all(&nested).expect("cwd");
-    fs::write(repo.join(".claude-session.toml"), "child_bin='/anything'\n").expect("project file");
+    fs::write(
+        repo.join(".claude-session-rs.toml"),
+        "child_bin='/anything'\n",
+    )
+    .expect("project file");
     let mut command = harness.command();
     command.current_dir(&nested);
     let output = command.output().expect("wrapper");
@@ -108,7 +112,7 @@ fn a_project_file_cannot_select_an_account() {
     let repo = harness.root().join("repo");
     fs::create_dir_all(repo.join(".git")).expect("marker");
     fs::write(
-        repo.join(".claude-session.toml"),
+        repo.join(".claude-session-rs.toml"),
         "default_account='work'\n",
     )
     .expect("project file");
@@ -128,7 +132,7 @@ fn no_project_layer_applies_outside_a_repository() {
     let nested = harness.root().join("loose/nested");
     fs::create_dir_all(&nested).expect("cwd");
     fs::write(
-        harness.root().join("loose/.claude-session.toml"),
+        harness.root().join("loose/.claude-session-rs.toml"),
         "child_bin='/not/allowed'\n",
     )
     .expect("stray file");
@@ -192,7 +196,7 @@ fn an_invalid_identifier_from_any_layer_exits_usage() {
 
     let output = harness
         .command()
-        .env("CLAUDE_SESSION_DEFAULT_ACCOUNT", "has.dot")
+        .env("CLAUDE_SESSION_RS_DEFAULT_ACCOUNT", "has.dot")
         .output()
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -203,7 +207,7 @@ fn an_invalid_identifier_from_any_layer_exits_usage() {
     );
     assert!(stderr.contains("has.dot"), "{stderr}");
     assert!(
-        stderr.contains("CLAUDE_SESSION_DEFAULT_ACCOUNT"),
+        stderr.contains("CLAUDE_SESSION_RS_DEFAULT_ACCOUNT"),
         "the diagnostic did not name the variable:\n{stderr}"
     );
 

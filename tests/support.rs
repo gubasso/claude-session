@@ -68,7 +68,7 @@ impl Harness {
         }
         fs::create_dir_all(self.record_dir()).expect("record directory");
         command
-            .env("CLAUDE_SESSION_CHILD_BIN", &self.child)
+            .env("CLAUDE_SESSION_RS_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
             .current_dir(self.root.path());
         command
@@ -135,7 +135,7 @@ impl Harness {
         }
         fs::create_dir_all(self.record_dir()).expect("record directory");
         command
-            .env("CLAUDE_SESSION_CHILD_BIN", &self.child)
+            .env("CLAUDE_SESSION_RS_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
             .arg("--wait")
             .arg(devshell_binary("timeout"))
@@ -162,7 +162,7 @@ impl Harness {
         }
         fs::create_dir_all(self.record_dir()).expect("record directory");
         command
-            .env("CLAUDE_SESSION_CHILD_BIN", &self.child)
+            .env("CLAUDE_SESSION_RS_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
             .arg("-q")
             .arg("-e")
@@ -180,11 +180,11 @@ impl Harness {
 
     /// The wrapper-managed state namespace inside this fixture's XDG state base.
     pub(crate) fn state(&self) -> PathBuf {
-        self.root.path().join("state/claude-session")
+        self.root.path().join("state/claude-session-rs")
     }
     /// The wrapper's config namespace inside this fixture's XDG config base.
     pub(crate) fn config_base(&self) -> PathBuf {
-        self.root.path().join("config/claude-session")
+        self.root.path().join("config/claude-session-rs")
     }
     /// Writes a settings piece the user would have authored.
     pub(crate) fn write_piece(&self, name: &str, json: &str) {

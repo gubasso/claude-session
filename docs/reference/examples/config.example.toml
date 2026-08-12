@@ -1,11 +1,11 @@
-# Example configuration for claude-session.
+# Example configuration for claude-session-rs.
 #
 # GENERATED from the wrapper's configuration type. Do not edit in place; edit the
 # type and regenerate with `cargo xtask gen-config`.
 #
 # Copy it where it belongs and edit it there:
 #     cp docs/reference/examples/config.example.toml \
-#        "${XDG_CONFIG_HOME:-$HOME/.config}/claude-session/config.toml"
+#        "${XDG_CONFIG_HOME:-$HOME/.config}/claude-session-rs/config.toml"
 #
 # The wrapper never writes your configuration. A missing file is not an error.
 #

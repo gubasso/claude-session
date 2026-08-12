@@ -96,7 +96,7 @@ The child keeps only the last `--settings` it is given, so a user who passes one
 
 Account selection and profile selection are separate axes, explained in [session isolation](./session-isolation.md).
 
-The child's environment is otherwise inherited, with the wrapper's own `CLAUDE_SESSION_*` variables scrubbed out and the recursion marker then set back. A child should never be able to observe the wrapper's internal state by reading its environment, both because it is none of the child's business and because a nested invocation would inherit stale values — and the marker is the deliberate exception, because a nested invocation seeing it is exactly how the guard fires.
+The child's environment is otherwise inherited, with the wrapper's own `CLAUDE_SESSION_RS_*` variables scrubbed out and the recursion marker then set back. A child should never be able to observe the wrapper's internal state by reading its environment, both because it is none of the child's business and because a nested invocation would inherit stale values — and the marker is the deliberate exception, because a nested invocation seeing it is exactly how the guard fires.
 
 ## The proxy seam
 

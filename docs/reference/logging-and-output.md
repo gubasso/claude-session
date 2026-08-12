@@ -80,7 +80,7 @@ Verbosity repeats by repeating the whole spelling, and `-vv` is not a wrapper to
 
 A fourth `--verbose` is not an error; the level is clamped at trace. `--quiet` and `--verbose` together is a usage error, not a silent precedence rule.
 
-`RUST_LOG` is honoured and, when set, overrides the flag-derived level. This is deliberate: the flag is the user's coarse control, and the environment variable is the developer's fine one. Only the level is read from it — the wrapper emits from one target, so per-module filtering would have nothing to select between, and a directive naming a module selects on its level alone. No `CLAUDE_SESSION_LOG` variable is invented — reusing the ecosystem-standard name means existing knowledge transfers.
+`RUST_LOG` is honoured and, when set, overrides the flag-derived level. This is deliberate: the flag is the user's coarse control, and the environment variable is the developer's fine one. Only the level is read from it — the wrapper emits from one target, so per-module filtering would have nothing to select between, and a directive naming a module selects on its level alone. No `CLAUDE_SESSION_RS_LOG` variable is invented — reusing the ecosystem-standard name means existing knowledge transfers.
 
 Verbosity governs the stderr mirror and nothing else. The file sink is fixed at `debug`, unconditionally: `--quiet`, `--verbose`, and `RUST_LOG` do not move it. A level that tracked the terminal would leave the file useless in exactly the case it exists for — a bug report from a user who ran with no flags. `trace` is deliberately not the fixed level, because trace is where child arguments are logged and always-on argument capture on a wrapper that forwards prompts is a standing redaction hazard.
 

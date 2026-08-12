@@ -16,10 +16,10 @@ The baseline is an evidence rule, not a launch gate. The only version check that
 
 The child binary is resolved by a ladder of two rungs, highest priority first. A rung whose source is present is terminal: the wrapper validates what that source named and reports the failure, rather than trying the next rung. Falling through on a broken rung would silently run a different binary than the user named ([ADR-0054](../decisions/ADR-0054-resolve-the-child-by-a-terminal-ladder.md)).
 
-| Priority | Source                            | Consulted when                                                |
-| -------- | --------------------------------- | ------------------------------------------------------------- |
-| 1        | The `child_bin` configuration key | It is set at any layer, `CLAUDE_SESSION_CHILD_BIN` among them |
-| 2        | Search of `PATH` for `claude`     | `child_bin` is unset, which is its default. The normal case.  |
+| Priority | Source                            | Consulted when                                                   |
+| -------- | --------------------------------- | ---------------------------------------------------------------- |
+| 1        | The `child_bin` configuration key | It is set at any layer, `CLAUDE_SESSION_RS_CHILD_BIN` among them |
+| 2        | Search of `PATH` for `claude`     | `child_bin` is unset, which is its default. The normal case.     |
 
 `child_bin` is one key, not two rungs. Its layering — environment above project file above user file — belongs to [configuration](./configuration.md#precedence), and an empty environment value is set-to-empty rather than unset, so it reaches validation as a non-absolute path.
 
@@ -55,23 +55,23 @@ The absolute resolved path is what gets exec'd, never the bare name, so the exec
 
 A wrapper installed under the same name as its child, or earlier on `PATH`, will otherwise invoke itself until something breaks. Two independent guards, both required:
 
-The marker variable. `CLAUDE_SESSION_REENTRY=1` is set in every child's environment. A wrapper that starts with the marker already set is running as somebody's child; it refuses to resolve a child of its own and fails with `ChildRecursion`.
+The marker variable. `CLAUDE_SESSION_RS_REENTRY=1` is set in every child's environment. A wrapper that starts with the marker already set is running as somebody's child; it refuses to resolve a child of its own and fails with `ChildRecursion`.
 
 The identity self-check. The wrapper's own executable comes from `std::env::current_exe`, which on this target reads `/proc/self/exe`. Both it and the resolved child path are `stat`ed, and equal device and inode is `ChildRecursion` — not equal canonical path strings, which would miss a hard link, since two names for one inode canonicalize to two different paths ([ADR-0055](../decisions/ADR-0055-compare-executable-identity-by-device-and-inode.md)).
 
 Neither guard is sufficient alone. The marker is defeated by an environment scrubbed between the two invocations; the identity check is defeated by a byte-for-byte copy of the wrapper, or by the binary being replaced on disk mid-run. Together they cover both.
 
-A `claude-session` run from inside a Claude Code session refuses to start. The marker reaches the child, and anything the child launches inherits it, so a nested wrapper sees the marker and exits `ChildRecursion` before resolving anything. That is the guard working as specified rather than an edge case to repair: the nested wrapper genuinely cannot tell that invocation apart from the self-invocation loop the marker exists to break.
+A `claude-session-rs` run from inside a Claude Code session refuses to start. The marker reaches the child, and anything the child launches inherits it, so a nested wrapper sees the marker and exits `ChildRecursion` before resolving anything. That is the guard working as specified rather than an edge case to repair: the nested wrapper genuinely cannot tell that invocation apart from the self-invocation loop the marker exists to break.
 
-The marker is the one internal variable deliberately left in the child's environment. Every other `CLAUDE_SESSION_*` key is removed, wrapper inputs included.
+The marker is the one internal variable deliberately left in the child's environment. Every other `CLAUDE_SESSION_RS_*` key is removed, wrapper inputs included.
 
 ## Child environment
 
 The child's environment is a snapshot of the wrapper's own, scrubbed and then added to, in this order. The order is load-bearing: step 3 must follow step 2, or the scrub deletes the marker it just set ([ADR-0057](../decisions/ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md)).
 
 1. Snapshot the wrapper's environment, keys and values as OS strings ([coding conventions](./coding-conventions.md#types)).
-2. Remove every key whose bytes begin `CLAUDE_SESSION_`, matched ASCII case-sensitively. This sweeps wrapper inputs as well as internals: `CLAUDE_SESSION_CHILD_BIN` and `CLAUDE_SESSION_DEFAULT_PROFILE` are consumed at startup, and a nested wrapper must not re-read a stale one.
-3. Set `CLAUDE_SESSION_REENTRY=1`, the recursion marker.
+2. Remove every key whose bytes begin `CLAUDE_SESSION_RS_`, matched ASCII case-sensitively. This sweeps wrapper inputs as well as internals: `CLAUDE_SESSION_RS_CHILD_BIN` and `CLAUDE_SESSION_RS_DEFAULT_PROFILE` are consumed at startup, and a nested wrapper must not re-read a stale one. The prefix is exactly this wrapper's, so a `CLAUDE_SESSION_` variable belonging to the shell predecessor is not swept: removing another program's configuration is not this step's business ([ADR-0092](../decisions/ADR-0092-namespace-apart-from-the-predecessor.md)).
+3. Set `CLAUDE_SESSION_RS_REENTRY=1`, the recursion marker.
 4. Set `CLAUDE_CONFIG_DIR` to the account config directory, selecting the account-wide child state — only when an account is selected.
 5. Set `CLAUDE_CODE_OAUTH_TOKEN` to the retrieved token — only in token mode, and only at [step 5 of the launch sequence](#the-exec).
 

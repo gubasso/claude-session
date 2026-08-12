@@ -600,7 +600,7 @@ fn requested_account_help_is_a_result_and_malformed_account_grammar_is_not() {
         text.starts_with("Manage durable child-owned accounts"),
         "{text}"
     );
-    assert!(text.contains("Usage: claude-session account"));
+    assert!(text.contains("Usage: claude-session-rs account"));
     assert!(text.contains("login"));
     assert!(text.contains("list"));
 
@@ -626,7 +626,7 @@ fn requested_account_help_is_a_result_and_malformed_account_grammar_is_not() {
         assert!(output.status.success());
         let text = String::from_utf8(output.stdout).expect("text");
         assert!(text.starts_with(headline), "{text}");
-        assert!(text.contains(&format!("Usage: claude-session account {subcommand}")));
+        assert!(text.contains(&format!("Usage: claude-session-rs account {subcommand}")));
     }
 
     // Nothing about the malformed cases changed: they stay diagnostics, and
@@ -635,7 +635,7 @@ fn requested_account_help_is_a_result_and_malformed_account_grammar_is_not() {
     for (arguments, expected) in [
         (
             vec!["account"],
-            vec!["Usage: claude-session account", "login", "list"],
+            vec!["Usage: claude-session-rs account", "login", "list"],
         ),
         // An unrecognized subcommand carries a nearest match instead, because
         // the parser's subcommand set is closed and wholly wrapper-owned.

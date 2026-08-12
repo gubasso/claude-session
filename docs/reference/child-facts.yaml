@@ -23,7 +23,7 @@
 # checkable, and is enforced at review only.
 #
 # Discovery scans for `ANTHROPIC_`, `CLAUDE_CODE_`, and `CLAUDE_CONFIG_`. The
-# wrapper's own `CLAUDE_SESSION_` prefix is not a child fact and is not scanned.
+# wrapper's own `CLAUDE_SESSION_RS_` prefix is not a child fact and is not scanned.
 
 carried:
   - fact: CLAUDE_CONFIG_DIR

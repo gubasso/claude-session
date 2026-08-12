@@ -33,9 +33,9 @@ claude-session-rs account status work                 # mode, health, and what s
 Profiles compose user-authored settings pieces into one child settings document, selected per launch:
 
 ```bash
-mkdir -p ~/.config/claude-session/settings ~/.config/claude-session/profiles
-echo '{"model":"sonnet"}' > ~/.config/claude-session/settings/base.json
-printf 'layers:\n  - base\n' > ~/.config/claude-session/profiles/dev.yaml
+mkdir -p ~/.config/claude-session-rs/settings ~/.config/claude-session-rs/profiles
+echo '{"model":"sonnet"}' > ~/.config/claude-session-rs/settings/base.json
+printf 'layers:\n  - base\n' > ~/.config/claude-session-rs/profiles/dev.yaml
 
 claude-session-rs profile               # the profiles `--profile` can select
 claude-session-rs --profile dev         # launch with the composed settings
@@ -46,8 +46,8 @@ Composition is ordered and explainable. Later pieces win, and a key that needs a
 
 ```bash
 echo '{"permissions":{"allow":["Bash(git status:*)"]}}' \
-  > ~/.config/claude-session/settings/git.json
-cat > ~/.config/claude-session/profiles/dev.yaml <<'YAML'
+  > ~/.config/claude-session-rs/settings/git.json
+cat > ~/.config/claude-session-rs/profiles/dev.yaml <<'YAML'
 layers:
   - base
   - git

@@ -87,7 +87,7 @@ fn doctor_list_human_runs_no_probes() {
         .assert_command()
         .env_remove("HOME")
         .env("XDG_CONFIG_HOME", "relative")
-        .env("CLAUDE_SESSION_CHILD_BIN", "/missing")
+        .env("CLAUDE_SESSION_RS_CHILD_BIN", "/missing")
         .args(["doctor", "--list"])
         .output()
         .expect("list");
@@ -159,7 +159,7 @@ fn doctor_returns_the_first_hard_failure_in_catalog_order() {
     let harness = Harness::new();
     harness
         .assert_command()
-        .env("CLAUDE_SESSION_CHILD_BIN", "/missing")
+        .env("CLAUDE_SESSION_RS_CHILD_BIN", "/missing")
         .args(["doctor", "--strict"])
         .assert()
         .code(127);
@@ -170,7 +170,7 @@ fn doctor_continues_after_a_subsystem_failure() {
     let harness = Harness::new();
     let output = harness
         .assert_command()
-        .env("CLAUDE_SESSION_CHILD_BIN", "/missing")
+        .env("CLAUDE_SESSION_RS_CHILD_BIN", "/missing")
         .args(["doctor", "--json"])
         .output()
         .expect("doctor");
@@ -266,7 +266,7 @@ fn a_wrapper_hard_failure_outranks_the_child_code() {
     let harness = Harness::new();
     let output = harness
         .assert_command()
-        .env("CLAUDE_SESSION_CHILD_BIN", "/missing")
+        .env("CLAUDE_SESSION_RS_CHILD_BIN", "/missing")
         .env("CS_TEST_DOCTOR_EXIT", "9")
         .arg("doctor")
         .output()

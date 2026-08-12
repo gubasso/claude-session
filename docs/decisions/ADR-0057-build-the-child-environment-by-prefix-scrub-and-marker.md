@@ -13,7 +13,7 @@ The environment is the wrapper's only non-argv channel to the child, and it carr
 
 ## Decision Outcome
 
-Chosen option: prefix scrub plus marker — the child is a normal program, so the wrapper removes its own namespace and adds nothing the child cannot already be given. The ordered algorithm is in [process runtime](../reference/process-runtime.md#child-environment); the scrub is by prefix rather than by a known-key list, so a wrapper input like `CLAUDE_SESSION_CHILD_BIN` cannot leak to a nested reader.
+Chosen option: prefix scrub plus marker — the child is a normal program, so the wrapper removes its own namespace and adds nothing the child cannot already be given. The ordered algorithm is in [process runtime](../reference/process-runtime.md#child-environment); the scrub is by prefix rather than by a known-key list, so a wrapper input cannot leak to a nested reader.
 
 An allowlist is rejected: it is a privilege boundary, which this is not, and it would strip the ambient authentication [accounts](../reference/accounts.md) promises to leave alone.
 
@@ -30,4 +30,4 @@ Implemented
 
 Enacted by [`src/services/child.rs`](../../src/services/child.rs).
 
-Amended by [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md), which names its obligation.
+Amended by [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md), naming its obligation, and [ADR-0092](./ADR-0092-namespace-apart-from-the-predecessor.md), moving the prefix.

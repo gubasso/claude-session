@@ -8,6 +8,17 @@ use std::{
 
 use crate::{domain::identifier::Identifier, error::DomainError};
 
+/// The directory name every XDG base is namespaced under.
+///
+/// Deliberately not the project name: the shell predecessor still claims that
+/// spelling for its own configuration and state, and the two must be
+/// installable at once
+/// ([ADR-0092](../../docs/decisions/ADR-0092-namespace-apart-from-the-predecessor.md)).
+/// One constant, so
+/// [019](../../docs/plan/slices/019-original-namespace-restoration/README.md)
+/// reverses the four bases in one edit.
+const NAMESPACE: &str = "claude-session-rs";
+
 /// Absolute XDG namespace paths owned by the wrapper.
 #[derive(Clone, Debug)]
 pub(crate) struct XdgPaths {
@@ -40,10 +51,10 @@ impl XdgPaths {
             Ok(home.join(fallback))
         };
         Ok(Self {
-            config: base("XDG_CONFIG_HOME", ".config")?.join("claude-session"),
-            state: base("XDG_STATE_HOME", ".local/state")?.join("claude-session"),
-            data: base("XDG_DATA_HOME", ".local/share")?.join("claude-session"),
-            cache: base("XDG_CACHE_HOME", ".cache")?.join("claude-session"),
+            config: base("XDG_CONFIG_HOME", ".config")?.join(NAMESPACE),
+            state: base("XDG_STATE_HOME", ".local/state")?.join(NAMESPACE),
+            data: base("XDG_DATA_HOME", ".local/share")?.join(NAMESPACE),
+            cache: base("XDG_CACHE_HOME", ".cache")?.join(NAMESPACE),
         })
     }
 
@@ -154,44 +165,44 @@ mod tests {
     fn every_managed_path_matches_the_artifact_table() {
         let paths = fixture();
         let work = "work".parse().expect("identifier");
-        assert_eq!(paths.accounts(), Path::new("/s/claude-session/accounts"));
+        assert_eq!(paths.accounts(), Path::new("/s/claude-session-rs/accounts"));
         assert_eq!(
             paths.account(&work),
-            Path::new("/s/claude-session/accounts/work")
+            Path::new("/s/claude-session-rs/accounts/work")
         );
         assert_eq!(
             paths.account_config(&work),
-            Path::new("/s/claude-session/accounts/work/config")
+            Path::new("/s/claude-session-rs/accounts/work/config")
         );
         assert_eq!(
             paths.account_auth_mode(&work),
-            Path::new("/s/claude-session/accounts/work/auth-mode.json")
+            Path::new("/s/claude-session-rs/accounts/work/auth-mode.json")
         );
         assert_eq!(
             paths.account_oauth_token(&work),
-            Path::new("/s/claude-session/accounts/work/oauth-token")
+            Path::new("/s/claude-session-rs/accounts/work/oauth-token")
         );
         assert_eq!(
             paths.account_credentials_lock(&work),
-            Path::new("/s/claude-session/accounts/.work.lock")
+            Path::new("/s/claude-session-rs/accounts/.work.lock")
         );
         assert_eq!(
             paths.account_credentials(&work),
-            Path::new("/s/claude-session/accounts/work/config/.credentials.json")
+            Path::new("/s/claude-session-rs/accounts/work/config/.credentials.json")
         );
         assert_eq!(
             paths.last_account(),
-            Path::new("/s/claude-session/state/last-account")
+            Path::new("/s/claude-session-rs/state/last-account")
         );
-        assert_eq!(paths.composed(), Path::new("/s/claude-session/composed"));
-        assert_eq!(paths.profiles(), Path::new("/c/claude-session/profiles"));
+        assert_eq!(paths.composed(), Path::new("/s/claude-session-rs/composed"));
+        assert_eq!(paths.profiles(), Path::new("/c/claude-session-rs/profiles"));
         assert_eq!(
             paths.profile_file(&work),
-            Path::new("/c/claude-session/profiles/work.yaml")
+            Path::new("/c/claude-session-rs/profiles/work.yaml")
         );
         assert_eq!(
             paths.piece_file(&work),
-            Path::new("/c/claude-session/settings/work.json")
+            Path::new("/c/claude-session-rs/settings/work.json")
         );
     }
 }

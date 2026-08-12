@@ -88,7 +88,7 @@ fn completions_cover_every_documented_shell() {
         let script = completion(&harness, shell);
         assert!(!script.trim().is_empty(), "{shell} script was empty");
         assert!(
-            script.contains("claude-session") || script.contains("claude__session"),
+            script.contains("claude-session-rs") || script.contains("claude__session__rs"),
             "{shell} script never names the binary"
         );
         assert!(
@@ -118,7 +118,7 @@ fn completions_cover_every_documented_shell() {
     assert_eq!(output.status.code(), Some(64));
     assert!(output.stdout.is_empty());
     let diagnostic = String::from_utf8(output.stderr).expect("utf-8 diagnostic");
-    assert!(diagnostic.contains("Usage: claude-session completion"));
+    assert!(diagnostic.contains("Usage: claude-session-rs completion"));
     for (shell, _) in SHELLS {
         assert!(diagnostic.contains(shell), "the diagnostic hides {shell}");
     }
@@ -168,12 +168,36 @@ fn artifacts_carry_the_account_grammar_and_no_unimplemented_verb() {
     let page = unescape_roff(&man_page(&harness));
     for verb in IMPLEMENTED_VERBS {
         assert!(
-            page.contains(&format!("claude-session-{verb}")),
+            page.contains(&format!("claude-session-rs-{verb}")),
             "the page omits the {verb} verb"
         );
     }
     // Every verb the CLI surface documents is now built, so there is no
     // exclusion list left to assert. The positive loop above is the whole check.
+}
+
+/// Acceptance: both installed artifacts carry the installed binary name.
+///
+/// A completion script registers against a command name and a man page is
+/// filed under one, so these two land in shared directories where the shell
+/// predecessor's own artifacts already sit. Naming the binary is what keeps
+/// them from colliding, and what stops the page describing a command the user
+/// cannot type
+/// ([ADR-0092](../docs/decisions/ADR-0092-namespace-apart-from-the-predecessor.md)).
+#[test]
+fn generated_artifacts_name_the_installed_binary() {
+    let harness = Harness::new();
+    assert!(
+        man_page(&harness).contains(".TH claude-session-rs 1"),
+        "the page is filed under another command"
+    );
+    for (shell, _) in SHELLS {
+        let script = completion(&harness, shell);
+        assert!(
+            !script.contains("claude-session ") && !script.contains("'claude-session'"),
+            "the {shell} script registers the predecessor's spelling"
+        );
+    }
 }
 
 /// Acceptance: the page is derived from the same parser tree.
@@ -186,7 +210,7 @@ fn artifacts_carry_the_account_grammar_and_no_unimplemented_verb() {
 fn man_derives_the_root_page_from_the_parser_tree() {
     let harness = Harness::new();
     let page = man_page(&harness);
-    assert!(page.contains(".TH claude-session 1"), "no roff title");
+    assert!(page.contains(".TH claude-session-rs 1"), "no roff title");
     assert!(page.contains(".SH NAME"), "no NAME section");
 
     let readable = unescape_roff(&page);

@@ -10,7 +10,10 @@ fn configured_child_is_terminal_when_missing() {
     let harness = Harness::new();
     let output = harness
         .command()
-        .env("CLAUDE_SESSION_CHILD_BIN", harness.root().join("missing"))
+        .env(
+            "CLAUDE_SESSION_RS_CHILD_BIN",
+            harness.root().join("missing"),
+        )
         .output()
         .expect("wrapper");
     assert_eq!(output.status.code(), Some(127));
@@ -35,7 +38,7 @@ fn path_search_skips_empty_and_remembers_permission_denial() {
     .expect("PATH");
     let mut command = harness.bound_command();
     command
-        .env_remove("CLAUDE_SESSION_CHILD_BIN")
+        .env_remove("CLAUDE_SESSION_RS_CHILD_BIN")
         .env("PATH", path);
     assert!(command.status().expect("wrapper").success());
 }
@@ -54,7 +57,7 @@ fn exec_failure_errno_is_classified() {
     make_executable(&missing, b"#!/definitely/missing/interpreter\n");
     let output = harness
         .bound_command()
-        .env("CLAUDE_SESSION_CHILD_BIN", &missing)
+        .env("CLAUDE_SESSION_RS_CHILD_BIN", &missing)
         .output()
         .expect("wrapper");
     assert_eq!(output.status.code(), Some(127));
@@ -66,7 +69,7 @@ fn reentry_marker_prevents_recursion() {
     let harness = Harness::new();
     let output = harness
         .command()
-        .env("CLAUDE_SESSION_REENTRY", "1")
+        .env("CLAUDE_SESSION_RS_REENTRY", "1")
         .output()
         .expect("wrapper");
     assert_eq!(output.status.code(), Some(78));
@@ -83,7 +86,7 @@ fn hard_link_identity_prevents_recursion() {
     fs::hard_link(binary, &link).expect("hard link");
     let output = harness
         .command()
-        .env("CLAUDE_SESSION_CHILD_BIN", link)
+        .env("CLAUDE_SESSION_RS_CHILD_BIN", link)
         .output()
         .expect("wrapper");
     assert_eq!(output.status.code(), Some(78));
