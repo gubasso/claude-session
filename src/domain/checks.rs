@@ -131,7 +131,7 @@ impl Check {
         match self {
             Self::BaseDirsResolve => Some(concat!(
                 "`XDG_CONFIG_HOME` and `XDG_STATE_HOME` must be absolute paths, or unset so ",
-                "the defaults apply. Run `claude-session doctor` to see what each resolved to."
+                "the defaults apply. Run `claude-session-rs doctor` to see what each resolved to."
             )),
             Self::RuntimeDirPresent => None,
             Self::WrapperConfigParses => Some(concat!(
@@ -193,7 +193,7 @@ impl AccountCheck {
                 "Make `{path}` a readable, private directory owned by the current user, then retry."
             }
             Self::CredentialsUsable => {
-                "Run `claude-session account login {account}` to recreate this account's stored \
+                "Run `claude-session-rs account login {account}` to recreate this account's stored \
                 authentication and its local metadata."
             }
         }

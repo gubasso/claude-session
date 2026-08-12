@@ -9,25 +9,25 @@ A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 Anything the wrapper does not own reaches `claude` unchanged — same arguments, same standard streams, same exit status. There is one process by the time the child runs, so signals and terminal behaviour are the child's too.
 
 ```bash
-claude-session                       # exactly `claude`
-claude-session -p "hello" --verbose  # forwarded verbatim
-claude-session -- --version          # `--` forces every later argument to the child
+claude-session-rs                       # exactly `claude`
+claude-session-rs -p "hello" --verbose  # forwarded verbatim
+claude-session-rs -- --version          # `--` forces every later argument to the child
 ```
 
 Two of the wrapper's surfaces compose their own output with the child's:
 
 ```bash
-claude-session version   # the wrapper's version, then the resolved child's
-claude-session help      # the wrapper's help, then `claude --help`
+claude-session-rs version   # the wrapper's version, then the resolved child's
+claude-session-rs help      # the wrapper's help, then `claude --help`
 ```
 
 Accounts give each login its own isolated `claude` configuration directory, in either of two authentication modes:
 
 ```bash
-claude-session account login work                  # the child's own browser flow
-claude-session account login ci --token --stdin    # a long-lived subscription token
-claude-session --account work -- --version         # launch under that account
-claude-session account status work                 # mode, health, and what shadows it
+claude-session-rs account login work                  # the child's own browser flow
+claude-session-rs account login ci --token --stdin    # a long-lived subscription token
+claude-session-rs --account work -- --version         # launch under that account
+claude-session-rs account status work                 # mode, health, and what shadows it
 ```
 
 Profiles compose user-authored settings pieces into one child settings document, selected per launch:
@@ -37,9 +37,9 @@ mkdir -p ~/.config/claude-session/settings ~/.config/claude-session/profiles
 echo '{"model":"sonnet"}' > ~/.config/claude-session/settings/base.json
 printf 'layers:\n  - base\n' > ~/.config/claude-session/profiles/dev.yaml
 
-claude-session profile               # the profiles `--profile` can select
-claude-session --profile dev         # launch with the composed settings
-claude-session --profile dev config  # what resolved, from where, and into what
+claude-session-rs profile               # the profiles `--profile` can select
+claude-session-rs --profile dev         # launch with the composed settings
+claude-session-rs --profile dev config  # what resolved, from where, and into what
 ```
 
 Composition is ordered and explainable. Later pieces win, and a key that needs appending rather than replacing says so:

@@ -233,7 +233,7 @@ pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 2] {
                             hint.push_str(concat!(
                                 " Anything holding that link may have read this",
                                 " account's credential. Treat it as exposed: run",
-                                " `claude-session account login ",
+                                " `claude-session-rs account login ",
                             ));
                             hint.push_str(selected.as_str());
                             hint.push_str(
@@ -335,7 +335,7 @@ fn read_metadata(root: &Path, path: &Path) -> Result<AuthModeMetadata, AppError>
                 "authentication metadata is malformed",
                 path.display().to_string(),
                 error.to_string(),
-                "run claude-session account login for this account",
+                "run claude-session-rs account login for this account",
             ),
         )
     })
@@ -670,7 +670,7 @@ fn auth_message(where_: &str, why: &str) -> AppError {
             "selected account authentication is unusable",
             where_,
             why,
-            "run claude-session account login for this account",
+            "run claude-session-rs account login for this account",
         ),
     )
 }

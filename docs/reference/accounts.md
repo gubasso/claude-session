@@ -61,7 +61,7 @@ The wrapper never intercepts a slash command.
 The wrapper resolves the account directory and launches the child's own `auth login` with the account `config/` as `CLAUDE_CONFIG_DIR`. It does not implement the browser flow or inspect the result. Native passthrough remains available:
 
 ```text
-claude-session --account work -- auth login
+claude-session-rs --account work -- auth login
 ```
 
 A saved login carries two clocks. The access token expires in hours, and its renewal is a non-event: the child refreshes it without the wrapper or the user taking part. The refresh grant is the clock that ends the login, and only re-authenticating resets it. Neither lifetime is a documented guarantee, and no token prefix identifies which of the two a value belongs to — which is why nothing here infers an expiry from a credential.
@@ -151,7 +151,7 @@ Removal takes [the account's credential lock](./xdg-storage.md#lock-scopes), so 
 
 > A session already running on this account keeps working until it exits. Its next start will fail.
 
-Local deletion is not upstream revocation, in either mode: a stored token keeps working wherever else it is used, and a child-owned saved login is not ended by deleting it. Standard error says that unconditionally whenever something was removed, names which of the two is still live, and directs the user to the provider — without naming a page or a URL, since the wrapper cannot verify one. To have the child end its own session first, `claude-session --account <name> -- auth logout` is plain passthrough and costs the wrapper no surface.
+Local deletion is not upstream revocation, in either mode: a stored token keeps working wherever else it is used, and a child-owned saved login is not ended by deleting it. Standard error says that unconditionally whenever something was removed, names which of the two is still live, and directs the user to the provider — without naming a page or a URL, since the wrapper cannot verify one. To have the child end its own session first, `claude-session-rs --account <name> -- auth logout` is plain passthrough and costs the wrapper no surface.
 
 ## Failure modes
 

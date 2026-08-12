@@ -226,7 +226,7 @@ pub(crate) fn install(
 
 fn report_unavailable(error: &std::io::Error) {
     let _ = OutputWriter::system()
-        .stderr(format!("claude-session: warning: logging unavailable: {error}\n").as_bytes());
+        .stderr(format!("claude-session-rs: warning: logging unavailable: {error}\n").as_bytes());
 }
 
 /// Resolves the level of the stderr mirror, which is a human channel.

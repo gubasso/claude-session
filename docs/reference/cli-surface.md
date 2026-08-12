@@ -7,8 +7,8 @@ The passthrough, `help`, `version`, `doctor`, the whole `account` namespace — 
 ## Invocation shape
 
 ```text
-claude-session [WRAPPER FLAGS] <verb> [VERB ARGS...]
-claude-session [WRAPPER FLAGS] [--] [CHILD ARGS...]
+claude-session-rs [WRAPPER FLAGS] <verb> [VERB ARGS...]
+claude-session-rs [WRAPPER FLAGS] [--] [CHILD ARGS...]
 ```
 
 Wrapper flags come before the verb. There is no wrapper flag valid after the verb, and no wrapper flag valid after `--`.
@@ -65,7 +65,7 @@ Value types split on whether the value is a path or a name. `--config` takes a p
 `--json` is verb-level, accepted after the verb, and every verb that produces data owns its own:
 
 ```text
-claude-session account list --json
+claude-session-rs account list --json
 ```
 
 A global `--format` would sit on the denylist above and cost the child a flag permanently, in exchange for nothing — machine output has no meaning for a passthrough invocation, which never emits wrapper output at all. Owning the flag per verb also keeps each verb's output schema independent, so one verb's document can change shape without implying anything about another's. See [ADR-0024](../decisions/ADR-0024-machine-output-is-a-per-verb-flag.md); the format contract itself is in [logging and output](./logging-and-output.md#machine-output).
@@ -80,11 +80,11 @@ Whether the child owns a name is measured before it is claimed, not assumed from
 
 Three things reach the child's own spelling:
 
-| Escape               | Example                          | What the child receives                                 |
-| -------------------- | -------------------------------- | ------------------------------------------------------- |
-| The sentinel         | `claude-session -- --verbose`    | `--verbose`                                             |
-| Any earlier token    | `claude-session -p hi --verbose` | `-p hi --verbose` — recognition already stopped at `-p` |
-| A different spelling | `claude-session --account-id X`  | `--account-id X` — a near-miss is not claimed           |
+| Escape               | Example                             | What the child receives                                 |
+| -------------------- | ----------------------------------- | ------------------------------------------------------- |
+| The sentinel         | `claude-session-rs -- --verbose`    | `--verbose`                                             |
+| Any earlier token    | `claude-session-rs -p hi --verbose` | `-p hi --verbose` — recognition already stopped at `-p` |
+| A different spelling | `claude-session-rs --account-id X`  | `--account-id X` — a near-miss is not claimed           |
 
 `--` is unconditional. Everything after it is child argument territory even if it spells a wrapper flag or verb, and a second `--` after the boundary is an ordinary child argument — the wrapper consumes the first and never inspects, strips, or counts the rest.
 
@@ -151,7 +151,7 @@ For a resolved profile, [ADR-0028](../decisions/ADR-0028-pass-composed-settings-
 
 A derive-based parser cannot be the only gate, and the reason is specific.
 
-Configuring a parser to accept unknown external subcommands makes it treat an unexpected positional token as a subcommand name. A leading unknown flag is not a positional: `claude-session --print hello` is rejected as an unexpected argument before external-subcommand handling applies. Relaxed hyphen handling does not rescue this, because it applies to a declared value rather than to the top-level parse. Since a leading child flag is one of the most common passthrough invocations, the parser must not see it.
+Configuring a parser to accept unknown external subcommands makes it treat an unexpected positional token as a subcommand name. A leading unknown flag is not a positional: `claude-session-rs --print hello` is rejected as an unexpected argument before external-subcommand handling applies. Relaxed hyphen handling does not rescue this, because it applies to a declared value rather than to the top-level parse. Since a leading child flag is one of the most common passthrough invocations, the parser must not see it.
 
 The contract is therefore:
 
@@ -188,14 +188,14 @@ The generated part describes the wrapper's grammar only. It does not reproduce, 
 
 The child's list is not reproduced because it is delegated. `--help` is a claimed spelling over a read-only surface, so it composes: the wrapper's generated help, then `claude --help` under [the composed-output delimiter](./logging-and-output.md#composed-output). This is what makes the wrapper's answer a superset of the child's rather than a replacement for it, which is the ground [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md) keeps the collision on. The child's help is never parsed, so nothing here tracks its grammar.
 
-The `help` verb is the same surface under another spelling: `claude-session help [<verb>]` prints exactly what `--help` and `<verb> --help` print. A verb's help composes on the same test: `help doctor` appends `claude doctor --help`, because `doctor` is the one verb whose name the child also owns. `account` appends nothing — it was renamed precisely so there is no shared surface — and neither does any verb the child does not have. Requested help is a result — standard output, exit `0`. Help printed because an invocation was malformed is a diagnostic — standard error, exit `Usage`. The parser's own default differs on both counts and is overridden; see [exit codes](./exit-codes.md#wrapper-matrix).
+The `help` verb is the same surface under another spelling: `claude-session-rs help [<verb>]` prints exactly what `--help` and `<verb> --help` print. A verb's help composes on the same test: `help doctor` appends `claude doctor --help`, because `doctor` is the one verb whose name the child also owns. `account` appends nothing — it was renamed precisely so there is no shared surface — and neither does any verb the child does not have. Requested help is a result — standard output, exit `0`. Help printed because an invocation was malformed is a diagnostic — standard error, exit `Usage`. The parser's own default differs on both counts and is overridden; see [exit codes](./exit-codes.md#wrapper-matrix).
 
 A namespace verb requires its subcommand. `account`, the only one, satisfies no invocation on its own, so bare `account` is malformed: the verb's help is a diagnostic, and so is an unrecognized subcommand. Both exit `Usage`. Unlike a mistyped wrapper flag, an unrecognized subcommand carries a nearest-match suggestion — the parser's subcommand set is closed and wholly wrapper-owned, so the reasoning that denies one to [flag spelling](#flag-spelling) does not reach it. See [ADR-0052](../decisions/ADR-0052-require-an-explicit-subcommand.md).
 
 Shell completions cover the wrapper's grammar for the same reason. Completions never attempt to complete child arguments.
 
 ```text
-claude-session completion <bash|elvish|fish|powershell|zsh>
+claude-session-rs completion <bash|elvish|fish|powershell|zsh>
 ```
 
 The five are the full set the generator supports, so the list is the dependency's rather than a subset this project would have to justify and revisit. The script is the verb's result and is written raw to standard output: no header, no summary, no diagnostic. An unrecognized shell exits `Usage`.
@@ -203,7 +203,7 @@ The five are the full set the generator supports, so the list is the dependency'
 Man pages are generated from the same parser tree. Because help, completions, and man pages all read one `Command` tree, the flag list has a single source and no surface can drift from another. The authored prose file included into long help is included into the man page too. See [ADR-0016](../decisions/ADR-0016-ship-man-pages.md).
 
 ```text
-claude-session man
+claude-session-rs man
 ```
 
 `man` writes one roff page — the wrapper's own — to standard output, so a user previews with `man -l -` and a packager renders `claude-session man > claude-session.1` at build time. Per-verb pages need a named output directory, which is deferred until a packager needs one ([ADR-0086](../decisions/ADR-0086-emit-one-man-page-to-standard-output.md)); each verb's detail stays reachable through its own requested help. The verb takes no `--json`: roff is not data.
@@ -215,7 +215,7 @@ The page states an `about` and a version that `--help` never shows, because the 
 `--version` and the `version` verb compose wrapper and child output on standard output:
 
 ```text
-claude-session 0.1.0
+claude-session-rs 0.1.0
 
 --- claude --version ---
 
@@ -288,7 +288,7 @@ Because the prompt is not on standard output, `--json` needs no interaction rule
 `--yes` is a verb-level flag, accepted after the verb:
 
 ```text
-claude-session account remove work --yes
+claude-session-rs account remove work --yes
 ```
 
 Its absence from the wrapper-owned flag table above is the design, not an oversight. A top-level flag is intercepted before the passthrough split and is therefore subtracted from the child's reachable surface for good; a flag appearing after a wrapper verb is parsed inside an invocation the child never sees, so it costs the child nothing. `--json` and `doctor --list` are verb-level for the same reason.

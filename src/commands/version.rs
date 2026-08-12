@@ -93,7 +93,7 @@ pub(crate) fn run(context: &AppContext) -> Result<DispatchOutcome, AppError> {
     } else {
         context
             .writer()
-            .stdout(format!("claude-session {}\n", env!("CARGO_PKG_VERSION")).as_bytes())
+            .stdout(format!("claude-session-rs {}\n", env!("CARGO_PKG_VERSION")).as_bytes())
             .map_err(|error| output_error(&error))?;
         if let Ok(invocation) = &resolved {
             context

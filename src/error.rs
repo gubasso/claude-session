@@ -233,7 +233,7 @@ impl From<DomainError> for AppError {
                         "invalid command line",
                         "wrapper arguments",
                         message,
-                        "run claude-session --help",
+                        "run claude-session-rs --help",
                     ),
                 )
             }
@@ -345,7 +345,7 @@ impl fmt::Display for AppError {
         let diagnostic = self.diagnostic();
         write!(
             formatter,
-            "claude-session: error[{}]: {}\nWhere: {}\nWhy: {}\nHint: {}",
+            "claude-session-rs: error[{}]: {}\nWhere: {}\nWhy: {}\nHint: {}",
             self.kind().spelling(),
             diagnostic.what,
             diagnostic.where_,

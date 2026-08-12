@@ -279,9 +279,9 @@ pub(crate) fn removal_consequences(writer: &OutputWriter, removal: &Removal) {
     let _ = writer.stderr(
         format!(
             concat!(
-                "claude-session: warning: a session already running on this account",
+                "claude-session-rs: warning: a session already running on this account",
                 " keeps working until it exits; its next start will fail\n",
-                "claude-session: warning: removing local state is not upstream",
+                "claude-session-rs: warning: removing local state is not upstream",
                 " revocation: {}; revoke it at the provider if that is what you meant\n"
             ),
             credential

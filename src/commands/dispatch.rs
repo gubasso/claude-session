@@ -212,7 +212,7 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
                 "invalid command line",
                 "wrapper arguments",
                 error.to_string(),
-                "run claude-session --help",
+                "run claude-session-rs --help",
             ),
         )
     })?;
@@ -368,7 +368,7 @@ fn classify_completion(
                     "completion requires a shell",
                     "completion",
                     node_help_text("completion"),
-                    "run claude-session completion --help",
+                    "run claude-session-rs completion --help",
                 ),
             ))
         },
@@ -411,7 +411,7 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
                 "account requires a subcommand",
                 "account",
                 node_help_text("account"),
-                "run claude-session account --help",
+                "run claude-session-rs account --help",
             ),
         )),
         Some(AccountCommand::Login(value)) => {

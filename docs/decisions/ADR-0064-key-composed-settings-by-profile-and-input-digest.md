@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-The composed `settings.json` was stored under a terminal-derived group. Two profiles launched from one pane — `claude-session --profile work &` then `claude-session --profile review` — derive the same group and write one path; the lock serialises the writes but cannot tell that they are unrelated, so the second run's complete file replaces the first while the first child is still pointed at it. A wrapper of this same shape was observed doing exactly this, additionally unlinking sibling files a live child depended on. Composition has no terminal-derived input: the output is a pure function of the profile, its ordered pieces, and their contents.
+The composed `settings.json` was stored under a terminal-derived group. Two profiles launched from one pane — `claude-session-rs --profile work &` then `claude-session-rs --profile review` — derive the same group and write one path; the lock serialises the writes but cannot tell that they are unrelated, so the second run's complete file replaces the first while the first child is still pointed at it. A wrapper of this same shape was observed doing exactly this, additionally unlinking sibling files a live child depended on. Composition has no terminal-derived input: the output is a pure function of the profile, its ordered pieces, and their contents.
 
 ## Considered Options
 

@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-The recursion guard's self-check compared the canonicalized resolved child path against the canonicalized path of the wrapper's own executable. Canonicalization resolves symbolic links, `.`, and `..`, but a hard link is not a link the filesystem can resolve — two names for one inode canonicalize to two different paths. `ln claude-session claude` is a plausible packaging shape, and it defeats a string comparison.
+The recursion guard's self-check compared the canonicalized resolved child path against the canonicalized path of the wrapper's own executable. Canonicalization resolves symbolic links, `.`, and `..`, but a hard link is not a link the filesystem can resolve — two names for one inode canonicalize to two different paths. `ln claude-session-rs claude` is a plausible packaging shape, and it defeats a string comparison.
 
 ## Considered Options
 

@@ -81,7 +81,7 @@ No other key earns a row. Verbosity is invocation-scoped, colour is `NO_COLOR` (
 - The resolved value is immutable. It is built once and passed by shared reference. Nothing mutates configuration mid-run.
 - Every key has a documented default, a type, and a one-line meaning. That description lives on the field itself, in the type, and is the source the artifacts below are rendered from — never a parallel doc that can rot.
 
-`claude-session config` prints the resolved value, including which files were consulted and which existed; see [Commands](#commands).
+`claude-session-rs config` prints the resolved value, including which files were consulted and which existed; see [Commands](#commands).
 
 ### Generated examples and schema
 

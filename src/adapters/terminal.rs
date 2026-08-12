@@ -1,9 +1,9 @@
 //! Controlling-terminal boundary: availability, consent, and secret entry.
 //!
 //! Every method here addresses `/dev/tty` rather than standard input, which is
-//! what makes a confirmation survive `something | claude-session account remove
-//! work` and makes a pasted token unreadable from a redirected stream. Nothing
-//! consults `isatty(0)`; opening `/dev/tty` read-write is the predicate.
+//! what makes a confirmation survive `something | claude-session-rs account
+//! remove work` and makes a pasted token unreadable from a redirected stream.
+//! Nothing consults `isatty(0)`; opening `/dev/tty` read-write is the predicate.
 
 use std::{
     fs::{File, OpenOptions},

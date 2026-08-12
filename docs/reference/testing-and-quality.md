@@ -186,7 +186,7 @@ The five flag-recognition tests are one obligation split by what each rejects, a
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Denylist membership    | A snapshot of the sorted claimed-spelling set, derived from the parser rather than hand-written.                                                |
 | Spelling matrix        | Table-driven over every claimed flag by `--x=v`, `--x v`, `--x -y`, `-X`, `-XY`, an uppercase spelling, and a unique prefix.                    |
-| Leading-position scope | The stub receives `--verbose` from `claude-session -p x --verbose`.                                                                             |
+| Leading-position scope | The stub receives `--verbose` from `claude-session-rs -p x --verbose`.                                                                          |
 | Malformed wrapper flag | `--config` bare exits `Usage`; `--configg` forwards verbatim and the run exits with the stub's status.                                          |
 | Collision audit        | The claimed flag and verb sets are intersected with a checked-in, version-labelled inventory fixture and compared with the documented overlaps. |
 
