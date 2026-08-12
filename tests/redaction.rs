@@ -77,6 +77,7 @@ fn assert_absent(label: &str, haystack: &[u8]) {
 #[test]
 fn no_surface_ever_emits_credential_material() {
     let harness = Harness::new();
+    harness.initialize_companion_profile();
     let allowed = harness.state().join(ALLOWED);
     let sentinel = String::from_utf8(SENTINEL.to_vec()).expect("utf-8 sentinel");
 
@@ -128,7 +129,7 @@ fn no_surface_ever_emits_credential_material() {
     steps.push(run("doctor --json", &["doctor", "--json"], None, None));
     steps.push(run(
         "launch",
-        &["--account", "work", "--", "run"],
+        &["--account", "work", "--profile", "companion", "--", "run"],
         None,
         None,
     ));

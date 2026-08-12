@@ -12,7 +12,7 @@
 
 ## Decision Outcome
 
-Chosen option: an advisory lock around the atomic write. The kernel releases `flock` on holder death, including `SIGKILL`, so the stale-lock refusal [ADR-0058](./ADR-0058-behave-as-stock-claude-by-default.md) forbids cannot arise. An `O_EXCL` lockfile needs cleanup a killed process cannot run.
+Chosen option: an advisory lock around the atomic write. The kernel releases `flock` on holder death, including `SIGKILL`, so the post-binding native-behaviour rule [ADR-0090](./ADR-0090-require-account-and-profile-before-child-launch.md) preserves forbids a stale-lock refusal. An `O_EXCL` lockfile needs cleanup a killed process cannot run.
 
 `std::fs::File::lock` is stable since Rust 1.89 against an MSRV of 1.97, so this costs no dependency.
 

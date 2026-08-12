@@ -161,13 +161,13 @@ Acquisition blocks, up to a deadline; past it the run exits [`LockBusy`](./exit-
 
 ### What this does not promise
 
-Two `account login` runs against one account still end with one token on disk. The lock decides which — the last issued rather than an arbitrary one — and stock `claude` has the same race in its own credential store, so this is not a failure mode the wrapper adds ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)).
+Two `account login` runs against one account still end with one token on disk. The lock decides which — the last issued rather than an arbitrary one — and stock `claude` has the same race in its own credential store, so this is not a failure mode the wrapper adds after the binding gate ([ADR-0090](../decisions/ADR-0090-require-account-and-profile-before-child-launch.md)).
 
 ## Cleanup and recovery
 
 A normal exit removes nothing. Every artifact in the table outlives the run that wrote it by design: configuration is the user's, the account tree and the composed-settings store are the point of the program, and the log is rotated rather than deleted. The one file a run creates without intending to keep is an atomic-write temporary, and that is consumed by its own rename rather than by a cleanup step. The [launch](./process-runtime.md#the-exec) therefore deletes nothing on its way out, and that is the contract rather than an omission.
 
-A kill leaves exactly two things, and neither can fail the next run ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)):
+A kill leaves exactly two things, and neither can fail the next bound run ([ADR-0090](../decisions/ADR-0090-require-account-and-profile-before-child-launch.md)):
 
 | Left behind                           | Why it is harmless                                                                                 |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -192,4 +192,4 @@ It stops local use but does not claim to revoke a token upstream. A failed first
 
 `doctor` reports resolved base directories, environment-versus-default provenance, the selected account path and the resolved composed-settings entry path, and the five [security checks](#filesystem-security) named in the table above. Child credential content is never inspected or emitted.
 
-Config-base artifacts, the log file, and lock files carry no security check. Configuration is user-authored and `0644` by design, so there is no unsafe state to report; a log or a lock that cannot be opened must not stop a passthrough run ([ADR-0058](../decisions/ADR-0058-behave-as-stock-claude-by-default.md)), and lock contention already has [`LockBusy`](./exit-codes.md#wrapper-matrix).
+Config-base artifacts, the log file, and lock files carry no security check. Configuration is user-authored and `0644` by design, so there is no unsafe state to report; a log or a lock that cannot be opened must not stop a bound passthrough run ([ADR-0090](../decisions/ADR-0090-require-account-and-profile-before-child-launch.md)), and lock contention already has [`LockBusy`](./exit-codes.md#wrapper-matrix).

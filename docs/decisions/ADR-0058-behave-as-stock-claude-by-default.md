@@ -27,6 +27,6 @@ The corollary is the load-bearing part: the wrapper introduces no failure mode t
 
 ## Status
 
-Accepted
+Superseded
 
-Amended by [ADR-0084](./ADR-0084-exec-the-child-instead-of-supervising-it.md), which removed the second exception class: an exec'd child needs no supervision to diverge over.
+Superseded by [ADR-0090](./ADR-0090-require-account-and-profile-before-child-launch.md), which makes mandatory binding a named pre-exec divergence while preserving native behaviour after a launch is bound.

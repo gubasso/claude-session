@@ -1,6 +1,10 @@
 //! Native passthrough orchestration.
 
-use crate::{commands::dispatch::DispatchOutcome, context::AppContext, error::AppError};
+use crate::{
+    commands::dispatch::DispatchOutcome,
+    context::AppContext,
+    error::{AppError, Diagnostic, ErrorKind},
+};
 use std::ffi::OsString;
 
 /// Prepares the launch and hands it back for the entry point to become.
@@ -10,22 +14,28 @@ use std::ffi::OsString;
 /// creates an account directory or materialises a composed entry, so a run that
 /// cannot launch leaves nothing behind for having tried.
 ///
-/// Session preparation then happens only for what the run actually selected:
-/// with neither an account nor a profile the wrapper touches no storage at all,
-/// which is what an empty configuration tree launching the child unchanged
-/// requires. A storage failure is the wrapper's own, so it fails before the
-/// launch rather than being confused with a child status.
+/// Binding is verified immediately after child resolution and before account
+/// validation, profile composition, marker writes, or launch construction.
+/// This preserves child-resolution priority while leaving an unbound refusal
+/// free of session side effects ([ADR-0090], ADR-0091): no account directory,
+/// no composed entry, and no marker write. The log sink is installed for every
+/// invocation before dispatch, so it is not one of them. A later storage
+/// failure is the
+/// wrapper's own, so it fails before launch rather than being confused with a
+/// child status.
 ///
 /// The exec itself is deliberately not performed here. It has to follow the log
 /// flush, and the flush belongs to the entry point that owns the guard
 /// ([ADR-0084](../../docs/decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md)).
 ///
 /// [process runtime]: ../../docs/reference/process-runtime.md#the-exec
+/// [ADR-0090]: ../../docs/decisions/ADR-0090-require-account-and-profile-before-child-launch.md
 pub(crate) fn run(
     context: &AppContext,
     arguments: Vec<OsString>,
 ) -> Result<DispatchOutcome, AppError> {
     let program = crate::services::child::program(context)?;
+    validate_binding(context)?;
     let account = crate::services::account::validate_selected_launch(context)?;
     let mode = account.map(|account| account.mode);
     // The floor guards shared-login refresh coordination, which token mode does
@@ -57,4 +67,62 @@ pub(crate) fn run(
         arguments,
         mode,
     )?))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MissingBinding {
+    Account,
+    Profile,
+    AccountAndProfile,
+}
+
+const SELECT_EACH: &str = concat!(
+    "then select each with --account and --profile or with ",
+    "default_account and default_profile"
+);
+
+fn validate_binding(context: &AppContext) -> Result<(), AppError> {
+    let session = context.session();
+    let missing = match (session.account(), session.profile()) {
+        (Some(_), Some(_)) => return Ok(()),
+        (None, Some(_)) => MissingBinding::Account,
+        (Some(_), None) => MissingBinding::Profile,
+        (None, None) => MissingBinding::AccountAndProfile,
+    };
+    let account = session
+        .account()
+        .map_or("none", |selected| selected.id.as_str());
+    let profile = session
+        .profile()
+        .map_or("none", |selected| selected.as_str());
+    // The hint names the wrapper's own surfaces and the directory it reads,
+    // never a repository path: the published crate excludes `docs/`, so a
+    // path that exists in the checkout does not exist for an installed
+    // binary ([ADR-0091]).
+    let profiles = context.paths().profiles();
+    let login = "run claude-session-rs account login <name>";
+    let author = format!("write a profile at {}/<name>.yaml", profiles.display());
+    let (why, hint) = match missing {
+        MissingBinding::Account => (
+            "a child launch requires a resolved account",
+            format!("{login}, then select it with --account or default_account"),
+        ),
+        MissingBinding::Profile => (
+            "a child launch requires a resolved profile",
+            format!("{author}, then select it with --profile or default_profile"),
+        ),
+        MissingBinding::AccountAndProfile => (
+            "a child launch requires a resolved account and profile",
+            format!("{login} and {author}, {SELECT_EACH}"),
+        ),
+    };
+    Err(AppError::new(
+        ErrorKind::Config,
+        Diagnostic::new(
+            "child launch is not bound to a complete session",
+            format!("account={account}, profile={profile}"),
+            why,
+            hint,
+        ),
+    ))
 }

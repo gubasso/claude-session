@@ -33,7 +33,7 @@ fn path_search_skips_empty_and_remembers_permission_denial() {
         good.to_str().expect("utf8"),
     ])
     .expect("PATH");
-    let mut command = harness.command();
+    let mut command = harness.bound_command();
     command
         .env_remove("CLAUDE_SESSION_CHILD_BIN")
         .env("PATH", path);
@@ -53,7 +53,7 @@ fn exec_failure_errno_is_classified() {
     let missing = harness.root().join("missing-interpreter");
     make_executable(&missing, b"#!/definitely/missing/interpreter\n");
     let output = harness
-        .command()
+        .bound_command()
         .env("CLAUDE_SESSION_CHILD_BIN", &missing)
         .output()
         .expect("wrapper");

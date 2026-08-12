@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Deliver a self-contained Rust wrapper that adds account and profile isolation while behaving as stock `claude` unless the user explicitly invokes a wrapper feature.
+Deliver a self-contained Rust wrapper that adds account and profile isolation, requires both before becoming `claude`, and preserves native passthrough once the launch is bound.
 
 ## Pillars
 

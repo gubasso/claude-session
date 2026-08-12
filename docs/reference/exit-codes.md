@@ -26,22 +26,22 @@ Every variant of the error type maps to exactly one code. There is no catch-all 
 
 `err.kind` is a stable, machine-matchable identifier emitted with the diagnostic. It is part of the user-facing API: scripts match on it. Renaming one is a breaking change.
 
-| `err.kind`           | Code | Name             | Fires when                                                                                                        |
-| -------------------- | ---- | ---------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `Usage`              | 64   | `EX_USAGE`       | A wrapper flag or verb was malformed, or arguments conflict                                                       |
-| `DataFormat`         | 65   | `EX_DATAERR`     | A configuration piece, profile, or metadata file is syntactically valid but semantically wrong                    |
-| `NoInput`            | 66   | `EX_NOINPUT`     | A file the user explicitly named does not exist or cannot be read                                                 |
-| `Unavailable`        | 69   | `EX_UNAVAILABLE` | A required external facility is missing — no controlling terminal where one is required, no usable base directory |
-| `Internal`           | 70   | `EX_SOFTWARE`    | An invariant the program controls was violated. A bug.                                                            |
-| `OsError`            | 71   | `EX_OSERR`       | The operating system refused an operation the wrapper is entitled to — `fork` failed, a pipe could not be created |
-| `Io`                 | 74   | `EX_IOERR`       | An I/O operation failed for a reason not covered more specifically                                                |
-| `LockBusy`           | 75   | `EX_TEMPFAIL`    | A write lock was still held by another run when the acquisition deadline expired                                  |
-| `Auth`               | 77   | `EX_NOPERM`      | Credentials are missing, expired, or refused                                                                      |
-| `Permission`         | 77   | `EX_NOPERM`      | A filesystem ownership, type, or symlink check failed, or a mode could not be corrected                           |
-| `Config`             | 78   | `EX_CONFIG`      | Configuration is malformed, contains an unknown key, or is internally inconsistent                                |
-| `ChildRecursion`     | 78   | `EX_CONFIG`      | Resolution produced the wrapper itself; see [process runtime](./process-runtime.md#recursion-guard)               |
-| `ChildNotExecutable` | 126  | —                | The child binary was found but is not executable                                                                  |
-| `ChildNotFound`      | 127  | —                | The child binary could not be resolved                                                                            |
+| `err.kind`           | Code | Name             | Fires when                                                                                                          |
+| -------------------- | ---- | ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `Usage`              | 64   | `EX_USAGE`       | A wrapper flag or verb was malformed, or arguments conflict                                                         |
+| `DataFormat`         | 65   | `EX_DATAERR`     | A configuration piece, profile, or metadata file is syntactically valid but semantically wrong                      |
+| `NoInput`            | 66   | `EX_NOINPUT`     | A file the user explicitly named does not exist or cannot be read                                                   |
+| `Unavailable`        | 69   | `EX_UNAVAILABLE` | A required external facility is missing — no controlling terminal where one is required, no usable base directory   |
+| `Internal`           | 70   | `EX_SOFTWARE`    | An invariant the program controls was violated. A bug.                                                              |
+| `OsError`            | 71   | `EX_OSERR`       | The operating system refused an operation the wrapper is entitled to — `fork` failed, a pipe could not be created   |
+| `Io`                 | 74   | `EX_IOERR`       | An I/O operation failed for a reason not covered more specifically                                                  |
+| `LockBusy`           | 75   | `EX_TEMPFAIL`    | A write lock was still held by another run when the acquisition deadline expired                                    |
+| `Auth`               | 77   | `EX_NOPERM`      | Credentials are missing, expired, or refused                                                                        |
+| `Permission`         | 77   | `EX_NOPERM`      | A filesystem ownership, type, or symlink check failed, or a mode could not be corrected                             |
+| `Config`             | 78   | `EX_CONFIG`      | Configuration is malformed, contains an unknown key, is internally inconsistent, or lacks a required launch binding |
+| `ChildRecursion`     | 78   | `EX_CONFIG`      | Resolution produced the wrapper itself; see [process runtime](./process-runtime.md#recursion-guard)                 |
+| `ChildNotExecutable` | 126  | —                | The child binary was found but is not executable                                                                    |
+| `ChildNotFound`      | 127  | —                | The child binary could not be resolved                                                                              |
 
 Codes 126 and 127 are shell conventions rather than `sysexits` values, and they are used deliberately: a user who sees 127 already knows it means "not found", and a wrapper reporting a different code for that condition would be gratuitously surprising.
 
@@ -175,7 +175,8 @@ Operation — `account login`, `account remove`, `completion`, `man`, `help`. Th
 
 | Condition                                                | Exit | Why                                                           |
 | -------------------------------------------------------- | ---- | ------------------------------------------------------------- |
-| No name resolved from any layer                          | `0`  | Nothing was asked for, so nothing is composed                 |
+| `config` with no name resolved from any layer            | `0`  | The absent selection is report data                           |
+| Bare launch with no profile resolved                     | `78` | `Config`; the launch lacks a required binding                 |
 | A resolved name has no `profiles/<name>.yaml`            | `66` | `NoInput`, whichever layer named it                           |
 | A resolved profile names a piece that does not exist     | `66` | `NoInput`; the error names the profile and the path           |
 | A resolved profile is malformed or has an empty `layers` | `65` | `DataFormat`; it parsed and is semantically wrong             |

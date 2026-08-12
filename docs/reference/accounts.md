@@ -25,11 +25,11 @@ The account for an invocation is resolved by the [configuration precedence ladde
 1. `--account <name>` — see [the CLI surface](./cli-surface.md#wrapper-owned-flags).
 2. [`default_account`](./configuration.md#keys), from the environment then user configuration. A project file cannot supply it ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
 3. The last-used marker, written whenever an account-backed run launches.
-4. Nothing. Verbs that need an account fail; verbs that do not proceed.
+4. No account resolved. Wrapper verbs that do not launch proceed; a passthrough launch refuses as `Config`.
 
 The marker means “the same account as last time”; any explicit selection overrides it. `account status` reports which rung supplied the answer. It records a selection rather than an outcome, so it is written before the launch, which is also the only place it can be written: the wrapper execs the child and observes nothing afterwards ([ADR-0084](../decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md)).
 
-A passthrough with no selected account receives neither wrapper authentication variable.
+A passthrough launch requires a selected account before authentication state is inspected or injected ([ADR-0090](../decisions/ADR-0090-require-account-and-profile-before-child-launch.md)).
 
 ## Stored modes and launch behavior
 
@@ -162,6 +162,7 @@ The [exit-code matrix](./exit-codes.md) owns mappings.
 | Invalid account name or option combination                  | `Usage`                               | all applicable                |
 | No subcommand, or an unrecognized one                       | `Usage`                               | bare `account`                |
 | No name and no selected account                             | `Usage`                               | `login`                       |
+| No selected account for a passthrough launch                | `Config`                              | launch                        |
 | Named account does not exist                                | `NoInput`                             | `status`, `remove`            |
 | Required terminal is unavailable                            | `Unavailable`                         | interactive `login`, `remove` |
 | Child login, token validation, or liveness probe fails      | `Auth`                                | `login`                       |

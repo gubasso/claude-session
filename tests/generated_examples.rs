@@ -45,7 +45,7 @@ fn the_generated_configuration_example_round_trips_through_the_real_loader() {
     std::fs::write(&file, claude_session::render::config_example_toml()).expect("example");
 
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--config".into(), file.into_os_string()])
         .args(["config", "--json"])
         .output()
@@ -103,7 +103,7 @@ fn the_generated_profile_example_round_trips_through_the_profile_type() {
     );
 
     let launched = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "example"])
         .output()
         .expect("wrapper");

@@ -18,7 +18,7 @@ One name at every layer: the directory `profiles/`, the file `profiles/<name>.ya
 
 A collision with the child was not the reason. ADR-0044's audit records `--profile` as free in `claude` 2.1.220, so the change rests on coherence; that the retired name was the more likely one for the child to want later is a second-order benefit, not the argument.
 
-`default_profile` is the sole configuration key with no built-in value, so an empty config tree composes nothing and launches the child unchanged. A name that is resolved must exist, at any layer — see [exit codes](../reference/exit-codes.md#resolving-a-profile-name).
+`default_profile` is the sole configuration key with no built-in value. Unset remains valid while loading and reporting, but a launch without a resolved profile is `Config`. A name that is resolved must exist, at any layer — see [exit codes](../reference/exit-codes.md#resolving-a-profile-name).
 
 ## Consequences
 
@@ -31,3 +31,5 @@ A collision with the child was not the reason. ADR-0044's audit records `--profi
 Accepted
 
 Amends [ADR-0010](./ADR-0010-compose-native-settings-from-declared-layers.md), whose vocabulary this renames without changing its decision.
+
+Amended by [ADR-0090](./ADR-0090-require-account-and-profile-before-child-launch.md).

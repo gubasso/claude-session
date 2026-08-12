@@ -114,18 +114,19 @@ The wrapper performs every obligation it has, then replaces its own process imag
 Sequence:
 
 1. Resolve and validate the child.
-2. Resolve the account and stored mode, if selected.
-3. Validate private account state and the child-owned config path without reading the child credential; for login mode, prove the child version floor.
-4. Resolve the profile and ensure its composed settings entry exists.
-5. In token mode, retrieve and validate the token immediately before the exec.
-6. Build the environment and wrapper-owned argv prefix around the untouched user suffix.
-7. Update the account's last-used marker, if an account is selected.
-8. Flush the log sink.
-9. Exec.
+2. Verify that both the account and profile selections resolved; otherwise refuse as `Config` before session side effects.
+3. Resolve the account's stored mode.
+4. Validate private account state and the child-owned config path without reading the child credential; for login mode, prove the child version floor.
+5. Resolve the profile and ensure its composed settings entry exists.
+6. In token mode, retrieve and validate the token immediately before the exec.
+7. Build the environment and wrapper-owned argv prefix around the untouched user suffix.
+8. Update the account's last-used marker.
+9. Flush the log sink.
+10. Exec.
 
-Step 8 before step 9 is load-bearing. The log sink is written by a worker thread joined by a guard's destructor, and an exec destroys every thread in the process without running one, so a record still buffered at that moment would be lost from exactly the run a reader most wants a log for ([ADR-0080](../decisions/ADR-0080-order-the-boundary-as-report-flush-exit.md)).
+Step 9 before step 10 is load-bearing. The log sink is written by a worker thread joined by a guard's destructor, and an exec destroys every thread in the process without running one, so a record still buffered at that moment would be lost from exactly the run a reader most wants a log for ([ADR-0080](../decisions/ADR-0080-order-the-boundary-as-report-flush-exit.md)).
 
-Nothing follows step 9. The wrapper cannot observe the child's exit, so there is no post-flight, no wait status to map, and no failure of its own after the launch. That is why the marker and the flush are the last steps before the exec rather than the first steps after the child.
+Nothing follows step 10. The wrapper cannot observe the child's exit, so there is no post-flight, no wait status to map, and no failure of its own after the launch. That is why the marker and the flush are the last steps before the exec rather than the first steps after the child.
 
 An exec that fails leaves the wrapper running and on its own side of [the boundary](./exit-codes.md#two-regimes), so it exits with a wrapper code — never the child's, since there is no child. Which code depends on what refused, because step 1's checks are advisory and the child can be deleted or `chmod -x`'d in between ([ADR-0056](../decisions/ADR-0056-classify-a-failed-spawn-by-its-cause.md)):
 
@@ -139,15 +140,15 @@ An exec that fails leaves the wrapper running and on its own side of [the bounda
 
 `OsError` keeps the scope it claims: the machine refused and the wrapper is working correctly. `Internal` (70) still means the wrapper has a bug.
 
-That one diagnostic reaches standard error alone, because step 8 already flushed the sink. It is the second of the two failures [ADR-0080](../decisions/ADR-0080-order-the-boundary-as-report-flush-exit.md) records as unloggable by construction.
+That one diagnostic reaches standard error alone, because step 9 already flushed the sink. It is the second of the two failures [ADR-0080](../decisions/ADR-0080-order-the-boundary-as-report-flush-exit.md) records as unloggable by construction.
 
-The wrapper deletes nothing on the way out, and a wrapper killed before step 9 leaves nothing that can fail the next run. What survives a kill, and which run removes it, is in [XDG storage](./xdg-storage.md#cleanup-and-recovery).
+The wrapper deletes nothing on the way out, and a wrapper killed before step 10 leaves nothing that can fail the next run. What survives a kill, and which run removes it, is in [XDG storage](./xdg-storage.md#cleanup-and-recovery).
 
 ## Child version floor
 
 Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor fails with `Unavailable` (69) before the marker or exec, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
 
-The check is scoped to what depends on the child's refresh lock. `token` mode and a passthrough with no selected account are never blocked by it. The `doctor` probe still reports version state, but it is voluntary and does not stand in for this precondition.
+The check is scoped to what depends on the child's refresh lock. `token` mode is not blocked by it; unbound requests stop at the mandatory binding gate before this decision. The `doctor` probe still reports version state, but it is voluntary and does not stand in for this precondition.
 
 ## Further reading
 

@@ -13,7 +13,7 @@ claude-session-rs [WRAPPER FLAGS] [--] [CHILD ARGS...]
 
 Wrapper flags come before the verb. There is no wrapper flag valid after the verb, and no wrapper flag valid after `--`.
 
-When the first non-flag token is a wrapper verb, the invocation is a wrapper command. Otherwise the invocation is a passthrough and every remaining token belongs to the child. An invocation with no tokens at all is a passthrough with no arguments.
+When the first non-flag token is a wrapper verb, the invocation is a wrapper command. Otherwise the invocation is a passthrough and every remaining token belongs to the child. An invocation with no tokens at all is syntactically a passthrough with no arguments; any passthrough still requires both account and profile selections to resolve before launch.
 
 ## Wrapper-owned flags
 
@@ -126,7 +126,7 @@ Those are the only two resolutions available. Shadowing a child verb and leaving
 
 A verb the wrapper has not yet built is not on the table above and not claimed. Until the slice that specifies its behaviour lands it, the spelling reaches the child like any other unclaimed token, which is what keeps the empty-claim rule stated for flags true of verbs as well.
 
-There is no `init`. Configuration is optional — every key has a compiled-in default — and the wrapper never writes the user's configuration, so there is no scaffold to create. Users copy a [generated example](./configuration.md#generated-examples-and-schema) instead. See [ADR-0015](../decisions/ADR-0015-retire-the-init-verb.md).
+There is no `init` and no wrapper-authored scaffold. Account setup is `account login`; profile and configuration setup starts from the [shipped examples](./configuration.md#generated-examples-and-schema), and flags or configuration select both launch axes. The wrapper never writes user configuration. See [ADR-0015](../decisions/ADR-0015-retire-the-init-verb.md) and [ADR-0091](../decisions/ADR-0091-refuse-an-unconfigured-first-launch-without-scaffolding.md).
 
 ## Passthrough contract
 

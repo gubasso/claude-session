@@ -174,7 +174,7 @@ fn log_mode_rotation_and_record_shape() {
         vec![b'x'; 8 * 1024 * 1024],
     )
     .expect("large log");
-    assert!(harness.command().status().expect("wrapper").success());
+    assert!(harness.bound_command().status().expect("wrapper").success());
     let log_path = state.join("claude-session.log");
     let metadata = fs::metadata(&log_path).expect("active log");
     assert_eq!(metadata.permissions().mode() & 0o777, 0o600);

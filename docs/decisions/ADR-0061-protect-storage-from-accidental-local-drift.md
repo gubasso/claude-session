@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-The wrapper rejects linked, foreign-owned, or wrongly typed state paths and repairs modes, but no record says what the checks defend. [ADR-0056](./ADR-0056-classify-a-failed-spawn-by-its-cause.md), [ADR-0058](./ADR-0058-behave-as-stock-claude-by-default.md), and storage review otherwise rely on an unnamed adversary model.
+The wrapper rejects linked, foreign-owned, or wrongly typed state paths and repairs modes, but no record says what the checks defend. [ADR-0056](./ADR-0056-classify-a-failed-spawn-by-its-cause.md), [ADR-0090](./ADR-0090-require-account-and-profile-before-child-launch.md), and storage review otherwise rely on an unnamed adversary model.
 
 ## Considered Options
 
@@ -18,7 +18,7 @@ Assets are credentials, generated settings and provenance, and correct artifact 
 
 In scope are permission drift, restored or migrated foreign ownership, sync tools replacing paths with links, and partial or reordered writes ([ADR-0060](./ADR-0060-lock-the-writes-that-are-not-derivable.md)).
 
-Explicitly out of scope: a process running as this user. It can read the credential directly and needs no race, so hardening against it buys nothing. This is what settles the traversal mechanism — a non-following metadata pass then an ordinary open, never an `openat` descriptor walk, on exactly the reasoning ADR-0056 used against `fexecve`. Out of scope by inheritance: anything stock `claude` is equally exposed to (ADR-0058).
+Explicitly out of scope: a process running as this user. It can read the credential directly and needs no race, so hardening against it buys nothing. This is what settles the traversal mechanism — a non-following metadata pass then an ordinary open, never an `openat` descriptor walk, on exactly the reasoning ADR-0056 used against `fexecve`. Out of scope by inheritance after mandatory binding: anything stock `claude` is equally exposed to ([ADR-0090](./ADR-0090-require-account-and-profile-before-child-launch.md)).
 
 Reconsideration trigger: a supported multi-user or shared-host deployment.
 

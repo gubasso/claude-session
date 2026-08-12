@@ -66,7 +66,7 @@ Three keys. All optional; the default of each is unset.
 | ----------------- | ------------- | ------------------------------------ | -------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `child_bin`       | absolute path | search `PATH`                        | `CLAUDE_SESSION_CHILD_BIN`       | user, environment          | The child to run ([process runtime](./process-runtime.md#child-resolution))                            |
 | `default_account` | identifier    | fall through to the last-used marker | `CLAUDE_SESSION_DEFAULT_ACCOUNT` | user, environment          | The account when `--account` is absent ([accounts](./accounts.md#selection))                           |
-| `default_profile` | identifier    | compose nothing                      | `CLAUDE_SESSION_DEFAULT_PROFILE` | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile)) |
+| `default_profile` | identifier    | report no profile; refuse a launch   | `CLAUDE_SESSION_DEFAULT_PROFILE` | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile)) |
 
 Identifiers follow [the identifier rules](./xdg-storage.md#identifiers); an absolute path is validated where it is used.
 
@@ -162,7 +162,7 @@ One name, four layers, everywhere the concept appears ([ADR-0050](../decisions/A
 
 The flag is `--profile <name>`; the configuration key and its environment spelling are [`default_profile`](#keys).
 
-With nothing set and no `--profile`, no name is resolved, so nothing is composed and no `--settings` layer is passed — an empty config tree launches the child unchanged, which the passthrough contract requires.
+With nothing set and no `--profile`, no name is resolved. That remains a valid loader and report state: `config` may report no active profile at exit `0`. A launch is not ready, however, and refuses as `Config` until `--profile` or `default_profile` resolves a name ([ADR-0090](../decisions/ADR-0090-require-account-and-profile-before-child-launch.md)).
 
 A name that is resolved must exist. `profiles/<name>.yaml` missing is `NoInput`, whichever layer supplied the name: a profile the user asked for and did not get would launch the child under settings the user believes are something else, which is the failure every strict rule on this page exists to prevent. See [exit codes](./exit-codes.md#exit-regimes-by-verb).
 

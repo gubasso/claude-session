@@ -15,7 +15,7 @@ fn configuration_precedence_and_provenance() {
     let config = harness.root().join("config.toml");
     fs::write(&config, format!("child_bin = {:?}\n", user_child)).expect("config");
     let status = harness
-        .command()
+        .bound_command()
         .args(["--config".into(), config.into_os_string()])
         .env("CLAUDE_SESSION_CHILD_BIN", &env_child)
         .status()
@@ -55,7 +55,7 @@ fn project_discovery_stops_at_repository_boundary() {
         "child_bin='/not/allowed'\n",
     )
     .expect("outer");
-    let mut command = harness.command();
+    let mut command = harness.bound_command();
     command.current_dir(child);
     assert!(command.status().expect("wrapper").success());
 }
@@ -69,7 +69,7 @@ fn non_utf8_config_path_is_accepted() {
     fs::write(&path, format!("child_bin = {:?}\n", harness.child())).expect("config");
     assert!(
         harness
-            .command()
+            .bound_command()
             .args(["--config".into(), path.into_os_string()])
             .status()
             .expect("wrapper")
@@ -132,7 +132,7 @@ fn no_project_layer_applies_outside_a_repository() {
         "child_bin='/not/allowed'\n",
     )
     .expect("stray file");
-    let mut command = harness.command();
+    let mut command = harness.bound_command();
     command.current_dir(&nested);
     assert!(
         command.status().expect("wrapper").success(),

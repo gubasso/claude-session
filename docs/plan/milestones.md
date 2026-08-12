@@ -24,3 +24,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 014 full-profile-composition — done — 2 implementation sessions — after 004; the `0.5.0` full-composition rung completing the combined 004 and 014 effort
 - 015 child-fact-delegation — done — 2 implementation sessions — after 014; made the rule ADR-0088 implied checkable, and left one contested carry to 016
 - 016 ambient-credential-scope — done — 1 implementation session — after 015; settled the ambient carry by amending ADR-0089 rather than opening a record beside it
+- 017 mandatory-session-binding — done — 2 implementation sessions — after 016; makes a bound account and profile the precondition for an exec

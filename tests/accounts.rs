@@ -339,7 +339,7 @@ fn marker_is_written_before_the_selected_account_exec() {
     harness.initialize_login("work");
     let marker = harness.state().join("state/last-account");
     let status = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work", "run"])
         .env("CS_TEST_MARKER_PATH", &marker)
         .status()
@@ -373,7 +373,7 @@ fn failed_selected_launch_does_not_advance_the_marker() {
     harness.initialize_login("work");
     let marker = harness.state().join("state/last-account");
     let output = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work"])
         .env("CS_TEST_VERSION_STDOUT", "bad\n")
         .output()
@@ -392,7 +392,7 @@ fn marker_selection_is_used_when_no_higher_rung_answers() {
     fs::set_permissions(&marker, fs::Permissions::from_mode(0o600)).expect("mode");
     assert!(
         harness
-            .command()
+            .companion_profile_command()
             .arg("run")
             .status()
             .expect("wrapper")
@@ -412,7 +412,7 @@ fn login_launch_below_the_version_floor_refuses_before_exec() {
     let harness = Harness::new();
     harness.initialize_login("work");
     let output = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work", "run"])
         .env("CS_TEST_VERSION_STDOUT", "2.1.210\n")
         .output()
@@ -433,7 +433,7 @@ fn login_launch_below_the_version_floor_refuses_before_exec() {
     let harness = Harness::new();
     harness.initialize_login("work");
     let output = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work", "run"])
         .env("CS_TEST_VERSION_STDOUT", "garbage\n")
         .output()
@@ -461,7 +461,7 @@ fn selected_launch_reports_the_kind_its_owner_assigns() {
     let metadata = harness.state().join("accounts/work/auth-mode.json");
     fs::remove_file(&metadata).expect("fixture");
     let output = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work", "run"])
         .output()
         .expect("wrapper");
@@ -478,7 +478,7 @@ fn selected_launch_reports_the_kind_its_owner_assigns() {
     fs::remove_file(&metadata).expect("fixture");
     std::os::unix::fs::symlink(harness.root().join("outside.json"), &metadata).expect("fixture");
     let output = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work", "run"])
         .output()
         .expect("wrapper");
@@ -495,7 +495,7 @@ fn login_launch_with_unparsable_version_refuses_before_exec() {
     let harness = Harness::new();
     harness.initialize_login("work");
     let status = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work", "run"])
         .env("CS_TEST_VERSION_STDOUT", "garbage\n")
         .status()
@@ -510,7 +510,7 @@ fn login_launch_at_the_floor_writes_marker_then_execs() {
     harness.initialize_login("work");
     assert!(
         harness
-            .command()
+            .companion_profile_command()
             .args(["--account", "work", "run"])
             .env("CS_TEST_VERSION_STDOUT", "2.1.211\n")
             .status()
@@ -519,42 +519,43 @@ fn login_launch_at_the_floor_writes_marker_then_execs() {
     );
     let marker = harness.state().join("state/last-account");
     assert_eq!(fs::read(&marker).expect("marker"), b"work");
-    assert_eq!(
-        read_invocations(&harness.record_dir().join("invocations")),
-        vec![vec![b"--version".to_vec()], vec![b"run".to_vec()]],
-        "the floor probe must precede the exec"
-    );
+    let invocations = read_invocations(&harness.record_dir().join("invocations"));
+    assert_eq!(invocations[0], vec![b"--version".to_vec()]);
+    assert_eq!(invocations[1][0], b"--settings");
+    assert_eq!(invocations[1].last(), Some(&b"run".to_vec()));
 }
 
 #[test]
 fn unselected_passthrough_never_runs_the_version_probe() {
     let harness = Harness::new();
+    let output = harness
+        .companion_profile_command()
+        .arg("run")
+        .env("CLAUDE_CONFIG_DIR", "ambient-config")
+        .env("CLAUDE_CODE_OAUTH_TOKEN", "ambient-token")
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(78), "{stderr}");
+    assert!(stderr.contains("error[Config]"), "{stderr}");
     assert!(
-        harness
-            .command()
-            .arg("run")
-            .env("CLAUDE_CONFIG_DIR", "ambient-config")
-            .env("CLAUDE_CODE_OAUTH_TOKEN", "ambient-token")
-            .status()
-            .expect("wrapper")
-            .success()
-    );
-    let environment = read_nul(&harness.record_dir().join("environ"));
-    assert!(
-        environment
-            .windows(2)
-            .any(|pair| pair[0] == b"CLAUDE_CONFIG_DIR" && pair[1] == b"ambient-config")
+        stderr.contains("account=none, profile=companion"),
+        "{stderr}"
     );
     assert!(
-        environment
-            .windows(2)
-            .any(|pair| pair[0] == b"CLAUDE_CODE_OAUTH_TOKEN" && pair[1] == b"ambient-token")
+        stderr.contains("child launch is not bound to a complete session"),
+        "{stderr}"
     );
-    assert_eq!(
-        read_invocations(&harness.record_dir().join("invocations")),
-        vec![vec![b"run".to_vec()]],
-        "the launch is the only child invocation, so no version probe ran"
+    for section in ["Where:", "Why:", "Hint:"] {
+        assert!(stderr.contains(section), "missing {section}:\n{stderr}");
+    }
+    assert!(
+        stderr.contains("claude-session-rs account login"),
+        "{stderr}"
     );
+    assert!(output.stdout.is_empty());
+    assert!(!harness.record_dir().join("invocations").exists());
+    assert!(!harness.state().join("state/last-account").exists());
 }
 
 #[test]
@@ -568,14 +569,14 @@ fn account_grammar_is_wrapper_owned_only_in_leading_position() {
         .code(64);
     assert!(
         harness
-            .command()
+            .bound_command()
             .args(["--", "account", "list"])
             .status()
             .expect("wrapper")
             .success()
     );
     assert_eq!(
-        &read_nul(&harness.record_dir().join("argv"))[1..],
+        &read_nul(&harness.record_dir().join("argv"))[3..],
         &[b"account".to_vec(), b"list".to_vec()]
     );
 }
@@ -865,7 +866,7 @@ fn a_token_launch_is_not_blocked_by_the_login_mode_version_floor() {
     let harness = Harness::new();
     harness.initialize_token("work", b"sk-launch-value", b"sk-launch-value");
     let output = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work", "run"])
         .env("CS_TEST_VERSION_STDOUT", "2.1.210\n")
         .output()
@@ -876,11 +877,9 @@ fn a_token_launch_is_not_blocked_by_the_login_mode_version_floor() {
         String::from_utf8_lossy(&output.stderr)
     );
     let invocations = read_invocations(&harness.record_dir().join("invocations"));
-    assert_eq!(
-        invocations,
-        vec![vec![b"run".to_vec()]],
-        "token mode runs no version probe and reaches the exec"
-    );
+    assert_eq!(invocations.len(), 1, "token mode runs no version probe");
+    assert_eq!(invocations[0][0], b"--settings");
+    assert_eq!(invocations[0].last(), Some(&b"run".to_vec()));
     let environ = read_nul(&harness.record_dir().join("environ"));
     let index = environ
         .iter()
@@ -896,7 +895,7 @@ fn ambient_authentication_is_preserved_and_warned_without_changing_the_mode() {
     let harness = Harness::new();
     harness.initialize_token("work", b"sk-ambient-value", b"sk-ambient-value");
     let output = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work", "run"])
         .env("ANTHROPIC_API_KEY", "ambient-key")
         .output()

@@ -142,7 +142,7 @@ Each of these locks down a contract that is otherwise decorative:
 | Native login delegation   | Login delegates exact child argv and failed first-login cleanup cannot escape its new account tree        | [Accounts](./accounts.md)                     |
 | Account local usability   | List derives usability from local metadata and path probes without spawning a child                       | [Accounts](./accounts.md)                     |
 | Account marker ordering   | The selected account marker is visible to the final child before exec                                     | [Process runtime](./process-runtime.md)       |
-| Unselected authentication | Native authentication environment is preserved and no wrapper authentication is injected                  | [Accounts](./accounts.md)                     |
+| Mandatory session binding | Missing axes are named as `Config`/78 with concrete hints, and no child invocation occurs                 | [Process runtime](./process-runtime.md)       |
 | Account grammar and help  | Only leading `account login` and `account list` are claimed, with required subcommand and sentinel escape | [CLI surface](./cli-surface.md)               |
 | Confirmation predicate    | A piped invocation with a controlling terminal still prompts                                              | [CLI surface](./cli-surface.md)               |
 | Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable`                         | [CLI surface](./cli-surface.md)               |

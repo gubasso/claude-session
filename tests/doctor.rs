@@ -210,8 +210,7 @@ fn doctor_and_guard_emit_identical_remediation() {
     let state = harness.state();
     std::fs::create_dir_all(state.parent().expect("parent")).expect("state base");
     std::os::unix::fs::symlink(harness.root().join("elsewhere"), &state).expect("symlink");
-    let guard = harness
-        .assert_command()
+    let guard = assert_cmd::Command::from_std(harness.companion_profile_command())
         .args(["--account", "work"])
         .output()
         .expect("guard");

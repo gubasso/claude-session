@@ -19,7 +19,7 @@ An unparsable version is treated as below the floor: the check fails closed, bec
 Enforcement is scoped to what actually depends on the lock:
 
 - Blocked — a `login`-mode launch, which shares one saved login across concurrent runs.
-- Not blocked — `token` mode, which injects a credential the child never refreshes; and any passthrough with no account selected, which the wrapper leaves alone under [ADR-0002](./ADR-0002-verbatim-argv-passthrough.md).
+- Not blocked — `token` mode, which injects a credential the child never refreshes. An unbound launch is refused before the login-version-floor decision.
 
 The existing soft `doctor` probe reports version state but is voluntary, so it does not satisfy this launch-time precondition.
 
@@ -35,3 +35,5 @@ See [process runtime](../reference/process-runtime.md), [prior art](../reference
 ## Status
 
 Accepted
+
+Amended by [ADR-0090](./ADR-0090-require-account-and-profile-before-child-launch.md).

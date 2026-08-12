@@ -12,7 +12,7 @@ const PROFILE: &str = "layers:\n  - base\n";
 fn golden_argv_preserves_bytes_order_count_and_empty_values() {
     let harness = Harness::new();
     let status = harness
-        .command()
+        .bound_command()
         .args([os(Vec::new()), os(vec![0x66, 0x80, 0x6f]), "tail".into()])
         .status()
         .expect("wrapper");
@@ -20,7 +20,7 @@ fn golden_argv_preserves_bytes_order_count_and_empty_values() {
     let argv = read_nul(&harness.record_dir().join("argv"));
     assert_eq!(argv[0], bytes(harness.child().as_os_str()));
     assert_eq!(
-        &argv[1..],
+        &argv[3..],
         &[Vec::new(), vec![0x66, 0x80, 0x6f], b"tail".to_vec()]
     );
 }
@@ -32,10 +32,13 @@ fn golden_argv_prefixes_the_settings_pair_before_an_untouched_suffix() {
     let harness = Harness::new();
     harness.write_piece("base", PIECE);
     harness.write_profile("work", PROFILE);
+    harness.initialize_companion_account();
     assert!(
         harness
             .command()
             .args([
+                "--account".into(),
+                "companion".into(),
                 "--profile".into(),
                 "work".into(),
                 os(Vec::new()),
@@ -72,11 +75,17 @@ fn a_non_utf8_state_home_reaches_the_child_byte_exact() {
     raw.extend_from_slice(&[b'/', b's', 0x80, b't']);
     let state = os(raw.clone());
     std::fs::create_dir_all(Path::new(&state)).expect("non-UTF-8 state base");
+    harness.initialize_token_in(
+        &Path::new(&state).join("claude-session"),
+        "companion",
+        b"companion-token",
+        b"companion-token",
+    );
     assert!(
         harness
             .command()
             .env("XDG_STATE_HOME", &state)
-            .args(["--profile", "work", "run"])
+            .args(["--account", "companion", "--profile", "work", "run"])
             .status()
             .expect("wrapper")
             .success()
@@ -100,10 +109,11 @@ fn a_non_utf8_state_home_reaches_the_child_byte_exact() {
 fn a_selected_account_injects_its_config_directory_and_the_marker_alone() {
     let harness = Harness::new();
     harness.initialize_login("work");
+    harness.initialize_companion_profile();
     assert!(
         harness
             .command()
-            .args(["--account", "work"])
+            .args(["--account", "work", "--profile", "companion"])
             .status()
             .expect("wrapper")
             .success()
@@ -128,14 +138,14 @@ fn sentinel_preserves_child_suffix() {
     let harness = Harness::new();
     assert!(
         harness
-            .command()
+            .bound_command()
             .args(["--", "--", "--verbose"])
             .status()
             .expect("wrapper")
             .success()
     );
     assert_eq!(
-        &read_nul(&harness.record_dir().join("argv"))[1..],
+        &read_nul(&harness.record_dir().join("argv"))[3..],
         &[b"--".to_vec(), b"--verbose".to_vec()]
     );
 }
@@ -157,14 +167,14 @@ fn a_wrapper_verb_behind_the_sentinel_reaches_the_child() {
         let harness = Harness::new();
         assert!(
             harness
-                .command()
+                .bound_command()
                 .args(["--", verb])
                 .status()
                 .expect("wrapper")
                 .success()
         );
         assert_eq!(
-            &read_nul(&harness.record_dir().join("argv"))[1..],
+            &read_nul(&harness.record_dir().join("argv"))[3..],
             &[verb.as_bytes().to_vec()],
             "the wrapper claimed `{verb}` from behind the sentinel"
         );
@@ -181,14 +191,14 @@ fn unimplemented_verbs_reach_child() {
         let harness = Harness::new();
         assert!(
             harness
-                .command()
+                .bound_command()
                 .arg(verb)
                 .status()
                 .expect("wrapper")
                 .success()
         );
         assert_eq!(
-            read_nul(&harness.record_dir().join("argv"))[1],
+            read_nul(&harness.record_dir().join("argv"))[3],
             verb.as_bytes(),
             "the wrapper claimed the undeclared spelling `{verb}`"
         );
@@ -200,14 +210,14 @@ fn leading_position_limits_wrapper_flags() {
     let harness = Harness::new();
     assert!(
         harness
-            .command()
+            .bound_command()
             .args(["native", "--verbose"])
             .status()
             .expect("wrapper")
             .success()
     );
     assert_eq!(
-        &read_nul(&harness.record_dir().join("argv"))[1..],
+        &read_nul(&harness.record_dir().join("argv"))[3..],
         &[b"native".to_vec(), b"--verbose".to_vec()]
     );
 }
@@ -222,14 +232,14 @@ fn malformed_wrapper_flag_is_usage_and_near_miss_forwards() {
     let harness = Harness::new();
     assert!(
         harness
-            .command()
+            .bound_command()
             .arg("--configg=x")
             .status()
             .expect("wrapper")
             .success()
     );
     assert_eq!(
-        read_nul(&harness.record_dir().join("argv"))[1],
+        read_nul(&harness.record_dir().join("argv"))[3],
         b"--configg=x"
     );
 }
@@ -241,14 +251,14 @@ fn malformed_wrapper_flag_is_usage_and_near_miss_forwards() {
 fn child_exit_and_signal_status_are_preserved() {
     let harness = Harness::new();
     let status = harness
-        .command()
+        .bound_command()
         .env("CS_TEST_EXIT", "73")
         .status()
         .expect("wrapper");
     assert_eq!(status.code(), Some(73));
     let harness = Harness::new();
     let status = harness
-        .command()
+        .bound_command()
         .env("CS_TEST_ABORT", "1")
         .status()
         .expect("wrapper");
@@ -260,7 +270,7 @@ fn child_environment_is_scrubbed_and_preserved() {
     let harness = Harness::new();
     assert!(
         harness
-            .command()
+            .bound_command()
             .env("KEEP_RAW", os(vec![0x66, 0x80]))
             .env("CLAUDE_SESSION_SECRET", "gone")
             .status()
@@ -283,7 +293,7 @@ fn child_environment_is_scrubbed_and_preserved() {
 fn passthrough_stdout_contains_only_child_bytes() {
     let harness = Harness::new();
     let output = harness
-        .command()
+        .bound_command()
         .env("CS_TEST_STDOUT", "child-only")
         .stderr(Stdio::piped())
         .output()
@@ -299,7 +309,7 @@ fn passthrough_stdout_contains_only_child_bytes() {
 fn a_signalled_run_still_leaves_a_complete_log() {
     let harness = Harness::new();
     let status = harness
-        .command()
+        .bound_command()
         .env("CS_TEST_ABORT", "1")
         .status()
         .expect("wrapper");

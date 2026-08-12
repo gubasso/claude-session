@@ -65,7 +65,7 @@ fn a_symlinked_managed_component_is_refused_before_its_leaf() {
     std::os::unix::fs::symlink(&elsewhere, &linked).expect("symlink");
 
     let output = harness
-        .command()
+        .companion_profile_command()
         .args(["--account", "work"])
         .output()
         .expect("wrapper");
@@ -95,7 +95,7 @@ fn an_over_permissive_managed_directory_is_corrected_on_every_invocation() {
     harness.initialize_login("work");
     assert!(
         harness
-            .command()
+            .companion_profile_command()
             .args(["--account", "work"])
             .status()
             .expect("wrapper")
@@ -107,7 +107,7 @@ fn an_over_permissive_managed_directory_is_corrected_on_every_invocation() {
     for drifted in [0o777, 0o755] {
         fs::set_permissions(&account, fs::Permissions::from_mode(drifted)).expect("drift");
         let output = harness
-            .command()
+            .companion_profile_command()
             .args(["--account", "work", "--verbose", "--verbose"])
             .output()
             .expect("wrapper");
@@ -133,7 +133,7 @@ fn identical_inputs_name_and_reuse_one_immutable_entry() {
     fixtures(&harness);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -151,7 +151,7 @@ fn identical_inputs_name_and_reuse_one_immutable_entry() {
 
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -196,7 +196,7 @@ fn a_sidecar_digest_mismatch_is_refused_without_overwrite() {
     fixtures(&harness);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -210,7 +210,7 @@ fn a_sidecar_digest_mismatch_is_refused_without_overwrite() {
     let before = (fs::read(&settings).expect("settings"), modified(&settings));
 
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "work"])
         .output()
         .expect("wrapper");
@@ -240,7 +240,7 @@ fn a_half_written_pair_is_replaced_from_this_runs_inputs() {
     fixtures(&harness);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -252,7 +252,7 @@ fn a_half_written_pair_is_replaced_from_this_runs_inputs() {
 
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -275,7 +275,7 @@ fn a_symlinked_partial_pair_survivor_is_refused_before_it_is_replaced() {
     fixtures(&harness);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -289,7 +289,7 @@ fn a_symlinked_partial_pair_survivor_is_refused_before_it_is_replaced() {
     std::os::unix::fs::symlink(&elsewhere, &settings).expect("symlink");
 
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "work"])
         .output()
         .expect("wrapper");
@@ -318,7 +318,7 @@ fn an_over_permissive_composed_file_is_corrected_and_the_run_proceeds() {
     fixtures(&harness);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -331,7 +331,7 @@ fn an_over_permissive_composed_file_is_corrected_and_the_run_proceeds() {
     }
 
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "work"])
         .output()
         .expect("wrapper");
@@ -362,7 +362,7 @@ fn two_profiles_in_one_terminal_name_different_entries() {
     for profile in ["work", "home"] {
         assert!(
             harness
-                .command()
+                .companion_account_command()
                 .args(["--profile", profile])
                 .status()
                 .expect("wrapper")
@@ -406,7 +406,7 @@ fn editing_a_piece_names_a_new_entry_and_leaves_the_old_one() {
     fixtures(&harness);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -416,7 +416,7 @@ fn editing_a_piece_names_a_new_entry_and_leaves_the_old_one() {
     harness.write_piece("work", r#"{"env":{"B":"changed"}}"#);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -464,7 +464,7 @@ fn a_wrong_typed_managed_path_is_refused() {
     fs::write(harness.state().join("composed"), b"not a directory").expect("intruder");
 
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "work"])
         .output()
         .expect("wrapper");
@@ -492,7 +492,7 @@ fn an_orphaned_temporary_is_swept_and_a_live_one_is_kept() {
 
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -511,7 +511,7 @@ fn an_interrupted_write_leaves_the_previous_complete_file() {
     fixtures(&harness);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -527,7 +527,7 @@ fn an_interrupted_write_leaves_the_previous_complete_file() {
 
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work"])
             .status()
             .expect("wrapper")
@@ -538,31 +538,86 @@ fn an_interrupted_write_leaves_the_previous_complete_file() {
     assert_eq!(parsed["model"], "sonnet");
 }
 
-/// Laziness and the passthrough contract, in one test: with nothing selected
-/// the wrapper touches no storage and the child sees the argument vector it
-/// would have seen without the wrapper.
+/// Account selection alone is not launch-ready, and the refusal precedes every
+/// session side effect.
 #[test]
-fn an_empty_config_tree_launches_the_child_unchanged() {
+fn an_account_selected_profile_missing_launch_is_refused() {
     let harness = Harness::new();
+    let marker = harness.state().join("state/last-account");
+    let output = harness
+        .companion_account_command()
+        .output()
+        .expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(78), "{stderr}");
+    assert!(stderr.contains("error[Config]"), "{stderr}");
     assert!(
-        harness
-            .command()
-            .args(["--help-child", "extra"])
-            .status()
-            .expect("wrapper")
-            .success()
+        stderr.contains("account=companion, profile=none"),
+        "{stderr}"
     );
     assert_eq!(
-        entries(&harness.state()),
-        vec!["claude-session.log".to_owned()],
-        "an unselected run wrote to the state namespace"
+        output.stdout, b"",
+        "a binding diagnostic belongs only on stderr"
     );
-    let argv = read_nul(&harness.record_dir().join("argv"));
-    let rendered: Vec<String> = argv
-        .iter()
-        .map(|value| String::from_utf8_lossy(value).into_owned())
-        .collect();
-    assert_eq!(&rendered[1..], ["--help-child", "extra"]);
+    let profiles = harness.config_base().join("profiles");
+    assert!(
+        stderr.contains(&format!("{}/<name>.yaml", profiles.display())),
+        "{stderr}"
+    );
+    assert!(
+        !stderr.contains("docs/"),
+        "recovery names no repository path:\n{stderr}"
+    );
+    assert!(!harness.record_dir().join("invocations").exists());
+    assert!(!marker.exists());
+    assert!(!composed(&harness).exists());
+}
+
+#[test]
+fn a_fresh_tree_missing_both_bindings_is_refused_without_scaffolding() {
+    let harness = Harness::new();
+    let output = harness.command().output().expect("wrapper");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(78), "{stderr}");
+    assert!(stderr.contains("account=none, profile=none"), "{stderr}");
+    let profiles = harness.config_base().join("profiles");
+    for recovery in [
+        "claude-session-rs account login".to_owned(),
+        format!("{}/<name>.yaml", profiles.display()),
+    ] {
+        assert!(stderr.contains(&recovery), "missing {recovery}:\n{stderr}");
+    }
+    assert!(
+        !stderr.contains("docs/"),
+        "recovery names no repository path:\n{stderr}"
+    );
+    assert!(output.stdout.is_empty());
+    assert!(!harness.record_dir().join("invocations").exists());
+    assert!(!harness.config_base().exists());
+    assert!(!harness.state().join("state/last-account").exists());
+    assert!(!composed(&harness).exists());
+}
+
+/// Invocation form does not decide readiness: defaults that resolve both axes
+/// let the stock no-argument command reach the child.
+#[test]
+fn a_bare_invocation_uses_configured_account_and_profile_defaults() {
+    let harness = Harness::new();
+    harness.initialize_companion_account();
+    harness.initialize_companion_profile();
+    fs::create_dir_all(harness.config_base()).expect("config base");
+    fs::write(
+        harness.config_base().join("config.toml"),
+        "default_account = \"companion\"\ndefault_profile = \"companion\"\n",
+    )
+    .expect("user configuration");
+
+    assert!(harness.command().status().expect("wrapper").success());
+    assert!(harness.record_dir().join("invocations").is_file());
+    assert_eq!(
+        fs::read(harness.state().join("state/last-account")).expect("marker"),
+        b"companion"
+    );
 }
 
 /// The entry the run resolved is the one the child is told to read, and it
@@ -573,7 +628,7 @@ fn a_selected_profile_reaches_the_child_as_a_settings_prefix() {
     fixtures(&harness);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "work", "run"])
             .status()
             .expect("wrapper")
@@ -608,7 +663,7 @@ fn a_missing_piece_names_the_profile_and_the_path() {
     harness.write_profile("work", PROFILE_WORK);
 
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "work"])
         .output()
         .expect("wrapper");
@@ -629,7 +684,7 @@ fn a_malformed_profile_is_a_data_format_error() {
     harness.write_profile("work", "layers: [\n");
 
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "work"])
         .output()
         .expect("wrapper");
@@ -646,7 +701,7 @@ fn an_empty_layer_list_is_a_data_format_error() {
     harness.write_profile("work", "layers: []\n");
 
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "work"])
         .output()
         .expect("wrapper");
@@ -664,7 +719,7 @@ fn a_missing_profile_is_still_a_no_input_error() {
     harness.write_piece("base", PIECE_BASE);
 
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "work"])
         .output()
         .expect("wrapper");
@@ -685,7 +740,7 @@ fn one_piece_profile_writes_exact_settings_and_basic_sidecar() {
 
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "solo"])
             .status()
             .expect("wrapper")
@@ -750,7 +805,7 @@ const PIECE_TWO: &str = r#"{"model":"b","env":{"B":"2"},"permissions":{"allow":[
 /// Reads the composed pair as `(settings, sidecar)` JSON after one launch.
 fn compose_with(harness: &Harness, profile: &str) -> (serde_json::Value, serde_json::Value) {
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", profile])
         .output()
         .expect("wrapper");
@@ -871,7 +926,7 @@ fn an_invalid_strategy_pointer_is_rejected_with_its_path_and_source() {
         "layers:\n  - one\narray_strategies:\n  \"/nowhere\":\n    strategy: concat\n",
     );
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "multi"])
         .output()
         .expect("wrapper");
@@ -897,7 +952,7 @@ fn a_type_conflict_names_the_key_and_both_pieces() {
     harness.write_piece("two", r#"{"env":"not-an-object"}"#);
     harness.write_profile("multi", "layers:\n  - one\n  - two\n");
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "multi"])
         .output()
         .expect("wrapper");
@@ -925,7 +980,7 @@ fn changing_the_strategy_table_names_a_different_entry() {
     harness.write_profile("multi", PROFILE_CONCAT);
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "multi"])
             .status()
             .expect("wrapper")
@@ -953,7 +1008,7 @@ fn reordering_the_layer_list_names_a_different_entry() {
     harness.write_profile("multi", "layers:\n  - two\n  - one\n");
     assert!(
         harness
-            .command()
+            .companion_account_command()
             .args(["--profile", "multi"])
             .status()
             .expect("wrapper")
@@ -973,7 +1028,7 @@ fn a_key_the_wrapper_does_not_model_is_composed_and_forwarded_unchanged() {
     harness.write_piece("two", r#"{"zzzNotAKey":{"other":2}}"#);
     harness.write_profile("multi", "layers:\n  - one\n  - two\n");
     let output = harness
-        .command()
+        .companion_account_command()
         .args(["--profile", "multi"])
         .output()
         .expect("wrapper");

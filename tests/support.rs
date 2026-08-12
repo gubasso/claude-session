@@ -78,6 +78,43 @@ impl Harness {
         assert_cmd::Command::from_std(self.command())
     }
 
+    /// Writes a harmless one-piece profile for tests whose subject is another
+    /// launch axis.
+    pub(crate) fn initialize_companion_profile(&self) {
+        self.write_piece("companion", "{}\n");
+        self.write_profile("companion", "layers:\n  - companion\n");
+    }
+
+    /// Writes a usable token-mode account that never needs a version probe.
+    pub(crate) fn initialize_companion_account(&self) {
+        self.initialize_token("companion", b"companion-token", b"companion-token");
+    }
+
+    /// Returns a passthrough command with both test-only session axes selected.
+    pub(crate) fn bound_command(&self) -> Command {
+        self.initialize_companion_account();
+        self.initialize_companion_profile();
+        let mut command = self.command();
+        command.args(["--account", "companion", "--profile", "companion"]);
+        command
+    }
+
+    /// Returns a command with only the test-only account axis selected.
+    pub(crate) fn companion_account_command(&self) -> Command {
+        self.initialize_companion_account();
+        let mut command = self.command();
+        command.args(["--account", "companion"]);
+        command
+    }
+
+    /// Returns a command with only the test-only profile axis selected.
+    pub(crate) fn companion_profile_command(&self) -> Command {
+        self.initialize_companion_profile();
+        let mut command = self.command();
+        command.args(["--profile", "companion"]);
+        command
+    }
+
     /// Runs the wrapper in its own session, so it has no controlling terminal
     /// whatever the test runner inherited. Without this the terminal predicate
     /// would be answered by the developer's terminal rather than by the
@@ -189,7 +226,18 @@ impl Harness {
     /// order deliberately makes survivable, and it is the only way to reach the
     /// torn-pair branch without racing a real rotation.
     pub(crate) fn initialize_token(&self, name: &str, token: &[u8], described: &[u8]) {
-        let account = self.state().join("accounts").join(name);
+        self.initialize_token_in(&self.state(), name, token, described);
+    }
+
+    /// Lays down a token account under an explicit state namespace.
+    pub(crate) fn initialize_token_in(
+        &self,
+        state: &Path,
+        name: &str,
+        token: &[u8],
+        described: &[u8],
+    ) {
+        let account = state.join("accounts").join(name);
         let config = account.join("config");
         fs::create_dir_all(&config).expect("account fixture");
         for path in [&account, &config] {
