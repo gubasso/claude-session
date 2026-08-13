@@ -34,7 +34,7 @@ The Runtime base is unused: the wrapper opens no socket, and its [write locks](.
 
 ## One writer per artifact
 
-- The child writes account `config/`, including its saved login, projects, history, and trust state.
+- The child writes account `config/`, including its saved login, projects, history, and trust state. The one exception is a single key in its `.claude.json`, which a login writes so the child's first-run setup does not stand between an authenticated account and its prompt ([ADR-0098](../decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md)).
 - The account subsystem writes `auth-mode.json`, any local OAuth token, and the last-used marker.
 - The composition subsystem writes composed settings and their provenance.
 

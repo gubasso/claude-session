@@ -207,6 +207,7 @@ impl Harness {
         fs::set_permissions(&config, fs::Permissions::from_mode(0o700)).expect("config mode");
         fs::write(config.join(".credentials.json"), b"child-owned-fixture")
             .expect("credential fixture");
+        Self::initialize_child_config(&config);
         fs::write(
             account.join("auth-mode.json"),
             b"{\"mode\":\"login\",\"recorded_at\":\"2026-08-11T00:00:00Z\"}\n",
@@ -217,6 +218,16 @@ impl Harness {
             fs::Permissions::from_mode(0o600),
         )
         .expect("metadata mode");
+    }
+
+    /// Records what a real login records, so a fixture account is one a launch
+    /// reaches the prompt with rather than one that predates that guarantee.
+    ///
+    /// A test about the record itself writes its own file over this one.
+    fn initialize_child_config(config: &Path) {
+        let path = config.join(".claude.json");
+        fs::write(&path, b"{\"hasCompletedOnboarding\":true}\n").expect("child config fixture");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("child config mode");
     }
 
     /// Lays down a token account, optionally with metadata describing a
@@ -243,6 +254,7 @@ impl Harness {
         for path in [&account, &config] {
             fs::set_permissions(path, fs::Permissions::from_mode(0o700)).expect("directory mode");
         }
+        Self::initialize_child_config(&config);
         fs::write(account.join("oauth-token"), token).expect("token fixture");
         fs::set_permissions(
             account.join("oauth-token"),

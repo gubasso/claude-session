@@ -57,8 +57,7 @@ fn account_list_reports_local_usability_without_spawning_a_child() {
     let elsewhere = harness.root().join("elsewhere");
     fs::create_dir_all(&elsewhere).expect("fixture");
     fs::write(elsewhere.join(".credentials.json"), b"outside").expect("fixture");
-    fs::remove_file(accounts.join("linked/config/.credentials.json")).expect("fixture");
-    fs::remove_dir(accounts.join("linked/config")).expect("fixture");
+    fs::remove_dir_all(accounts.join("linked/config")).expect("fixture");
     std::os::unix::fs::symlink(&elsewhere, accounts.join("linked/config")).expect("fixture");
 
     // Artifact presence: valid metadata, no child-owned saved login.
@@ -1653,4 +1652,209 @@ fn the_published_status_example_matches_the_renderer() {
         );
     }
     assert!(rendered.contains("[pass]"), "{rendered}");
+}
+
+/// Slice 024 acceptance: a token login leaves an account a launch reaches the
+/// prompt with, and says so.
+#[test]
+fn a_token_login_records_the_first_run_setup_as_done() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ])
+        .write_stdin("sk-first-run\n")
+        .output()
+        .expect("token login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let path = harness.state().join("accounts/work/config/.claude.json");
+    let document: serde_json::Value =
+        serde_json::from_slice(&fs::read(&path).expect("child configuration")).expect("json");
+    assert_eq!(document["hasCompletedOnboarding"], true);
+    assert_eq!(mode(&path), 0o600);
+}
+
+/// The half of "ready" a reader cannot check for themselves is the half the
+/// report has to state.
+///
+/// The profile is written first, because the whole-launch claim is only true of
+/// an account whose profile resolves. The account that has no document is the
+/// test below.
+#[test]
+fn a_login_report_says_the_launch_reaches_the_prompt() {
+    let harness = Harness::new();
+    harness.initialize_companion_profile();
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ])
+        .write_stdin("sk-report\n")
+        .output()
+        .expect("token login");
+    let stdout = support::flowed(&String::from_utf8_lossy(&output.stdout));
+    assert!(
+        stdout.contains("A launch under it goes straight to claude's prompt"),
+        "{stdout}"
+    );
+}
+
+/// A report that warns the launch refuses must not also promise it reaches the
+/// prompt.
+///
+/// The recorded fact is still a pass, because the login refused rather than
+/// reported if it had not been written. What narrows is the claim built on top
+/// of it: the profile row above has just said this launch stops before the
+/// child starts, and two rows disagreeing leave the reader with no report at
+/// all.
+#[test]
+fn a_login_report_without_a_profile_document_claims_only_what_it_recorded() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ])
+        .write_stdin("sk-report\n")
+        .output()
+        .expect("token login");
+    let stdout = support::flowed(&String::from_utf8_lossy(&output.stdout));
+    assert!(
+        stdout.contains("that profile has no document yet"),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("goes straight to claude's prompt"),
+        "the report must not promise a launch the profile row just refused: {stdout}"
+    );
+    assert!(
+        stdout.contains("Claude's first-run setup is recorded as done"),
+        "{stdout}"
+    );
+}
+
+/// The child owns every other key in that file, including the trust records a
+/// blind overwrite would silently withdraw.
+#[test]
+fn a_native_login_records_it_without_disturbing_the_other_keys() {
+    let harness = Harness::new();
+    let output = harness
+        .terminal_command("account login work --profile companion")
+        .env("CS_TEST_CREATE_CREDENTIAL", "1")
+        .env(
+            "CS_TEST_CHILD_CONFIG",
+            "{\"userID\":\"abc\",\"projects\":{\"/tmp/x\":{\"hasTrustDialogAccepted\":true}}}",
+        )
+        .output()
+        .expect("terminal login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(
+        &fs::read(harness.state().join("accounts/work/config/.claude.json"))
+            .expect("child configuration"),
+    )
+    .expect("json");
+    assert_eq!(document["hasCompletedOnboarding"], true);
+    assert_eq!(document["userID"], "abc");
+    assert_eq!(
+        document["projects"]["/tmp/x"]["hasTrustDialogAccepted"],
+        true
+    );
+}
+
+/// The wrapper cannot tell a child file it does not understand from one that is
+/// broken, and destroying it would be the same act either way.
+#[test]
+fn a_child_configuration_that_is_not_an_object_is_refused_and_keeps_the_credential() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-existing", b"sk-existing");
+    let path = harness.state().join("accounts/work/config/.claude.json");
+    fs::write(&path, b"[]\n").expect("child configuration");
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ])
+        .write_stdin("sk-rotated\n")
+        .output()
+        .expect("token login");
+    assert_eq!(output.status.code(), Some(65));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("account authenticated but was not made ready to launch"),
+        "{stderr}"
+    );
+    assert_eq!(
+        fs::read(harness.state().join("accounts/work/oauth-token")).expect("token file"),
+        b"sk-rotated",
+        "the credential this login committed survives the refusal"
+    );
+    assert_eq!(
+        fs::read(&path).expect("child configuration"),
+        b"[]\n",
+        "a file the wrapper does not understand is left alone"
+    );
+}
+
+/// An account created before this behaviour existed still launches, and the
+/// reader hears what they are about to meet before the exec rather than after.
+#[test]
+fn a_launch_under_an_account_that_would_onboard_warns_and_still_execs() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    fs::remove_file(harness.state().join("accounts/work/config/.claude.json"))
+        .expect("predate the record");
+    let output = harness
+        .companion_profile_command()
+        .args(["--account", "work", "run"])
+        .output()
+        .expect("launch");
+    assert!(
+        output.status.success(),
+        "the launch is never refused over it"
+    );
+    let stderr = support::flowed(&String::from_utf8_lossy(&output.stderr));
+    assert!(
+        stderr.contains("has not recorded that claude's first-run setup is done"),
+        "{stderr}"
+    );
+    assert!(
+        !harness
+            .state()
+            .join("accounts/work/config/.claude.json")
+            .exists(),
+        "a launch reads this and never writes it"
+    );
 }

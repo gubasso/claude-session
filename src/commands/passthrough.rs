@@ -54,6 +54,18 @@ pub(crate) fn run(
         {
             tracing::warn!("{}", warning.message());
         }
+        // Read, never written: only a login writes this, where no child of the
+        // account is running ([ADR-0098]). A launch that would work is never
+        // refused over it, so this says what the reader is about to meet and
+        // then gets out of the way.
+        //
+        // [ADR-0098]: ../../docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md
+        if !crate::services::account::onboarding::readiness(context, &selected.id).ready() {
+            tracing::warn!(
+                "{}",
+                crate::domain::account::Warning::FirstRunOnboarding.message()
+            );
+        }
     }
     let entry = match context.session().profile() {
         Some(profile) => Some(crate::services::storage::entry::resolve(context, profile)?),

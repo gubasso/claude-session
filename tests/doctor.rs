@@ -4,7 +4,7 @@ mod support;
 
 use support::Harness;
 
-const IDS: [&str; 17] = [
+const IDS: [&str; 18] = [
     "base-dirs-resolve",
     "runtime-dir-present",
     "wrapper-config-parses",
@@ -22,6 +22,7 @@ const IDS: [&str; 17] = [
     "credentials-usable",
     "account-profile-bound",
     "settings-profile-valid",
+    "account-launch-ready",
 ];
 
 /// The titles a person reads, in catalog order. Unlike the ids above these are
@@ -71,7 +72,7 @@ fn doctor_human_report_preserves_catalog_order_and_text_shape() {
         text.contains("  [pass]     Wrapper storage locations"),
         "{text}"
     );
-    assert!(text.contains("17 checks: "), "{text}");
+    assert!(text.contains("18 checks: "), "{text}");
     assert!(
         text.contains("Everything the wrapper needs is in place."),
         "{text}"
@@ -180,7 +181,7 @@ fn one_row_stands_for_a_run_of_checks_and_names_each_id() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        17
+        18
     );
 }
 
@@ -236,12 +237,12 @@ fn doctor_json_report_matches_the_public_catalog() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(value["schema_version"], 1);
     let checks = value["wrapper"]["checks"].as_array().expect("checks");
-    assert_eq!(checks.len(), 17);
+    assert_eq!(checks.len(), 18);
     for (row, id) in checks.iter().zip(IDS) {
         assert_eq!(row["id"], id);
     }
     // Three levels, each stating its own status and code.
-    assert_eq!(value["wrapper"]["summary"]["total"], 17);
+    assert_eq!(value["wrapper"]["summary"]["total"], 18);
     assert_eq!(value["wrapper"]["status"], "pass");
     assert_eq!(value["wrapper"]["summary"]["exit"], 0);
     assert_eq!(value["child"]["status"], "pass");
@@ -302,7 +303,7 @@ fn doctor_list_json_discovers_the_same_catalog() {
         .expect("list");
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     let rows = value["checks"].as_array().expect("checks");
-    assert_eq!(rows.len(), 17);
+    assert_eq!(rows.len(), 18);
     for (row, id) in rows.iter().zip(IDS) {
         assert_eq!(row["id"], id);
         assert!(row.get("status").is_none());
@@ -340,7 +341,7 @@ fn doctor_skips_inapplicable_session_checks_with_reasons() {
         .iter()
         .filter(|row| row["status"] == "skipped")
         .count();
-    assert_eq!(skipped, 11);
+    assert_eq!(skipped, 12);
 }
 
 #[test]
@@ -375,7 +376,7 @@ fn doctor_continues_after_a_subsystem_failure() {
             .expect("checks")
             .last()
             .expect("last")["id"],
-        "settings-profile-valid"
+        "account-launch-ready"
     );
 }
 
@@ -507,7 +508,7 @@ fn doctor_reports_bootstrap_failures_in_the_requested_mode() {
     assert_eq!(value["wrapper"]["checks"][2]["status"], "fail");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        17
+        18
     );
 }
 
@@ -911,4 +912,34 @@ fn doctor_without_requested_help_still_reports() {
     let text = String::from_utf8(output.stdout).expect("utf-8 report");
     assert!(!text.contains("Usage: claude-session-rs doctor"), "{text}");
     assert!(text.contains("\n\n--- claude doctor ---\n\n"), "{text}");
+}
+
+/// Slice 024 acceptance: an account created before the record existed is named
+/// rather than left to fail inside the child.
+#[test]
+fn an_account_that_would_onboard_is_a_defect_with_its_next_action() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    std::fs::remove_file(harness.state().join("accounts/work/config/.claude.json"))
+        .expect("predate the record");
+    let output = healthy(&harness)
+        .args(["--account", "work", "doctor", "--json"])
+        .output()
+        .expect("doctor");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    let row = value["wrapper"]["checks"]
+        .as_array()
+        .expect("checks")
+        .iter()
+        .find(|row| row["id"] == "account-launch-ready")
+        .expect("the check is in the report")
+        .clone();
+    assert_eq!(row["status"], "warn");
+    assert!(
+        row["hint"]
+            .as_str()
+            .expect("a next action")
+            .contains("account login work"),
+        "{row}"
+    );
 }

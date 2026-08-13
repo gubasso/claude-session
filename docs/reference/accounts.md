@@ -70,6 +70,18 @@ The wrapper never intercepts a slash command.
 
 `account login [name]` is idempotent. It creates the account on the first successful login and safely replaces its mode on later successful runs. A failed first login removes the incomplete account.
 
+### What a login leaves ready
+
+A login commits three things, in this order: the authentication, [the bound profile](#the-bound-profile), and `hasCompletedOnboarding` in the child's `.claude.json` inside the account's configuration directory, recording that the child's first-run setup is done.
+
+The third exists because the first two are not enough. The child runs its first-run setup when that key is not `true`, and decides that without consulting authentication — so a brand-new account directory sends an authenticated account into a browser sign-in it does not need, and which token mode cannot even absorb, since the stored token shadows whatever that sign-in saves. The wrapper created the directory whose newness makes the child ask, so the wrapper answers ([ADR-0098](../decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md)).
+
+Nothing else in that file is touched. The write is read-modify-write under the account's credential lock, so the child's own keys and its per-workspace trust records survive it, and a file that is not a JSON object is refused rather than replaced. That lock excludes another wrapper run rather than a `claude` already running under the account, which is why the write happens at login and never on a launch. The workspace trust prompt still fires on the first launch in each directory, because that is a safety question the child asks about the workspace rather than about the account.
+
+An account created before this behaviour existed keeps working and is not migrated silently. It is named by `doctor` under `account-launch-ready`, by `account status` as a warning, and on standard error before the exec; running `account login` again records the key. Run it in the mode the account already uses: the bare form is a [native login](#native-login-mode), so a token account needs its `--token` input again or the login replaces its stored mode.
+
+A failure to write it does not undo the login. The credential is already durable, so the refusal says the account authenticated, says what the launch would meet, and names the login to run again once the file is dealt with.
+
 ### Native login mode
 
 The wrapper resolves the account directory and launches the child's own `auth login` with the account `config/` as `CLAUDE_CONFIG_DIR`. It does not implement the browser flow or inspect the result. Native passthrough remains available:

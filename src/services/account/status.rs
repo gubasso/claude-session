@@ -73,6 +73,7 @@ pub(crate) fn project(
         // this reports means.
         status.warnings = super::launch_warnings(context, account, ReportMode::Invalid);
         note_missing_profile(&mut status);
+        note_first_run(context, account, &mut status);
         return Ok(status);
     };
     status.recorded_at = Some(metadata.recorded_at.clone());
@@ -89,6 +90,7 @@ pub(crate) fn project(
     // human running the launch would have read on standard error.
     status.warnings = super::launch_warnings(context, account, status.mode);
     note_missing_profile(&mut status);
+    note_first_run(context, account, &mut status);
     Ok(status)
 }
 
@@ -100,6 +102,19 @@ pub(crate) fn project(
 fn note_missing_profile(status: &mut AccountStatus) {
     if status.profile_present == Some(false) {
         status.warnings.push(Warning::BoundProfileMissing);
+    }
+}
+
+/// Adds the first-run condition to the warnings the launch would raise.
+///
+/// Its own note for the reason the one above is: this answers neither which
+/// credential wins nor which profile applies, but whether the child would show
+/// its prompt at all. An unreadable file warns too — the reader is going to meet
+/// the same wizard either way, and `doctor` is where the distinction earns its
+/// own words.
+fn note_first_run(context: &AppContext, account: &Identifier, status: &mut AccountStatus) {
+    if !super::onboarding::readiness(context, account).ready() {
+        status.warnings.push(Warning::FirstRunOnboarding);
     }
 }
 

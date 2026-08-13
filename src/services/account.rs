@@ -2,6 +2,7 @@
 
 pub(crate) mod bind;
 pub(crate) mod lock;
+pub(crate) mod onboarding;
 pub(crate) mod remove;
 pub(crate) mod status;
 pub(crate) mod token;
@@ -380,6 +381,55 @@ fn selected_binding(context: &AppContext, bound: Check) -> CheckResult {
                 binding.profile.as_str()
             ),
             hint(bound),
+        ),
+    }
+}
+
+/// Reports whether a launch under the selected account reaches the prompt.
+///
+/// Its own function rather than a fourth member of [`doctor_results`], because
+/// the pushed order has to match the catalog's and this is the catalog's newest,
+/// last entry. Skipped when nothing is selected, for the reason the two checks
+/// above skip: there is no account for the question to be about.
+pub(crate) fn launch_ready_result(context: &AppContext) -> CheckResult {
+    let check = Check::Account(AccountCheck::LaunchReady);
+    let Some(selected) = context.account_selection().account() else {
+        return CheckResult::skipped(
+            check,
+            concat!(
+                "no account is selected, so no first run applies. Select one with: ",
+                "claude-session-rs --account <name>"
+            ),
+        );
+    };
+    let hint = || {
+        check
+            .hint(&[("account", selected.as_str())])
+            .unwrap_or_default()
+    };
+    match onboarding::readiness(context, selected) {
+        onboarding::Readiness::Ready => CheckResult::pass(
+            check,
+            format!("\"{}\" goes straight to claude's prompt", selected.as_str()),
+        ),
+        onboarding::Readiness::WouldOnboard => CheckResult::defect(
+            check,
+            format!(
+                concat!(
+                    "account \"{}\" has not recorded that claude's first-run setup is ",
+                    "done, so claude would run it."
+                ),
+                selected.as_str()
+            ),
+            hint(),
+        ),
+        onboarding::Readiness::Unreadable(why) => CheckResult::defect(
+            check,
+            format!(
+                "account \"{}\" has a claude configuration file that could not be read: {why}.",
+                selected.as_str()
+            ),
+            hint(),
         ),
     }
 }

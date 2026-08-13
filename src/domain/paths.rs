@@ -127,6 +127,15 @@ impl XdgPaths {
     pub(crate) fn account_credentials(&self, account: &Identifier) -> PathBuf {
         self.account_config(account).join(".credentials.json")
     }
+    /// Returns the child's own configuration file inside one account's directory.
+    ///
+    /// The child owns every key in it but one. The wrapper created the
+    /// directory the child reads it from, so the wrapper answers the one
+    /// question that directory being new makes the child ask
+    /// ([ADR-0098](../../docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md)).
+    pub(crate) fn account_native_config(&self, account: &Identifier) -> PathBuf {
+        self.account_config(account).join(".claude.json")
+    }
     /// Returns the last-used account marker.
     pub(crate) fn last_account(&self) -> PathBuf {
         self.state.join("state").join("last-account")

@@ -77,6 +77,7 @@ pub(crate) const CATALOG: &[Check] = &[
     Check::Account(AccountCheck::CredentialsUsable),
     Check::Account(AccountCheck::ProfileBound),
     Check::Entry(EntryCheck::Valid),
+    Check::Account(AccountCheck::LaunchReady),
 ];
 
 impl Check {
@@ -247,6 +248,8 @@ pub(crate) enum AccountCheck {
     RegistryReadable,
     CredentialsUsable,
     ProfileBound,
+    /// Appended by slice 024.
+    LaunchReady,
 }
 
 impl AccountCheck {
@@ -255,6 +258,7 @@ impl AccountCheck {
             Self::RegistryReadable => "account-registry-readable",
             Self::CredentialsUsable => "credentials-usable",
             Self::ProfileBound => "account-profile-bound",
+            Self::LaunchReady => "account-launch-ready",
         }
     }
     pub(crate) const fn title(self) -> &'static str {
@@ -262,6 +266,7 @@ impl AccountCheck {
             Self::RegistryReadable => "The account list",
             Self::CredentialsUsable => "Sign-in for the selected account",
             Self::ProfileBound => "The selected account's profile",
+            Self::LaunchReady => "The selected account's first run",
         }
     }
     pub(crate) const fn consequence(self) -> &'static str {
@@ -275,6 +280,11 @@ impl AccountCheck {
                 "The selected account names no usable profile, so a launch under it \
                 refuses before the child starts."
             }
+            Self::LaunchReady => {
+                "A launch under the selected account meets the child's first-run setup \
+                instead of its prompt, which asks to sign in again even though this \
+                account already can."
+            }
         }
     }
     pub(crate) const fn kind(self) -> ErrorKind {
@@ -282,6 +292,7 @@ impl AccountCheck {
             Self::RegistryReadable => ErrorKind::Io,
             Self::CredentialsUsable => ErrorKind::Auth,
             Self::ProfileBound => ErrorKind::Config,
+            Self::LaunchReady => ErrorKind::DataFormat,
         }
     }
     pub(crate) const fn remediation(self) -> &'static str {
@@ -297,6 +308,12 @@ impl AccountCheck {
             Self::ProfileBound => {
                 "Run claude-session-rs account bind {account} --profile <name> to name the \
                 profile this account runs with."
+            }
+            Self::LaunchReady => {
+                "Run claude-session-rs account login {account} again to record that the \
+                child's first-run setup is done. Pass the same --token input if this is a \
+                token account: the bare form signs in through the browser and stores that \
+                mode instead."
             }
         }
     }
@@ -916,12 +933,18 @@ mod tests {
             Severity::Hard,
             ErrorKind::DataFormat,
         ),
+        (
+            "account-launch-ready",
+            Scope::Session,
+            Severity::Soft,
+            ErrorKind::DataFormat,
+        ),
     ];
 
     #[test]
     fn complete_catalog_metadata_and_order_are_pinned() {
         assert_eq!(CATALOG.len(), FULL_CATALOG.len());
-        assert_eq!(CATALOG.len(), 17);
+        assert_eq!(CATALOG.len(), 18);
         for (check, (id, scope, severity, kind)) in CATALOG.iter().zip(FULL_CATALOG) {
             assert_eq!(
                 (check.id(), check.scope(), check.severity(), check.kind()),

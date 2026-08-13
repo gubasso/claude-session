@@ -30,6 +30,14 @@ const SELF_REFERENTIAL: &[&str] = &[REGISTRY, "tests/repo_contracts/child_facts.
 /// demand a registry entry for every internal variable.
 const DISCOVERY: &[&str] = &["ANTHROPIC_", "CLAUDE_CODE_", "CLAUDE_CONFIG_"];
 
+/// Child-owned names that no prefix reaches. The prefixes above describe
+/// environment variables, and a key inside the child's own configuration file
+/// is spelled like anything else — so it is discoverable only by being named
+/// here. The list is explicit rather than a pattern for that reason: a general
+/// identifier search over this tree would demand a registry entry for every
+/// word in it.
+const LITERALS: &[&str] = &["hasCompletedOnboarding"];
+
 /// The obligations ADR-0089 names, plus the temporary state a contested carry
 /// sits in while a question decides it.
 const OBLIGATIONS: &[&str] = &["launch", "no-collision", "scope-our-claim", "contested"];
@@ -105,8 +113,27 @@ fn identifier(text: &str, at: usize) -> String {
         .collect()
 }
 
+/// True when nothing continues the identifier past `end`, so a literal is not
+/// matched inside a longer name.
+fn ends_identifier(text: &str, end: usize) -> bool {
+    text[end..]
+        .chars()
+        .next()
+        .is_none_or(|next| !next.is_ascii_alphanumeric() && next != '_')
+}
+
 fn scan(path: &str, text: &str) -> Vec<Occurrence> {
     let mut found = BTreeSet::new();
+    for literal in LITERALS {
+        for (at, _) in text.match_indices(literal) {
+            if starts_identifier(text, at) && ends_identifier(text, at + literal.len()) {
+                found.insert(Occurrence {
+                    fact: (*literal).to_string(),
+                    path: path.to_string(),
+                });
+            }
+        }
+    }
     for prefix in DISCOVERY {
         for (at, _) in text.match_indices(prefix) {
             if !starts_identifier(text, at) {

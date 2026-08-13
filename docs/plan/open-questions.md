@@ -31,3 +31,11 @@ Blocks: whether `account status --json` keeps pairing `profile`, the account's b
 Raised: the slice 023 review observed that a project file or a flag makes the two describe different profiles, and that the human form now says so in words while the document leaves a reader to infer it. The pairing satisfies slice 022's acceptance, which asks for the bound profile and the provenance of the profile in force, so this is a clarity question rather than a defect. A companion asymmetry is that `account list --json` carries the binding with no provenance at all.
 
 Exit: ADR, decide whether the two facts are one field pair or two, then move the field set and both renderers together. It changes a published document shape, so it needs a slice rather than an edit.
+
+## Q-009 — What excludes a running child from the one key a login writes?
+
+Blocks: whether [ADR-0098](../decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md) can promise that the login's read-modify-write of the child's `.claude.json` preserves the keys beside it, which [accounts](../reference/accounts.md#what-a-login-leaves-ready) states as a fact.
+
+Raised: the slice 024 review observed that the credential lock excludes wrapper writers only. A `claude` already running under the account holds nothing, so a trust record it writes between the login's read and its rename is lost. [ADR-0084](../decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md) leaves no wrapper process alive to hold a lock for the child's lifetime, so the exclusion the wrapper would need does not exist to be taken. The window is one read-modify-write wide, and two concurrent children already race each other over the same file, so this is a limit inherited from sharing one configuration directory rather than one this slice introduced.
+
+Exit: measurement, observe whether the child rewrites `.claude.json` often enough for the window to be reachable in practice. If it is, the decision that follows is between refusing the write while a child of that account is live and accepting the loss as the cost of a shared directory, and either one changes what the reference pages may promise.

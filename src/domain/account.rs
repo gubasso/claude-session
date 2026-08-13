@@ -272,6 +272,11 @@ pub(crate) enum Warning {
     Ambient(AmbientCredential),
     /// A stored token shadows a saved login that also exists.
     TokenOverLogin,
+    /// The account has not recorded that the child's first-run setup is done.
+    ///
+    /// Carries no name for the reason the one below carries none: every surface
+    /// raising it has already said which account it is about.
+    FirstRunOnboarding,
     /// The account is bound to a profile that has no document.
     ///
     /// Carries no name, because the report already states which profile the
@@ -294,6 +299,13 @@ impl Warning {
             Self::TokenOverLogin => concat!(
                 "the stored token outranks the saved login in this account's",
                 " configuration directory, so the saved login is not used"
+            )
+            .to_owned(),
+            Self::FirstRunOnboarding => concat!(
+                "this account has not recorded that claude's first-run setup is done,",
+                " so claude will run it and ask to sign in again; run claude-session-rs",
+                " account login for this account, in the mode it already signs in with,",
+                " to record it"
             )
             .to_owned(),
             Self::BoundProfileMissing => concat!(

@@ -284,7 +284,9 @@ Beyond that boundary the wrapper's only obligation is to generate the composed d
 
 ### Child-owned account state
 
-Trust, onboarding, project history, and other native state remain child-owned in the shared account `config/`. The wrapper neither seeds nor synchronizes them.
+Trust, project history, and other native state remain child-owned in the shared account `config/`. The wrapper neither seeds nor synchronizes them.
+
+Onboarding is the one exception, and it is one key. A successful [login](./accounts.md#logging-in) records that the child's first-run setup is done, because the wrapper created the directory whose newness makes the child ask ([ADR-0098](../decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md)). Nothing else in that file is written, and the per-workspace trust prompt still fires.
 
 ## Commands
 

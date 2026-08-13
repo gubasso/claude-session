@@ -24,6 +24,10 @@
 #
 # Discovery scans for `ANTHROPIC_`, `CLAUDE_CODE_`, and `CLAUDE_CONFIG_`. The
 # wrapper's own `CLAUDE_SESSION_RS_` prefix is not a child fact and is not scanned.
+# Those prefixes describe environment variables. A child-owned name of any other
+# shape — a key inside the child's own configuration file, for instance — is
+# reached only by being listed in the test's own literal set, which is why adding
+# one is two edits rather than one.
 
 carried:
   - fact: CLAUDE_CONFIG_DIR
@@ -35,6 +39,7 @@ carried:
       - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
       - docs/decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md
       - docs/decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md
+      - docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md
       - docs/explanation/session-isolation.md
       - docs/explanation/wrapper-model.md
       - docs/plan/slices/005-account-authentication/README.md
@@ -63,6 +68,16 @@ carried:
       - src/services/child.rs
       - tests/accounts.rs
       - tests/support/recording_child.rs
+
+  - fact: hasCompletedOnboarding
+    obligation: launch
+    why: The wrapper writes it once at login, because it created the configuration directory whose newness makes the child run its first-run setup instead of launching.
+    sites:
+      - docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md
+      - docs/reference/accounts.md
+      - src/services/account/onboarding.rs
+      - tests/accounts.rs
+      - tests/support.rs
 
   - fact: ANTHROPIC_AUTH_TOKEN
     obligation: scope-our-claim

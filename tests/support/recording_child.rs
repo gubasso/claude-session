@@ -68,6 +68,15 @@ fn main() {
         )
         .expect("credential");
     }
+    // Simulates the child writing its own configuration file during a login,
+    // so a test can prove the wrapper's one key is added to what the child left
+    // rather than replacing it.
+    if let Some(document) = std::env::var_os("CS_TEST_CHILD_CONFIG") {
+        let config = PathBuf::from(std::env::var_os("CLAUDE_CONFIG_DIR").expect("config dir"));
+        fs::create_dir_all(&config).expect("config directory");
+        fs::write(config.join(".claude.json"), document.as_os_str().as_bytes())
+            .expect("child configuration");
+    }
     // Simulates a second run committing this account while the interactive
     // login of the run under test is still going. The cleanup on failure must
     // notice and leave the committed account alone.
