@@ -15,8 +15,8 @@
 use crate::{
     domain::{
         account::{
-            AccountFinding, AccountStatus, AuthModeMetadata, ProfileBinding, Removal, ReportMode,
-            SelectionSource, Warning,
+            AccountFinding, AccountStatus, AuthMode, AuthModeMetadata, ProfileBinding, Removal,
+            ReportMode, SelectionSource, Warning,
         },
         checks::CheckStatus,
         config::Source,
@@ -379,6 +379,36 @@ pub(super) fn login(
             this account and the prompt."
         },
     ));
+    // Token mode only, because a saved login carries its own plan to the child
+    // and there is nothing for the wrapper to have declared
+    // ([ADR-0099](../../../docs/decisions/ADR-0099-declare-the-plan-a-token-cannot-carry.md)).
+    if metadata.mode == AuthMode::Token {
+        rows.push_str(&metadata.declared_plan().map_or_else(
+            || {
+                row(
+                    palette,
+                    CheckStatus::Warn,
+                    &format!(
+                        "It declares no subscription plan, so claude will describe the \
+                        session as an API one and pick the model it defaults to without \
+                        one. Declare it with: claude-session-rs account login {account} \
+                        --token --plan <plan>"
+                    ),
+                )
+            },
+            |plan| {
+                row(
+                    palette,
+                    CheckStatus::Pass,
+                    &format!(
+                        "It declares the {} plan, which is what claude will read this \
+                        account's token as.",
+                        plan.as_str()
+                    ),
+                )
+            },
+        ));
+    }
     format!(
         "{}\n\n{rows}\n{}",
         palette.heading(&format!("Account {account} is ready")),

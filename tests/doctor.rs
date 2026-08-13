@@ -4,7 +4,7 @@ mod support;
 
 use support::Harness;
 
-const IDS: [&str; 18] = [
+const IDS: [&str; 19] = [
     "base-dirs-resolve",
     "runtime-dir-present",
     "wrapper-config-parses",
@@ -23,6 +23,7 @@ const IDS: [&str; 18] = [
     "account-profile-bound",
     "settings-profile-valid",
     "account-launch-ready",
+    "account-plan-declared",
 ];
 
 /// The titles a person reads, in catalog order. Unlike the ids above these are
@@ -72,7 +73,7 @@ fn doctor_human_report_preserves_catalog_order_and_text_shape() {
         text.contains("  [pass]     Wrapper storage locations"),
         "{text}"
     );
-    assert!(text.contains("18 checks: "), "{text}");
+    assert!(text.contains("19 checks: "), "{text}");
     assert!(
         text.contains("Everything the wrapper needs is in place."),
         "{text}"
@@ -181,7 +182,7 @@ fn one_row_stands_for_a_run_of_checks_and_names_each_id() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        18
+        19
     );
 }
 
@@ -237,12 +238,12 @@ fn doctor_json_report_matches_the_public_catalog() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(value["schema_version"], 1);
     let checks = value["wrapper"]["checks"].as_array().expect("checks");
-    assert_eq!(checks.len(), 18);
+    assert_eq!(checks.len(), 19);
     for (row, id) in checks.iter().zip(IDS) {
         assert_eq!(row["id"], id);
     }
     // Three levels, each stating its own status and code.
-    assert_eq!(value["wrapper"]["summary"]["total"], 18);
+    assert_eq!(value["wrapper"]["summary"]["total"], 19);
     assert_eq!(value["wrapper"]["status"], "pass");
     assert_eq!(value["wrapper"]["summary"]["exit"], 0);
     assert_eq!(value["child"]["status"], "pass");
@@ -303,7 +304,7 @@ fn doctor_list_json_discovers_the_same_catalog() {
         .expect("list");
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     let rows = value["checks"].as_array().expect("checks");
-    assert_eq!(rows.len(), 18);
+    assert_eq!(rows.len(), 19);
     for (row, id) in rows.iter().zip(IDS) {
         assert_eq!(row["id"], id);
         assert!(row.get("status").is_none());
@@ -341,7 +342,61 @@ fn doctor_skips_inapplicable_session_checks_with_reasons() {
         .iter()
         .filter(|row| row["status"] == "skipped")
         .count();
-    assert_eq!(skipped, 12);
+    assert_eq!(skipped, 13);
+}
+
+/// Slice 025 acceptance: a login-mode account answers the child's plan question
+/// from its own saved credential, so the check has nothing to be about.
+#[test]
+fn the_plan_check_skips_a_login_mode_account() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    let row = plan_row(&harness, "work");
+    assert_eq!(row["status"], "skipped");
+    assert!(
+        row["reason"]
+            .as_str()
+            .expect("a reason")
+            .contains("saved login"),
+        "{row}"
+    );
+}
+
+/// Slice 025 acceptance: an account recorded before the declaration existed is
+/// named rather than left to launch as an API session.
+#[test]
+fn an_account_without_a_declared_plan_is_a_defect_with_its_next_action() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"work-token", b"work-token");
+    let metadata = harness.state().join("accounts/work/auth-mode.json");
+    let recorded = std::fs::read_to_string(&metadata).expect("metadata");
+    std::fs::write(&metadata, recorded.replace(",\"plan\":\"max\"", ""))
+        .expect("predate the declaration");
+    let row = plan_row(&harness, "work");
+    assert_eq!(row["status"], "warn");
+    assert!(
+        row["hint"]
+            .as_str()
+            .expect("a next action")
+            .contains("account login work --token --plan"),
+        "{row}"
+    );
+}
+
+/// Reads the plan check's row out of one account-scoped report.
+fn plan_row(harness: &Harness, account: &str) -> serde_json::Value {
+    let output = healthy(harness)
+        .args(["--account", account, "doctor", "--json"])
+        .output()
+        .expect("doctor");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    value["wrapper"]["checks"]
+        .as_array()
+        .expect("checks")
+        .iter()
+        .find(|row| row["id"] == "account-plan-declared")
+        .expect("the check is in the report")
+        .clone()
 }
 
 #[test]
@@ -376,7 +431,7 @@ fn doctor_continues_after_a_subsystem_failure() {
             .expect("checks")
             .last()
             .expect("last")["id"],
-        "account-launch-ready"
+        "account-plan-declared"
     );
 }
 
@@ -508,7 +563,7 @@ fn doctor_reports_bootstrap_failures_in_the_requested_mode() {
     assert_eq!(value["wrapper"]["checks"][2]["status"], "fail");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        18
+        19
     );
 }
 

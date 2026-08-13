@@ -1858,3 +1858,261 @@ fn a_launch_under_an_account_that_would_onboard_warns_and_still_execs() {
         "a launch reads this and never writes it"
     );
 }
+
+/// Slice 025 acceptance: the plan the command line declared reaches the
+/// account's metadata, beside the token it describes.
+#[test]
+fn a_token_login_records_the_declared_plan() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+            "--plan",
+            "Max",
+        ])
+        .write_stdin("sk-declared\n")
+        .output()
+        .expect("token login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let metadata: serde_json::Value = serde_json::from_slice(
+        &fs::read(harness.state().join("accounts/work/auth-mode.json")).expect("metadata file"),
+    )
+    .expect("metadata");
+    assert_eq!(
+        metadata["plan"], "max",
+        "the declaration is recorded, lowercased"
+    );
+}
+
+/// Slice 025 acceptance: a terminal login with no `--plan` asks, and the answer
+/// is recorded. The offer is numbered, so `1` is the first plan it lists.
+#[test]
+fn a_token_login_asks_for_the_plan_and_records_the_answer() {
+    let harness = Harness::new();
+    let output = interactive_token_login(&harness, "1\n");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let terminal = support::flowed(&String::from_utf8_lossy(&output.stdout));
+    assert!(
+        terminal.contains("Which plan does this token belong to?"),
+        "{terminal}"
+    );
+    let metadata: serde_json::Value = serde_json::from_slice(
+        &fs::read(harness.state().join("accounts/work/auth-mode.json")).expect("metadata file"),
+    )
+    .expect("metadata");
+    assert_eq!(metadata["plan"], "max", "the numbered answer is resolved");
+}
+
+/// Slice 025 acceptance: declining the question is not refusing the login. The
+/// credential was already proven by the time it was asked.
+#[test]
+fn a_declined_plan_prompt_still_completes_the_login() {
+    let harness = Harness::new();
+    let output = interactive_token_login(&harness, "\n");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let metadata: serde_json::Value = serde_json::from_slice(
+        &fs::read(harness.state().join("accounts/work/auth-mode.json")).expect("metadata file"),
+    )
+    .expect("metadata");
+    assert_eq!(metadata["mode"], "token", "the login committed");
+    assert!(
+        metadata.get("plan").is_none(),
+        "and declared no plan: {metadata}"
+    );
+}
+
+/// Runs an interactive token login, answering the token prompt and then the
+/// plan prompt.
+///
+/// Each answer waits for the prompt that asks for it rather than for a clock.
+/// The secret read flushes type-ahead entered before it and drains anything
+/// queued behind its first newline, so an answer written early is either
+/// discarded or swallowed as part of the token — and a sleep long enough to
+/// avoid that on one machine is a race on another.
+fn interactive_token_login(harness: &Harness, answer: &str) -> std::process::Output {
+    use std::io::{Read as _, Write as _};
+    let mut child = harness
+        .terminal_command("account login work --profile companion --token")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("terminal login");
+    let mut terminal = child.stdout.take().expect("terminal output");
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let collected = std::sync::Arc::clone(&seen);
+    let reader = std::thread::spawn(move || {
+        let mut byte = [0_u8; 1];
+        while terminal.read(&mut byte).unwrap_or(0) == 1 {
+            collected.lock().expect("terminal buffer").push(byte[0]);
+        }
+    });
+    let mut stdin = child.stdin.take().expect("terminal input");
+    for (prompt, reply) in [("Paste the token", "sk-asked\n"), ("Which plan", answer)] {
+        await_prompt(&seen, prompt);
+        stdin.write_all(reply.as_bytes()).expect("terminal reply");
+        stdin.flush().expect("terminal reply");
+    }
+    let status = child.wait().expect("terminal login");
+    drop(stdin);
+    reader.join().expect("terminal reader");
+    let stdout = seen.lock().expect("terminal buffer").clone();
+    std::process::Output {
+        status,
+        stdout,
+        stderr: Vec::new(),
+    }
+}
+
+/// Blocks until the pty has written `prompt`, or the harness deadline passes.
+fn await_prompt(seen: &std::sync::Mutex<Vec<u8>>, prompt: &str) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while std::time::Instant::now() < deadline {
+        {
+            let buffer = seen.lock().expect("terminal buffer");
+            if String::from_utf8_lossy(&buffer).contains(prompt) {
+                return;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let buffer = seen.lock().expect("terminal buffer");
+    panic!(
+        "{prompt:?} never appeared; the terminal said: {}",
+        String::from_utf8_lossy(&buffer)
+    );
+}
+
+/// Slice 025 acceptance: a declaration outside the shape rule is a usage error,
+/// so it lands before a credential is read and before an account exists.
+#[test]
+fn a_malformed_plan_is_refused_before_ingest() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+            "--plan",
+            "max plan",
+        ])
+        .write_stdin("sk-never-read\n")
+        .output()
+        .expect("token login");
+    assert_eq!(output.status.code(), Some(64));
+    assert!(
+        !harness.state().join("accounts/work").exists(),
+        "a usage error precedes every side effect"
+    );
+}
+
+/// Slice 025 acceptance: the recorded plan reaches the child in the variable it
+/// reads a plan from.
+#[test]
+fn a_token_launch_injects_the_recorded_plan() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-planned", b"sk-planned");
+    let output = harness
+        .companion_profile_command()
+        .args(["--account", "work", "run"])
+        .output()
+        .expect("launch");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let environ = read_nul(&harness.record_dir().join("environ"));
+    let index = environ
+        .iter()
+        .position(|value| value == b"CLAUDE_CODE_SUBSCRIPTION_TYPE")
+        .expect("the declared plan is injected");
+    assert_eq!(environ[index + 1], b"max");
+}
+
+/// Slice 025 acceptance: an account that declared none is told about and
+/// launched anyway, with no variable invented on its behalf.
+#[test]
+fn a_launch_without_a_declared_plan_warns_and_still_execs() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-unplanned", b"sk-unplanned");
+    let metadata = harness.state().join("accounts/work/auth-mode.json");
+    let recorded = fs::read_to_string(&metadata).expect("metadata");
+    fs::write(&metadata, recorded.replace(",\"plan\":\"max\"", ""))
+        .expect("predate the declaration");
+    // Seeded ambient, because inheriting it is the way the child would learn a
+    // plan this account never declared: the scrub keeps every child-owned name,
+    // so only token mode's own removal stands between the warning and a
+    // contradicting variable.
+    let output = harness
+        .companion_profile_command()
+        .args(["--account", "work", "run"])
+        .env("CLAUDE_CODE_SUBSCRIPTION_TYPE", "pro")
+        .output()
+        .expect("launch");
+    assert!(
+        output.status.success(),
+        "the launch is never refused over it"
+    );
+    let stderr = support::flowed(&String::from_utf8_lossy(&output.stderr));
+    assert!(
+        stderr.contains("this account declared no subscription plan"),
+        "{stderr}"
+    );
+    let environ = read_nul(&harness.record_dir().join("environ"));
+    assert!(
+        !environ
+            .iter()
+            .any(|value| value == b"CLAUDE_CODE_SUBSCRIPTION_TYPE"),
+        "an undeclared plan sets nothing, and inherits nothing"
+    );
+}
+
+/// Slice 025 acceptance: the report names the plan, because the whole point of
+/// declaring one is what the child will then say.
+#[test]
+fn a_login_report_names_the_declared_plan() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+            "--plan",
+            "team",
+        ])
+        .write_stdin("sk-report\n")
+        .output()
+        .expect("token login");
+    let stdout = support::flowed(&String::from_utf8_lossy(&output.stdout));
+    assert!(stdout.contains("It declares the team plan"), "{stdout}");
+}

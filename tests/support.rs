@@ -264,9 +264,13 @@ impl Harness {
         fs::write(
             account.join("auth-mode.json"),
             format!(
+                // Declares a plan, for the reason the child configuration above
+                // records the first run: a fixture stands for an account a real
+                // login produced, not for one that predates the guarantee. A
+                // test about the undeclared case rewrites this file.
                 concat!(
                     "{{\"mode\":\"token\",\"recorded_at\":\"2026-08-11T00:00:00Z\",",
-                    "\"fingerprint\":\"{}\"}}\n"
+                    "\"fingerprint\":\"{}\",\"plan\":\"max\"}}\n"
                 ),
                 fingerprint(described)
             ),

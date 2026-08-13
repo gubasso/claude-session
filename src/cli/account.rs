@@ -80,6 +80,13 @@ pub(crate) struct LoginArgs {
     /// The time the token was minted, when it was not minted just now.
     #[arg(long, requires = "token", value_name = "RFC3339")]
     pub(crate) minted_at: Option<String>,
+    // Token-only for the same reason, and with a second one behind it: a saved
+    // login carries its own plan to the child, so accepting this beside the
+    // native flow would offer to answer a question that is not being asked
+    // ([ADR-0099](../../docs/decisions/ADR-0099-declare-the-plan-a-token-cannot-carry.md)).
+    /// The subscription plan the token belongs to; prompted for when omitted.
+    #[arg(long, requires = "token", value_name = "PLAN")]
+    pub(crate) plan: Option<String>,
     /// Emit the report as one JSON document.
     #[arg(long)]
     pub(crate) json: bool,

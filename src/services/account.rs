@@ -19,7 +19,7 @@ use crate::{
     context::AppContext,
     domain::{
         account::{
-            AccountFinding, AccountSelection, AmbientCredential, AuthMode, AuthModeMetadata,
+            AccountFinding, AccountSelection, AmbientCredential, AuthMode, AuthModeMetadata, Plan,
             RecordedAt, ReportMode, SelectionSource, Warning,
         },
         checks::{AccountCheck, Check, CheckResult},
@@ -434,6 +434,82 @@ pub(crate) fn launch_ready_result(context: &AppContext) -> CheckResult {
     }
 }
 
+/// Reports whether the selected token account declared its subscription plan.
+///
+/// Its own function for the reason the one above is: the catalog's order is the
+/// pushed order, and this is its newest, last entry.
+///
+/// Three of the four outcomes are skips, because three of them are questions
+/// this check is not about. No selected account has nothing to ask about; a
+/// login-mode account answers the child from the credential the child itself
+/// saved; and an account whose mode cannot be read is `credentials-usable`'s
+/// subject, not this one's — reporting it here would give one defect two next
+/// actions that disagree.
+pub(crate) fn plan_declared_result(context: &AppContext) -> CheckResult {
+    let check = Check::Account(AccountCheck::PlanDeclared);
+    let Some(selected) = context.account_selection().account() else {
+        return CheckResult::skipped(
+            check,
+            concat!(
+                "no account is selected, so no plan applies. Select one with: ",
+                "claude-session-rs --account <name>"
+            ),
+        );
+    };
+    let path = context.paths().account_auth_mode(selected);
+    let Ok(metadata) = read_metadata(context.paths().state(), &path) else {
+        return CheckResult::skipped(
+            check,
+            format!(
+                concat!(
+                    "account \"{}\" has no readable authentication mode, so which plan ",
+                    "it would declare is not yet a question. credentials-usable reports this."
+                ),
+                selected.as_str()
+            ),
+        );
+    };
+    if metadata.mode == AuthMode::Login {
+        return CheckResult::skipped(
+            check,
+            format!(
+                concat!(
+                    "account \"{}\" signs in with a saved login, and claude reads the plan ",
+                    "from that login itself."
+                ),
+                selected.as_str()
+            ),
+        );
+    }
+    metadata.declared_plan().map_or_else(
+        || {
+            CheckResult::defect(
+                check,
+                format!(
+                    concat!(
+                        "account \"{}\" declared no subscription plan, so claude cannot ",
+                        "tell which one its stored token belongs to."
+                    ),
+                    selected.as_str()
+                ),
+                check
+                    .hint(&[("account", selected.as_str())])
+                    .unwrap_or_default(),
+            )
+        },
+        |plan| {
+            CheckResult::pass(
+                check,
+                format!(
+                    "\"{}\" declares the {} plan, and claude will read it",
+                    selected.as_str(),
+                    plan.as_str()
+                ),
+            )
+        },
+    )
+}
+
 fn inspect(context: &AppContext, name: Identifier) -> AccountFinding {
     let paths = context.paths();
     let directory = paths.account(&name);
@@ -524,8 +600,15 @@ fn read_metadata(root: &Path, path: &Path) -> Result<AuthModeMetadata, AppError>
     })
 }
 
+/// What the launch needs from the selected account's durable metadata.
+///
+/// Read once, here, where the metadata is already open and already validated.
+/// The alternative — reading it again inside the launch builder — would ask the
+/// same file the same question twice and let the two answers disagree.
 pub(crate) struct LaunchAccount {
     pub(crate) mode: AuthMode,
+    /// The plan to hand the child, in token mode and when one was declared.
+    pub(crate) plan: Option<Plan>,
 }
 
 pub(crate) fn validate_selected_launch(
@@ -569,6 +652,7 @@ pub(crate) fn validate_selected_launch(
         AuthMode::Login if owned_regular(&context.paths().account_credentials(&account.id)) => {
             Ok(Some(LaunchAccount {
                 mode: AuthMode::Login,
+                plan: None,
             }))
         }
         AuthMode::Login => Err(auth_message(
@@ -582,6 +666,7 @@ pub(crate) fn validate_selected_launch(
         AuthMode::Token if owned_regular(&context.paths().account_oauth_token(&account.id)) => {
             Ok(Some(LaunchAccount {
                 mode: AuthMode::Token,
+                plan: metadata.declared_plan().cloned(),
             }))
         }
         AuthMode::Token => Err(auth_message(
@@ -720,6 +805,9 @@ pub(crate) fn write_login_metadata(
         mode: AuthMode::Login,
         recorded_at: RecordedAt::new_unchecked(rfc3339_utc(context.adapters().clock().now())),
         fingerprint: None,
+        // The child's own saved credential carries the plan here, so a wrapper
+        // declaration would be a second answer to a question already answered.
+        plan: None,
     };
     let _lock = hold(context, account)?;
     write_metadata(context, account, &metadata)?;

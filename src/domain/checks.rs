@@ -78,6 +78,7 @@ pub(crate) const CATALOG: &[Check] = &[
     Check::Account(AccountCheck::ProfileBound),
     Check::Entry(EntryCheck::Valid),
     Check::Account(AccountCheck::LaunchReady),
+    Check::Account(AccountCheck::PlanDeclared),
 ];
 
 impl Check {
@@ -250,6 +251,8 @@ pub(crate) enum AccountCheck {
     ProfileBound,
     /// Appended by slice 024.
     LaunchReady,
+    /// Appended by slice 025.
+    PlanDeclared,
 }
 
 impl AccountCheck {
@@ -259,6 +262,7 @@ impl AccountCheck {
             Self::CredentialsUsable => "credentials-usable",
             Self::ProfileBound => "account-profile-bound",
             Self::LaunchReady => "account-launch-ready",
+            Self::PlanDeclared => "account-plan-declared",
         }
     }
     pub(crate) const fn title(self) -> &'static str {
@@ -267,6 +271,7 @@ impl AccountCheck {
             Self::CredentialsUsable => "Sign-in for the selected account",
             Self::ProfileBound => "The selected account's profile",
             Self::LaunchReady => "The selected account's first run",
+            Self::PlanDeclared => "The selected account's subscription plan",
         }
     }
     pub(crate) const fn consequence(self) -> &'static str {
@@ -285,13 +290,21 @@ impl AccountCheck {
                 instead of its prompt, which asks to sign in again even though this \
                 account already can."
             }
+            Self::PlanDeclared => {
+                "Claude cannot tell which subscription the stored token belongs to, so \
+                it describes the session as an API one and picks the model it defaults \
+                to without a plan."
+            }
         }
     }
     pub(crate) const fn kind(self) -> ErrorKind {
         match self {
             Self::RegistryReadable => ErrorKind::Io,
             Self::CredentialsUsable => ErrorKind::Auth,
-            Self::ProfileBound => ErrorKind::Config,
+            // The same kind for the same reason: the account is authenticated
+            // and launches, and what is missing is a fact about it that only a
+            // wrapper verb records.
+            Self::ProfileBound | Self::PlanDeclared => ErrorKind::Config,
             Self::LaunchReady => ErrorKind::DataFormat,
         }
     }
@@ -314,6 +327,11 @@ impl AccountCheck {
                 child's first-run setup is done. Pass the same --token input if this is a \
                 token account: the bare form signs in through the browser and stores that \
                 mode instead."
+            }
+            Self::PlanDeclared => {
+                "Run claude-session-rs account login {account} --token --plan <plan> to \
+                declare which subscription this account's token belongs to. The login \
+                asks for it when --plan is omitted."
             }
         }
     }
@@ -939,12 +957,18 @@ mod tests {
             Severity::Soft,
             ErrorKind::DataFormat,
         ),
+        (
+            "account-plan-declared",
+            Scope::Session,
+            Severity::Soft,
+            ErrorKind::Config,
+        ),
     ];
 
     #[test]
     fn complete_catalog_metadata_and_order_are_pinned() {
         assert_eq!(CATALOG.len(), FULL_CATALOG.len());
-        assert_eq!(CATALOG.len(), 18);
+        assert_eq!(CATALOG.len(), 19);
         for (check, (id, scope, severity, kind)) in CATALOG.iter().zip(FULL_CATALOG) {
             assert_eq!(
                 (check.id(), check.scope(), check.severity(), check.kind()),

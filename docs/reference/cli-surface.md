@@ -2,7 +2,7 @@
 
 The wrapper's own grammar: what `claude-session` claims, what it forwards, and the parser shape that makes verbatim passthrough work. For the reasoning behind these rules, see [the wrapper model](../explanation/wrapper-model.md).
 
-The passthrough, `help`, `version`, `doctor`, the whole `account` namespace — `login [name]` with `--token`, `--stdin`, and `--minted-at`, plus `list`, `status`, and `remove` with `--yes` — `completion <shell>`, `man`, `profile`, and `config` are implemented, and so is requested help for every verb that answers one on its own — `account --help`, `account <subcommand> --help`, `completion --help`, `man --help`, `profile --help`, `config --help`, `doctor --help`, `version --help`, and the matching `help <verb>` spellings. The `help` verb has no requested help of its own, because a reader asking for it is already reading the composed surface it would describe.
+The passthrough, `help`, `version`, `doctor`, the whole `account` namespace — `login [name]` with `--token`, `--stdin`, `--minted-at`, and `--plan`, plus `list`, `status`, and `remove` with `--yes` — `completion <shell>`, `man`, `profile`, and `config` are implemented, and so is requested help for every verb that answers one on its own — `account --help`, `account <subcommand> --help`, `completion --help`, `man --help`, `profile --help`, `config --help`, `doctor --help`, `version --help`, and the matching `help <verb>` spellings. The `help` verb has no requested help of its own, because a reader asking for it is already reading the composed surface it would describe.
 
 ## Invocation shape
 
@@ -252,6 +252,8 @@ Two verbs need a person present. No others do.
 Every other verb — `config`, `profile`, `doctor`, `completion`, `man`, `version`, `help` — is read-only or inert. There is nothing to agree to, so none of them prompts and none of them gates.
 
 Without a terminal, a confirming verb fails rather than prompting or proceeding. When no controlling terminal is available and no escape was given, the verb stops before any side effect and exits `Unavailable` (69). The diagnostic names the escape above; token ingestion through `--stdin` follows [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md).
+
+A token login also asks which subscription plan the token belongs to, which is neither of those things: it is a question a person can decline, and declining completes the login. So no escape is listed for it. `--plan` answers it without being asked, `--stdin` never raises it, and an account that declared none is [reported rather than refused](./accounts.md#declared-subscription-plan).
 
 Reading the absence of a terminal as consent is the alternative, and it makes `account remove` silent under a pipe. Prompting anyway is worse: the process hangs on a stream nobody is reading. See [ADR-0021](../decisions/ADR-0021-fail-closed-without-a-terminal.md).
 

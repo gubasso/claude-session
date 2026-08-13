@@ -74,8 +74,11 @@ The child's environment is a snapshot of the wrapper's own, scrubbed and then ad
 3. Set `CLAUDE_SESSION_RS_REENTRY=1`, the recursion marker.
 4. Set `CLAUDE_CONFIG_DIR` to the account config directory, selecting the account-wide child state — only when an account is selected.
 5. Set `CLAUDE_CODE_OAUTH_TOKEN` to the retrieved token — only in token mode, and only at [step 5 of the launch sequence](#the-exec).
+6. Set `CLAUDE_CODE_SUBSCRIPTION_TYPE` to the [declared plan](./accounts.md#declared-subscription-plan) — only in token mode, and only when the account recorded one.
 
-Step 2 is the wrapper's only removal, and steps 3 to 5 are its only additions. Everything else the user exported — ambient authentication, `PATH`, locale — reaches the child untouched, which is what makes the child a normal program.
+Steps 5 and 6 drop an ambient value of the name they set, and step 6 drops it even when it sets nothing. Both describe the credential the launch is injecting, so an inherited one would describe a credential the child is not being given: a foreign token, or a plan an account that declared none would otherwise appear to have declared.
+
+Those two are the wrapper's only removals besides step 2, and steps 3 to 6 are its only additions. Everything else the user exported — ambient authentication, `PATH`, locale — reaches the child untouched, which is what makes the child a normal program.
 
 Before launch, the wrapper resolves the stored mode and detects ambient higher-precedence authentication. It may warn on standard error as specified by [accounts](./accounts.md#stored-modes-and-launch-behavior), and never strips ambient authentication.
 

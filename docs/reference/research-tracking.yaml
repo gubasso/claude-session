@@ -71,11 +71,19 @@ tracked:
       that a relocated configuration directory owns the credential file, and
       that a successful in-session login clears an injected token within that
       process from 2.1.118. Never record a credential value or child-owned
-      fingerprint.
+      fingerprint. Re-establish the plan behaviour the declared plan rests on,
+      which is measured rather than published: that `CLAUDE_CODE_SUBSCRIPTION_TYPE`
+      is undocumented, that an injected token makes the child read the plan from
+      it alone, that `max`, `pro`, `team`, and `enterprise` are the spellings it
+      acts on, and that a session without one describes itself as an API session
+      and defaults to a different model. Observe it from a launch banner against
+      a scratch configuration directory, recording only the rendered label and
+      model name.
     dependents:
       - docs/decisions/ADR-0025-share-one-native-login-per-account.md
       - docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md
       - docs/decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md
+      - docs/decisions/ADR-0099-declare-the-plan-a-token-cannot-carry.md
       - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
       - docs/reference/exit-codes.md
       - docs/reference/logging-and-output.md

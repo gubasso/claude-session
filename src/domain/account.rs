@@ -27,6 +27,87 @@ impl AuthMode {
     }
 }
 
+/// The subscription plan a token belongs to, as the user declared it.
+///
+/// A declaration and never a reading. An injected token is opaque to the
+/// wrapper by decision ([ADR-0026]), the child reaches its own answer only from
+/// a saved credential that token mode replaces, and no child surface reports
+/// the plan back. So this is what the user said, recorded next to the
+/// credential it describes and labelled as a declaration wherever it is shown
+/// ([ADR-0099]).
+///
+/// The value is validated for shape and never against a vocabulary. The shape
+/// is narrower than an environment value strictly has to be, and deliberately:
+/// a mistyped answer is worth refusing where a person can see it rather than
+/// passing on as a value the child silently ignores. Which spellings mean
+/// something is still the child's, not this type's, so a plan nobody here has
+/// heard of is recorded and injected unchanged
+/// ([accounts](../../docs/reference/accounts.md#declared-subscription-plan)).
+///
+/// [ADR-0026]: ../../docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md
+/// [ADR-0099]: ../../docs/decisions/ADR-0099-declare-the-plan-a-token-cannot-carry.md
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(try_from = "String", into = "String")]
+pub(crate) struct Plan(String);
+
+impl Plan {
+    /// The longest declaration accepted, well past any plan name.
+    const LIMIT: usize = 32;
+
+    /// The spellings the child acts on today, offered by the login prompt.
+    ///
+    /// An offer rather than a vocabulary: a declaration outside this list is
+    /// recorded and injected unchanged, because the wrapper is not the party
+    /// that decides which plans exist. Carried against the launch obligation
+    /// and registered in `docs/reference/child-facts.yaml`, whose entry names
+    /// the release these four were read from.
+    pub(crate) const OFFERED: [&'static str; 4] = ["max", "pro", "team", "enterprise"];
+
+    /// Validates one declaration, normalizing case.
+    ///
+    /// Lowercasing is about this input rather than about the child: the
+    /// wrapper is typing an environment value on the user's behalf, and a
+    /// person answering a prompt with `Max` meant the same thing as `max`.
+    /// Nothing else is adjusted, so a spelling the child does not act on
+    /// survives to be injected and to be visible in what the child then says.
+    pub(crate) fn parse(value: &str) -> Result<Self, String> {
+        let value = value.trim().to_ascii_lowercase();
+        if value.is_empty() {
+            return Err("a plan cannot be empty".into());
+        }
+        if value.len() > Self::LIMIT {
+            return Err(format!("a plan is at most {} characters", Self::LIMIT));
+        }
+        if !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        {
+            return Err(
+                "a plan is letters, digits, hyphens, and underscores, and nothing else".into(),
+            );
+        }
+        Ok(Self(value))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for Plan {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value)
+    }
+}
+
+impl From<Plan> for String {
+    fn from(value: Plan) -> Self {
+        value.0
+    }
+}
+
 /// Strict required metadata fields, plus the token mode's own.
 ///
 /// `fingerprint` is absent in login mode, where there is no wrapper-owned
@@ -35,12 +116,23 @@ impl AuthMode {
 /// rather than in the contract: [`AuthModeMetadata::token_fingerprint`] is the
 /// reader that narrows it, so the absent-in-token-mode case is refused once
 /// instead of becoming a third state every report has to carry.
+///
+/// `plan` is absent in login mode for a stronger reason than convention: the
+/// child reads its own plan from the credential it saved there, so a wrapper
+/// declaration would be a second answer to a question already answered. In
+/// token mode it is absent whenever the login did not obtain one, which is
+/// every account recorded before [ADR-0099] and every `--stdin` login that
+/// passed no `--plan`.
+///
+/// [ADR-0099]: ../../docs/decisions/ADR-0099-declare-the-plan-a-token-cannot-carry.md
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub(crate) struct AuthModeMetadata {
     pub(crate) mode: AuthMode,
     pub(crate) recorded_at: RecordedAt,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) fingerprint: Option<Fingerprint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) plan: Option<Plan>,
 }
 
 impl AuthModeMetadata {
@@ -52,6 +144,18 @@ impl AuthModeMetadata {
     pub(crate) const fn token_fingerprint(&self) -> Option<&Fingerprint> {
         match self.mode {
             AuthMode::Token => self.fingerprint.as_ref(),
+            AuthMode::Login => None,
+        }
+    }
+
+    /// Returns the plan a token account declared.
+    ///
+    /// Narrowed to token mode by the same reasoning as the reader above: a
+    /// value under a login-mode account answers nothing, so no caller has to
+    /// decide what to do with one.
+    pub(crate) const fn declared_plan(&self) -> Option<&Plan> {
+        match self.mode {
+            AuthMode::Token => self.plan.as_ref(),
             AuthMode::Login => None,
         }
     }
@@ -91,6 +195,13 @@ pub(crate) struct TokenIngest {
     /// token this run just asked the child to produce and wrong for one pasted
     /// from a password manager months later.
     pub(crate) minted_at: Option<RecordedAt>,
+    /// The plan the command line declared, when it declared one.
+    ///
+    /// Absent means the login has not obtained one yet rather than that there
+    /// is none: a terminal login asks, and only a login with nowhere to ask
+    /// records an account without a plan. Carried on the token request rather
+    /// than beside it, so a plan without a token cannot be expressed.
+    pub(crate) plan: Option<Plan>,
 }
 
 /// A validated RFC 3339 UTC timestamp.
@@ -277,6 +388,11 @@ pub(crate) enum Warning {
     /// Carries no name for the reason the one below carries none: every surface
     /// raising it has already said which account it is about.
     FirstRunOnboarding,
+    /// A token account declared no subscription plan.
+    ///
+    /// Carries no name for the reason the one above carries none, and applies
+    /// to token mode alone: a saved login tells the child its own plan.
+    PlanUndeclared,
     /// The account is bound to a profile that has no document.
     ///
     /// Carries no name, because the report already states which profile the
@@ -306,6 +422,14 @@ impl Warning {
                 " so claude will run it and ask to sign in again; run claude-session-rs",
                 " account login for this account, in the mode it already signs in with,",
                 " to record it"
+            )
+            .to_owned(),
+            Self::PlanUndeclared => concat!(
+                "this account declared no subscription plan, so claude cannot tell",
+                " which one the stored token belongs to; it will describe the session",
+                " as an API one and pick the model it defaults to without a plan. Run",
+                " claude-session-rs account login for this account with --token and",
+                " --plan to declare it"
             )
             .to_owned(),
             Self::BoundProfileMissing => concat!(
@@ -460,7 +584,7 @@ mod tests {
         );
     }
 
-    /// Login metadata carries no fingerprint key at all rather than a null,
+    /// Login metadata carries neither optional key at all rather than a null,
     /// which is the same absent-not-null rule every report document follows.
     #[test]
     fn login_metadata_omits_the_fingerprint_key() {
@@ -468,12 +592,79 @@ mod tests {
             mode: AuthMode::Login,
             recorded_at: RecordedAt::new_unchecked("2026-08-11T12:34:56Z".into()),
             fingerprint: None,
+            plan: None,
         };
         assert_eq!(
             serde_json::to_string(&value).expect("login metadata renders"),
             r#"{"mode":"login","recorded_at":"2026-08-11T12:34:56Z"}"#
         );
         assert!(value.token_fingerprint().is_none());
+        assert!(value.declared_plan().is_none());
+    }
+
+    /// A plan under a login-mode account is not the launch's to read: the child
+    /// answers the question from the credential it saved for itself there.
+    #[test]
+    fn a_login_mode_plan_is_not_reported() {
+        let value = AuthModeMetadata {
+            mode: AuthMode::Login,
+            recorded_at: RecordedAt::new_unchecked("2026-08-11T12:34:56Z".into()),
+            fingerprint: None,
+            plan: Some(Plan::parse("max").expect("a plan")),
+        };
+        assert!(value.declared_plan().is_none());
+    }
+
+    /// Shape alone, and case normalized, because the wrapper is typing an
+    /// environment value rather than judging which plans exist.
+    #[test]
+    fn a_plan_is_validated_for_shape_and_lowercased() {
+        assert_eq!(
+            Plan::parse("  Max \n").expect("a plan").as_str(),
+            "max",
+            "a trimmed, lowercased declaration"
+        );
+        assert_eq!(
+            Plan::parse("enterprise_usage_based")
+                .expect("a plan")
+                .as_str(),
+            "enterprise_usage_based",
+            "a spelling the offer does not list is still recorded"
+        );
+        for refused in ["", "   ", "max plan", "max=1", &"m".repeat(33)] {
+            assert!(
+                Plan::parse(refused).is_err(),
+                "{refused:?} is not usable as an environment value"
+            );
+        }
+    }
+
+    /// The declared plan rides in the same document as the fingerprint, so a
+    /// rotation that does not re-declare one clears it.
+    #[test]
+    fn token_metadata_round_trips_the_declared_plan() {
+        let document = concat!(
+            r#"{"mode":"token","recorded_at":"2026-08-11T12:34:56Z","#,
+            r#""fingerprint":"3c469e9d","plan":"max"}"#
+        );
+        let value: AuthModeMetadata = serde_json::from_str(document).expect("token metadata");
+        assert_eq!(value.declared_plan().map(Plan::as_str), Some("max"));
+        assert_eq!(
+            serde_json::to_string(&value).expect("token metadata renders"),
+            document
+        );
+    }
+
+    /// Metadata written before the plan existed still reads, as an account that
+    /// declared none rather than as a defect.
+    #[test]
+    fn token_metadata_without_a_plan_reads_as_undeclared() {
+        let document = concat!(
+            r#"{"mode":"token","recorded_at":"2026-08-11T12:34:56Z","#,
+            r#""fingerprint":"3c469e9d"}"#
+        );
+        let value: AuthModeMetadata = serde_json::from_str(document).expect("token metadata");
+        assert!(value.declared_plan().is_none());
     }
 
     #[test]

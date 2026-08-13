@@ -293,11 +293,16 @@ fn token_login(
     if probe.status != crate::domain::account::ProbeStatus::Ok {
         return Err(token::verification_failure(probe));
     }
+    // Asked after the probe, so the question is only ever put to someone whose
+    // token has already been proven to work. Declining leaves the account
+    // undeclared rather than unmade.
+    let plan = token::declare_plan(context, request);
     let metadata = token::rotate(
         context,
         account,
         &candidate,
         token::recorded_at(context, request),
+        plan,
     )?;
     let binding = commit_binding(context, account, profile)?;
     commit_launch_readiness(context, account)?;

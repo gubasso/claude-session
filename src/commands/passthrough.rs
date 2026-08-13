@@ -37,7 +37,7 @@ pub(crate) fn run(
     let program = crate::services::child::program(context)?;
     validate_binding(context)?;
     let account = crate::services::account::validate_selected_launch(context)?;
-    let mode = account.map(|account| account.mode);
+    let mode = account.as_ref().map(|account| account.mode);
     // The floor guards shared-login refresh coordination, which token mode does
     // not use: it injects a credential the wrapper stored rather than one the
     // child renews across processes.
@@ -66,6 +66,20 @@ pub(crate) fn run(
                 crate::domain::account::Warning::FirstRunOnboarding.message()
             );
         }
+        // Token mode only, and never a refusal: without a plan the child still
+        // launches and still signs in, it just describes the session as an API
+        // one and picks the model it defaults to without one
+        // ([ADR-0099](../../docs/decisions/ADR-0099-declare-the-plan-a-token-cannot-carry.md)).
+        if mode == crate::domain::account::AuthMode::Token
+            && account
+                .as_ref()
+                .is_some_and(|account| account.plan.is_none())
+        {
+            tracing::warn!(
+                "{}",
+                crate::domain::account::Warning::PlanUndeclared.message()
+            );
+        }
     }
     let entry = match context.session().profile() {
         Some(profile) => Some(crate::services::storage::entry::resolve(context, profile)?),
@@ -77,7 +91,7 @@ pub(crate) fn run(
         program,
         entry.as_ref().map(|resolved| resolved.settings.as_path()),
         arguments,
-        mode,
+        account.as_ref(),
     )?))
 }
 

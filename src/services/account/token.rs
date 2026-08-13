@@ -22,7 +22,7 @@ use crate::{
     context::AppContext,
     domain::{
         account::{
-            AmbientCredential, AuthMode, AuthModeMetadata, Probe, ProbeStatus, RecordedAt,
+            AmbientCredential, AuthMode, AuthModeMetadata, Plan, Probe, ProbeStatus, RecordedAt,
             TokenIngest, TokenSource,
         },
         child::{ChildInvocation, ChildOutcome},
@@ -65,6 +65,82 @@ pub(crate) fn ingest(
             read_terminal(context)
         }
     }
+}
+
+/// How many times a mistyped plan is worth asking about again.
+///
+/// Bounded rather than open, and never fatal: this runs after a credential has
+/// been ingested and proven, so refusing here would throw away a token the user
+/// may have to mint again. Running out of attempts records no plan, which is a
+/// state every surface already reports and one more login repairs.
+const PLAN_ATTEMPTS: usize = 3;
+
+/// Obtains the plan to record beside the token.
+///
+/// The command line wins when it spoke, because a login that was told the
+/// answer has no question to ask. Otherwise a terminal login asks, and a
+/// `--stdin` login records none: standard input is carrying the credential, and
+/// there is no second stream to hold an answer.
+///
+/// An empty line is a decline rather than a refusal. The plan makes a launch
+/// describe itself correctly; it is not what makes the account work, so nothing
+/// here may stand between a proven credential and its commit
+/// ([ADR-0099](../../../docs/decisions/ADR-0099-declare-the-plan-a-token-cannot-carry.md)).
+pub(crate) fn declare_plan(context: &AppContext, request: &TokenIngest) -> Option<Plan> {
+    if request.plan.is_some() {
+        return request.plan.clone();
+    }
+    if request.source == TokenSource::Stdin {
+        return None;
+    }
+    let terminal = context.adapters().terminal();
+    let mut prompt = plan_question();
+    for _ in 0..PLAN_ATTEMPTS {
+        let Ok(Some(answer)) = terminal.ask(&prompt) else {
+            return None;
+        };
+        let answer = answer.trim();
+        if answer.is_empty() {
+            return None;
+        }
+        // A number is an ordinal into the offer above, which is the whole
+        // reason the offer is numbered. Anything else is taken as typed, so a
+        // plan the offer does not list is still reachable.
+        let typed = answer
+            .parse::<usize>()
+            .ok()
+            .and_then(|index| index.checked_sub(1))
+            .and_then(|index| Plan::OFFERED.get(index).copied())
+            .unwrap_or(answer);
+        match Plan::parse(typed) {
+            Ok(plan) => return Some(plan),
+            Err(why) => prompt = format!("  {why}. Try again, or press Enter to skip: "),
+        }
+    }
+    None
+}
+
+/// The one wording the plan question uses.
+fn plan_question() -> String {
+    use std::fmt::Write as _;
+    let offered =
+        Plan::OFFERED
+            .iter()
+            .enumerate()
+            .fold(String::new(), |mut text, (index, plan)| {
+                let _ = writeln!(text, "  {}) {plan}", index + 1);
+                text
+            });
+    format!(
+        concat!(
+            "Which plan does this token belong to? claude reads it to describe the\n",
+            "session and to pick its default model, and an injected token does not\n",
+            "carry it.\n",
+            "{}",
+            "Type a number or a plan name, or press Enter to skip: "
+        ),
+        offered
+    )
 }
 
 fn require_terminal(context: &AppContext) -> Result<(), AppError> {
@@ -238,11 +314,17 @@ pub(crate) fn verification_failure(probe: Probe) -> AppError {
 /// therefore leaves a working token described by a stale fingerprint, which
 /// `account status` detects and reports rather than a half-written file that
 /// nothing could interpret.
+///
+/// The declared plan rides in that same metadata rename, which is what keeps it
+/// from outliving the credential it describes: a rotation that does not
+/// re-declare a plan clears it, and the account reports as undeclared rather
+/// than carrying an answer given about a token that is gone.
 pub(crate) fn rotate(
     context: &AppContext,
     account: &Identifier,
     candidate: &Secret,
     recorded_at: RecordedAt,
+    plan: Option<Plan>,
 ) -> Result<AuthModeMetadata, AppError> {
     let state = context.paths().state();
     let _lock = super::hold(context, account)?;
@@ -256,6 +338,7 @@ pub(crate) fn rotate(
         mode: AuthMode::Token,
         recorded_at,
         fingerprint: Some(Fingerprint::of(candidate)),
+        plan,
     };
     super::write_metadata(context, account, &metadata)?;
     Ok(metadata)

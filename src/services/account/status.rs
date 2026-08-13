@@ -91,6 +91,7 @@ pub(crate) fn project(
     status.warnings = super::launch_warnings(context, account, status.mode);
     note_missing_profile(&mut status);
     note_first_run(context, account, &mut status);
+    note_undeclared_plan(&metadata, &mut status);
     Ok(status)
 }
 
@@ -115,6 +116,19 @@ fn note_missing_profile(status: &mut AccountStatus) {
 fn note_first_run(context: &AppContext, account: &Identifier, status: &mut AccountStatus) {
     if !super::onboarding::readiness(context, account).ready() {
         status.warnings.push(Warning::FirstRunOnboarding);
+    }
+}
+
+/// Adds an undeclared plan to the warnings the launch would raise.
+///
+/// Token mode only, and read from the metadata this projection already holds
+/// rather than from a second read of the same file. An account whose metadata
+/// could not be read is not reported here: it has already reported as
+/// `invalid`, and a second line about a plan would be describing an account
+/// nothing yet knows the mode of.
+fn note_undeclared_plan(metadata: &AuthModeMetadata, status: &mut AccountStatus) {
+    if metadata.mode == AuthMode::Token && metadata.declared_plan().is_none() {
+        status.warnings.push(Warning::PlanUndeclared);
     }
 }
 

@@ -281,6 +281,7 @@ pub(crate) fn run(
             inspected.as_ref(),
         ));
         results.push(crate::services::account::launch_ready_result(context));
+        results.push(crate::services::account::plan_declared_result(context));
     }
 
     let (child, child_race) = child_report(context, runnable.as_deref())?;

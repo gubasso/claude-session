@@ -8,7 +8,7 @@ use crate::{
     cli::{Cli, Command, account::AccountCommand},
     context::AppContext,
     domain::{
-        account::{RecordedAt, TokenIngest, TokenSource},
+        account::{Plan, RecordedAt, TokenIngest, TokenSource},
         argv,
         identifier::Identifier,
     },
@@ -438,7 +438,12 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
             let json = value.json;
             Ok(InvocationKind::AccountLogin {
                 name: value.name,
-                token: token_ingest(value.token, value.stdin, value.minted_at)?,
+                token: token_ingest(
+                    value.token,
+                    value.stdin,
+                    value.minted_at,
+                    value.plan.as_deref(),
+                )?,
                 profile: value.profile,
                 mode: mode(json),
             })
@@ -465,32 +470,39 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
 
 /// Resolves the token-mode flags into an ingest request, or none.
 ///
-/// The parser already refuses `--stdin` and `--minted-at` without `--token`, so
-/// the only validation left is the timestamp's own grammar. It is checked here
-/// rather than at ingest because a malformed value is a usage error, and usage
-/// errors belong before any side effect rather than after a browser flow.
+/// The parser already refuses `--stdin`, `--minted-at`, and `--plan` without
+/// `--token`, so the only validation left is each value's own grammar. Both are
+/// checked here rather than at ingest because a malformed value is a usage
+/// error, and usage errors belong before any side effect rather than after a
+/// browser flow.
 fn token_ingest(
     token: bool,
     stdin: bool,
     minted_at: Option<String>,
+    plan: Option<&str>,
 ) -> Result<Option<TokenIngest>, AppError> {
     if !token {
         return Ok(None);
     }
-    let minted_at = minted_at
-        .map(RecordedAt::parse)
-        .transpose()
-        .map_err(|message| {
+    let usage = |subject: &'static str, hint: String| {
+        move |message| {
             AppError::new(
                 crate::error::ErrorKind::Usage,
-                Diagnostic::new(
-                    "invalid command line",
-                    "--minted-at",
-                    message,
-                    "pass an RFC 3339 UTC time such as 2026-08-11T12:34:56Z",
-                ),
+                Diagnostic::new("invalid command line", subject, message, hint),
             )
-        })?;
+        }
+    };
+    let minted_at = minted_at.map(RecordedAt::parse).transpose().map_err(usage(
+        "--minted-at",
+        "pass an RFC 3339 UTC time such as 2026-08-11T12:34:56Z".to_owned(),
+    ))?;
+    let plan = plan.map(Plan::parse).transpose().map_err(usage(
+        "--plan",
+        format!(
+            "pass one of {}, or the plan you hold",
+            Plan::OFFERED.join(", ")
+        ),
+    ))?;
     Ok(Some(TokenIngest {
         source: if stdin {
             TokenSource::Stdin
@@ -498,6 +510,7 @@ fn token_ingest(
             TokenSource::Terminal
         },
         minted_at,
+        plan,
     }))
 }
 

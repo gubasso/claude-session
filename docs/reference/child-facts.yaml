@@ -69,6 +69,16 @@ carried:
       - tests/accounts.rs
       - tests/support/recording_child.rs
 
+  - fact: CLAUDE_CODE_SUBSCRIPTION_TYPE
+    obligation: launch
+    why: The wrapper sets it beside the injected token, because the child reads a plan only from the saved credential that token mode replaces. The four spellings the login prompt offers are values of this fact, read from child 2.1.220 and enforced at review rather than by this gate.
+    sites:
+      - docs/reference/accounts.md
+      - docs/reference/process-runtime.md
+      - docs/reference/research-tracking.yaml
+      - src/services/child.rs
+      - tests/accounts.rs
+
   - fact: hasCompletedOnboarding
     obligation: launch
     why: The wrapper writes it once at login, because it created the configuration directory whose newness makes the child run its first-run setup instead of launching.

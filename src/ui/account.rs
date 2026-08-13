@@ -110,6 +110,18 @@ pub(crate) fn login(
         });
         optional(&mut value, "fingerprint", fingerprint.map(Into::into));
         optional(&mut value, "estimated_expiry", expiry.map(Into::into));
+        // Absent under a login-mode account, and absent under a token account
+        // that declared none, so the key discriminates rather than restating
+        // what the report already said ([ADR-0051]).
+        //
+        // [ADR-0051]: ../../docs/decisions/ADR-0051-let-every-surface-element-discriminate.md
+        optional(
+            &mut value,
+            "plan",
+            metadata
+                .declared_plan()
+                .map(|plan| plan.as_str().to_owned().into()),
+        );
         document(&value, "account login document")?
     } else {
         human::login(

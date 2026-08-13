@@ -119,6 +119,20 @@ Token material is never accepted through argv, an environment variable, a wrappe
 
 The default store is the private `oauth-token` file. An explicitly selected `token_helper` may retrieve it through an argv process boundary once that protocol is specified; helper and file modes never silently fall back to each other.
 
+### Declared subscription plan
+
+A saved login tells the child which subscription it belongs to; an injected token does not. The child reads the plan from the credential it saved for itself, and an injected token replaces that read rather than feeding it, so the child treats the tier as unknown: it describes the session as an API one and picks the model it defaults to without a plan. The credential is a subscription credential throughout, and only the wrapper that injected it is positioned to say which subscription ([ADR-0099](../decisions/ADR-0099-declare-the-plan-a-token-cannot-carry.md)).
+
+So a token login obtains the plan and records it beside the mode. `--plan <plan>` declares it non-interactively; without that option a login with a terminal asks, offering `max`, `pro`, `team`, and `enterprise` — the spellings the child acts on in 2.1.220 — and accepting any other answer too. A `--stdin` login never asks, because standard input is carrying the credential.
+
+A declaration is one to thirty-two characters of letters, digits, hyphens, and underscores, lowercased. That is a shape rule and not a vocabulary: which plans exist is the child's to decide, and a spelling this page does not list is recorded and injected unchanged. The rule exists so a mistyped answer is refused where a person can see it, instead of reaching the child as a value it silently ignores. Lowercasing is about the answer rather than the child, whose own comparison is case-sensitive: someone answering the prompt with `Max` meant `max`, and the wrapper is typing the environment value on their behalf.
+
+At launch, a recorded plan is set in `CLAUDE_CODE_SUBSCRIPTION_TYPE` beside the injected token. Nothing else is set. An ambient value of that name is dropped in token mode whether or not the account declared one, for the reason the injected token displaces an ambient token: it describes some other credential, and letting it stand would answer for an account that declared nothing. Login mode sets neither variable and drops neither.
+
+The plan is a declaration and never a reading. The wrapper does not inspect the token and does not call an endpoint, so nothing verifies that the declared plan is the plan the token actually holds; every surface that shows one words it that way. It rides in the metadata rename that commits a rotation, so a rotation that does not re-declare a plan clears it rather than letting an answer outlive the token it was given about.
+
+Declaring none is allowed. The account works, the launch proceeds, and the condition is named by `doctor` under `account-plan-declared`, by `account status` as a warning, and on standard error before the exec. Every account created before this behaviour existed is in exactly that state.
+
 ### Token lifecycle
 
 `account status` may report:
