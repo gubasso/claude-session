@@ -150,6 +150,103 @@ pub(crate) fn discover(context: &AppContext) -> Result<Vec<AccountFinding>, AppE
         .collect())
 }
 
+/// Evaluates the selected account's own sign-in, or says why none applies.
+///
+/// Split from the traversal above so each reads as one decision: which account
+/// the run is about, and then whether that account can sign in.
+#[allow(
+    clippy::option_if_let_else,
+    reason = "the skip and evaluation branches mirror catalog semantics"
+)]
+fn selected_credentials(
+    context: &AppContext,
+    accounts: &[AccountFinding],
+    credentials: Check,
+) -> CheckResult {
+    let Some(selected) = context.account_selection().account() else {
+        return CheckResult::skipped(
+            credentials,
+            "no account is selected. Choose one with: claude-session-rs account use <name>",
+        );
+    };
+    match accounts.iter().find(|account| &account.name == selected) {
+        // Mode-aware: a token account's usable artifact is the wrapper-owned
+        // token, and `usable` already knows which artifact each mode requires.
+        // Requiring login mode here would report every healthy token account as
+        // broken.
+        Some(account) if account.usable => {
+            let warnings = launch_warnings(context, selected, account.mode);
+            if warnings.is_empty() {
+                CheckResult::pass(
+                    credentials,
+                    format!(
+                        "\"{}\" can sign in using its stored {} authentication",
+                        selected.as_str(),
+                        account.mode.spelling()
+                    ),
+                )
+            } else {
+                // Shadowing is a warning on the existing row rather than a new
+                // check id: the credential is fine, and what the user needs to
+                // know is that something else will be used instead of it.
+                CheckResult::defect(
+                    credentials,
+                    warnings
+                        .iter()
+                        .map(|warning| warning.message())
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                    concat!(
+                        "Remove the shadowing credential from the environment, or accept ",
+                        "that it is what claude will use."
+                    )
+                    .to_owned(),
+                )
+            }
+        }
+        _ => {
+            let mut hint = credentials
+                .hint(&[("account", selected.as_str())])
+                .unwrap_or_default();
+            let credential_link = [
+                context.paths().account_oauth_token(selected),
+                context.paths().account_auth_mode(selected),
+                context.paths().account_credentials(selected),
+            ]
+            .iter()
+            .any(|path| is_symlink(path));
+            if credential_link {
+                hint.push_str(concat!(
+                    " Anything holding that link may have read this account's credential. ",
+                    "Treat it as exposed: run claude-session-rs account login "
+                ));
+                hint.push_str(selected.as_str());
+                hint.push_str(" for a fresh one, and revoke the old one at the provider.");
+            }
+            CheckResult::defect(
+                credentials,
+                format!(
+                    concat!(
+                        "account \"{}\" is missing, unsafe, or has no usable stored ",
+                        "authentication."
+                    ),
+                    selected.as_str()
+                ),
+                hint,
+            )
+        }
+    }
+}
+
+/// Counts accounts in words, so a single account does not read as a plural.
+fn plural_accounts(count: usize) -> String {
+    if count == 1 {
+        "1 account".to_owned()
+    } else {
+        format!("{count} accounts")
+    }
+}
+
 #[allow(
     clippy::option_if_let_else,
     reason = "the two doctor skip and evaluation branches mirror catalog semantics"
@@ -166,94 +263,36 @@ pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 2] {
                     .hint(&[("path", &context.paths().accounts().display().to_string())])
                     .unwrap_or_default(),
             ),
-            CheckResult::skipped(credentials, "the account collection is unreadable"),
+            CheckResult::skipped(
+                credentials,
+                concat!(
+                    "the account list could not be read, so no account could be examined. ",
+                    "Fix the check above first."
+                ),
+            ),
         ],
         Ok(accounts) if accounts.is_empty() => [
             CheckResult::skipped(
                 registry,
-                "no account collection or account directories exist",
+                concat!(
+                    "there are no accounts yet. Create one with: ",
+                    "claude-session-rs account login <name>"
+                ),
             ),
-            CheckResult::skipped(credentials, "no account exists"),
+            CheckResult::skipped(
+                credentials,
+                concat!(
+                    "there are no accounts yet. Create one with: ",
+                    "claude-session-rs account login <name>"
+                ),
+            ),
         ],
         Ok(accounts) => {
             let registry_result = CheckResult::pass(
                 registry,
-                format!("discovered {} account directories", accounts.len()),
+                format!("{} stored on this machine", plural_accounts(accounts.len())),
             );
-            let credentials_result = match context.account_selection().account() {
-                None => CheckResult::skipped(credentials, "no account is selected"),
-                Some(selected) => match accounts.iter().find(|account| &account.name == selected) {
-                    // Mode-aware: a token account's usable artifact is the
-                    // wrapper-owned token, and `usable` already knows which
-                    // artifact each mode requires. Requiring login mode here
-                    // would report every healthy token account as broken.
-                    Some(account) if account.usable => {
-                        let warnings = launch_warnings(context, selected, account.mode);
-                        if warnings.is_empty() {
-                            CheckResult::pass(
-                                credentials,
-                                format!(
-                                    "account {} has usable {}-mode authentication",
-                                    selected.as_str(),
-                                    account.mode.spelling()
-                                ),
-                            )
-                        } else {
-                            // Shadowing is a warning on the existing row rather
-                            // than a new check id: the credential is fine, and
-                            // what the user needs to know is that something
-                            // else will be used instead of it.
-                            CheckResult::defect(
-                                credentials,
-                                warnings
-                                    .iter()
-                                    .map(|warning| warning.message())
-                                    .collect::<Vec<_>>()
-                                    .join("; "),
-                                concat!(
-                                    "remove the shadowing credential from the environment, ",
-                                    "or accept that it is what the child will use"
-                                )
-                                .to_owned(),
-                            )
-                        }
-                    }
-                    _ => {
-                        let mut hint = credentials
-                            .hint(&[("account", selected.as_str())])
-                            .unwrap_or_default();
-                        let credential_link = [
-                            context.paths().account_oauth_token(selected),
-                            context.paths().account_auth_mode(selected),
-                            context.paths().account_credentials(selected),
-                        ]
-                        .iter()
-                        .any(|path| is_symlink(path));
-                        if credential_link {
-                            hint.push_str(concat!(
-                                " Anything holding that link may have read this",
-                                " account's credential. Treat it as exposed: run",
-                                " `claude-session-rs account login ",
-                            ));
-                            hint.push_str(selected.as_str());
-                            hint.push_str(
-                                "` for a fresh one, and revoke the old one at the provider.",
-                            );
-                        }
-                        CheckResult::defect(
-                            credentials,
-                            format!(
-                                concat!(
-                                    "account {} is missing, unsafe, or has no usable ",
-                                    "stored authentication"
-                                ),
-                                selected.as_str()
-                            ),
-                            hint,
-                        )
-                    }
-                },
-            };
+            let credentials_result = selected_credentials(context, &accounts, credentials);
             [registry_result, credentials_result]
         }
     }
@@ -457,24 +496,42 @@ pub(crate) fn enforce_version_floor(context: &AppContext, program: &Path) -> Res
     if observed.is_some_and(|version| version >= MINIMUM_CHILD_VERSION) {
         return Ok(());
     }
-    let version = observed.map_or_else(|| "unavailable".into(), |value| value.to_string());
     let hint = Check::ChildVersionFloor
-        .hint(&[
-            ("version", &version),
-            ("minimum", &MINIMUM_CHILD_VERSION.to_string()),
-        ])
+        .hint(&[("minimum", &MINIMUM_CHILD_VERSION.to_string())])
         .unwrap_or_default();
+    // Two conditions, said apart, for the reason the report says them apart:
+    // a version that is genuinely old is not output no version could be read
+    // from ([ADR-0095]).
+    let (what, why) = observed.map_or_else(
+        || {
+            (
+                "claude's version could not be read",
+                format!(
+                    concat!(
+                        "claude answered nothing this wrapper could read a version from, ",
+                        "so the {minimum} a saved-login account needs is unconfirmed."
+                    ),
+                    minimum = MINIMUM_CHILD_VERSION
+                ),
+            )
+        },
+        |value| {
+            (
+                "claude is too old for a shared saved login",
+                format!(
+                    concat!(
+                        "claude reports {observed}, older than the {minimum} a ",
+                        "saved-login account needs."
+                    ),
+                    observed = value,
+                    minimum = MINIMUM_CHILD_VERSION
+                ),
+            )
+        },
+    );
     Err(AppError::new(
         ErrorKind::Unavailable,
-        Diagnostic::new(
-            "the child version is too old for shared saved login",
-            program.display().to_string(),
-            observed.map_or_else(
-                || "the child version could not be determined".into(),
-                |value| format!("observed {value}; minimum is {MINIMUM_CHILD_VERSION}"),
-            ),
-            hint,
-        ),
+        Diagnostic::new(what, program.display().to_string(), why, hint),
     ))
 }
 

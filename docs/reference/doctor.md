@@ -26,28 +26,30 @@ A guard that fails emits its check's remediation verbatim — not a paraphrase �
 
 ## The catalog
 
-Each check has a stable kebab-case id, a scope, a severity, and the `err.kind` a failure of it exits with.
+Each check has a stable kebab-case id, a scope, a severity, the `err.kind` a failure of it exits with, and the title a person reads instead of the id ([ADR-0094](../decisions/ADR-0094-give-every-check-a-title-and-a-next-action.md)).
 
-| Id                          | Scope   | Severity | `err.kind`           | Passes when                                                                                                    |
-| --------------------------- | ------- | -------- | -------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `base-dirs-resolve`         | Host    | Hard     | `Unavailable`        | Config and state resolve to absolute, usable paths                                                             |
-| `runtime-dir-present`       | Host    | Soft     | `Unavailable`        | Present; absent is reported, not failed                                                                        |
-| `wrapper-config-parses`     | Host    | Hard     | `Config`             | Parses, with no unknown keys                                                                                   |
-| `child-binary-resolves`     | Host    | Hard     | `ChildNotFound`      | Found via the ladder in [process runtime](./process-runtime.md)                                                |
-| `child-is-executable`       | Host    | Hard     | `ChildNotExecutable` | Executable by the current user                                                                                 |
-| `child-version-floor`       | Host    | Soft     | `Unavailable`        | At or above the documented minimum                                                                             |
-| `storage-paths-no-symlinks` | Session | Hard     | `Permission`         | No existing wrapper-managed path component is a symbolic link                                                  |
-| `storage-paths-owned`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path component is owned by the current user                                     |
-| `storage-paths-typed`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path has the file type the artifact table assigns it                            |
-| `storage-directory-modes`   | Session | Hard     | `Permission`         | Every wrapper-managed directory has mode `0700`, after automatic correction                                    |
-| `storage-secret-modes`      | Session | Hard     | `Permission`         | Every wrapper-owned file assigned mode `0600` has that mode, after correction                                  |
-| `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                                           |
-| `settings-entry-consistent` | Session | Hard     | `DataFormat`         | A materialized entry's recorded digest matches the one its inputs recompute                                    |
-| `account-registry-readable` | Session | Soft     | `Io`                 | The account collection can be enumerated safely                                                                |
-| `credentials-usable`        | Session | Soft     | `Auth`               | The selected account has safe metadata and its stored mode's credential artifact                               |
-| `settings-profile-valid`    | Session | Hard     | `DataFormat`         | The resolved profile document, and the array strategy table it declares, are structurally valid and applicable |
+| Id                          | Scope   | Severity | `err.kind`           | Passes when                                                                                                    | Title                                |
+| --------------------------- | ------- | -------- | -------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `base-dirs-resolve`         | Host    | Hard     | `Unavailable`        | Config and state resolve to absolute, usable paths                                                             | Wrapper storage locations            |
+| `runtime-dir-present`       | Host    | Soft     | `Unavailable`        | Present; absent is reported, not failed                                                                        | Runtime directory                    |
+| `wrapper-config-parses`     | Host    | Hard     | `Config`             | Parses, with no unknown keys                                                                                   | Wrapper configuration                |
+| `child-binary-resolves`     | Host    | Hard     | `ChildNotFound`      | Found via the ladder in [process runtime](./process-runtime.md)                                                | The claude program                   |
+| `child-is-executable`       | Host    | Hard     | `ChildNotExecutable` | Executable by the current user                                                                                 | Permission to run claude             |
+| `child-version-floor`       | Host    | Soft     | `Unavailable`        | At or above the documented minimum                                                                             | The claude version                   |
+| `storage-paths-no-symlinks` | Session | Hard     | `Permission`         | No existing wrapper-managed path component is a symbolic link                                                  | Symbolic links on session paths      |
+| `storage-paths-owned`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path component is owned by the current user                                     | Ownership of session paths           |
+| `storage-paths-typed`       | Session | Hard     | `Permission`         | Every existing wrapper-managed path has the file type the artifact table assigns it                            | File types of session paths          |
+| `storage-directory-modes`   | Session | Hard     | `Permission`         | Every wrapper-managed directory has mode `0700`, after automatic correction                                    | Session directory permissions        |
+| `storage-secret-modes`      | Session | Hard     | `Permission`         | Every wrapper-owned file assigned mode `0600` has that mode, after correction                                  | Stored secret permissions            |
+| `settings-compose`          | Session | Hard     | `NoInput`            | A resolved profile, and every piece it names, exists                                                           | Settings pieces named by the profile |
+| `settings-entry-consistent` | Session | Hard     | `DataFormat`         | A materialized entry's recorded digest matches the one its inputs recompute                                    | The composed settings entry          |
+| `account-registry-readable` | Session | Soft     | `Io`                 | The account collection can be enumerated safely                                                                | The account list                     |
+| `credentials-usable`        | Session | Soft     | `Auth`               | The selected account has safe metadata and its stored mode's credential artifact                               | Sign-in for the selected account     |
+| `settings-profile-valid`    | Session | Hard     | `DataFormat`         | The resolved profile document, and the array strategy table it declares, are structurally valid and applicable | The profile document                 |
 
 Hard means the wrapper cannot function. Soft means a feature is degraded.
+
+A title is not an identifier. It heads the row a person reads, it is absent from `--json`, and it may be reworded at any time — which is what keeps the breaking-change rule below attached to the id alone.
 
 The five `storage-*` checks are five ids rather than one because each [storage condition](./xdg-storage.md#filesystem-security) has a different remedy, and a check owns exactly one remediation. Collapsing them would leave one id owning three unrelated instructions, which is the drift the verbatim rule exists to prevent.
 
@@ -55,29 +57,32 @@ Ids are public API. Scripts match them and messages cite them, so renaming one i
 
 ## Remediations
 
-Each failing check owns one remediation template. It is the Hint of the [error shape](./exit-codes.md#error-message-shape); What, Where, and Why are computed from the failure. `{path}`, `{expected_type}`, `{actual_type}`, `{expected_mode}`, `{account}`, `{key}`, `{profile}`, `{version}`, and `{minimum}` are substituted without changing the surrounding wording — "verbatim" means the same template and the same substitution rules at both call sites, not that a runtime path cannot be inserted.
+Each failing check owns one consequence and one remediation template. The consequence is what the condition costs the reader; the remediation is the Hint of the [error shape](./exit-codes.md#error-message-shape). What, Where, and Why are computed from the failure. `{path}`, `{expected_type}`, `{actual_type}`, `{expected_mode}`, `{account}`, `{key}`, `{profile}`, `{version}`, and `{minimum}` are substituted without changing the surrounding wording — "verbatim" means the same template and the same substitution rules at both call sites, not that a runtime path cannot be inserted.
 
 Where one command fixes the condition, the remedy is that command, on its own line, in the form `git` uses for dubious ownership. Where no single command is safe, it is not invented: a bad remedy is worse than a precise description, which is why `storage-paths-owned` below does not print a `chown`.
 
 Every check that can fail has a row here. A guard cannot quote a remediation that lives somewhere else, and a template scattered into the subsystem pages would be the second home the verbatim rule exists to prevent — so the catalog and its wordings sit in one table.
 
-| Check                       | Remediation                                                                                                                                                                                                                               |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `base-dirs-resolve`         | `XDG_CONFIG_HOME` and `XDG_STATE_HOME` must be absolute paths, or unset so the defaults apply. Run `claude-session-rs doctor` to see what each resolved to.                                                                               |
-| `wrapper-config-parses`     | `{key}` in `{path}` is not a configuration key. Remove it, or correct it to one of the keys [configuration](./configuration.md#keys) lists.                                                                                               |
-| `child-binary-resolves`     | No `claude` was found. Install it, put it on `PATH`, or set `child_bin` to its absolute path — [process runtime](./process-runtime.md#child-resolution) gives the order the two rungs are tried in.                                       |
-| `child-is-executable`       | `{path}` exists but the current user cannot execute it. Grant execute permission, or point `child_bin` at a different binary.                                                                                                             |
-| `child-version-floor`       | The resolved `claude` reports `{version}`, below the `{minimum}` this wrapper is designed against. Upgrade it before using a saved-login account; token mode still works below the floor.                                                 |
-| `storage-paths-no-symlinks` | Move the symbolic link at `{path}` aside and recreate the expected `{expected_type}` there, restoring only content you trust.                                                                                                             |
-| `storage-paths-owned`       | `{path}` is owned by another user, which usually means a restored backup or a file created under `sudo`. Do not change its owner in place — move it aside and let the wrapper recreate it as you.                                         |
-| `storage-paths-typed`       | `{path}` is a `{actual_type}` and this location must be a `{expected_type}`. Move it aside and let the wrapper recreate it; nothing under this path is unrecoverable except an account login.                                             |
-| `storage-directory-modes`   | Could not restrict `{path}` to mode `{expected_mode}`. Check that it is on a filesystem supporting Unix permissions and was created by the current user.                                                                                  |
-| `storage-secret-modes`      | Could not restrict `{path}` to mode `{expected_mode}`. Move the file to storage that supports Unix permissions before using it again.                                                                                                     |
-| `settings-compose`          | `{path}`, named by profile `{profile}`, does not exist. Create it, correct the name in the profile, or select a different profile.                                                                                                        |
-| `settings-entry-consistent` | The composed entry at `{path}` does not match the digest its inputs recompute, so it was neither opened nor overwritten. Move it aside; the next launch composes a fresh one. Report this — an entry is written once and never rewritten. |
-| `account-registry-readable` | Make `{path}` a readable, private directory owned by the current user, then retry.                                                                                                                                                        |
-| `credentials-usable`        | Run `claude-session-rs account login {account}` to recreate this account's stored authentication and its local metadata.                                                                                                                  |
-| `settings-profile-valid`    | The profile at `{path}`, named `{profile}`, parsed but is not usable: correct the layer list or the array strategy it declares, then run the launch again.                                                                                |
+Both columns are written for a person, per rule 7 of [presentation](./presentation.md#the-contract): plain sentences, a runnable command where one command fixes the condition, and no Markdown link or relative document path, because a terminal cannot follow either.
+
+| Check                       | Why it matters                                                                                                                                  | What to do                                                                                                                                                                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base-dirs-resolve`         | The wrapper cannot find its own configuration or state, so nothing it has stored is reachable.                                                  | Set `XDG_CONFIG_HOME` and `XDG_STATE_HOME` to absolute paths, or unset them so the defaults apply.                                                                                                                |
+| `runtime-dir-present`       | Nothing the wrapper does needs it, so it costs the reader nothing. It is reported because a desktop session normally provides one.              | Nothing — this is the one check that owns no remediation, for the reason below.                                                                                                                                   |
+| `wrapper-config-parses`     | The wrapper stopped rather than guess what an unrecognized setting was meant to do.                                                             | `{key}` in `{path}` is not a setting this wrapper has. Remove it, or replace it with one of the keys the configuration reference lists.                                                                           |
+| `child-binary-resolves`     | There is no `claude` to launch, so every wrapped command would fail the same way.                                                               | Install `claude` and put it on `PATH`, or set `child_bin` to its absolute path. The wrapper tries `child_bin` first and `PATH` second.                                                                            |
+| `child-is-executable`       | The program is there, but this user is not allowed to run it.                                                                                   | Grant execute permission on `{path}`, or point `child_bin` at a different binary.                                                                                                                                 |
+| `child-version-floor`       | Saved-login accounts share one login between processes, and `claude` below `{minimum}` does not lock the token refresh that makes sharing safe. | Upgrade `claude` to `{minimum}` or newer before using a saved-login account. Token accounts are unaffected and still work below that version.                                                                     |
+| `storage-paths-no-symlinks` | A link on a wrapper-managed path can point anywhere, including somewhere another user can read.                                                 | Move the symbolic link at `{path}` aside and recreate the expected `{expected_type}` there, restoring only content you trust.                                                                                     |
+| `storage-paths-owned`       | Another user owns a path this wrapper writes to, so it cannot promise what ends up in it.                                                       | `{path}` is owned by another user, which usually means a restored backup or a file created under `sudo`. Do not change its owner in place. Move it aside and let the wrapper recreate it as you.                  |
+| `storage-paths-typed`       | The wrapper expected one kind of file and found another, so writing there could destroy something.                                              | `{path}` is a `{actual_type}` and this location must be a `{expected_type}`. Move it aside and let the wrapper recreate it. Nothing under this path is unrecoverable except an account login.                     |
+| `storage-directory-modes`   | A directory other users can read would expose this session's state.                                                                             | Could not restrict `{path}` to mode `{expected_mode}`. Check that it is on a filesystem supporting Unix permissions and was created by the current user.                                                          |
+| `storage-secret-modes`      | A stored credential other users can read is a credential to treat as exposed.                                                                   | Could not restrict `{path}` to mode `{expected_mode}`. Move the file to storage that supports Unix permissions before using it again.                                                                             |
+| `settings-compose`          | The profile names a settings piece that is not there, so there is nothing to compose.                                                           | `{path}`, named by profile `{profile}`, does not exist. Create it, correct the name in the profile, or select a different profile.                                                                                |
+| `settings-entry-consistent` | A composed entry changed after it was written, and the wrapper will not hand `claude` a file it cannot vouch for.                               | The entry at `{path}` was neither opened nor overwritten. Move it aside and the next launch composes a fresh one. Please report this: an entry is written once and never rewritten, so something else changed it. |
+| `account-registry-readable` | Accounts cannot be listed, so none of them can be selected.                                                                                     | Make `{path}` a readable, private directory owned by the current user, then run this again.                                                                                                                       |
+| `credentials-usable`        | The selected account cannot sign in, so a launch bound to it would fail at the child.                                                           | Run `claude-session-rs account login {account}` to recreate this account's stored authentication and its local metadata.                                                                                          |
+| `settings-profile-valid`    | The profile parsed, but it does not describe a composition the wrapper can carry out.                                                           | The profile at `{path}`, named `{profile}`, is not usable. Correct its layer list or the array strategy it declares, then run the launch again.                                                                   |
 
 On a credential path — `oauth-token`, `auth-mode.json`, or the child's `.credentials.json` — a symlink means something else may have read the secret, so one clause is appended. Only `credentials-usable` appends it today, over the selected account's three credential paths; the wrapper-managed storage checks refuse a link on those paths without it. Ownership, type, and symlink defects on the child-owned credential are reported by `credentials-usable` under its published `Auth` kind, and the diagnostic names the concrete ownership cause:
 
@@ -85,7 +90,7 @@ On a credential path — `oauth-token`, `auth-mode.json`, or the child's `.crede
 
 It appends nowhere else. Claiming exposure over a link on an ordinary metadata path would be crying wolf.
 
-One check carries no template: `runtime-dir-present` reports absence without failing on it, so there is nothing for a Hint to answer. The two mode checks do carry one, because their template covers the case where the correction below could not be applied — not the correction itself.
+One check carries no template: `runtime-dir-present` reports absence without failing on it, so there is nothing for a Hint to answer. It still states a consequence, because "this costs you nothing" is the one thing a reader of a warning with no remedy needs told, and leaving the row silent sends them hunting for a fix that does not exist. The two mode checks do carry one, because their template covers the case where the correction below could not be applied — not the correction itself.
 
 ## Results and exit
 
@@ -115,23 +120,51 @@ The child is the application the wrapper exists to run, so its level crosses unc
 
 Every level publishes the counts that produced it. A caller never has to explain the exit with a value the report omits, which is the failure mode this shape exists to prevent.
 
-`doctor --list` prints the catalog — every id, scope, and severity — without running anything, so a script can discover what it may match on. Human list output is one non-padded `id scope severity` line per check. `doctor --list --json` emits one document with `schema_version: 1` and an ordered `checks` array whose objects contain only `id`, `scope`, and `severity`.
+`doctor --list` prints the catalog without running anything, so a script can discover what it may match on. Human list output groups by scope and gives one line per check, carrying the title, the id, and whether the check is required or optional — the words `hard` and `soft` name a severity model a reader of the list has no reason to hold. `doctor --list --json` is the surface a script reads, and emits one document with `schema_version: 1` and an ordered `checks` array whose objects contain only `id`, `scope`, and `severity`.
 
 ## The report
 
 The report is the verb's result, so it goes to standard output; progress and diagnostics go to standard error, which is what makes `doctor --json 2>/dev/null` safe to pipe.
 
-Checks are grouped by scope in catalog order, and each line carries its status as a bracketed word — `[pass]`, `[warn]`, `[fail]`, `[skipped]` — never a glyph or a colour alone, for the reason [presentation](./presentation.md#the-contract) gives. A `warn` or `fail` is followed by an indented `hint:` line carrying the Hint part of the [error shape](./exit-codes.md#error-message-shape); a `skipped` check states its reason instead.
+The human report is written for a person and carries no identifier a person did not ask for, per rule 7 of [presentation](./presentation.md#the-contract). Every field it stops printing is in `--json` below, which is where a script was always meant to read.
 
-The rows are followed by one line per level, in the fixed order `wrapper`, `child`, `doctor`:
+Checks are grouped by scope in catalog order, under a heading that says what the scope covers. Each row carries its status as a bracketed word — `[pass]`, `[warn]`, `[fail]`, `[skipped]` — never a glyph or a colour alone. The status word pads to a fixed column and prose wraps at column 76, both constants rather than terminal measurements.
 
 ```text
-wrapper status=pass total=16 passed=16 warned=0 failed=0 skipped=0 hard_failures=0 exit=0
-child status=fail exit=1
-doctor status=fail wrapper=0 child=1 exit=69
+Host — this machine, the wrapper's own files, and the claude program
+
+  [pass]     Wrapper storage locations
+             Settings in /home/you/.config/claude-session-rs
+             State in /home/you/.local/state/claude-session-rs
+  [pass]     The claude program
+             /nix/store/…/bin/claude
+  [warn]     The claude version
+             claude reports 2.0.9. Saved-login accounts share one login
+             between processes, and claude below 2.1.211 does not lock the
+             token refresh that makes sharing safe.
+             What to do: upgrade claude to 2.1.211 or newer before using a
+             saved-login account. Token accounts are unaffected and still
+             work below that version.
+             check: child-version-floor
+
+Session — the account and profile a launch would use
+
+  [skipped]  Not applicable: no account exists yet
+             What to do: run claude-session-rs account login <name>
+             checks: account-registry-readable, credentials-usable
+
+Summary
+
+  16 checks: 12 passed, 1 warning, 3 not applicable.
+  Nothing is blocking a launch; one warning is worth reading.
+  claude's own checkup reported no problems.
 ```
 
-The `child` line carries `exit` when the child returned one and `reason` when it did not — a signal, or the condition that stopped it from running. On the `doctor` line, `child=none` names the same absence. When the child never ran, that line is the whole account of it, and no delimiter or section follows.
+A passing row is its status word, its title, and at most the paths or values that check observed. A `warn` or `fail` row states what happened and why it matters, then a `What to do:` block carrying the Hint part of the [error shape](./exit-codes.md#error-message-shape). A `skipped` row reads as not applicable, gives its reason, and says what would make the check apply. Any row that is not a pass ends with the `check:` line naming its id, so the public identifier stays reachable without leading the row.
+
+Consecutive checks that are skipped for one identical reason collapse into a single row, whose `checks:` line names every id it stands for. The collapse is presentation only: `--json` always emits one object per check, in catalog order, so the catalog a script sees never changes shape.
+
+The `Summary` section states the three levels [the three levels](#the-three-levels) defines, in prose rather than fields: the counts the wrapper level produced, whether anything blocks a launch, and what the child's own report said. When the verdict is not a pass, one further sentence names the exit status and which level produced it — the property that every level accounts for the process status is kept, in words. When the child never ran, the summary says so and no delimiter or section follows.
 
 `doctor --json` emits that same run as one document, with one object per level:
 

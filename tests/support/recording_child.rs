@@ -127,7 +127,7 @@ fn main() {
     if let Some(bytes) = selected("STDOUT") {
         io::stdout().write_all(bytes.as_os_str().as_bytes()).expect("stdout");
     } else if prefix == Some("VERSION") {
-        io::stdout().write_all(b"claude 2.1.211\n").expect("stdout");
+        io::stdout().write_all(b"2.1.211 (Claude Code)\n").expect("stdout");
     }
     if let Some(bytes) = selected("STDERR") {
         io::stderr().write_all(bytes.as_os_str().as_bytes()).expect("stderr");

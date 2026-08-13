@@ -155,9 +155,8 @@ impl AppContext {
         &self.writer
     }
     /// Returns the invocation's color decision.
-    // Resolved here so the first renderer to colour a named surface reads an
-    // answer rather than deriving one. No surface is coloured yet.
-    #[allow(dead_code, reason = "no renderer applies the decision yet")]
+    // Resolved here so a renderer reads one answer rather than deriving the
+    // ladder again per surface.
     pub(crate) const fn color(&self) -> Color {
         self.color
     }

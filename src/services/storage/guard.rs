@@ -75,7 +75,7 @@ fn probe_internal(
         .map(|check| {
             CheckResult::pass(
                 Check::Storage(*check),
-                "all applicable selected-session paths are healthy",
+                "every session path this run would touch is safe",
             )
         })
         .collect();
@@ -116,7 +116,10 @@ fn probe_internal(
                         *result = CheckResult::skipped(
                             result.check,
                             format!(
-                                "{} is a symbolic link and cannot be followed safely",
+                                concat!(
+                                    "{} is a symbolic link, so the wrapper stopped ",
+                                    "before following it. Deal with the link first."
+                                ),
                                 current.display()
                             ),
                         );
@@ -138,7 +141,7 @@ fn probe_internal(
                     &mut results,
                     expected,
                     &current,
-                    "ownership could not be established",
+                    "the wrapper does not own it, so it will not change its permissions",
                 );
             }
             if !matches_type(facts, expected) {
@@ -155,7 +158,7 @@ fn probe_internal(
                     &mut results,
                     expected,
                     &current,
-                    "the artifact type is unsafe",
+                    "it is not the kind of file the wrapper expected there",
                 );
                 continue;
             }
@@ -190,7 +193,7 @@ fn probe_internal(
                         results[index] = CheckResult::pass(
                             Check::Storage(check),
                             format!(
-                                "corrected {} from {:04o} to {:04o}",
+                                "tightened {} from {:04o} to {:04o}",
                                 current.display(),
                                 facts.mode,
                                 expected.mode()
@@ -496,7 +499,11 @@ mod tests {
         )
         .expect_err("a link is refused");
         assert_eq!(error.kind(), ErrorKind::Permission);
-        assert!(error.diagnostic().why.contains("storage-paths-no-symlinks"));
+        assert!(
+            error.diagnostic().why.contains("is a symbolic link"),
+            "{}",
+            error.diagnostic().why
+        );
     }
 
     /// The ownership leg has no hermetic end-to-end test: a non-root process
@@ -514,7 +521,11 @@ mod tests {
         )
         .expect_err("a foreign owner is refused");
         assert_eq!(error.kind(), ErrorKind::Permission);
-        assert!(error.diagnostic().why.contains("storage-paths-owned"));
+        assert!(
+            error.diagnostic().why.contains("is owned by another user"),
+            "{}",
+            error.diagnostic().why
+        );
     }
 
     #[test]
@@ -525,7 +536,11 @@ mod tests {
             Expected::Directory,
         )
         .expect_err("a file where a directory belongs");
-        assert!(error.diagnostic().why.contains("storage-paths-typed"));
+        assert!(
+            error.diagnostic().why.contains("is a regular file"),
+            "{}",
+            error.diagnostic().why
+        );
         assert!(error.diagnostic().hint.contains("is a regular file"));
         assert!(error.diagnostic().hint.contains("must be a directory"));
     }
@@ -566,7 +581,14 @@ mod tests {
             Expected::PrivateFile,
         )
         .expect_err("an unopenable private file");
-        assert!(error.diagnostic().why.contains("storage-secret-modes"));
+        assert!(
+            error
+                .diagnostic()
+                .why
+                .contains("could not be restricted to mode 0600"),
+            "{}",
+            error.diagnostic().why
+        );
     }
 
     /// The walk folds several targets into five rows, so a later target that

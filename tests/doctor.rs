@@ -23,11 +23,22 @@ const IDS: [&str; 16] = [
     "settings-profile-valid",
 ];
 
+/// The titles a person reads, in catalog order. Unlike the ids above these are
+/// not public API, which is exactly why the report leads with them.
+const TITLES: [&str; 6] = [
+    "Wrapper storage locations",
+    "Runtime directory",
+    "Wrapper configuration",
+    "The claude program",
+    "Permission to run claude",
+    "The claude version",
+];
+
 fn healthy(harness: &Harness) -> assert_cmd::Command {
     let mut command = harness.assert_command();
     command
         .env("XDG_RUNTIME_DIR", harness.root().join("runtime"))
-        .env("CS_TEST_VERSION_STDOUT", "claude 2.1.220\n")
+        .env("CS_TEST_VERSION_STDOUT", "2.1.220 (Claude Code)\n")
         .env("CS_TEST_DOCTOR_STDOUT", "native doctor\n");
     command
 }
@@ -42,17 +53,176 @@ fn doctor_human_report_preserves_catalog_order_and_text_shape() {
         String::from_utf8_lossy(&output.stderr)
     );
     let text = String::from_utf8(output.stdout).expect("text");
+    // Catalog order is still the order of the report; the titles are what a
+    // reader now follows it by.
     let mut at = 0;
-    for id in IDS {
-        let found = text[at..].find(id).expect(id);
-        at += found + id.len();
+    for anchor in ["Host —"]
+        .into_iter()
+        .chain(TITLES)
+        .chain(["Session —", "Summary"])
+    {
+        let found = text[at..]
+            .find(anchor)
+            .unwrap_or_else(|| panic!("{anchor}\n{text}"));
+        at += found + anchor.len();
     }
-    assert!(text.contains("Host\n[pass]"));
-    assert!(text.contains("Session\n"));
-    assert!(text.contains("wrapper status=pass total=16"));
-    assert!(text.contains("\nchild status=pass exit=0\n"));
-    assert!(text.contains("\ndoctor status=pass wrapper=0 child=0 exit=0\n"));
+    assert!(
+        text.contains("  [pass]     Wrapper storage locations"),
+        "{text}"
+    );
+    assert!(text.contains("16 checks: "), "{text}");
+    assert!(
+        text.contains("Everything the wrapper needs is in place."),
+        "{text}"
+    );
+    assert!(
+        text.contains("claude's own checkup reported no problems."),
+        "{text}"
+    );
     assert!(text.ends_with("\n\n--- claude doctor ---\n\nnative doctor\n"));
+}
+
+/// Rule 7: the human report is prose. Every field it stops printing is in the
+/// machine document, so a reader is never handed one to decode.
+#[test]
+fn the_human_report_carries_no_machine_shaped_text() {
+    let harness = Harness::new();
+    let output = healthy(&harness).arg("doctor").output().expect("doctor");
+    let text = String::from_utf8(output.stdout).expect("text");
+    let wrapper = text.split("--- claude doctor ---").next().expect("wrapper");
+    for forbidden in [
+        "status=",
+        "total=",
+        "exit=",
+        "hard_failures=",
+        "](",
+        "{",
+        "}",
+    ] {
+        assert!(
+            !wrapper.contains(forbidden),
+            "human output carries {forbidden}:\n{wrapper}"
+        );
+    }
+    // An id appears only where a reader asked for one: the trailing line of a
+    // row that is not a pass. It never leads a row.
+    let id_line = |line: &str| {
+        line.split_whitespace().all(|token| {
+            token == "check:" || token == "checks:" || IDS.contains(&token.trim_end_matches(','))
+        })
+    };
+    for line in wrapper.lines().filter(|line| !id_line(line)) {
+        for id in IDS {
+            assert!(!line.contains(id), "{id} leads a row:\n{wrapper}");
+        }
+    }
+    for id in [
+        "base-dirs-resolve",
+        "child-version-floor",
+        "wrapper-config-parses",
+    ] {
+        assert!(
+            !wrapper.contains(id),
+            "{id} appears though its check passed"
+        );
+    }
+}
+
+/// A defective row is the one that names its id, so a script's identifier is
+/// still reachable from the page a person reads.
+#[test]
+fn a_defective_row_states_its_consequence_its_action_and_its_id() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .env("XDG_RUNTIME_DIR", harness.root().join("runtime"))
+        .env("CS_TEST_VERSION_STDOUT", "2.0.9 (Claude Code)\n")
+        .env("CS_TEST_DOCTOR_STDOUT", "native doctor\n")
+        .arg("doctor")
+        .output()
+        .expect("doctor");
+    let text = String::from_utf8(output.stdout).expect("text");
+    assert!(text.contains("  [warn]     The claude version"), "{text}");
+    assert!(text.contains("claude reports 2.0.9"), "{text}");
+    assert!(
+        text.contains("Saved-login accounts share one login"),
+        "{text}"
+    );
+    assert!(
+        text.contains("What to do: Upgrade claude to 2.1.211"),
+        "{text}"
+    );
+    assert!(text.contains("check: child-version-floor"), "{text}");
+    assert!(
+        text.contains("Nothing is blocking a launch; the warning above is worth reading."),
+        "{text}"
+    );
+}
+
+/// Adjacent checks reporting one thing collapse into one row that names every
+/// id it stands for. The machine document never collapses.
+#[test]
+fn one_row_stands_for_a_run_of_checks_and_names_each_id() {
+    let harness = Harness::new();
+    let output = healthy(&harness).arg("doctor").output().expect("doctor");
+    let text = String::from_utf8(output.stdout).expect("text");
+    assert!(text.contains("[skipped]  Accounts"), "{text}");
+    assert!(
+        text.contains("checks: account-registry-readable, credentials-usable"),
+        "{text}"
+    );
+
+    let output = healthy(&harness)
+        .args(["doctor", "--json"])
+        .output()
+        .expect("doctor");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(
+        value["wrapper"]["checks"].as_array().expect("checks").len(),
+        16
+    );
+}
+
+/// Rule 1: colour is decoration. Stripping it must leave the same characters,
+/// and no escape byte may reach a redirected stream or the machine document.
+#[test]
+fn colour_decorates_the_report_without_changing_it() {
+    let harness = Harness::new();
+    let plain = healthy(&harness).arg("doctor").output().expect("doctor");
+    let coloured = healthy(&harness)
+        .env("FORCE_COLOR", "1")
+        .arg("doctor")
+        .output()
+        .expect("doctor");
+    let plain_text = String::from_utf8(plain.stdout).expect("text");
+    let coloured_text = String::from_utf8(coloured.stdout).expect("text");
+    assert!(!plain_text.contains('\u{1b}'), "a pipe carries no escapes");
+    assert!(
+        coloured_text.contains("\u{1b}[32m[pass]\u{1b}[0m"),
+        "{coloured_text}"
+    );
+    let stripped: String = {
+        let mut out = String::new();
+        let mut rest = coloured_text.as_str();
+        while let Some(start) = rest.find('\u{1b}') {
+            out.push_str(&rest[..start]);
+            let end = rest[start..].find('m').expect("terminated escape") + start;
+            rest = &rest[end + 1..];
+        }
+        out.push_str(rest);
+        out
+    };
+    assert_eq!(stripped, plain_text);
+
+    let json = healthy(&harness)
+        .env("FORCE_COLOR", "1")
+        .args(["doctor", "--json"])
+        .output()
+        .expect("doctor");
+    assert!(
+        !json.stdout.contains(&0x1b),
+        "the machine document is undecorated"
+    );
 }
 
 #[test]
@@ -94,7 +264,30 @@ fn doctor_list_human_runs_no_probes() {
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let text = String::from_utf8(output.stdout).expect("text");
-    assert_eq!(text.lines().count(), 16);
+    for (id, title) in IDS.into_iter().zip([
+        "Wrapper storage locations",
+        "Runtime directory",
+        "Wrapper configuration",
+        "The claude program",
+        "Permission to run claude",
+        "The claude version",
+        "Symbolic links on session paths",
+        "Ownership of session paths",
+        "File types of session paths",
+        "Session directory permissions",
+        "Stored secret permissions",
+        "Settings pieces named by the profile",
+        "The composed settings entry",
+        "The account list",
+        "Sign-in for the selected account",
+        "The profile document",
+    ]) {
+        assert!(text.contains(&format!("{title} (")), "{title}\n{text}");
+        assert!(text.contains(&format!("— {id}\n")), "{id}\n{text}");
+    }
+    // The list says required or optional, not the severity model's own words.
+    assert!(!text.contains("hard"), "{text}");
+    assert!(!text.contains("soft"), "{text}");
     assert!(!harness.record_dir().join("argv").exists());
 }
 
@@ -120,13 +313,13 @@ fn doctor_strict_promotes_soft_warnings_only() {
     let harness = Harness::new();
     let mut normal = harness.assert_command();
     normal
-        .env("CS_TEST_VERSION_STDOUT", "2.1.210\n")
+        .env("CS_TEST_VERSION_STDOUT", "2.1.210 (Claude Code)\n")
         .arg("doctor")
         .assert()
         .success();
     let mut strict = harness.assert_command();
     strict
-        .env("CS_TEST_VERSION_STDOUT", "2.1.210\n")
+        .env("CS_TEST_VERSION_STDOUT", "2.1.210 (Claude Code)\n")
         .args(["doctor", "--strict"])
         .assert()
         .code(1);
@@ -188,9 +381,9 @@ fn doctor_continues_after_a_subsystem_failure() {
 #[test]
 fn doctor_warns_below_and_at_unparsable_child_versions() {
     for (version, code) in [
-        ("2.1.210\n", 1),
-        ("2.1.211\n", 0),
-        ("2.2.0\n", 0),
+        ("2.1.210 (Claude Code)\n", 1),
+        ("2.1.211 (Claude Code)\n", 0),
+        ("2.2.0 (Claude Code)\n", 0),
         ("bad\n", 1),
     ] {
         let harness = Harness::new();
@@ -242,9 +435,18 @@ fn doctor_composes_child_output_and_carries_its_level() {
     let output = command.output().expect("doctor");
     assert_eq!(output.status.code(), Some(69));
     let text = String::from_utf8(output.stdout.clone()).expect("text");
-    assert!(text.contains("\nwrapper status=pass"));
-    assert!(text.contains("\nchild status=fail exit=9\n"));
-    assert!(text.contains("\ndoctor status=fail wrapper=0 child=9 exit=69\n"));
+    assert!(
+        text.contains("Everything the wrapper needs is in place."),
+        "{text}"
+    );
+    assert!(
+        text.contains("claude's own checkup reported a problem, and exited 9."),
+        "{text}"
+    );
+    assert!(
+        text.contains("This run exits 69 because claude's own checkup failed."),
+        "{text}"
+    );
     assert!(output.stdout.ends_with(b"native doctor\n"));
     assert_eq!(output.stderr, b"native warning\n");
 
@@ -429,10 +631,19 @@ fn the_published_documentation_matches_the_implemented_rung() {
         doctor.contains(&format!("implemented over {total} checks")),
         "the stated catalog size must match the projected one"
     );
-    assert!(doctor.contains(&format!("wrapper status=pass total={total} passed={total}")));
     assert!(doctor.contains(&format!(
         "\"summary\": {{ \"total\": {total}, \"passed\": {total}"
     )));
+    // The human report states the counts in prose now, so the published
+    // example must be the one the renderer produces (ADR-0093).
+    assert!(
+        doctor.contains(&format!("{total} checks: ")),
+        "the report example must state the catalog size in words"
+    );
+    assert!(
+        !doctor.contains("wrapper status="),
+        "the human report no longer carries key-value summary lines"
+    );
 
     // The claims this rung made false. Each was true before the account rung
     // landed, so each is a revert this gate has to catch.
@@ -441,7 +652,7 @@ fn the_published_documentation_matches_the_implemented_rung() {
         "the account entries are in the catalog, so the deferral sentence is stale"
     );
     assert!(
-        doctor.contains("token mode still works"),
+        doctor.contains("Token accounts are unaffected"),
         "token mode is implemented and is not blocked by the floor, so the remediation says so"
     );
     let accounts = document("docs/reference/accounts.md");

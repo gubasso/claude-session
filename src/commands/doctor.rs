@@ -32,30 +32,40 @@ pub(crate) fn without_paths(
         || {
             CheckResult::defect(
                 Check::RuntimeDirPresent,
-                "XDG_RUNTIME_DIR is absent",
+                "XDG_RUNTIME_DIR is not set, so this session has no runtime directory.",
                 String::new(),
             )
         },
         |path| {
             CheckResult::pass(
                 Check::RuntimeDirPresent,
-                format!("{} is present", std::path::Path::new(path).display()),
+                std::path::Path::new(path).display().to_string(),
             )
         },
     ));
     for check in &CATALOG[2..] {
         results.push(CheckResult::skipped(
             *check,
-            "base directory resolution failed",
+            concat!(
+                "the wrapper could not work out where to store its files, so nothing ",
+                "below it could be checked. Fix the storage locations above first."
+            ),
         ));
     }
-    let child = ChildReport::skipped("base directory resolution failed");
+    let child = ChildReport::skipped("the wrapper could not work out where to store its files");
     let summary = Summary::fold(&results);
     let verdict = Verdict::fold(summary, &child, strict);
     let writer = crate::ui::writer::OutputWriter::system();
+    let color = crate::ui::writer::Color::resolve(
+        environment.variables(),
+        mode,
+        writer.stdout_is_terminal(),
+        writer.stderr_is_terminal(),
+    );
     crate::ui::doctor::report(
         &writer,
         mode == OutputMode::Json,
+        color,
         &results,
         summary,
         &child,
@@ -78,14 +88,18 @@ pub(crate) fn run(
     strict: bool,
 ) -> Result<DispatchOutcome, AppError> {
     if list {
-        crate::ui::doctor::list(context.writer(), context.output_mode() == OutputMode::Json)?;
+        crate::ui::doctor::list(
+            context.writer(),
+            context.output_mode() == OutputMode::Json,
+            context.color(),
+        )?;
         return Ok(DispatchOutcome::Complete(0));
     }
     let mut results = Vec::with_capacity(CATALOG.len());
     results.push(CheckResult::pass(
         Check::BaseDirsResolve,
         format!(
-            "config={} state={}",
+            "settings in {}, state in {}",
             context.paths().config().display(),
             context.paths().state().display()
         ),
@@ -95,19 +109,24 @@ pub(crate) fn run(
         || {
             CheckResult::defect(
                 Check::RuntimeDirPresent,
-                "XDG_RUNTIME_DIR is absent",
+                "XDG_RUNTIME_DIR is not set, so this session has no runtime directory.",
                 String::new(),
             )
         },
         |path| {
             CheckResult::pass(
                 Check::RuntimeDirPresent,
-                format!("{} is present", std::path::Path::new(path).display()),
+                std::path::Path::new(path).display().to_string(),
             )
         },
     ));
     results.push(context.config_error().map_or_else(
-        || CheckResult::pass(Check::WrapperConfigParses, "wrapper configuration parsed"),
+        || {
+            CheckResult::pass(
+                Check::WrapperConfigParses,
+                "read, with every key recognized",
+            )
+        },
         |error| {
             CheckResult::defect(
                 Check::WrapperConfigParses,
@@ -122,18 +141,18 @@ pub(crate) fn run(
         Ok(path) => {
             results.push(CheckResult::pass(
                 Check::ChildBinaryResolves,
-                format!("resolved {}", path.display()),
+                path.display().to_string(),
             ));
             results.push(CheckResult::pass(
                 Check::ChildIsExecutable,
-                format!("{} is executable", path.display()),
+                "this user can run it",
             ));
             Some(path.clone())
         }
         Err(error) if error.kind() == ErrorKind::ChildNotExecutable => {
             results.push(CheckResult::pass(
                 Check::ChildBinaryResolves,
-                format!("resolved {}", error.diagnostic().where_),
+                error.diagnostic().where_.clone(),
             ));
             results.push(CheckResult::defect(
                 Check::ChildIsExecutable,
@@ -152,7 +171,7 @@ pub(crate) fn run(
             ));
             results.push(CheckResult::skipped(
                 Check::ChildIsExecutable,
-                "child resolution failed",
+                "there is no claude to test. Install it first, as the check above says.",
             ));
             None
         }
@@ -169,7 +188,10 @@ pub(crate) fn run(
     } else {
         results.push(CheckResult::skipped(
             Check::ChildVersionFloor,
-            "the child is not executable",
+            concat!(
+                "claude could not be run, so it could not be asked for its version. ",
+                "Fix the checks above first."
+            ),
         ));
     }
 
@@ -182,7 +204,10 @@ pub(crate) fn run(
         {
             results.push(CheckResult::skipped(
                 *check,
-                "wrapper configuration parsing failed",
+                concat!(
+                    "the wrapper configuration could not be read, so no session could be ",
+                    "worked out from it. Fix the configuration above first."
+                ),
             ));
         }
     } else if has_session {
@@ -211,7 +236,13 @@ pub(crate) fn run(
             .iter()
             .filter(|check| matches!(check, Check::Storage(_)))
         {
-            results.push(CheckResult::skipped(*check, "no session context applies"));
+            results.push(CheckResult::skipped(
+                *check,
+                concat!(
+                    "no account or profile is selected, so this run touches none of the ",
+                    "wrapper's session files."
+                ),
+            ));
         }
     }
     if context.config_error().is_none() {
@@ -228,14 +259,18 @@ pub(crate) fn run(
                 profile, inspected,
             ));
         } else {
-            results.push(CheckResult::skipped(
+            for check in [
                 Check::Entry(crate::domain::checks::EntryCheck::Compose),
-                "no profile is selected",
-            ));
-            results.push(CheckResult::skipped(
                 Check::Entry(crate::domain::checks::EntryCheck::Consistent),
-                "no profile is selected",
-            ));
+            ] {
+                results.push(CheckResult::skipped(
+                    check,
+                    concat!(
+                        "no profile is selected. Choose one with: ",
+                        "claude-session-rs profile use <name>"
+                    ),
+                ));
+            }
         }
         results.extend(crate::services::account::doctor_results(context));
         // After the account pair, because the pushed order has to match the
@@ -274,6 +309,7 @@ pub(crate) fn run(
     crate::ui::doctor::report(
         context.writer(),
         context.output_mode() == OutputMode::Json,
+        context.color(),
         &results,
         summary,
         &child,
@@ -287,44 +323,60 @@ fn version_result(result: Result<crate::domain::child::CapturedChild, AppError>)
     match result {
         Ok(captured) if matches!(captured.outcome, ChildOutcome::Exited(0)) => {
             let observed = String::from_utf8_lossy(&captured.stdout).trim().to_owned();
+            // Two conditions, not one: a version that is genuinely old, and
+            // output no version could be read from. Folding them into one
+            // sentence is what let a current child be reported as below the
+            // floor ([ADR-0095]).
             match ChildVersion::parse(&captured.stdout) {
                 Some(version) if version >= MINIMUM_CHILD_VERSION => CheckResult::pass(
                     check,
-                    format!("child version {version} meets minimum {MINIMUM_CHILD_VERSION}"),
+                    format!("{version}, which meets the {MINIMUM_CHILD_VERSION} minimum"),
                 ),
-                _ => CheckResult::defect(
+                Some(version) => CheckResult::defect(
                     check,
-                    format!("child version {observed} is below or could not be parsed"),
-                    check
-                        .hint(&[
-                            ("version", &observed),
-                            ("minimum", &MINIMUM_CHILD_VERSION.to_string()),
-                        ])
-                        .unwrap_or_default(),
+                    format!(
+                        concat!(
+                            "claude reports {observed}, older than the {minimum} this ",
+                            "wrapper is designed against."
+                        ),
+                        observed = version,
+                        minimum = MINIMUM_CHILD_VERSION
+                    ),
+                    floor_hint(check),
+                ),
+                None => CheckResult::defect(
+                    check,
+                    format!(
+                        concat!(
+                            "claude answered \"{observed}\", which carries no version ",
+                            "number this wrapper could read, so the {minimum} minimum is ",
+                            "unconfirmed."
+                        ),
+                        observed = observed,
+                        minimum = MINIMUM_CHILD_VERSION
+                    ),
+                    floor_hint(check),
                 ),
             }
         }
-        Ok(captured) => CheckResult::defect(
+        Ok(_) => CheckResult::defect(
             check,
-            "child --version did not exit successfully",
-            check
-                .hint(&[
-                    ("version", &format!("{:?}", captured.outcome)),
-                    ("minimum", &MINIMUM_CHILD_VERSION.to_string()),
-                ])
-                .unwrap_or_default(),
+            concat!(
+                "claude --version did not exit successfully, so the minimum version is ",
+                "unconfirmed."
+            )
+            .to_owned(),
+            floor_hint(check),
         ),
-        Err(error) => CheckResult::defect(
-            check,
-            error.diagnostic().why.clone(),
-            check
-                .hint(&[
-                    ("version", "unavailable"),
-                    ("minimum", &MINIMUM_CHILD_VERSION.to_string()),
-                ])
-                .unwrap_or_default(),
-        ),
+        Err(error) => CheckResult::defect(check, error.diagnostic().why.clone(), floor_hint(check)),
     }
+}
+
+/// Returns the one remediation the floor owns, true of every way it can fail.
+fn floor_hint(check: Check) -> String {
+    check
+        .hint(&[("minimum", &MINIMUM_CHILD_VERSION.to_string())])
+        .unwrap_or_default()
 }
 
 fn child_report(
@@ -332,7 +384,10 @@ fn child_report(
     program: Option<&std::path::Path>,
 ) -> Result<(ChildReport, Option<AppError>), AppError> {
     let Some(program) = program else {
-        return Ok((ChildReport::skipped("the child is not executable"), None));
+        return Ok((
+            ChildReport::skipped("claude could not be found or could not be run"),
+            None,
+        ));
     };
     let invocation = crate::domain::child::ChildInvocation::new(
         program.to_path_buf(),

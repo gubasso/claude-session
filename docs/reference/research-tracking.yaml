@@ -174,8 +174,10 @@ tracked:
       Read current public child directory, authentication, debugging,
       troubleshooting, changelog, CLI, and environment documentation. Run the
       child with its configuration-directory variable pointed at empty scratch
-      state and confirm configuration and login placement. Re-check the
-      parseable version output and the shared-login version floor; the refresh
+      state and confirm configuration and login placement. Re-check that the
+      version output still carries a dotted three-integer token, which is the
+      whole of what the reading depends on (ADR-0095), and re-check the
+      shared-login version floor; the refresh
       lock that floor exists for cannot be forced, so it stays unproven under
       Q-002 rather than carrying this entry's date. Confirm the last settings
       occurrence alone wins through a child surface that reads the file: pass a
@@ -192,6 +194,7 @@ tracked:
       - docs/decisions/ADR-0028-pass-composed-settings-with-the-native-flag.md
       - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
       - docs/decisions/ADR-0047-let-a-user-settings-flag-override-the-group-layer.md
+      - docs/decisions/ADR-0095-take-the-first-version-shaped-token-from-the-child.md
       - docs/decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md
       - docs/explanation/session-isolation.md
       - docs/explanation/wrapper-model.md

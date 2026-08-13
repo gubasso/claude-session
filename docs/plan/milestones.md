@@ -28,3 +28,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 016 ambient-credential-scope — done — 1 implementation session — after 015; settled the ambient carry by amending ADR-0089 rather than opening a record beside it
 - 017 mandatory-session-binding — done — 2 implementation sessions — after 016; makes a bound account and profile the precondition for an exec
 - 018 legacy-coexistence-namespace — done — 2 implementation sessions — after 017; frees every name the shell predecessor claims so both installs can sit on one machine
+- 020 human-first-diagnostics — done — 2 implementation sessions — after 018; landed in one session, and fixed the version reading the report was lying about

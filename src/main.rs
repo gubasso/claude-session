@@ -47,14 +47,19 @@ fn main() -> ExitCode {
         Err(error) => return ExitCode::from(ui::writer::report(&error, OutputMode::Human)),
     };
     if invocation.is_doctor_list() {
-        let code = crate::ui::doctor::list(
-            &crate::ui::writer::OutputWriter::system(),
-            invocation.output_mode() == OutputMode::Json,
-        )
-        .map_or_else(
-            |error| ui::writer::report(&error, invocation.output_mode()),
-            |()| 0,
+        let writer = crate::ui::writer::OutputWriter::system();
+        let color = crate::ui::writer::Color::resolve(
+            environment.variables(),
+            invocation.output_mode(),
+            writer.stdout_is_terminal(),
+            writer.stderr_is_terminal(),
         );
+        let code =
+            crate::ui::doctor::list(&writer, invocation.output_mode() == OutputMode::Json, color)
+                .map_or_else(
+                    |error| ui::writer::report(&error, invocation.output_mode()),
+                    |()| 0,
+                );
         return ExitCode::from(code);
     }
     let doctor = invocation.is_doctor();

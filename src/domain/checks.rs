@@ -93,6 +93,78 @@ impl Check {
             Self::Account(value) => value.id(),
         }
     }
+    /// Returns the title a person reads in place of the id.
+    ///
+    /// A title is not an identifier: it is absent from the machine document and
+    /// free to be reworded, which is what keeps the breaking-change rule
+    /// attached to [`Self::id`] alone ([ADR-0094]).
+    ///
+    /// [ADR-0094]: ../../docs/decisions/ADR-0094-give-every-check-a-title-and-a-next-action.md
+    pub(crate) const fn title(self) -> &'static str {
+        match self {
+            Self::BaseDirsResolve => "Wrapper storage locations",
+            Self::RuntimeDirPresent => "Runtime directory",
+            Self::WrapperConfigParses => "Wrapper configuration",
+            Self::ChildBinaryResolves => "The claude program",
+            Self::ChildIsExecutable => "Permission to run claude",
+            Self::ChildVersionFloor => "The claude version",
+            Self::Storage(value) => value.title(),
+            Self::Entry(value) => value.title(),
+            Self::Account(value) => value.title(),
+        }
+    }
+    /// Returns what the condition costs a reader.
+    ///
+    /// Every check owns one, including `runtime-dir-present`, whose answer is
+    /// that it costs them nothing — the one thing a reader of a warning with no
+    /// remedy actually needs told.
+    pub(crate) const fn consequence(self) -> &'static str {
+        match self {
+            Self::BaseDirsResolve => {
+                "The wrapper cannot find its own configuration or state, so nothing it \
+                has stored is reachable."
+            }
+            // Reported rather than failed, so the consequence is that there is
+            // none. Saying so is what stops a reader hunting for a remedy the
+            // check deliberately does not own.
+            Self::RuntimeDirPresent => {
+                "Nothing the wrapper does needs it, so this costs you nothing today. It \
+                is reported because a desktop session normally provides one, and its \
+                absence often means a login shell was started without one."
+            }
+            Self::WrapperConfigParses => {
+                "The wrapper stopped rather than guess what an unrecognized setting was \
+                meant to do."
+            }
+            Self::ChildBinaryResolves => {
+                "There is no claude to launch, so every wrapped command would fail the \
+                same way."
+            }
+            Self::ChildIsExecutable => {
+                "The program is there, but this user is not allowed to run it."
+            }
+            Self::ChildVersionFloor => {
+                "Saved-login accounts share one login between processes, and older \
+                versions of claude do not lock the token refresh that makes sharing safe."
+            }
+            Self::Storage(value) => value.consequence(),
+            Self::Entry(value) => value.consequence(),
+            Self::Account(value) => value.consequence(),
+        }
+    }
+    /// Returns the name a run of adjacent checks collapses under.
+    ///
+    /// Presentation only, and only when the whole run reports the same thing:
+    /// five identical rows about session paths tell a reader less than one row
+    /// does. The machine document never collapses.
+    pub(crate) const fn group(self) -> Option<&'static str> {
+        match self {
+            Self::Storage(_) => Some("Session storage safety"),
+            Self::Account(_) => Some("Accounts"),
+            Self::Entry(_) => Some("Profile settings"),
+            _ => None,
+        }
+    }
     /// Returns the owning scope.
     pub(crate) const fn scope(self) -> Scope {
         match self {
@@ -130,27 +202,28 @@ impl Check {
     pub(crate) const fn remediation(self) -> Option<&'static str> {
         match self {
             Self::BaseDirsResolve => Some(concat!(
-                "`XDG_CONFIG_HOME` and `XDG_STATE_HOME` must be absolute paths, or unset so ",
-                "the defaults apply. Run `claude-session-rs doctor` to see what each resolved to."
+                "Set XDG_CONFIG_HOME and XDG_STATE_HOME to absolute paths, or unset them ",
+                "so the defaults apply."
             )),
             Self::RuntimeDirPresent => None,
             Self::WrapperConfigParses => Some(concat!(
-                "`{key}` in `{path}` is not a configuration key. Remove it, or correct it ",
-                "to one of the keys [configuration](./configuration.md#keys) lists."
+                "{key} in {path} is not a setting this wrapper has. Remove it, or replace ",
+                "it with one of the keys the configuration reference lists."
             )),
             Self::ChildBinaryResolves => Some(concat!(
-                "No `claude` was found. Install it, put it on `PATH`, or set `child_bin` ",
-                "to its absolute path — [process runtime](./process-runtime.md#child-resolution) ",
-                "gives the order the two rungs are tried in."
+                "Install claude and put it on PATH, or set child_bin to its absolute path. ",
+                "The wrapper tries child_bin first and PATH second."
             )),
             Self::ChildIsExecutable => Some(concat!(
-                "{path} exists but the current user cannot execute it. Grant execute permission, ",
-                "or point `child_bin` at a different binary."
+                "Grant execute permission on {path}, or point child_bin at a different ",
+                "binary."
             )),
+            // True whether the version read below the floor or could not be
+            // read at all, which is what lets one check own one remediation
+            // across two conditions.
             Self::ChildVersionFloor => Some(concat!(
-                "The resolved `claude` reports {version}, below the {minimum} this wrapper is ",
-                "designed against. Upgrade it before using a saved-login account; token mode ",
-                "still works below the floor."
+                "Upgrade claude to {minimum} or newer before using a saved-login account. ",
+                "Token accounts are unaffected and still work below that version."
             )),
             Self::Storage(value) => Some(value.remediation()),
             Self::Entry(value) => Some(value.remediation()),
@@ -181,6 +254,21 @@ impl AccountCheck {
             Self::CredentialsUsable => "credentials-usable",
         }
     }
+    pub(crate) const fn title(self) -> &'static str {
+        match self {
+            Self::RegistryReadable => "The account list",
+            Self::CredentialsUsable => "Sign-in for the selected account",
+        }
+    }
+    pub(crate) const fn consequence(self) -> &'static str {
+        match self {
+            Self::RegistryReadable => "Accounts cannot be listed, so none of them can be selected.",
+            Self::CredentialsUsable => {
+                "The selected account cannot sign in, so a launch bound to it would fail \
+                at the child."
+            }
+        }
+    }
     pub(crate) const fn kind(self) -> ErrorKind {
         match self {
             Self::RegistryReadable => ErrorKind::Io,
@@ -190,11 +278,12 @@ impl AccountCheck {
     pub(crate) const fn remediation(self) -> &'static str {
         match self {
             Self::RegistryReadable => {
-                "Make `{path}` a readable, private directory owned by the current user, then retry."
+                "Make {path} a readable, private directory owned by the current user, then \
+                run this again."
             }
             Self::CredentialsUsable => {
-                "Run `claude-session-rs account login {account}` to recreate this account's stored \
-                authentication and its local metadata."
+                "Run claude-session-rs account login {account} to recreate this account's \
+                stored authentication and its local metadata."
             }
         }
     }
@@ -260,7 +349,7 @@ impl CheckResult {
         Self {
             check,
             status: CheckStatus::Skipped,
-            message: "not checked".into(),
+            message: "not applicable".into(),
             hint: None,
             reason: Some(reason.into()),
         }
@@ -438,6 +527,42 @@ impl StorageCheck {
         }
     }
 
+    /// Returns the title a person reads in place of the id.
+    pub(crate) const fn title(self) -> &'static str {
+        match self {
+            Self::NoSymlinks => "Symbolic links on session paths",
+            Self::Owned => "Ownership of session paths",
+            Self::Typed => "File types of session paths",
+            Self::DirectoryModes => "Session directory permissions",
+            Self::SecretModes => "Stored secret permissions",
+        }
+    }
+
+    /// Returns what the condition costs a reader.
+    pub(crate) const fn consequence(self) -> &'static str {
+        match self {
+            Self::NoSymlinks => {
+                "A link on a wrapper-managed path can point anywhere, including somewhere \
+                another user can read."
+            }
+            Self::Owned => {
+                "Another user owns a path this wrapper writes to, so it cannot promise \
+                what ends up in it."
+            }
+            Self::Typed => {
+                "The wrapper expected one kind of file and found another, so writing there \
+                could destroy something."
+            }
+            Self::DirectoryModes => {
+                "A directory other users can read would expose this session's state."
+            }
+            Self::SecretModes => {
+                "A stored credential other users can read is a credential to treat as \
+                exposed."
+            }
+        }
+    }
+
     /// Returns the kind a failure of this check exits with.
     pub(crate) const fn kind(self) -> ErrorKind {
         match self {
@@ -468,12 +593,12 @@ impl StorageCheck {
             }
             Self::Owned => {
                 "{path} is owned by another user, which usually means a restored backup \
-                or a file created under sudo. Do not change its owner in place — move \
+                or a file created under sudo. Do not change its owner in place. Move \
                 it aside and let the wrapper recreate it as you."
             }
             Self::Typed => {
                 "{path} is a {actual_type} and this location must be a {expected_type}. \
-                Move it aside and let the wrapper recreate it; nothing under this path \
+                Move it aside and let the wrapper recreate it. Nothing under this path \
                 is unrecoverable except an account login."
             }
             Self::DirectoryModes => {
@@ -510,10 +635,22 @@ impl StorageCheck {
             .replace("{expected_type}", expected)
             .replace("{actual_type}", actual)
             .replace("{expected_mode}", &expected_mode);
+        // The Why states what was observed, in words. The id is carried by the
+        // report row rather than by the sentence a person reads ([ADR-0093]).
+        let why = match self {
+            Self::NoSymlinks => format!("{rendered} is a symbolic link."),
+            Self::Owned => format!("{rendered} is owned by another user."),
+            Self::Typed => {
+                format!("{rendered} is a {actual}, and this location must be a {expected}.")
+            }
+            Self::DirectoryModes | Self::SecretModes => {
+                format!("{rendered} could not be restricted to mode {expected_mode}.")
+            }
+        };
         Diagnostic::new(
             "wrapper-managed storage refused a path",
             rendered,
-            format!("{} failed", self.id()),
+            why,
             hint,
         )
     }
@@ -544,6 +681,33 @@ impl EntryCheck {
         }
     }
 
+    /// Returns the title a person reads in place of the id.
+    pub(crate) const fn title(self) -> &'static str {
+        match self {
+            Self::Compose => "Settings pieces named by the profile",
+            Self::Valid => "The profile document",
+            Self::Consistent => "The composed settings entry",
+        }
+    }
+
+    /// Returns what the condition costs a reader.
+    pub(crate) const fn consequence(self) -> &'static str {
+        match self {
+            Self::Compose => {
+                "The profile names a settings piece that is not there, so there is \
+                nothing to compose."
+            }
+            Self::Valid => {
+                "The profile parsed, but it does not describe a composition the wrapper \
+                can carry out."
+            }
+            Self::Consistent => {
+                "A composed entry changed after it was written, and the wrapper will not \
+                hand claude a file it cannot vouch for."
+            }
+        }
+    }
+
     /// Returns the kind a failure of this check exits with.
     pub(crate) const fn kind(self) -> ErrorKind {
         match self {
@@ -560,15 +724,13 @@ impl EntryCheck {
                 the name in the profile, or select a different profile."
             }
             Self::Valid => {
-                "The profile at {path}, named {profile}, parsed but is not usable: \
-                correct the layer list or the array strategy it declares, then run the \
-                launch again."
+                "The profile at {path}, named {profile}, is not usable. Correct its \
+                layer list or the array strategy it declares, then run the launch again."
             }
             Self::Consistent => {
-                "The composed entry at {path} does not match the digest its inputs \
-                recompute, so it was neither opened nor overwritten. Move it aside; the \
-                next launch composes a fresh one. Report this — an entry is written once \
-                and never rewritten."
+                "The entry at {path} was neither opened nor overwritten. Move it aside \
+                and the next launch composes a fresh one. Please report this: an entry \
+                is written once and never rewritten, so something else changed it."
             }
         }
     }
@@ -583,8 +745,8 @@ impl EntryCheck {
             .replace("{profile}", profile);
         Diagnostic::new(
             "the composed settings entry could not be used",
-            rendered,
-            format!("{}: {why}", self.id()),
+            rendered.clone(),
+            format!("{rendered}: {why}"),
             hint,
         )
     }
@@ -749,6 +911,49 @@ mod tests {
         }
     }
 
+    /// Adding a check must force its author to say what it protects, which is
+    /// the whole point of putting the two strings in the catalog ([ADR-0094]).
+    ///
+    /// [ADR-0094]: ../../docs/decisions/ADR-0094-give-every-check-a-title-and-a-next-action.md
+    #[test]
+    fn every_check_says_what_it_protects_in_words() {
+        let mut titles = std::collections::BTreeSet::new();
+        for check in CATALOG {
+            let title = check.title();
+            assert!(!title.is_empty(), "{} has no title", check.id());
+            assert_ne!(title, check.id(), "{} restates its id", check.id());
+            assert!(
+                title.chars().next().is_some_and(char::is_uppercase),
+                "{title} does not open a sentence"
+            );
+            assert!(titles.insert(title), "{title} is used twice");
+            let consequence = check.consequence();
+            assert!(
+                consequence.ends_with('.'),
+                "{} states its cost without finishing the sentence",
+                check.id()
+            );
+        }
+    }
+
+    /// Rule 7 binds the strings, not only the renderer: a template carrying
+    /// Markdown or a relative document path reaches a terminal as itself.
+    #[test]
+    fn no_remediation_carries_markup_or_a_document_path() {
+        for check in CATALOG {
+            let Some(template) = check.remediation() else {
+                continue;
+            };
+            for markup in ["](", "`", "./", ".md"] {
+                assert!(
+                    !template.contains(markup),
+                    "{} carries {markup} into a terminal: {template}",
+                    check.id()
+                );
+            }
+        }
+    }
+
     #[test]
     fn summary_preserves_the_first_hard_failure_in_catalog_order() {
         let warning = CheckResult::defect(Check::RuntimeDirPresent, "absent", String::new());
@@ -828,7 +1033,18 @@ mod tests {
         assert!(rendered.hint.contains("is a regular file"));
         assert!(rendered.hint.contains("must be a directory"));
         assert!(!rendered.hint.contains('{'), "{}", rendered.hint);
-        assert!(rendered.why.contains("storage-paths-typed"));
+        // The Why states the observation in words; the id belongs to the row
+        // that carries it, not to the sentence ([ADR-0093]).
+        assert!(
+            !rendered.why.contains("storage-paths-typed"),
+            "{}",
+            rendered.why
+        );
+        assert!(
+            rendered.why.contains("is a regular file"),
+            "{}",
+            rendered.why
+        );
     }
 
     /// The two entry checks exit differently, which is why they are two ids.
@@ -850,7 +1066,18 @@ mod tests {
         assert!(rendered.hint.contains("settings/base.json"));
         assert!(rendered.hint.contains("profile work"));
         assert!(!rendered.hint.contains('{'), "{}", rendered.hint);
-        assert!(rendered.why.starts_with("settings-compose: "));
+        assert!(
+            rendered
+                .why
+                .starts_with("/c/claude-session/settings/base.json: "),
+            "{}",
+            rendered.why
+        );
+        assert!(
+            !rendered.why.contains("settings-compose"),
+            "{}",
+            rendered.why
+        );
     }
 
     #[test]

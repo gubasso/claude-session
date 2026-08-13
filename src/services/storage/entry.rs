@@ -117,25 +117,40 @@ pub(crate) fn doctor_results(
                     error.diagnostic().hint.clone(),
                 )
             } else {
-                CheckResult::skipped(compose_check, "the profile document is not usable")
+                CheckResult::skipped(
+                    compose_check,
+                    concat!(
+                        "the profile document itself is unusable, so what it names could not ",
+                        "be looked for. See the profile document check below."
+                    ),
+                )
             };
             return vec![
                 compose,
                 CheckResult::skipped(
                     consistent_check,
-                    "settings composition did not produce an entry key",
+                    concat!(
+                        "settings composition produced nothing to compare, because the ",
+                        "profile above could not be used."
+                    ),
                 ),
             ];
         }
     };
     let compose = CheckResult::pass(
         compose_check,
-        format!("profile {} and its pieces compose", profile.as_str()),
+        format!(
+            "profile \"{}\" names pieces that all exist",
+            profile.as_str()
+        ),
     );
     let consistency = match (report.settings_exists, report.provenance_exists) {
         (false, false) => CheckResult::skipped(
             consistent_check,
-            "the composed entry has not been materialized",
+            concat!(
+                "nothing has been composed yet. The first launch with this profile writes ",
+                "the entry, and this check has something to compare from then on."
+            ),
         ),
         (true, true)
             if recorded_digest(&report.provenance)
@@ -146,13 +161,19 @@ pub(crate) fn doctor_results(
         {
             CheckResult::pass(
                 consistent_check,
-                format!("{} matches its input digest", report.settings.display()),
+                format!(
+                    "{} still matches the pieces it was built from",
+                    report.settings.display()
+                ),
             )
         }
         _ => CheckResult::defect(
             consistent_check,
             format!(
-                "{} is partial, malformed, or inconsistent",
+                concat!(
+                    "{} is partial, malformed, or no longer matches the pieces it was ",
+                    "built from."
+                ),
                 report.settings.display()
             ),
             consistent_check
@@ -179,14 +200,17 @@ pub(crate) fn validity_result(
 ) -> CheckResult {
     let check = Check::Entry(EntryCheck::Valid);
     let (Some(profile), Some(inspected)) = (profile, inspected) else {
-        return CheckResult::skipped(check, "no profile is selected");
+        return CheckResult::skipped(
+            check,
+            "no profile is selected. Choose one with: claude-session-rs profile use <name>",
+        );
     };
     let path = context.paths().profile_file(profile);
     match *inspected {
         Ok(_) => CheckResult::pass(
             check,
             format!(
-                "profile {} and its strategy table are usable",
+                "profile \"{}\" and the merge rules it declares are usable",
                 profile.as_str()
             ),
         ),

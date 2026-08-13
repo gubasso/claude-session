@@ -18,17 +18,31 @@ pub(crate) struct ChildVersion {
 }
 
 impl ChildVersion {
-    /// Parses either `claude X.Y.Z` or a bare `X.Y.Z` answer.
+    /// Reads the first version-shaped token anywhere in the child's answer.
+    ///
+    /// Matching the whole line would mean tracking a spelling the child owns
+    /// and may reword without notice — and did, which is how a current child
+    /// came to be reported as below the floor. Taking the first dotted
+    /// three-integer run and ignoring everything around it is the smallest
+    /// fact the floor needs (ADR-0095).
     pub(crate) fn parse(bytes: &[u8]) -> Option<Self> {
-        let text = std::str::from_utf8(bytes).ok()?.trim();
-        let token = text.strip_prefix("claude ").unwrap_or(text);
-        let mut parts = token.split('.');
-        let value = Self {
+        std::str::from_utf8(bytes)
+            .ok()?
+            .split(|character: char| !character.is_ascii_digit() && character != '.')
+            .find_map(Self::from_run)
+    }
+    /// Reads one run of digits and dots, or rejects it as too short.
+    ///
+    /// Components past the third are discarded rather than ordered, which is
+    /// also what happens to a prerelease suffix: the separator ends the run
+    /// before the suffix begins.
+    fn from_run(run: &str) -> Option<Self> {
+        let mut parts = run.split('.').filter(|part| !part.is_empty());
+        Some(Self {
             major: parts.next()?.parse().ok()?,
             minor: parts.next()?.parse().ok()?,
             patch: parts.next()?.parse().ok()?,
-        };
-        (parts.next().is_none()).then_some(value)
+        })
     }
 }
 
@@ -141,28 +155,58 @@ impl std::fmt::Debug for CapturedChild {
 mod tests {
     use super::*;
 
+    /// The shapes a real child has actually printed, plus the ones a reworded
+    /// version line could reach. The suffixed form is the one that used to fail
+    /// and be reported as below the floor.
     #[test]
-    fn child_versions_accept_the_documented_shapes_and_order() {
-        assert_eq!(
-            ChildVersion::parse(b"claude 2.1.211\n"),
-            Some(MINIMUM_CHILD_VERSION)
-        );
-        assert_eq!(ChildVersion::parse(b"2.1.211"), Some(MINIMUM_CHILD_VERSION));
-        assert!(ChildVersion::parse(b"2.1.210").expect("version") < MINIMUM_CHILD_VERSION);
-        assert!(ChildVersion::parse(b"2.1.212").expect("version") > MINIMUM_CHILD_VERSION);
+    fn a_version_shaped_token_is_read_wherever_it_appears() {
+        for bytes in [
+            b"2.1.211".as_slice(),
+            b"2.1.211\n",
+            b"claude 2.1.211\n",
+            b"2.1.211 (Claude Code)\n",
+            b"v2.1.211",
+            b"Claude Code 2.1.211 (build 4073f59)\n",
+            // Components past the third are discarded rather than ordered, and
+            // a prerelease separator ends the run before its suffix.
+            b"2.1.211.4",
+            b"2.1.211-rc.1",
+        ] {
+            assert_eq!(
+                ChildVersion::parse(bytes),
+                Some(MINIMUM_CHILD_VERSION),
+                "{}",
+                String::from_utf8_lossy(bytes)
+            );
+        }
     }
 
     #[test]
-    fn malformed_child_versions_are_rejected() {
+    fn versions_order_by_component_rather_than_by_text() {
+        assert!(ChildVersion::parse(b"2.1.210").expect("version") < MINIMUM_CHILD_VERSION);
+        assert!(ChildVersion::parse(b"2.1.212").expect("version") > MINIMUM_CHILD_VERSION);
+        // The floor's own defect: 220 sorts after 211 by number and before it
+        // by text, so the current child must compare as newer.
+        assert!(
+            ChildVersion::parse(b"2.1.220 (Claude Code)").expect("version") > MINIMUM_CHILD_VERSION
+        );
+    }
+
+    #[test]
+    fn output_with_no_version_shaped_token_is_rejected() {
         for bytes in [
             b"".as_slice(),
             b"2.1",
             b"2.one.3",
-            b"2.1.3.4",
+            b"unknown",
             b"4294967296.1.1",
             &[0x80],
         ] {
-            assert!(ChildVersion::parse(bytes).is_none());
+            assert!(
+                ChildVersion::parse(bytes).is_none(),
+                "{}",
+                String::from_utf8_lossy(bytes)
+            );
         }
     }
 }

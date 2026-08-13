@@ -148,6 +148,8 @@ The wrapper deletes nothing on the way out, and a wrapper killed before step 10 
 
 Shared-login correctness depends on child version 2.1.211. Per [ADR-0031](../decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md), a `login`-mode launch below that floor fails with `Unavailable` (69) before the marker or exec, reporting the detected version, the requirement, and the upgrade. An unparsable version fails the same way.
 
+The version is read by taking the first dotted three-integer token anywhere in the child's `--version` output and ignoring everything around it ([ADR-0095](../decisions/ADR-0095-take-the-first-version-shaped-token-from-the-child.md)). A prefix, a trailing product name, a `v`, and build metadata all parse; a prerelease suffix is discarded rather than ordered. That one sentence is the whole of what this wrapper carries about how the child spells its version, and it is the reason a child rewording that line does not break the floor.
+
 The check is scoped to what depends on the child's refresh lock. `token` mode is not blocked by it; unbound requests stop at the mandatory binding gate before this decision. The `doctor` probe still reports version state, but it is voluntary and does not stand in for this precondition.
 
 ## Further reading

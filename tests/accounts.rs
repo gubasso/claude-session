@@ -414,14 +414,13 @@ fn login_launch_below_the_version_floor_refuses_before_exec() {
     let output = harness
         .companion_profile_command()
         .args(["--account", "work", "run"])
-        .env("CS_TEST_VERSION_STDOUT", "2.1.210\n")
+        .env("CS_TEST_VERSION_STDOUT", "2.1.210 (Claude Code)\n")
         .output()
         .expect("wrapper");
     assert_eq!(output.status.code(), Some(69));
     assert!(String::from_utf8_lossy(&output.stderr).contains(concat!(
-        "The resolved `claude` reports 2.1.210, below the 2.1.211 this ",
-        "wrapper is designed against. Upgrade it before using a ",
-        "saved-login account; token mode still works below the floor."
+        "Upgrade claude to 2.1.211 or newer before using a saved-login account. ",
+        "Token accounts are unaffected and still work below that version."
     )));
     assert_eq!(
         &read_nul(&harness.record_dir().join("argv"))[1..],
@@ -439,11 +438,18 @@ fn login_launch_below_the_version_floor_refuses_before_exec() {
         .output()
         .expect("wrapper");
     assert_eq!(output.status.code(), Some(69));
-    assert!(String::from_utf8_lossy(&output.stderr).contains(concat!(
-        "The resolved `claude` reports unavailable, below the 2.1.211 this ",
-        "wrapper is designed against. Upgrade it before using a ",
-        "saved-login account; token mode still works below the floor."
-    )));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("claude's version could not be read"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains(concat!(
+            "Upgrade claude to 2.1.211 or newer before using a saved-login account. ",
+            "Token accounts are unaffected and still work below that version."
+        )),
+        "{stderr}"
+    );
     assert_eq!(
         read_invocations(&harness.record_dir().join("invocations")),
         vec![vec![b"--version".to_vec()]],
@@ -512,7 +518,7 @@ fn login_launch_at_the_floor_writes_marker_then_execs() {
         harness
             .companion_profile_command()
             .args(["--account", "work", "run"])
-            .env("CS_TEST_VERSION_STDOUT", "2.1.211\n")
+            .env("CS_TEST_VERSION_STDOUT", "2.1.211 (Claude Code)\n")
             .status()
             .expect("wrapper")
             .success()
@@ -868,7 +874,7 @@ fn a_token_launch_is_not_blocked_by_the_login_mode_version_floor() {
     let output = harness
         .companion_profile_command()
         .args(["--account", "work", "run"])
-        .env("CS_TEST_VERSION_STDOUT", "2.1.210\n")
+        .env("CS_TEST_VERSION_STDOUT", "2.1.210 (Claude Code)\n")
         .output()
         .expect("launch");
     assert!(

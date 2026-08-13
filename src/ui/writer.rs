@@ -18,10 +18,6 @@ pub(crate) struct OutputWriter;
 ///
 /// [the presentation reference]: ../../docs/reference/presentation.md#colour
 #[derive(Clone, Copy, Debug)]
-// The fields are read through the accessors below, which no renderer calls
-// yet. Slice 012 resolved the decision; applying it belongs to whichever verb
-// first renders a named surface.
-#[allow(dead_code, reason = "no renderer applies the decision yet")]
 pub(crate) struct Color {
     stdout: bool,
     stderr: bool,
@@ -50,12 +46,14 @@ impl Color {
         }
     }
     /// Reports whether standard output carries color.
-    #[allow(dead_code, reason = "no renderer applies the decision yet")]
     pub(crate) const fn stdout(self) -> bool {
         self.stdout
     }
     /// Reports whether standard error carries color.
-    #[allow(dead_code, reason = "no renderer applies the decision yet")]
+    #[allow(
+        dead_code,
+        reason = "the diagnostic renderer applies it in its own slice"
+    )]
     pub(crate) const fn stderr(self) -> bool {
         self.stderr
     }

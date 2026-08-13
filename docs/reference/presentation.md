@@ -12,6 +12,13 @@ Two surfaces are rendered today: the error diagnostic and the composed-output de
 4. One renderer writes it. Every human byte goes through the output writer named in [the stream contract](./logging-and-output.md#the-stream-contract), so colour, `--quiet`, and JSON mode behave identically across verbs instead of being re-decided per command.
 5. Machine output carries no decoration. No `--json` document and no log record contains an escape byte.
 6. The wrapper decorates only what it wrote. The child's bytes pass through unchanged, in appearance as in content.
+7. The human format is written for a person ([ADR-0093](../decisions/ADR-0093-write-every-non-machine-surface-for-a-person.md)). A reader learns what happened, what it costs them, and what to do next, in sentences. Internal identifiers, `key=value` fields, counters, and exit codes belong to the machine format, which already carries every one of them — so removing them from human output loses a caller nothing, and `--json` is where a caller was always meant to look.
+
+Rule 7 is a floor, not a licence: a next action is named only where one exists, and a check that has no honest remedy still says so plainly rather than inventing one. Where rule 7 and rule 1 could disagree, rule 1 wins — an explanation is text, never a colour.
+
+### Wrapping and columns
+
+A renderer that pads or wraps does so at a constant, so rule 3 holds: status words pad to a fixed column, and prose wraps at column 76. Both are the same in a pipe and in a terminal, which is the property the golden tests pin. Reading `COLUMNS` or the terminal size to do either is the thing rule 3 forbids.
 
 ## Colour
 
@@ -50,8 +57,12 @@ The set is closed ([ADR-0082](../decisions/ADR-0082-colour-a-closed-set-of-named
 | The `error[Kind]` token in a diagnostic | stderr                    | Nothing the kind does not already spell         |
 | The level word in the stderr log mirror | stderr                    | Nothing the level does not already spell        |
 | The composed-output delimiter line      | stdout, human format only | Nothing the command name does not already state |
+| The `doctor` status word in a row       | stdout, human format only | Nothing the bracketed word does not already say |
+| The `doctor` scope and summary headings | stdout, human format only | Nothing the heading text does not already say   |
 
-A verb that renders a status word may colour it under the same rule, and its own page names that surface — [doctor](./doctor.md#the-report) does.
+A verb that renders a status word may colour it under the same rule, and its own page names that surface — [doctor](./doctor.md#the-report) does. The two `doctor` rows above are the whole of it: green, yellow, and red follow `pass`, `warn`, and `fail`, a skip is dim, and a heading is bold. Nothing else in a report is coloured, because nothing else would be carrying its own meaning.
+
+Colour is emitted as four-bit SGR by the one renderer. Eight-bit and true-colour sequences buy a shade a terminal may not have, for a decoration rule 1 already says carries nothing.
 
 ## Tables, progress, and prompts
 

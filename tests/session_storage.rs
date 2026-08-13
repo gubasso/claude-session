@@ -71,7 +71,7 @@ fn a_symlinked_managed_component_is_refused_before_its_leaf() {
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(77), "{stderr}");
-    assert!(stderr.contains("storage-paths-no-symlinks"), "{stderr}");
+    assert!(stderr.contains("Move the symbolic link at"), "{stderr}");
     assert!(
         stderr.contains(linked.to_str().expect("utf8")),
         "the diagnostic did not name the link:\n{stderr}"
@@ -216,7 +216,10 @@ fn a_sidecar_digest_mismatch_is_refused_without_overwrite() {
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(65), "{stderr}");
-    assert!(stderr.contains("settings-entry-consistent"), "{stderr}");
+    assert!(
+        stderr.contains("was neither opened nor overwritten"),
+        "{stderr}"
+    );
     assert!(
         stderr.contains(settings.to_str().expect("utf8")),
         "the diagnostic did not name the entry:\n{stderr}"
@@ -295,7 +298,7 @@ fn a_symlinked_partial_pair_survivor_is_refused_before_it_is_replaced() {
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(77), "{stderr}");
-    assert!(stderr.contains("storage-paths-no-symlinks"), "{stderr}");
+    assert!(stderr.contains("Move the symbolic link at"), "{stderr}");
     assert_eq!(
         fs::read_to_string(&elsewhere).expect("target"),
         r#"{"marker":"outside"}"#,
@@ -470,7 +473,10 @@ fn a_wrong_typed_managed_path_is_refused() {
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(77), "{stderr}");
-    assert!(stderr.contains("storage-paths-typed"), "{stderr}");
+    assert!(
+        stderr.contains("Move it aside and let the wrapper"),
+        "{stderr}"
+    );
     assert!(stderr.contains("is a regular file"), "{stderr}");
     assert!(stderr.contains("must be a directory"), "{stderr}");
 }
@@ -669,7 +675,10 @@ fn a_missing_piece_names_the_profile_and_the_path() {
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(66), "{stderr}");
-    assert!(stderr.contains("settings-compose"), "{stderr}");
+    assert!(
+        stderr.contains("does not exist. Create it, correct the name"),
+        "{stderr}"
+    );
     assert!(stderr.contains("work.json"), "{stderr}");
     assert!(stderr.contains("profile work"), "{stderr}");
 }
@@ -690,7 +699,7 @@ fn a_malformed_profile_is_a_data_format_error() {
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(65), "{stderr}");
-    assert!(stderr.contains("settings-profile-valid"), "{stderr}");
+    assert!(stderr.contains("Correct its layer list"), "{stderr}");
     assert!(stderr.contains("work.yaml"), "{stderr}");
 }
 
@@ -707,7 +716,7 @@ fn an_empty_layer_list_is_a_data_format_error() {
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(65), "{stderr}");
-    assert!(stderr.contains("settings-profile-valid"), "{stderr}");
+    assert!(stderr.contains("Correct its layer list"), "{stderr}");
     assert!(stderr.contains("work.yaml"), "{stderr}");
 }
 
@@ -725,7 +734,10 @@ fn a_missing_profile_is_still_a_no_input_error() {
         .expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(66), "{stderr}");
-    assert!(stderr.contains("settings-compose"), "{stderr}");
+    assert!(
+        stderr.contains("does not exist. Create it, correct the name"),
+        "{stderr}"
+    );
 }
 
 /// The one-piece acceptance sentence, whole: deterministic bytes, the private
