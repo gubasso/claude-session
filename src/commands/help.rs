@@ -12,12 +12,14 @@ use crate::{
 
 /// Emits one verb node's parser-derived help as a result.
 ///
-/// Nothing is composed onto it: no verb routed here appears in the child's
-/// inventory — `account` was renamed precisely so the child owns no surface of
-/// that name, and `completion` and `man` are wrapper-only (`cli-surface.md#help`)
-/// — so there is no child help to append. Requested help is a result, which is
-/// why this writes to standard output and completes with `0` rather than
-/// raising `Usage`.
+/// One routed verb composes: `doctor` is the single wrapper verb whose name the
+/// child also owns, so its help carries the child's own after the delimiter,
+/// exactly as the root spelling does (`cli-surface.md#help`). Every other node
+/// appends nothing — `account` was renamed precisely so the child owns no
+/// surface of that name, and the rest are wrapper-only. Requested help is a
+/// result, which is why this writes to standard output and completes with `0`
+/// rather than raising `Usage`, and why an unavailable child costs the section
+/// rather than the status.
 pub(crate) fn verb(
     context: &AppContext,
     verb: &str,
@@ -40,7 +42,30 @@ pub(crate) fn verb(
         .writer()
         .stdout(&bytes)
         .map_err(|error| output_error(&error))?;
+    if let Some(arguments) = child_help(verb, subcommand) {
+        context
+            .writer()
+            .delimiter(&arguments.join(" "))
+            .map_err(|error| output_error(&error))?;
+        let resolved =
+            crate::services::child::invocation(context, arguments.iter().map(Into::into).collect());
+        compose::child_section(context, resolved)?;
+    }
     Ok(DispatchOutcome::Complete(0))
+}
+
+/// The child command whose help this node's help composes, if any.
+///
+/// `doctor` is the one verb name the child also owns
+/// (`cli-surface.md#when-the-child-owns-the-same-name`), so it is the one node
+/// with a second half. The same words spell the delimiter and the child's
+/// argument vector, which is what keeps the delimiter naming the exact command
+/// that produced what follows (`logging-and-output.md#composed-output`).
+const fn child_help(verb: &str, subcommand: Option<&str>) -> Option<&'static [&'static str]> {
+    match (verb.as_bytes(), subcommand) {
+        (b"doctor", None) => Some(&["doctor", "--help"]),
+        _ => None,
+    }
 }
 
 fn render_error(why: &str) -> AppError {

@@ -29,3 +29,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 017 mandatory-session-binding — done — 2 implementation sessions — after 016; makes a bound account and profile the precondition for an exec
 - 018 legacy-coexistence-namespace — done — 2 implementation sessions — after 017; frees every name the shell predecessor claims so both installs can sit on one machine
 - 020 human-first-diagnostics — done — 2 implementation sessions — after 018; landed in one session, and fixed the version reading the report was lying about
+- 021 requested-help-completion — done — 1 implementation session — after 005; makes requested help a result at the two spellings that rung left open

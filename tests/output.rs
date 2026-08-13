@@ -302,3 +302,32 @@ fn a_spawn_failure_names_its_condition_in_place_of_the_section() {
     );
     assert_eq!(output.status.code(), Some(0));
 }
+
+/// `version` is wrapper-only as a verb — the child owns `--version`, not a
+/// `version` subcommand — so its requested help composes nothing
+/// (`docs/reference/cli-surface.md#help`).
+#[test]
+fn requested_version_help_is_a_result_and_composes_nothing() {
+    let harness = Harness::new();
+    let flag = harness
+        .command()
+        .args(["version", "--help"])
+        .output()
+        .expect("version --help runs");
+    let verb = harness
+        .command()
+        .args(["help", "version"])
+        .output()
+        .expect("help version runs");
+    assert_eq!(flag.status.code(), Some(0));
+    assert_eq!(verb.status.code(), Some(0));
+    assert!(!flag.stdout.is_empty());
+    assert_eq!(flag.stdout, verb.stdout);
+    let text = String::from_utf8(flag.stdout).expect("utf-8 help");
+    assert!(text.contains("Usage: claude-session-rs version"), "{text}");
+    assert!(!text.contains("--- claude"), "{text}");
+    assert!(
+        !harness.record_dir().join("argv").exists(),
+        "requested help for version is answered by the wrapper alone"
+    );
+}

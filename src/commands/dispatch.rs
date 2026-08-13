@@ -254,15 +254,27 @@ fn classify_command(
                 InvocationKind::Config { mode }
             })
         }
-        Some(Command::Doctor(value)) => InvocationKind::Doctor {
-            mode: if value.json {
-                OutputMode::Json
+        // Its own arm rather than `classify_report`, because the grammar is
+        // three flags rather than `--json` alone. Requested help is still read
+        // first, for the reason that helper records.
+        Some(Command::Doctor(value)) => {
+            if value.help_flag {
+                InvocationKind::VerbHelp {
+                    verb: "doctor",
+                    subcommand: None,
+                }
             } else {
-                OutputMode::Human
-            },
-            list: value.list,
-            strict: value.strict,
-        },
+                InvocationKind::Doctor {
+                    mode: if value.json {
+                        OutputMode::Json
+                    } else {
+                        OutputMode::Human
+                    },
+                    list: value.list,
+                    strict: value.strict,
+                }
+            }
+        }
         // `help <verb>` prints exactly what `<verb> --help` prints
         // (`cli-surface.md#help`), so it routes to the same renderer.
         Some(Command::Help(value)) => {
@@ -288,13 +300,11 @@ fn classify_command(
                 InvocationKind::Profile { mode }
             })
         }
-        Some(Command::Version(value)) => InvocationKind::Version {
-            mode: if value.json {
-                OutputMode::Json
-            } else {
-                OutputMode::Human
-            },
-        },
+        Some(Command::Version(value)) => {
+            classify_report("version", value.help_flag, value.json, |mode| {
+                InvocationKind::Version { mode }
+            })
+        }
         None => InvocationKind::Passthrough(child),
     })
 }
@@ -341,8 +351,10 @@ const fn help_topic_node(topic: crate::cli::help::HelpTopic) -> &'static str {
         crate::cli::help::HelpTopic::Account => "account",
         crate::cli::help::HelpTopic::Completion => "completion",
         crate::cli::help::HelpTopic::Config => "config",
+        crate::cli::help::HelpTopic::Doctor => "doctor",
         crate::cli::help::HelpTopic::Man => "man",
         crate::cli::help::HelpTopic::Profile => "profile",
+        crate::cli::help::HelpTopic::Version => "version",
     }
 }
 

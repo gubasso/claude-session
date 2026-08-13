@@ -867,3 +867,47 @@ fn full_profile_composition_documentation_matches_the_implemented_grammar() {
         "the README shows the config verb"
     );
 }
+
+/// Requested help is a result — standard output, exit `0` — and both spellings
+/// reach the same renderer (`docs/reference/cli-surface.md#help`). `doctor` is
+/// the one verb name the child also owns, so its help composes the child's own
+/// under the delimiter that names the exact command.
+#[test]
+fn requested_doctor_help_is_a_result_that_composes_the_child() {
+    let harness = Harness::new();
+    // The recording child's `DOCTOR` selector matches the bare verb alone, so
+    // this invocation falls through to the general variable.
+    let flag = harness
+        .command()
+        .args(["doctor", "--help"])
+        .env("CS_TEST_STDOUT", "native doctor help")
+        .output()
+        .expect("doctor --help runs");
+    let verb = harness
+        .command()
+        .args(["help", "doctor"])
+        .env("CS_TEST_STDOUT", "native doctor help")
+        .output()
+        .expect("help doctor runs");
+    assert_eq!(flag.status.code(), Some(0));
+    assert_eq!(verb.status.code(), Some(0));
+    assert_eq!(flag.stdout, verb.stdout);
+    let text = String::from_utf8(flag.stdout).expect("utf-8 help");
+    assert!(text.contains("Usage: claude-session-rs doctor"), "{text}");
+    assert!(
+        text.contains("\n\n--- claude doctor --help ---\n\n"),
+        "{text}"
+    );
+    assert!(text.ends_with("native doctor help"), "{text}");
+}
+
+/// The flag is requested help, never a report mode: a bare verb still runs the
+/// probes and still composes the child's own report.
+#[test]
+fn doctor_without_requested_help_still_reports() {
+    let harness = Harness::new();
+    let output = healthy(&harness).arg("doctor").output().expect("doctor");
+    let text = String::from_utf8(output.stdout).expect("utf-8 report");
+    assert!(!text.contains("Usage: claude-session-rs doctor"), "{text}");
+    assert!(text.contains("\n\n--- claude doctor ---\n\n"), "{text}");
+}

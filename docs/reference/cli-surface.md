@@ -2,7 +2,7 @@
 
 The wrapper's own grammar: what `claude-session` claims, what it forwards, and the parser shape that makes verbatim passthrough work. For the reasoning behind these rules, see [the wrapper model](../explanation/wrapper-model.md).
 
-The passthrough, `help`, `version`, `doctor`, the whole `account` namespace — `login [name]` with `--token`, `--stdin`, and `--minted-at`, plus `list`, `status`, and `remove` with `--yes` — `completion <shell>`, `man`, `profile`, and `config` are implemented, and so is requested help for the `account` namespace, for the two generator verbs, and for both report verbs — `account --help`, `account <subcommand> --help`, `completion --help`, `man --help`, `profile --help`, `config --help`, and the matching `help <verb>` spellings. Requested help for `doctor` and `version` is not yet a result; that gap is tracked as `Q-006` in [open questions](../plan/open-questions.md).
+The passthrough, `help`, `version`, `doctor`, the whole `account` namespace — `login [name]` with `--token`, `--stdin`, and `--minted-at`, plus `list`, `status`, and `remove` with `--yes` — `completion <shell>`, `man`, `profile`, and `config` are implemented, and so is requested help for every verb that answers one on its own — `account --help`, `account <subcommand> --help`, `completion --help`, `man --help`, `profile --help`, `config --help`, `doctor --help`, `version --help`, and the matching `help <verb>` spellings. The `help` verb has no requested help of its own, because a reader asking for it is already reading the composed surface it would describe.
 
 ## Invocation shape
 
@@ -109,11 +109,12 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 
 These spellings are scoped to `doctor` and were measured against the child `doctor` surface recorded in the checked-in inventory.
 
-| Flag       | Meaning                                              | Child status |
-| ---------- | ---------------------------------------------------- | ------------ |
-| `--json`   | Emit one versioned JSON report or list               | Free         |
-| `--list`   | Project catalog metadata without any probes          | Free         |
-| `--strict` | Promote a warning to exit one when otherwise healthy | Free         |
+| Flag           | Meaning                                              | Child status       |
+| -------------- | ---------------------------------------------------- | ------------------ |
+| `--help`, `-h` | Print this verb's help, then the child's             | Collides by design |
+| `--json`       | Emit one versioned JSON report or list               | Free               |
+| `--list`       | Project catalog metadata without any probes          | Free               |
+| `--strict`     | Promote a warning to exit one when otherwise healthy | Free               |
 
 Two verb names overlap the child's, measured against `claude` 2.1.220 on 2026-08-06, and the read-only test in [when the child owns the same name](#when-the-child-owns-the-same-name) resolves each:
 
