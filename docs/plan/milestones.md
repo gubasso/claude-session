@@ -30,3 +30,5 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 018 legacy-coexistence-namespace — done — 2 implementation sessions — after 017; frees every name the shell predecessor claims so both installs can sit on one machine
 - 020 human-first-diagnostics — done — 2 implementation sessions — after 018; landed in one session, and fixed the version reading the report was lying about
 - 021 requested-help-completion — done — 1 implementation session — after 005; makes requested help a result at the two spellings that rung left open
+- 022 account-profile-binding — done — 2 implementation sessions — after 017; landed in one session, and retired three hints naming verbs that never existed
+- 023 human-first-verbs — done — 3 implementation sessions — after 020 and 022; a sweep of every wrapper write widened it past the verbs, and split the log mirror from the log file

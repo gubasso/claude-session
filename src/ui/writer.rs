@@ -64,17 +64,25 @@ impl Color {
 /// The log record and the diagnostic are emitted together so they cannot spell
 /// the same failure two ways. Flushing is the entry point's to order, not this
 /// function's: it only writes.
-pub(crate) fn report(error: &AppError, mode: crate::commands::dispatch::OutputMode) -> u8 {
+pub(crate) fn report(
+    error: &AppError,
+    mode: crate::commands::dispatch::OutputMode,
+    color: Color,
+) -> u8 {
     tracing::error!(
         op = "dispatch",
         status = "err",
         err.kind = error.kind().spelling(),
+        // The diagnostic below says this to the person, in full. The record is
+        // for the log file, so it opts out of the stderr mirror rather than
+        // repeating the same failure in a second shape.
+        mirror = false,
         "wrapper operation failed"
     );
     let writer = OutputWriter::system();
     // A caller asking for JSON asked for it on both streams.
     match mode {
-        crate::commands::dispatch::OutputMode::Human => writer.diagnostic(error),
+        crate::commands::dispatch::OutputMode::Human => writer.diagnostic(error, color),
         crate::commands::dispatch::OutputMode::Json => writer.diagnostic_json(error),
     }
     error.exit_code()
@@ -115,8 +123,9 @@ impl OutputWriter {
         output.flush()
     }
     /// Renders a wrapper diagnostic once on standard error.
-    pub(crate) fn diagnostic(&self, error: &AppError) {
-        let _ = self.stderr(format!("{error}\n").as_bytes());
+    pub(crate) fn diagnostic(&self, error: &AppError, color: Color) {
+        let text = crate::ui::diagnostic::render(error, color.stderr());
+        let _ = self.stderr(text.as_bytes());
     }
     /// Renders the fixed machine error document on standard error.
     pub(crate) fn diagnostic_json(&self, error: &AppError) {

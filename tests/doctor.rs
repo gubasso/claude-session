@@ -4,7 +4,7 @@ mod support;
 
 use support::Harness;
 
-const IDS: [&str; 16] = [
+const IDS: [&str; 17] = [
     "base-dirs-resolve",
     "runtime-dir-present",
     "wrapper-config-parses",
@@ -20,6 +20,7 @@ const IDS: [&str; 16] = [
     "settings-entry-consistent",
     "account-registry-readable",
     "credentials-usable",
+    "account-profile-bound",
     "settings-profile-valid",
 ];
 
@@ -70,7 +71,7 @@ fn doctor_human_report_preserves_catalog_order_and_text_shape() {
         text.contains("  [pass]     Wrapper storage locations"),
         "{text}"
     );
-    assert!(text.contains("16 checks: "), "{text}");
+    assert!(text.contains("17 checks: "), "{text}");
     assert!(
         text.contains("Everything the wrapper needs is in place."),
         "{text}"
@@ -179,7 +180,7 @@ fn one_row_stands_for_a_run_of_checks_and_names_each_id() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        16
+        17
     );
 }
 
@@ -235,12 +236,12 @@ fn doctor_json_report_matches_the_public_catalog() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(value["schema_version"], 1);
     let checks = value["wrapper"]["checks"].as_array().expect("checks");
-    assert_eq!(checks.len(), 16);
+    assert_eq!(checks.len(), 17);
     for (row, id) in checks.iter().zip(IDS) {
         assert_eq!(row["id"], id);
     }
     // Three levels, each stating its own status and code.
-    assert_eq!(value["wrapper"]["summary"]["total"], 16);
+    assert_eq!(value["wrapper"]["summary"]["total"], 17);
     assert_eq!(value["wrapper"]["status"], "pass");
     assert_eq!(value["wrapper"]["summary"]["exit"], 0);
     assert_eq!(value["child"]["status"], "pass");
@@ -301,7 +302,7 @@ fn doctor_list_json_discovers_the_same_catalog() {
         .expect("list");
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     let rows = value["checks"].as_array().expect("checks");
-    assert_eq!(rows.len(), 16);
+    assert_eq!(rows.len(), 17);
     for (row, id) in rows.iter().zip(IDS) {
         assert_eq!(row["id"], id);
         assert!(row.get("status").is_none());
@@ -339,7 +340,7 @@ fn doctor_skips_inapplicable_session_checks_with_reasons() {
         .iter()
         .filter(|row| row["status"] == "skipped")
         .count();
-    assert_eq!(skipped, 10);
+    assert_eq!(skipped, 11);
 }
 
 #[test]
@@ -417,7 +418,7 @@ fn doctor_and_guard_emit_identical_remediation() {
         .as_str()
         .expect("hint");
     assert!(
-        guard_text.contains(hint),
+        support::flowed(&guard_text).contains(&support::flowed(hint)),
         "guard={guard_text}\ndoctor={hint}"
     );
 }
@@ -506,7 +507,7 @@ fn doctor_reports_bootstrap_failures_in_the_requested_mode() {
     assert_eq!(value["wrapper"]["checks"][2]["status"], "fail");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        16
+        17
     );
 }
 

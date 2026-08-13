@@ -72,7 +72,7 @@ pub(crate) fn without_paths(
         verdict,
     )
     .map_or_else(
-        |write_error| crate::ui::writer::report(&write_error, mode),
+        |write_error| crate::ui::writer::report(&write_error, mode, color),
         |()| verdict.exit,
     )
 }
@@ -266,8 +266,8 @@ pub(crate) fn run(
                 results.push(CheckResult::skipped(
                     check,
                     concat!(
-                        "no profile is selected. Choose one with: ",
-                        "claude-session-rs profile use <name>"
+                        "no profile is selected. Bind one to the account with: ",
+                        "claude-session-rs account bind <account> --profile <name>"
                     ),
                 ));
             }

@@ -8,7 +8,7 @@
 use crate::{
     context::AppContext,
     domain::{
-        account::{AccountStatus, AuthMode, AuthModeMetadata, Probe, ReportMode},
+        account::{AccountStatus, AuthMode, AuthModeMetadata, Probe, ReportMode, Warning},
         identifier::Identifier,
         secret::Fingerprint,
     },
@@ -49,12 +49,30 @@ pub(crate) fn project(
         metadata_consistent: None,
         child_login_present: Some(child_login_present),
         child_probe: None,
+        profile: None,
+        profile_present: None,
+        // The layer that supplied this run's profile, which is a fact about
+        // the run rather than about the account, so only the selected account
+        // is the subject of it.
+        profile_source: selected.then(|| context.config().profile_source()),
+        effective_profile: selected
+            .then(|| context.config().profile().cloned())
+            .flatten(),
     };
+    // A safety refusal on the binding leaves by the same door the directory
+    // walk above uses: it says nothing about the credential's health, which is
+    // the only kind of failure this projection is allowed to return.
+    if let Some(binding) = super::bind::read(paths, account)? {
+        let present = super::bind::profile_present(context, &binding.profile);
+        status.profile = Some(binding.profile);
+        status.profile_present = Some(present);
+    }
     let Some(metadata) = metadata else {
         // `invalid` is a report value and never durable metadata: the directory
         // exists but nothing says what it is, which is exactly what the mode
         // this reports means.
         status.warnings = super::launch_warnings(context, account, ReportMode::Invalid);
+        note_missing_profile(&mut status);
         return Ok(status);
     };
     status.recorded_at = Some(metadata.recorded_at.clone());
@@ -70,7 +88,19 @@ pub(crate) fn project(
     // is worded once and a machine consumer of `--json` sees exactly what a
     // human running the launch would have read on standard error.
     status.warnings = super::launch_warnings(context, account, status.mode);
+    note_missing_profile(&mut status);
     Ok(status)
+}
+
+/// Adds the bound-but-absent profile to the warnings the launch would raise.
+///
+/// Appended after the credential warnings rather than mixed into them, because
+/// `launch_warnings` answers one question — which credential wins — and this
+/// answers another.
+fn note_missing_profile(status: &mut AccountStatus) {
+    if status.profile_present == Some(false) {
+        status.warnings.push(Warning::BoundProfileMissing);
+    }
 }
 
 /// Fills in the token-only fields, including the torn-pair case.

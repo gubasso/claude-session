@@ -28,4 +28,4 @@ No last-used profile marker is added. `default_profile` already expresses durabl
 
 Implemented
 
-Supersedes [ADR-0058](./ADR-0058-behave-as-stock-claude-by-default.md). Amends the unbound-launch clauses in [ADR-0031](./ADR-0031-enforce-the-child-refresh-lock-version-floor.md) and [ADR-0050](./ADR-0050-name-the-profile-surface-once.md). Enacted by [the exec sequence](../reference/process-runtime.md#the-exec).
+Amended by [ADR-0096](./ADR-0096-bind-a-profile-to-an-account.md), which keeps the two-axis requirement while replacing the refusal of persisted profile state with a per-account binding. Supersedes [ADR-0058](./ADR-0058-behave-as-stock-claude-by-default.md). Amends the unbound-launch clauses in [ADR-0031](./ADR-0031-enforce-the-child-refresh-lock-version-floor.md) and [ADR-0050](./ADR-0050-name-the-profile-surface-once.md). Enacted by [the exec sequence](../reference/process-runtime.md#the-exec).

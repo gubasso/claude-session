@@ -202,7 +202,10 @@ pub(crate) fn validity_result(
     let (Some(profile), Some(inspected)) = (profile, inspected) else {
         return CheckResult::skipped(
             check,
-            "no profile is selected. Choose one with: claude-session-rs profile use <name>",
+            concat!(
+                "no profile is selected. Bind one to the account with: ",
+                "claude-session-rs account bind <account> --profile <name>"
+            ),
         );
     };
     let path = context.paths().profile_file(profile);

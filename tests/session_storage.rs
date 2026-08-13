@@ -117,11 +117,20 @@ fn an_over_permissive_managed_directory_is_corrected_on_every_invocation() {
             "a correction is a pass, not a failure:\n{stderr}"
         );
         assert_eq!(mode(&account), 0o700, "mode after {drifted:o}");
-        assert!(stderr.contains("storage-directory-modes"), "{stderr}");
+        // The check id and the machine fields moved to the log file; what a
+        // person is told is what happened to their directory (ADR-0093).
         assert!(
-            stderr.contains("status=pass"),
-            "a repair must report pass:\n{stderr}"
+            support::flowed(&stderr).contains(&format!(
+                concat!(
+                    "{} was {:04o}, which is more open than this wrapper's",
+                    " files may be; it has been restricted to 0700"
+                ),
+                account.display(),
+                drifted
+            )),
+            "a repair must say what it did:\n{stderr}"
         );
+        assert!(!stderr.contains("status=pass"), "{stderr}");
     }
 }
 
@@ -474,11 +483,13 @@ fn a_wrong_typed_managed_path_is_refused() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(77), "{stderr}");
     assert!(
-        stderr.contains("Move it aside and let the wrapper"),
+        support::flowed(&stderr).contains("Move it aside and let the wrapper"),
         "{stderr}"
     );
-    assert!(stderr.contains("is a regular file"), "{stderr}");
-    assert!(stderr.contains("must be a directory"), "{stderr}");
+
+    let flowed = support::flowed(&stderr);
+    assert!(flowed.contains("is a regular file"), "{stderr}");
+    assert!(flowed.contains("must be a directory"), "{stderr}");
 }
 
 /// A live process id means a concurrent writer, whose rename the sweep must
@@ -558,7 +569,7 @@ fn an_account_selected_profile_missing_launch_is_refused() {
     assert_eq!(output.status.code(), Some(78), "{stderr}");
     assert!(stderr.contains("error[Config]"), "{stderr}");
     assert!(
-        stderr.contains("account=companion, profile=none"),
+        support::flowed(&stderr).contains("resolved the \"companion\" account but no profile"),
         "{stderr}"
     );
     assert_eq!(
@@ -585,7 +596,10 @@ fn a_fresh_tree_missing_both_bindings_is_refused_without_scaffolding() {
     let output = harness.command().output().expect("wrapper");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(78), "{stderr}");
-    assert!(stderr.contains("account=none, profile=none"), "{stderr}");
+    assert!(
+        support::flowed(&stderr).contains("resolved neither an account nor a profile"),
+        "{stderr}"
+    );
     let profiles = harness.config_base().join("profiles");
     for recovery in [
         "claude-session-rs account login".to_owned(),

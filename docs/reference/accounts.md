@@ -2,7 +2,7 @@
 
 What an account is, how one is selected, and the contract of every `account` subcommand. The design is recorded in [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md), [ADR-0026](../decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md), [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md), [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md), and [ADR-0030](../decisions/ADR-0030-use-account-login-for-wrapper-authentication.md). Paths and permissions live in [XDG storage](./xdg-storage.md).
 
-Both stored modes are implemented, and so are all four subcommands, selection with the last-used marker, local usability reporting, precedence warnings, and credential redaction. The `token_helper` retrieval boundary is the one part of this page that remains normative future design: its argv protocol is unspecified, so the private `oauth-token` file is the only store.
+Both stored modes are implemented, and so are all five subcommands, selection with the last-used marker, local usability reporting, precedence warnings, and credential redaction. The `token_helper` retrieval boundary is the one part of this page that remains normative future design: its argv protocol is unspecified, so the private `oauth-token` file is the only store.
 
 ## What an account is
 
@@ -13,6 +13,8 @@ Each account contains `auth-mode.json`. This metadata is part of that account, n
 - `mode`: `login` or `token`;
 - `recorded_at`: when the selected authentication was recorded;
 - `fingerprint`: `sha256[..8]` of the wrapper-owned token in token mode only.
+
+It also contains `profile.json`, the [bound profile](#the-bound-profile). That is a second file rather than a second field, so rebinding never writes the document whose rename commits a token rotation.
 
 The wrapper owns account selection, mode metadata, and any stored token. The child owns everything below the account's `config/`, including `.credentials.json`. The wrapper never reads, copies, writes, refreshes, synchronizes, or fingerprints a child credential, and caches no child authentication state. `account status` may `stat` the credential path on demand.
 
@@ -30,6 +32,18 @@ The account for an invocation is resolved by the [configuration precedence ladde
 The marker means “the same account as last time”; any explicit selection overrides it. `account status` reports which rung supplied the answer. It records a selection rather than an outcome, so it is written before the launch, which is also the only place it can be written: the wrapper execs the child and observes nothing afterwards ([ADR-0084](../decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md)).
 
 A passthrough launch requires a selected account before authentication state is inspected or injected ([ADR-0090](../decisions/ADR-0090-require-account-and-profile-before-child-launch.md)).
+
+## The bound profile
+
+An account carries the profile it runs with ([ADR-0096](../decisions/ADR-0096-bind-a-profile-to-an-account.md)). The record is the profile name and when it was recorded, and nothing else: a profile document owns everything about what a profile contains.
+
+`account login` establishes it. The name comes from `--profile <name>`, else from the account's existing binding, else from [`default_profile`](./configuration.md#keys); when none of the three answers, the login refuses as `Config` before the child runs and before any directory is made. The report always names the profile and the layer that supplied it, so an account is never created with that choice left implicit.
+
+`account bind <name> --profile <name>` changes it afterwards, because changing which settings an account uses should not cost a browser flow or a pasted token ([ADR-0097](../decisions/ADR-0097-rebind-a-profile-without-re-authenticating.md)). Both halves are checked before anything is written: an unknown account or a profile with no document is `NoInput`, and the previous binding survives.
+
+The binding takes [one rung](./configuration.md#selecting-the-active-profile) in the profile ladder, under the project file and over user configuration. An account with no binding resolves as it did before and is reported as unbound. A binding whose profile document has gone is reported by `account status` as a warning and by `doctor` as `account-profile-bound`; a launch under it refuses as it does for any unresolvable profile.
+
+Composed settings are unaffected: they are keyed by profile and input digest with no account component ([ADR-0064](../decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md)), so two accounts bound to one profile share one entry.
 
 ## Stored modes and launch behavior
 
@@ -111,25 +125,45 @@ Rotation verifies the candidate before it writes anything, and [the metadata ren
 
 ## Commands
 
-| Command                 | Arguments                                                                          | Reports                                                                                     |
-| ----------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `account login [name]`  | optional account; `--token`, `--stdin`, and token-time correction where applicable | Selected mode, account path, and success without credential material                        |
-| `account list`          | —                                                                                  | Every account's mode and local-state usability, and which one is currently selected         |
-| `account status [name]` | named account or selected account                                                  | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing |
-| `account remove <name>` | account; `--yes`                                                                   | Whether local state was removed, and that upstream revocation did not occur                 |
+| Command                 | Arguments                                                                                       | Reports                                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `account login [name]`  | optional account; `--profile`, `--token`, `--stdin`, and token-time correction where applicable | Selected mode, account path, the bound profile and its provenance, and success without credential material |
+| `account list`          | —                                                                                               | Every account's mode and local-state usability, and which one is currently selected                        |
+| `account status [name]` | named account or selected account                                                               | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing                |
+| `account remove <name>` | account; `--yes`                                                                                | Whether local state was removed, and that upstream revocation did not occur                                |
+| `account bind <name>`   | account; `--profile <name>`                                                                     | The account, the profile it is now bound to, and when that was recorded                                    |
 
 Each declares its own `--json`, as [every verb that produces data does](./logging-and-output.md#machine-output). Data goes to standard output; diagnostics and warnings go to standard error, and a confirmation prompt goes to [the controlling terminal](./cli-surface.md#the-predicate). No subcommand ever prints a credential, at any verbosity or in any format.
 
 ## Reports
 
-The [shared document rules](./logging-and-output.md#machine-output) hold for all four: one document per invocation, an absent optional field omitted rather than `null`, and no `schema_version`. Timestamps are RFC 3339 UTC. The human report carries the same fields as labelled lines.
+The [shared document rules](./logging-and-output.md#machine-output) hold for all five: one document per invocation, an absent optional field omitted rather than `null`, and no `schema_version`. Timestamps are RFC 3339 UTC. The human report carries the same facts as sentences rather than as labelled fields, under [presentation rule 7](./presentation.md#the-contract): a fingerprint, a second count, and a probe exit code are in the document above and nowhere else, because a person cannot act on any of the three.
 
-| Subcommand | Always present                                        | Present when applicable                                                                                                                          |
-| ---------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `login`    | `account`, `mode`, `path`, `recorded_at`              | `fingerprint`, `estimated_expiry` — token mode only                                                                                              |
-| `list`     | `accounts[]` of `name`, `mode`, `usable`              | `selected` on the one entry; `selection_source` at the top level                                                                                 |
-| `status`   | `account`, `selected`, `mode`, `usable`, `warnings[]` | `selection_source`, `recorded_at`, `age_seconds`, `estimated_expiry`, `fingerprint`, `metadata_consistent`, `child_login_present`, `child_probe` |
-| `remove`   | `account`, `path`, `removed`                          | `mode`, `marker_cleared` — when something was removed                                                                                            |
+| Subcommand | Always present                                                                           | Present when applicable                                                                                                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `login`    | `account`, `mode`, `path`, `recorded_at`, `profile`, `profile_source`, `profile_present` | `fingerprint`, `estimated_expiry` — token mode only                                                                                                                                              |
+| `list`     | `accounts[]` of `name`, `mode`, `usable`                                                 | `profile` on a bound entry; `selected` on the one entry; `selection_source` at the top level                                                                                                     |
+| `status`   | `account`, `selected`, `mode`, `usable`, `warnings[]`                                    | `profile`, `profile_present`, `profile_source`, `selection_source`, `recorded_at`, `age_seconds`, `estimated_expiry`, `fingerprint`, `metadata_consistent`, `child_login_present`, `child_probe` |
+| `remove`   | `account`, `path`, `removed`                                                             | `mode`, `marker_cleared` — when something was removed                                                                                                                                            |
+| `bind`     | `account`, `profile`, `recorded_at`                                                      | —                                                                                                                                                                                                |
+
+`account status` reads like this, and every other account report follows the same shape — a heading, one row per fact with its status word, and a closing sentence saying what this run would do:
+
+```text
+Account gubasso
+
+  [pass]     This account signs in with a long-lived token this wrapper
+             stores, recorded 82 minutes ago. It is estimated to stop
+             working around 2027-08-13, which is a guess from when it was
+             recorded rather than anything the token itself says.
+  [pass]     It is bound to the "work" profile, and that is what this run
+             would use.
+
+  This is the account a launch would use, because you named it with
+  --account.
+```
+
+A row that is not a pass carries the consequence and the command that fixes it, in the same place. The status word pads to a fixed column and prose wraps at column 76, both constants rather than terminal measurements ([presentation](./presentation.md#wrapping-and-columns)).
 
 Four rules the table does not carry:
 

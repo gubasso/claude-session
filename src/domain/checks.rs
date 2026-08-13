@@ -75,6 +75,7 @@ pub(crate) const CATALOG: &[Check] = &[
     Check::Entry(EntryCheck::Consistent),
     Check::Account(AccountCheck::RegistryReadable),
     Check::Account(AccountCheck::CredentialsUsable),
+    Check::Account(AccountCheck::ProfileBound),
     Check::Entry(EntryCheck::Valid),
 ];
 
@@ -245,6 +246,7 @@ impl Check {
 pub(crate) enum AccountCheck {
     RegistryReadable,
     CredentialsUsable,
+    ProfileBound,
 }
 
 impl AccountCheck {
@@ -252,12 +254,14 @@ impl AccountCheck {
         match self {
             Self::RegistryReadable => "account-registry-readable",
             Self::CredentialsUsable => "credentials-usable",
+            Self::ProfileBound => "account-profile-bound",
         }
     }
     pub(crate) const fn title(self) -> &'static str {
         match self {
             Self::RegistryReadable => "The account list",
             Self::CredentialsUsable => "Sign-in for the selected account",
+            Self::ProfileBound => "The selected account's profile",
         }
     }
     pub(crate) const fn consequence(self) -> &'static str {
@@ -267,12 +271,17 @@ impl AccountCheck {
                 "The selected account cannot sign in, so a launch bound to it would fail \
                 at the child."
             }
+            Self::ProfileBound => {
+                "The selected account names no usable profile, so a launch under it \
+                refuses before the child starts."
+            }
         }
     }
     pub(crate) const fn kind(self) -> ErrorKind {
         match self {
             Self::RegistryReadable => ErrorKind::Io,
             Self::CredentialsUsable => ErrorKind::Auth,
+            Self::ProfileBound => ErrorKind::Config,
         }
     }
     pub(crate) const fn remediation(self) -> &'static str {
@@ -284,6 +293,10 @@ impl AccountCheck {
             Self::CredentialsUsable => {
                 "Run claude-session-rs account login {account} to recreate this account's \
                 stored authentication and its local metadata."
+            }
+            Self::ProfileBound => {
+                "Run claude-session-rs account bind {account} --profile <name> to name the \
+                profile this account runs with."
             }
         }
     }
@@ -892,6 +905,12 @@ mod tests {
             ErrorKind::Auth,
         ),
         (
+            "account-profile-bound",
+            Scope::Session,
+            Severity::Soft,
+            ErrorKind::Config,
+        ),
+        (
             "settings-profile-valid",
             Scope::Session,
             Severity::Hard,
@@ -902,7 +921,7 @@ mod tests {
     #[test]
     fn complete_catalog_metadata_and_order_are_pinned() {
         assert_eq!(CATALOG.len(), FULL_CATALOG.len());
-        assert_eq!(CATALOG.len(), 16);
+        assert_eq!(CATALOG.len(), 17);
         for (check, (id, scope, severity, kind)) in CATALOG.iter().zip(FULL_CATALOG) {
             assert_eq!(
                 (check.id(), check.scope(), check.severity(), check.kind()),

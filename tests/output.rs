@@ -39,34 +39,50 @@ fn json_error_shape() {
     assert!(value.get("child_exit").is_none());
 }
 
-/// The ladder is decided but not yet applied: slice 013 carries it to bytes.
-/// Until then the absence has to be provable rather than assumed, and the
-/// strongest case is the one the ladder resolves to on: an active
-/// `FORCE_COLOR`, which no lower rung can overrule.
+/// Rule 1, at the two surfaces the ladder now decorates: colour is decoration,
+/// so a stream that cannot render it gets the same characters without it, and
+/// the machine document never carries one whatever the environment says.
 #[test]
-fn no_surface_emits_an_escape_byte_yet() {
+fn colour_decorates_the_diagnostic_without_changing_it() {
     let escape = |stream: &[u8]| stream.contains(&0x1b);
     let harness = Harness::new();
-    // A usage failure renders the human diagnostic on standard error.
-    let human = harness
+    let plain = harness.command().arg("--config").output().expect("wrapper");
+    assert!(!escape(&plain.stderr), "a pipe carried an escape");
+    let forced = harness
         .command()
         .arg("--config")
         .env("FORCE_COLOR", "1")
         .output()
         .expect("wrapper");
-    assert!(!escape(&human.stderr), "the diagnostic carried an escape");
-    assert!(!escape(&human.stdout));
-    // The composed delimiter is the only standard-output surface today.
-    let harness = Harness::new();
-    let composed = harness
+    assert!(escape(&forced.stderr), "FORCE_COLOR decorated nothing");
+    assert_eq!(
+        strip(&String::from_utf8_lossy(&forced.stderr)),
+        String::from_utf8_lossy(&plain.stderr),
+        "colour changed a character"
+    );
+    // Machine mode dominates every environment override.
+    let machine = harness
         .command()
-        .arg("--version")
+        .args(["account", "list", "--json"])
         .env("FORCE_COLOR", "1")
-        .env("CS_TEST_STDOUT", "native")
         .output()
         .expect("wrapper");
-    assert!(!escape(&composed.stdout), "the delimiter carried an escape");
-    assert!(!escape(&composed.stderr));
+    assert!(!escape(&machine.stdout), "the document carried an escape");
+    assert!(!escape(&machine.stderr));
+}
+
+/// Removes every SGR sequence, which is the only escape shape emitted.
+fn strip(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(start) = rest.find('\u{1b}') {
+        out.push_str(&rest[..start]);
+        let after = &rest[start..];
+        let end = after.find('m').map_or(after.len(), |index| index + 1);
+        rest = &after[end..];
+    }
+    out.push_str(rest);
+    out
 }
 
 #[test]
@@ -236,7 +252,8 @@ fn a_failing_invocation_records_its_error_in_the_log() {
 /// mirrored nothing, and `--quiet` was parsed and then ignored.
 #[test]
 fn the_verbosity_ladder_governs_the_diagnostic_mirror() {
-    // A resolution failure emits a warning-level record before the error.
+    // A resolution failure renders the diagnostic, whatever the verbosity: the
+    // mirror carries records, and a failure is not one of them.
     let stderr = |args: &[&str]| -> String {
         let harness = Harness::new();
         let output = harness
@@ -252,13 +269,17 @@ fn the_verbosity_ladder_governs_the_diagnostic_mirror() {
     };
     let default = stderr(&[]);
     assert!(
-        default.contains("level=error"),
-        "the default mirror dropped an error record:\n{default}"
+        default.contains("error[ChildNotFound]"),
+        "the default stream dropped the diagnostic:\n{default}"
     );
     let quiet = stderr(&["--quiet"]);
     assert!(
-        !quiet.contains("level=warn") && !quiet.contains("level=info"),
+        !quiet.contains("claude-session-rs: warn:") && !quiet.contains("claude-session-rs: info:"),
         "--quiet mirrored below the error level:\n{quiet}"
+    );
+    assert!(
+        quiet.contains("error[ChildNotFound]"),
+        "--quiet dropped the diagnostic itself:\n{quiet}"
     );
     // The one info record the wrapper emits names a resolution that succeeded,
     // so this case needs the real child rather than the missing one above.
@@ -270,8 +291,13 @@ fn the_verbosity_ladder_governs_the_diagnostic_mirror() {
         .expect("wrapper");
     let verbose = String::from_utf8_lossy(&output.stderr);
     assert!(
-        verbose.contains("level=info") && verbose.contains("op=resolve_child"),
+        verbose.contains("claude-session-rs: info: this run will use the claude at"),
         "--verbose dropped info records:\n{verbose}"
+    );
+    // The mirror is prose; every field the record carries stays in the file.
+    assert!(
+        !verbose.contains("op=resolve_child"),
+        "the mirror still carries machine fields:\n{verbose}"
     );
 }
 
@@ -297,7 +323,7 @@ fn a_spawn_failure_names_its_condition_in_place_of_the_section() {
         "the delimiter was not written:\n{stdout}"
     );
     assert!(
-        stdout.contains("claude unavailable:"),
+        stdout.contains("claude could not be run"),
         "a spawn failure left the section silently empty:\n{stdout}"
     );
     assert_eq!(output.status.code(), Some(0));
@@ -329,5 +355,223 @@ fn requested_version_help_is_a_result_and_composes_nothing() {
     assert!(
         !harness.record_dir().join("argv").exists(),
         "requested help for version is answered by the wrapper alone"
+    );
+}
+
+/// Rule 7, swept rather than argued: every human surface the wrapper writes is
+/// checked for the shapes the rule retires, so a renderer added later cannot
+/// quietly reintroduce one ([ADR-0093]).
+///
+/// [ADR-0093]: ../docs/decisions/ADR-0093-write-every-non-machine-surface-for-a-person.md
+#[test]
+fn no_human_surface_carries_a_machine_shape() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-swept", b"sk-swept");
+    harness.write_piece("work", "{}\n");
+    harness.write_profile("work", "layers:\n  - work\n");
+    harness
+        .assert_command()
+        .args(["account", "bind", "work", "--profile", "work"])
+        .assert()
+        .success();
+    let surfaces = [
+        vec!["account", "list"],
+        vec!["--account", "work", "account", "status", "work"],
+        vec!["--account", "work", "config"],
+        vec!["--account", "work", "profile"],
+        vec!["version"],
+    ];
+    for arguments in surfaces {
+        let output = harness
+            .command()
+            .args(&arguments)
+            .output()
+            .expect("wrapper");
+        let text = String::from_utf8_lossy(&output.stdout);
+        for shape in [
+            "status=",
+            "usable:",
+            "mode:",
+            "recorded_at:",
+            "selection_source:",
+            "digest:",
+            "fingerprint:",
+            "age_seconds",
+            "exit=",
+            "](",
+            "{",
+            "}",
+        ] {
+            assert!(
+                !text.contains(shape),
+                "{arguments:?} wrote the machine shape {shape}:\n{text}"
+            );
+        }
+        // Whatever it wrote, it wrote at the one wrap column. A line over it
+        // holds a single unbreakable word, which the wrap deliberately lets
+        // overflow so a path stays pasteable (`presentation.md`).
+        for line in text.lines() {
+            assert!(
+                line.chars().count() <= 76 || !line.trim().contains(' '),
+                "{arguments:?} exceeded the wrap column:\n{line}"
+            );
+        }
+    }
+    // A diagnostic is a human report too, and it is the one the sweep above
+    // cannot see: it leaves by standard error and only when the verb fails. The
+    // missing-session subject carried `account=..., profile=...` through the
+    // rewrite because nothing here looked at this stream.
+    let failures = [
+        vec!["run"],
+        vec!["--account", "work", "account", "status", "absent"],
+        vec!["account", "bind", "work", "--profile", "absent"],
+    ];
+    for arguments in failures {
+        let output = harness
+            .command()
+            .args(&arguments)
+            .output()
+            .expect("wrapper");
+        assert!(
+            !output.status.success(),
+            "{arguments:?} was expected to fail:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let text = String::from_utf8_lossy(&output.stderr);
+        for shape in ["account=", "profile=", "status=", "exit=", "](", "{", "}"] {
+            assert!(
+                !text.contains(shape),
+                "{arguments:?} wrote the machine shape {shape}:\n{text}"
+            );
+        }
+        assert!(
+            text.contains("What to do:"),
+            "{arguments:?} stated no next action:\n{text}"
+        );
+    }
+}
+
+/// The bargain the rewrite rests on: every identifier, counter, and code the
+/// human form stopped printing is still in the machine document, so a caller
+/// lost nothing by the change ([ADR-0093]).
+///
+/// [ADR-0093]: ../docs/decisions/ADR-0093-write-every-non-machine-surface-for-a-person.md
+#[test]
+fn every_machine_document_still_carries_what_the_human_form_dropped() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-kept", b"sk-kept");
+    harness.write_piece("work", "{}\n");
+    harness.write_profile("work", "layers:\n  - work\n");
+    harness
+        .assert_command()
+        .args(["account", "bind", "work", "--profile", "work"])
+        .assert()
+        .success();
+    let document = |arguments: &[&str]| -> serde_json::Value {
+        let output = harness.command().args(arguments).output().expect("wrapper");
+        serde_json::from_slice(&output.stdout).expect("one document")
+    };
+    let list = document(&["--account", "work", "account", "list", "--json"]);
+    assert_eq!(list["selection_source"], "flag");
+    assert_eq!(list["accounts"][0]["mode"], "token");
+    assert_eq!(list["accounts"][0]["usable"], true);
+    assert_eq!(list["accounts"][0]["profile"], "work");
+    let status = document(&["--account", "work", "account", "status", "work", "--json"]);
+    for field in [
+        "fingerprint",
+        "recorded_at",
+        "age_seconds",
+        "profile_source",
+    ] {
+        assert!(status.get(field).is_some(), "{field} left the document");
+    }
+    let config = document(&["--account", "work", "config", "--json"]);
+    assert!(config["profile"]["entry"]["digest"].is_string());
+    assert_eq!(
+        config["configuration"]["default_profile"]["source"],
+        "account"
+    );
+    let doctor = document(&["--account", "work", "doctor", "--json"]);
+    assert_eq!(doctor["schema_version"], 1);
+    assert!(doctor["wrapper"]["checks"][0]["id"].is_string());
+    assert!(doctor["wrapper"]["summary"]["total"].is_number());
+}
+
+/// Rule 1 across the report surfaces, not only the diagnostic: a pipe gets the
+/// decorated bytes with the escapes taken out, and nothing else differs.
+#[test]
+fn colour_decorates_every_report_without_changing_it() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-coloured", b"sk-coloured");
+    harness.write_piece("work", "{}\n");
+    harness.write_profile("work", "layers:\n  - work\n");
+    harness
+        .assert_command()
+        .args(["account", "bind", "work", "--profile", "work"])
+        .assert()
+        .success();
+    for arguments in [
+        vec!["--account", "work", "account", "list"],
+        vec!["--account", "work", "account", "status", "work"],
+        vec!["--account", "work", "config"],
+        vec!["--account", "work", "profile"],
+    ] {
+        let plain = harness
+            .command()
+            .args(&arguments)
+            .output()
+            .expect("wrapper");
+        let forced = harness
+            .command()
+            .args(&arguments)
+            .env("FORCE_COLOR", "1")
+            .output()
+            .expect("wrapper");
+        assert!(
+            !plain.stdout.contains(&0x1b),
+            "{arguments:?} decorated a pipe"
+        );
+        assert!(
+            forced.stdout.contains(&0x1b),
+            "{arguments:?} decorated nothing under FORCE_COLOR"
+        );
+        assert_eq!(
+            strip(&String::from_utf8_lossy(&forced.stdout)),
+            String::from_utf8_lossy(&plain.stdout),
+            "{arguments:?} changed a character"
+        );
+    }
+}
+
+/// The version report's published example says what the renderer says.
+///
+/// The account status example already had this test; the version report is the
+/// other place a document publishes bytes a renderer produces, and it kept an
+/// example from before the rewrite. The child path differs per machine, so the
+/// sentences are compared and the path inside one is not.
+#[test]
+fn the_published_version_example_matches_the_renderer() {
+    let harness = Harness::new();
+    let output = harness.command().arg("version").output().expect("version");
+    let rendered = support::flowed(&String::from_utf8_lossy(&output.stdout));
+    let document = fs::read_to_string("docs/reference/cli-surface.md").expect("cli-surface.md");
+    let example = document
+        .split("```text\n  This is claude-session-rs")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .expect("the published example");
+    for sentence in ["It wraps the claude at", "--- claude --version ---"] {
+        assert!(
+            support::flowed(example).contains(sentence),
+            "the example dropped: {sentence}"
+        );
+        assert!(
+            rendered.contains(sentence),
+            "the renderer no longer writes: {sentence}\n{rendered}"
+        );
+    }
+    assert!(
+        rendered.contains("This is claude-session-rs"),
+        "the renderer no longer opens with the published sentence:\n{rendered}"
     );
 }

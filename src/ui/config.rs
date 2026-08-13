@@ -1,15 +1,22 @@
 //! Deterministic configuration reports, in both forms.
+//!
+//! `human` writes the sentences; everything below is the machine document.
 
 #![allow(
     clippy::format_push_string,
     reason = "the renderer assembles one deterministic document before its sole write"
 )]
 
+pub(crate) mod human;
+
 use crate::{
     commands::config::Report,
     domain::encoding::with_lossy_sibling,
     error::AppError,
-    ui::writer::{OutputWriter, output_error},
+    ui::{
+        prose::Palette,
+        writer::{Color, OutputWriter, output_error},
+    },
 };
 
 /// Renders the resolved configuration, its files, the active profile, and its
@@ -21,87 +28,15 @@ use crate::{
 pub(crate) fn report(
     writer: &OutputWriter,
     json_mode: bool,
+    color: Color,
     report: &Report,
 ) -> Result<(), AppError> {
     let bytes = if json_mode {
         document(report)?
     } else {
-        text(report)
+        human::report(Palette::new(color.stdout()), report).into_bytes()
     };
     writer.stdout(&bytes).map_err(|error| output_error(&error))
-}
-
-fn text(report: &Report) -> Vec<u8> {
-    let mut out = String::from("configuration\n");
-    for key in &report.configuration {
-        out.push_str(&format!(
-            "  {}: {} [{}]\n",
-            key.name,
-            key.value.as_deref().unwrap_or("unset"),
-            key.source.spelling()
-        ));
-    }
-    out.push_str("files\n");
-    for file in &report.files {
-        out.push_str(&format!(
-            "  {} [{}] {}\n",
-            file.path.display(),
-            file.source.spelling(),
-            if file.existed { "present" } else { "absent" }
-        ));
-    }
-    if let Some(profile) = report.profile.as_ref() {
-        out.push_str("profile\n");
-        out.push_str(&format!("  name: {}\n", profile.name.as_str()));
-        out.push_str(&format!("  path: {}\n", profile.path.display()));
-        for piece in &profile.pieces {
-            out.push_str(&format!(
-                "  piece: {} {}\n",
-                piece.name.as_str(),
-                piece.path.display()
-            ));
-        }
-        for strategy in &profile.strategies {
-            let key = strategy
-                .key
-                .as_ref()
-                .map_or_else(String::new, |key| format!(" key={key}"));
-            out.push_str(&format!(
-                "  strategy: {} {}{key}\n",
-                strategy.pointer, strategy.strategy
-            ));
-        }
-        out.push_str(&format!("  digest: {}\n", profile.digest));
-        out.push_str(&format!("  settings: {}\n", profile.settings.display()));
-        out.push_str(&format!("  provenance: {}\n", profile.provenance.display()));
-        out.push_str(&format!(
-            "  entry: {}\n",
-            if profile.exists {
-                "written"
-            } else {
-                "not yet written"
-            }
-        ));
-    }
-    out.push_str("defects\n");
-    for defect in &report.defects {
-        // A word, never a glyph and never colour standing in for a word.
-        out.push_str(&format!(
-            "  [{}] {} {}\n",
-            defect.status.as_str(),
-            defect.check.id(),
-            defect.reason.as_deref().unwrap_or(defect.message.as_str())
-        ));
-        if let Some(hint) = defect.hint.as_ref() {
-            out.push_str(&format!("    hint: {hint}\n"));
-        }
-    }
-    // The composed entry is one native layer among several, so a reader is told
-    // so here rather than left to infer otherwise
-    // (`configuration.md#where-composition-stops`).
-    out.push_str("note: the composed entry is an additional native settings layer, ");
-    out.push_str("not the child's whole effective configuration\n");
-    out.into_bytes()
 }
 
 /// Renders the profile section, which is omitted when no name resolved.

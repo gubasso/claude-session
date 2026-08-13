@@ -350,7 +350,16 @@ fn correct_mode(path: &Path, facts: PathFacts, expected: Expected) -> Result<(),
                 was = format!("{:04o}", facts.mode),
                 now = format!("{:04o}", expected.mode()),
                 status = "pass",
-                "restricted a wrapper-managed path"
+                // The message carries the whole fact, because the stderr
+                // mirror prints it alone and the fields beside it go only to
+                // the log file ([ADR-0093]).
+                concat!(
+                    "{} was {:04o}, which is more open than this wrapper's files",
+                    " may be; it has been restricted to {:04o}"
+                ),
+                path.display(),
+                facts.mode,
+                expected.mode()
             );
             Ok(())
         }
@@ -377,7 +386,8 @@ fn refuse(
         path = %path.display(),
         status = "fail",
         "err.kind" = check.kind().spelling(),
-        "refused a wrapper-managed path"
+        "{} is not safe for this wrapper to use, so nothing was written to it",
+        path.display()
     );
     AppError::new(check.kind(), check.diagnostic(path, expected, actual, mode))
 }

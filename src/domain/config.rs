@@ -11,6 +11,13 @@ pub(crate) enum Source {
     Default,
     /// The user configuration file supplied the value.
     User,
+    /// The selected account's own binding supplied the value.
+    ///
+    /// Above the user file and below the project file: the binding is the
+    /// account's durable intent, and a project file is a deliberate per-tree
+    /// override of it
+    /// ([ADR-0096](../../docs/decisions/ADR-0096-bind-a-profile-to-an-account.md)).
+    Account,
     /// The project configuration file supplied the value.
     Project,
     /// The process environment supplied the value.
@@ -28,6 +35,7 @@ impl Source {
         match self {
             Self::Default => "default",
             Self::User => "user-config",
+            Self::Account => "account",
             Self::Project => "project-config",
             Self::Environment => "environment",
             Self::Cli => "cli",

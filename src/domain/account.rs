@@ -57,6 +57,19 @@ impl AuthModeMetadata {
     }
 }
 
+/// One account's durable profile binding.
+///
+/// The whole record is the profile it runs with and when that was recorded.
+/// Nothing about the profile's content lives here: this names a profile, and
+/// the profile document owns everything else about it
+/// ([ADR-0096](../../docs/decisions/ADR-0096-bind-a-profile-to-an-account.md)).
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ProfileBinding {
+    pub(crate) profile: Identifier,
+    pub(crate) recorded_at: RecordedAt,
+}
+
 /// Where a token-mode login reads its candidate.
 ///
 /// The two sources are the whole of what the ingest rule permits: a controlling
@@ -178,7 +191,10 @@ impl From<Source> for SelectionSource {
             Source::Cli => Self::Flag,
             Source::Environment => Self::Environment,
             Source::User => Self::UserConfig,
-            Source::Default | Source::Project => Self::None,
+            // Neither layer can supply an account: the project layer is
+            // restricted to the profile key, and the account binding names a
+            // profile rather than an account.
+            Source::Default | Source::Project | Source::Account => Self::None,
         }
     }
 }
@@ -235,6 +251,11 @@ pub(crate) struct AccountFinding {
     pub(crate) mode: ReportMode,
     pub(crate) usable: bool,
     pub(crate) selected: bool,
+    /// The profile this account is bound to, absent when it has none.
+    ///
+    /// Local state alone, like every other field here: reading the binding is
+    /// one file per account and never a child.
+    pub(crate) profile: Option<Identifier>,
 }
 
 /// A credential precedence condition the wrapper reports and never acts on.
@@ -251,6 +272,12 @@ pub(crate) enum Warning {
     Ambient(AmbientCredential),
     /// A stored token shadows a saved login that also exists.
     TokenOverLogin,
+    /// The account is bound to a profile that has no document.
+    ///
+    /// Carries no name, because the report already states which profile the
+    /// account is bound to and a warning that repeated it would be the same
+    /// fact twice.
+    BoundProfileMissing,
 }
 
 impl Warning {
@@ -267,6 +294,12 @@ impl Warning {
             Self::TokenOverLogin => concat!(
                 "the stored token outranks the saved login in this account's",
                 " configuration directory, so the saved login is not used"
+            )
+            .to_owned(),
+            Self::BoundProfileMissing => concat!(
+                "the profile this account is bound to has no document, so a launch",
+                " under this account refuses until the profile exists or the",
+                " account is bound to one that does"
             )
             .to_owned(),
         }
@@ -361,6 +394,27 @@ pub(crate) struct AccountStatus {
     pub(crate) metadata_consistent: Option<bool>,
     pub(crate) child_login_present: Option<bool>,
     pub(crate) child_probe: Option<Probe>,
+    /// The profile this account is bound to.
+    pub(crate) profile: Option<Identifier>,
+    /// Whether that profile has a document.
+    ///
+    /// Absent when the account is unbound, where there is no profile for the
+    /// question to be about.
+    pub(crate) profile_present: Option<bool>,
+    /// Which layer supplied the profile this run would launch under.
+    ///
+    /// Present only for the selected account, for the reason
+    /// `selection_source` is: an account nobody selected is not the subject of
+    /// this run's profile resolution.
+    pub(crate) profile_source: Option<Source>,
+    /// The profile this run would launch under, which is not always the bound
+    /// one: a flag, the environment, and a project file each outrank it.
+    ///
+    /// Paired with `profile_source` and present under the same condition. The
+    /// human report needs it to name the profile that wins rather than only
+    /// asserting that a different one would; the machine document carries the
+    /// binding and the layer, and its field set does not move here.
+    pub(crate) effective_profile: Option<Identifier>,
 }
 
 /// What one removal did.

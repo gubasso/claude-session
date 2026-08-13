@@ -184,14 +184,17 @@ fn account_list_human_and_json_carry_the_same_fields() {
         .output()
         .expect("human list");
     let text = String::from_utf8(human.stdout).expect("text");
-    for field in [
-        "selection_source: flag",
-        "account: work",
-        "mode: login",
-        "usable: true",
-        "selected: true",
+    // The same facts, said rather than labelled: which account, how it signs
+    // in, that it is usable, and which one this run would use and why.
+    for fact in [
+        "work — signs in with a saved login",
+        "[pass]",
+        "This run would use work, because you named it with --account.",
     ] {
-        assert!(text.contains(field), "{field} missing from {text}");
+        assert!(text.contains(fact), "{fact} missing from {text}");
+    }
+    for field in ["selection_source:", "usable:", "mode:", "selected:"] {
+        assert!(!text.contains(field), "{field} survives in {text}");
     }
     let json = harness
         .command()
@@ -210,7 +213,7 @@ fn account_list_human_and_json_carry_the_same_fields() {
 fn native_login_requires_a_controlling_terminal_before_side_effects() {
     let harness = Harness::new();
     let output = harness
-        .detached_command(&["account", "login", "work"])
+        .detached_command(&["account", "login", "work", "--profile", "companion"])
         .output()
         .expect("detached login");
     assert_eq!(
@@ -226,7 +229,7 @@ fn native_login_requires_a_controlling_terminal_before_side_effects() {
 fn native_login_delegates_to_the_child_owned_shared_config() {
     let harness = Harness::new();
     let output = harness
-        .terminal_command("account login work")
+        .terminal_command("account login work --profile companion")
         .env("CS_TEST_CREATE_CREDENTIAL", "1")
         .output()
         .expect("terminal login");
@@ -263,7 +266,7 @@ fn native_login_delegates_to_the_child_owned_shared_config() {
 fn failed_first_native_login_removes_only_the_incomplete_account() {
     let harness = Harness::new();
     let output = harness
-        .terminal_command("account login work")
+        .terminal_command("account login work --profile companion")
         .env("CS_TEST_EXIT", "9")
         .output()
         .expect("terminal login");
@@ -277,7 +280,7 @@ fn failed_repeat_native_login_preserves_the_existing_account() {
     harness.initialize_login("work");
     let before = fs::read(harness.state().join("accounts/work/auth-mode.json")).expect("metadata");
     let output = harness
-        .terminal_command("account login work")
+        .terminal_command("account login work --profile companion")
         .env("CS_TEST_EXIT", "9")
         .output()
         .expect("terminal login");
@@ -302,7 +305,10 @@ fn native_login_json_keeps_child_bytes_off_stdout_and_reports_child_exit() {
     let harness = Harness::new();
     let stdout = harness.root().join("login-success.json");
     let output = harness
-        .terminal_command(&format!("account login work --json > {}", stdout.display()))
+        .terminal_command(&format!(
+            "account login work --profile companion --json > {}",
+            stdout.display()
+        ))
         .env("CS_TEST_CREATE_CREDENTIAL", "1")
         .env("CS_TEST_STDOUT", "child-login-bytes")
         .output()
@@ -321,7 +327,10 @@ fn native_login_json_keeps_child_bytes_off_stdout_and_reports_child_exit() {
     let harness = Harness::new();
     let stdout = harness.root().join("login-failure.json");
     let output = harness
-        .terminal_command(&format!("account login work --json > {}", stdout.display()))
+        .terminal_command(&format!(
+            "account login work --profile companion --json > {}",
+            stdout.display()
+        ))
         .env("CS_TEST_STDOUT", "child-failure-bytes")
         .env("CS_TEST_EXIT", "9")
         .output()
@@ -418,10 +427,19 @@ fn login_launch_below_the_version_floor_refuses_before_exec() {
         .output()
         .expect("wrapper");
     assert_eq!(output.status.code(), Some(69));
-    assert!(String::from_utf8_lossy(&output.stderr).contains(concat!(
-        "Upgrade claude to 2.1.211 or newer before using a saved-login account. ",
-        "Token accounts are unaffected and still work below that version."
-    )));
+    // Compared with the wrap collapsed, because the remediation is now laid
+    // out for a reader rather than emitted as one line.
+    let flowed = String::from_utf8_lossy(&output.stderr)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        flowed.contains(concat!(
+            "Upgrade claude to 2.1.211 or newer before using a saved-login account. ",
+            "Token accounts are unaffected and still work below that version."
+        )),
+        "{flowed}"
+    );
     assert_eq!(
         &read_nul(&harness.record_dir().join("argv"))[1..],
         &[b"--version".to_vec()]
@@ -443,12 +461,13 @@ fn login_launch_below_the_version_floor_refuses_before_exec() {
         stderr.contains("claude's version could not be read"),
         "{stderr}"
     );
+    let flowed = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
-        stderr.contains(concat!(
+        flowed.contains(concat!(
             "Upgrade claude to 2.1.211 or newer before using a saved-login account. ",
             "Token accounts are unaffected and still work below that version."
         )),
-        "{stderr}"
+        "{flowed}"
     );
     assert_eq!(
         read_invocations(&harness.record_dir().join("invocations")),
@@ -544,17 +563,24 @@ fn unselected_passthrough_never_runs_the_version_probe() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(78), "{stderr}");
     assert!(stderr.contains("error[Config]"), "{stderr}");
+    // The subject names what resolved and what did not, in a sentence. It
+    // carried `account=none, profile=companion` until the sweep reached the
+    // diagnostic, which is the one machine shape a human surface may not have.
     assert!(
-        stderr.contains("account=none, profile=companion"),
+        support::flowed(&stderr).contains("resolved the \"companion\" profile but no account"),
         "{stderr}"
     );
+    assert!(!stderr.contains("profile=companion"), "{stderr}");
     assert!(
         stderr.contains("child launch is not bound to a complete session"),
         "{stderr}"
     );
+    // The labelled triple is gone; what a reader needs from it is not.
     for section in ["Where:", "Why:", "Hint:"] {
-        assert!(stderr.contains(section), "missing {section}:\n{stderr}");
+        assert!(!stderr.contains(section), "{section} survives:\n{stderr}");
     }
+    assert!(stderr.contains("What to do:"), "{stderr}");
+    assert!(stderr.contains("This concerns"), "{stderr}");
     assert!(
         stderr.contains("claude-session-rs account login"),
         "{stderr}"
@@ -683,7 +709,7 @@ fn native_login_revalidates_the_account_tree_before_committing() {
     fs::create_dir_all(&elsewhere).expect("fixture");
     fs::write(elsewhere.join(".credentials.json"), b"outside").expect("fixture");
     let output = harness
-        .terminal_command("account login work")
+        .terminal_command("account login work --profile companion")
         .env("CS_TEST_SWAP_CONFIG", &elsewhere)
         .output()
         .expect("terminal login");
@@ -728,7 +754,16 @@ fn token_ingest_from_stdin_commits_the_pair_privately() {
     let harness = Harness::new();
     let output = harness
         .assert_command()
-        .args(["account", "login", "work", "--token", "--stdin", "--json"])
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+            "--json",
+        ])
         .write_stdin("sk-ingest-value\n")
         .output()
         .expect("token login");
@@ -777,7 +812,15 @@ fn the_verification_probe_carries_the_candidate_in_the_environment_only() {
     assert!(
         harness
             .assert_command()
-            .args(["account", "login", "work", "--token", "--stdin"])
+            .args([
+                "account",
+                "login",
+                "work",
+                "--profile",
+                "companion",
+                "--token",
+                "--stdin"
+            ])
             .write_stdin("sk-probe-value\n")
             .output()
             .expect("token login")
@@ -807,7 +850,15 @@ fn a_refused_candidate_commits_nothing_and_removes_a_first_account() {
     let harness = Harness::new();
     let output = harness
         .assert_command()
-        .args(["account", "login", "work", "--token", "--stdin"])
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ])
         .env("CS_TEST_PROBE_EXIT", "1")
         .write_stdin("sk-rejected\n")
         .output()
@@ -834,13 +885,24 @@ fn a_malformed_pasted_token_is_refused_without_quoting_it() {
         let harness = Harness::new();
         let output = harness
             .assert_command()
-            .args(["account", "login", "work", "--token", "--stdin"])
+            .args([
+                "account",
+                "login",
+                "work",
+                "--profile",
+                "companion",
+                "--token",
+                "--stdin",
+            ])
             .write_stdin(input)
             .output()
             .expect("token login");
         assert_eq!(output.status.code(), Some(64), "input {input:?}");
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains(why), "input {input:?}: {stderr}");
+        assert!(
+            stderr.to_lowercase().contains(why),
+            "input {input:?}: {stderr}"
+        );
         assert!(
             !stderr.contains("first"),
             "the diagnostic must not quote the refused input: {stderr}"
@@ -855,7 +917,14 @@ fn a_malformed_pasted_token_is_refused_without_quoting_it() {
 fn token_entry_without_a_terminal_refuses_before_any_side_effect() {
     let harness = Harness::new();
     let output = harness
-        .detached_command(&["account", "login", "work", "--token"])
+        .detached_command(&[
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+        ])
         .output()
         .expect("detached login");
     assert_eq!(output.status.code(), Some(69));
@@ -1087,7 +1156,15 @@ fn the_verification_probe_clears_the_credentials_that_outrank_its_candidate() {
         command.env(variable, "ambient");
     }
     let output = command
-        .args(["account", "login", "work", "--token", "--stdin"])
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ])
         .write_stdin("sk-isolated\n")
         .output()
         .expect("token login");
@@ -1124,7 +1201,7 @@ fn the_verification_probe_clears_the_credentials_that_outrank_its_candidate() {
 fn a_failed_first_login_leaves_an_account_another_run_committed() {
     let harness = Harness::new();
     let output = harness
-        .terminal_command("account login work")
+        .terminal_command("account login work --profile companion")
         .env("CS_TEST_COMMIT_METADATA", "1")
         .env("CS_TEST_EXIT", "1")
         .output()
@@ -1144,7 +1221,7 @@ fn a_failed_first_login_leaves_an_account_another_run_committed() {
 #[test]
 fn a_multi_line_paste_into_the_terminal_is_refused() {
     let harness = Harness::new();
-    let mut command = harness.terminal_command("account login work --token");
+    let mut command = harness.terminal_command("account login work --profile companion --token");
     command
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -1177,7 +1254,9 @@ fn a_multi_line_paste_into_the_terminal_is_refused() {
     child.wait().expect("terminal login");
     let terminal = String::from_utf8_lossy(&transcript);
     assert!(
-        terminal.contains("a token is one line, and more than one arrived"),
+        terminal
+            .to_lowercase()
+            .contains("a token is one line, and more than one arrived"),
         "the second line must be refused rather than silently dropped: {terminal}"
     );
     assert!(
@@ -1216,7 +1295,15 @@ fn removal_leaves_the_lock_sentinel_and_no_visible_account() {
     assert!(
         harness
             .assert_command()
-            .args(["account", "login", "work", "--token", "--stdin"])
+            .args([
+                "account",
+                "login",
+                "work",
+                "--profile",
+                "companion",
+                "--token",
+                "--stdin"
+            ])
             .write_stdin("sk-reused\n")
             .output()
             .expect("token login")
@@ -1235,7 +1322,7 @@ fn removal_leaves_the_lock_sentinel_and_no_visible_account() {
 #[test]
 fn an_interrupt_at_the_token_prompt_cancels_instead_of_killing_the_process() {
     let harness = Harness::new();
-    let mut command = harness.terminal_command("account login work --token");
+    let mut command = harness.terminal_command("account login work --profile companion --token");
     command
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -1258,7 +1345,9 @@ fn an_interrupt_at_the_token_prompt_cancels_instead_of_killing_the_process() {
     let status = child.wait().expect("terminal login");
     let terminal = String::from_utf8_lossy(&transcript);
     assert!(
-        terminal.contains("entry was cancelled at the prompt"),
+        terminal
+            .to_lowercase()
+            .contains("entry was cancelled at the prompt"),
         "the interrupt must be answered rather than signalled: {terminal}"
     );
     assert_eq!(
@@ -1267,4 +1356,301 @@ fn an_interrupt_at_the_token_prompt_cancels_instead_of_killing_the_process() {
         "a cancelled entry is a refusal the wrapper reports, not a death"
     );
     assert!(!harness.state().join("accounts/work").exists());
+}
+
+/// Creating an account is where the profile choice becomes explicit
+/// ([ADR-0096](../docs/decisions/ADR-0096-bind-a-profile-to-an-account.md)), so
+/// the report names the profile and the layer that supplied it whether the user
+/// typed it or a default answered.
+#[test]
+fn a_login_names_the_profile_it_bound_and_where_it_came_from() {
+    let harness = Harness::new();
+    harness.write_piece("companion", "{}\n");
+    harness.write_profile("companion", "layers:\n  - companion\n");
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+            "--json",
+        ])
+        .write_stdin("sk-bound\n")
+        .output()
+        .expect("login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(value["profile"], "companion");
+    assert_eq!(value["profile_source"], "cli");
+    assert_eq!(value["profile_present"], true);
+    let binding: serde_json::Value = serde_json::from_slice(
+        &fs::read(harness.state().join("accounts/work/profile.json")).expect("binding"),
+    )
+    .expect("binding json");
+    assert_eq!(binding["profile"], "companion");
+}
+
+#[test]
+fn a_login_falls_back_to_the_configured_default_and_says_so() {
+    let harness = Harness::new();
+    harness.write_profile("companion", "layers:\n  - companion\n");
+    harness.write_piece("companion", "{}\n");
+    fs::write(
+        harness.config_base().join("config.toml"),
+        "default_profile = \"companion\"\n",
+    )
+    .expect("user config");
+    let output = harness
+        .assert_command()
+        .args(["account", "login", "work", "--token", "--stdin", "--json"])
+        .write_stdin("sk-defaulted\n")
+        .output()
+        .expect("login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(value["profile"], "companion");
+    assert_eq!(value["profile_source"], "user-config");
+}
+
+/// The refusal comes before the child and before any directory is made, so a
+/// login that cannot say which profile it binds costs nothing to retry.
+#[test]
+fn a_login_with_no_profile_anywhere_is_refused_as_configuration() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args(["account", "login", "work", "--token", "--stdin"])
+        .write_stdin("sk-unbound\n")
+        .output()
+        .expect("login");
+    assert_eq!(output.status.code(), Some(78));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--profile"), "{stderr}");
+    assert!(stderr.contains("default_profile"), "{stderr}");
+    assert!(!harness.state().join("accounts/work").exists());
+}
+
+#[test]
+fn binding_records_the_profile_and_every_account_surface_reports_it() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-bound", b"sk-bound");
+    harness.write_profile("companion", "layers:\n  - companion\n");
+    harness.write_piece("companion", "{}\n");
+    harness
+        .assert_command()
+        .args(["account", "bind", "work", "--profile", "companion"])
+        .assert()
+        .success();
+    assert_eq!(list_json(&harness)["accounts"][0]["profile"], "companion");
+    let output = harness
+        .command()
+        .args(["account", "status", "work", "--json"])
+        .output()
+        .expect("status");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(value["profile"], "companion");
+    assert_eq!(value["profile_present"], true);
+}
+
+/// A typo must not unbind a working account, so the name is checked before
+/// anything is written
+/// ([ADR-0097](../docs/decisions/ADR-0097-rebind-a-profile-without-re-authenticating.md)).
+#[test]
+fn binding_a_profile_without_a_document_keeps_the_previous_binding() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-bound", b"sk-bound");
+    harness.write_profile("companion", "layers:\n  - companion\n");
+    harness.write_piece("companion", "{}\n");
+    harness
+        .assert_command()
+        .args(["account", "bind", "work", "--profile", "companion"])
+        .assert()
+        .success();
+    let output = harness
+        .command()
+        .args(["account", "bind", "work", "--profile", "absent"])
+        .output()
+        .expect("bind");
+    assert_eq!(output.status.code(), Some(66));
+    assert_eq!(list_json(&harness)["accounts"][0]["profile"], "companion");
+}
+
+/// The rung sits under the project layer and over user configuration, which is
+/// what makes a per-tree override still win and a global default still lose.
+#[test]
+fn the_binding_outranks_user_configuration_and_yields_to_the_project_layer() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-bound", b"sk-bound");
+    for name in ["bound", "global", "tree"] {
+        harness.write_profile(name, &format!("layers:\n  - {name}\n"));
+        harness.write_piece(name, "{}\n");
+    }
+    fs::write(
+        harness.config_base().join("config.toml"),
+        "default_profile = \"global\"\n",
+    )
+    .expect("user config");
+    harness
+        .assert_command()
+        .args(["account", "bind", "work", "--profile", "bound"])
+        .assert()
+        .success();
+    let profile = |harness: &Harness| -> String {
+        let output = harness
+            .command()
+            .args(["--account", "work", "config", "--json"])
+            .output()
+            .expect("config");
+        let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+        value["profile"]["name"]
+            .as_str()
+            .expect("a resolved profile")
+            .to_owned()
+    };
+    assert_eq!(profile(&harness), "bound");
+    fs::write(
+        harness.root().join(".claude-session-rs.toml"),
+        "default_profile = \"tree\"\n",
+    )
+    .expect("project config");
+    std::process::Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(harness.root())
+        .status()
+        .expect("git init");
+    assert_eq!(profile(&harness), "tree");
+}
+
+#[test]
+fn removing_an_account_takes_its_binding_with_it() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-bound", b"sk-bound");
+    harness.write_profile("companion", "layers:\n  - companion\n");
+    harness.write_piece("companion", "{}\n");
+    harness
+        .assert_command()
+        .args(["account", "bind", "work", "--profile", "companion"])
+        .assert()
+        .success();
+    harness
+        .assert_command()
+        .args(["account", "remove", "work", "--yes"])
+        .assert()
+        .success();
+    assert!(!harness.state().join("accounts/work/profile.json").exists());
+}
+
+/// A bound profile whose document has gone travels as a warning value, like the
+/// shadowing conditions do, rather than as prose only.
+#[test]
+fn a_bound_profile_with_no_document_is_carried_as_data() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-bound", b"sk-bound");
+    harness.write_profile("companion", "layers:\n  - companion\n");
+    harness.write_piece("companion", "{}\n");
+    harness
+        .assert_command()
+        .args(["account", "bind", "work", "--profile", "companion"])
+        .assert()
+        .success();
+    fs::remove_file(harness.config_base().join("profiles/companion.yaml")).expect("profile");
+    let output = harness
+        .command()
+        .args(["account", "status", "work", "--json"])
+        .output()
+        .expect("status");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(value["profile_present"], false);
+    let warnings = value["warnings"].as_array().expect("warnings");
+    assert!(
+        warnings.iter().any(|warning| warning
+            .as_str()
+            .is_some_and(|text| text.contains("no document"))),
+        "{warnings:?}"
+    );
+}
+
+/// A defect states what it costs and what to type next, in sentences, and
+/// names no check id to do it ([ADR-0093]).
+///
+/// [ADR-0093]: ../docs/decisions/ADR-0093-write-every-non-machine-surface-for-a-person.md
+#[test]
+fn an_unbound_account_states_its_consequence_and_the_command_that_fixes_it() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-unbound", b"sk-unbound");
+    let output = harness
+        .command()
+        .args(["--account", "work", "account", "status", "work"])
+        .output()
+        .expect("status");
+    let text = String::from_utf8_lossy(&output.stdout);
+    let flowed = support::flowed(&text);
+    assert!(
+        flowed.contains(
+            "It is bound to no profile, so a launch under it refuses before claude starts."
+        ),
+        "{text}"
+    );
+    assert!(
+        flowed.contains("claude-session-rs account bind work --profile <name>"),
+        "{text}"
+    );
+    assert!(text.contains("[warn]"), "{text}");
+    assert!(!text.contains("account-profile-bound"), "{text}");
+}
+
+/// The published example is the implemented one. Paths and clocks differ per
+/// machine, so the sentences around them are what this pins — the same bargain
+/// the `doctor` documentation test strikes.
+#[test]
+fn the_published_status_example_matches_the_renderer() {
+    let harness = Harness::new();
+    harness.initialize_token("gubasso", b"sk-doc", b"sk-doc");
+    harness.write_piece("work", "{}\n");
+    harness.write_profile("work", "layers:\n  - work\n");
+    harness
+        .assert_command()
+        .args(["account", "bind", "gubasso", "--profile", "work"])
+        .assert()
+        .success();
+    let output = harness
+        .command()
+        .args(["--account", "gubasso", "account", "status", "gubasso"])
+        .output()
+        .expect("status");
+    let rendered = support::flowed(&String::from_utf8_lossy(&output.stdout));
+    let document = fs::read_to_string("docs/reference/accounts.md").expect("accounts.md");
+    let example = document
+        .split("```text\nAccount gubasso")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .expect("the published example");
+    for sentence in [
+        "This account signs in with a long-lived token this wrapper stores",
+        "which is a guess from when it was recorded rather than anything the token itself says",
+        "It is bound to the \"work\" profile, and that is what this run would use.",
+        "This is the account a launch would use, because you named it with --account.",
+    ] {
+        assert!(
+            support::flowed(example).contains(sentence),
+            "the example dropped: {sentence}"
+        );
+        assert!(
+            rendered.contains(sentence),
+            "the renderer no longer writes: {sentence}\n{rendered}"
+        );
+    }
+    assert!(rendered.contains("[pass]"), "{rendered}");
 }

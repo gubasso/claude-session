@@ -51,7 +51,7 @@ One owner states the colour ladder and the closed set of colourful surfaces, and
 - Where no override is active and the destination is a dumb terminal or not a terminal, the wrapper shall resolve colour off. -> ui::writer::tests::a_dumb_or_redirected_destination_fails_closed
 - While the output mode is JSON, the wrapper shall resolve colour off on both streams whatever the environment asked for. -> ui::writer::tests::machine_mode_dominates_every_override
 - The wrapper shall resolve the decision once per destination, so one redirected stream does not decide the other's appearance. -> ui::writer::tests::each_destination_resolves_its_own_terminal_rung
-- While no renderer applies the resolved decision, the wrapper shall write no escape byte on either stream. -> output::no_surface_emits_an_escape_byte_yet
+- Where a renderer applies the resolved decision, the plain bytes shall equal the decorated ones with the escapes stripped, and no machine document shall carry one. -> output::colour_decorates_the_diagnostic_without_changing_it
 - The presentation reference shall state the ladder, the inputs it does not read, and the closed surface set as the single owner of each.
 
 ## Rabbit holes

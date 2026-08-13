@@ -2,7 +2,7 @@
 
 The probe catalog, what each check reads, the remediation it prints, and how a run collapses into one exit code.
 
-The `doctor` verb, its report, `--list`, and `--strict` are implemented over 16 checks.
+The `doctor` verb, its report, `--list`, and `--strict` are implemented over 17 checks.
 
 The catalog below has three consumers and only one of them is an output surface, which is why it lives here rather than in [logging and output](./logging-and-output.md): a reader holding a check id is asking a health question, not a formatting one. That page still owns the streams and the document rules, and [presentation](./presentation.md) owns the appearance rules this one defers to.
 
@@ -45,6 +45,7 @@ Each check has a stable kebab-case id, a scope, a severity, the `err.kind` a fai
 | `settings-entry-consistent` | Session | Hard     | `DataFormat`         | A materialized entry's recorded digest matches the one its inputs recompute                                    | The composed settings entry          |
 | `account-registry-readable` | Session | Soft     | `Io`                 | The account collection can be enumerated safely                                                                | The account list                     |
 | `credentials-usable`        | Session | Soft     | `Auth`               | The selected account has safe metadata and its stored mode's credential artifact                               | Sign-in for the selected account     |
+| `account-profile-bound`     | Session | Soft     | `Config`             | The selected account is bound to a profile, and that profile has a document                                    | The selected account's profile       |
 | `settings-profile-valid`    | Session | Hard     | `DataFormat`         | The resolved profile document, and the array strategy table it declares, are structurally valid and applicable | The profile document                 |
 
 Hard means the wrapper cannot function. Soft means a feature is degraded.
@@ -82,6 +83,7 @@ Both columns are written for a person, per rule 7 of [presentation](./presentati
 | `settings-entry-consistent` | A composed entry changed after it was written, and the wrapper will not hand `claude` a file it cannot vouch for.                               | The entry at `{path}` was neither opened nor overwritten. Move it aside and the next launch composes a fresh one. Please report this: an entry is written once and never rewritten, so something else changed it. |
 | `account-registry-readable` | Accounts cannot be listed, so none of them can be selected.                                                                                     | Make `{path}` a readable, private directory owned by the current user, then run this again.                                                                                                                       |
 | `credentials-usable`        | The selected account cannot sign in, so a launch bound to it would fail at the child.                                                           | Run `claude-session-rs account login {account}` to recreate this account's stored authentication and its local metadata.                                                                                          |
+| `account-profile-bound`     | The selected account names no usable profile, so a launch under it refuses before the child starts.                                             | Run `claude-session-rs account bind {account} --profile <name>` to name the profile this account runs with.                                                                                                       |
 | `settings-profile-valid`    | The profile parsed, but it does not describe a composition the wrapper can carry out.                                                           | The profile at `{path}`, named `{profile}`, is not usable. Correct its layer list or the array strategy it declares, then run the launch again.                                                                   |
 
 On a credential path — `oauth-token`, `auth-mode.json`, or the child's `.credentials.json` — a symlink means something else may have read the secret, so one clause is appended. Only `credentials-usable` appends it today, over the selected account's three credential paths; the wrapper-managed storage checks refuse a link on those paths without it. Ownership, type, and symlink defects on the child-owned credential are reported by `credentials-usable` under its published `Auth` kind, and the diagnostic names the concrete ownership cause:
@@ -151,11 +153,12 @@ Session — the account and profile a launch would use
 
   [skipped]  Not applicable: no account exists yet
              What to do: run claude-session-rs account login <name>
-             checks: account-registry-readable, credentials-usable
+             checks: account-registry-readable, credentials-usable,
+             account-profile-bound
 
 Summary
 
-  16 checks: 12 passed, 1 warning, 3 not applicable.
+  17 checks: 12 passed, 1 warning, 4 not applicable.
   Nothing is blocking a launch; one warning is worth reading.
   claude's own checkup reported no problems.
 ```
@@ -186,7 +189,7 @@ The `Summary` section states the three levels [the three levels](#the-three-leve
         "kind": "ChildNotFound"
       }
     ],
-    "summary": { "total": 16, "passed": 16, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0, "exit": 0 }
+    "summary": { "total": 17, "passed": 17, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0, "exit": 0 }
   },
   "child": { "status": "fail", "output": "…", "exit": 1 },
   "schema_version": 1

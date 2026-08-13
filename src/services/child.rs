@@ -74,7 +74,8 @@ pub(crate) fn resolve<F: FileSystem>(
         status = "ok",
         path = %path.display(),
         source = ?config.child_bin_source(),
-        "resolved child"
+        "this run will use the claude at {}",
+        path.display()
     );
     Ok(path)
 }

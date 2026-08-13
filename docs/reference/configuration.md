@@ -160,7 +160,9 @@ One name, four layers, everywhere the concept appears ([ADR-0050](../decisions/A
 
 ### Selecting the active profile
 
-The flag is `--profile <name>`; the configuration key and its environment spelling are [`default_profile`](#keys).
+The flag is `--profile <name>`; the configuration key and its environment spelling are [`default_profile`](#keys). One rung sits between the project file and user configuration: the selected account's own binding ([ADR-0096](../decisions/ADR-0096-bind-a-profile-to-an-account.md)), which [accounts](./accounts.md#the-bound-profile) owns. So a profile resolves from, in order, the flag, the environment, the project file, the selected account's binding, and user configuration.
+
+The binding is below the project file because a project file is a deliberate per-tree override, and above user configuration because a binding names one account's settings where the user key names everyone's.
 
 With nothing set and no `--profile`, no name is resolved. That remains a valid loader and report state: `config` may report no active profile at exit `0`. A launch is not ready, however, and refuses as `Config` until `--profile` or `default_profile` resolves a name ([ADR-0090](../decisions/ADR-0090-require-account-and-profile-before-child-launch.md)).
 

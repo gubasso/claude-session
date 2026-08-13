@@ -22,14 +22,11 @@ use crate::{
         Summary, Verdict,
     },
     error::{AppError, Diagnostic, ErrorKind},
-    ui::writer::{Color, OutputWriter},
+    ui::{
+        prose::{BODY_INDENT, Palette, plural, wrap},
+        writer::{Color, OutputWriter},
+    },
 };
-
-/// The column prose starts at: two spaces, the widest status word, two spaces.
-const BODY_INDENT: usize = 13;
-/// The column every line wraps at. A constant rather than the terminal width,
-/// so the bytes into a pipe are the bytes into a terminal.
-const WRAP_AT: usize = 76;
 
 fn json_error(error: &serde_json::Error) -> AppError {
     AppError::new(
@@ -41,68 +38,6 @@ fn json_error(error: &serde_json::Error) -> AppError {
             "report this wrapper bug",
         ),
     )
-}
-
-/// Wraps `text` at [`WRAP_AT`], prefixing the first line and the rest apart.
-///
-/// A word longer than the remaining room overflows rather than being broken:
-/// the long words here are filesystem paths, and a path split across two lines
-/// cannot be copied back into a shell.
-fn wrap(text: &str, first_prefix: &str, continuation: &str) -> String {
-    let mut out = String::new();
-    let mut line = first_prefix.to_owned();
-    let mut empty = true;
-    for word in text.split_whitespace() {
-        if !empty && line.chars().count() + 1 + word.chars().count() > WRAP_AT {
-            out.push_str(line.trim_end());
-            out.push('\n');
-            continuation.clone_into(&mut line);
-            empty = true;
-        }
-        if !empty {
-            line.push(' ');
-        }
-        line.push_str(word);
-        empty = false;
-    }
-    if !empty {
-        out.push_str(line.trim_end());
-        out.push('\n');
-    }
-    out
-}
-
-/// The four-bit escapes for the two coloured `doctor` surfaces.
-///
-/// Nothing here carries meaning: the status word already spells the status and
-/// the heading already spells the scope, which is the condition the closed
-/// surface set attaches to a colour ([ADR-0082]).
-///
-/// [ADR-0082]: ../../docs/decisions/ADR-0082-colour-a-closed-set-of-named-surfaces.md
-#[derive(Clone, Copy)]
-struct Palette(bool);
-
-impl Palette {
-    fn status(self, status: CheckStatus) -> String {
-        let token = format!("[{}]", status.as_str());
-        if !self.0 {
-            return token;
-        }
-        let code = match status {
-            CheckStatus::Pass => "32",
-            CheckStatus::Warn => "33",
-            CheckStatus::Fail => "31",
-            CheckStatus::Skipped => "2",
-        };
-        format!("\u{1b}[{code}m{token}\u{1b}[0m")
-    }
-    fn heading(self, text: &str) -> String {
-        if self.0 {
-            format!("\u{1b}[1m{text}\u{1b}[0m")
-        } else {
-            text.to_owned()
-        }
-    }
 }
 
 /// Writes static catalog metadata without observing the host.
@@ -123,7 +58,7 @@ pub(crate) fn list(writer: &OutputWriter, json_mode: bool, color: Color) -> Resu
         bytes.push(b'\n');
         bytes
     } else {
-        let palette = Palette(color.stdout());
+        let palette = Palette::new(color.stdout());
         let mut text = String::new();
         for scope in [Scope::Host, Scope::Session] {
             text.push_str(&palette.heading(scope_heading(scope)));
@@ -220,7 +155,7 @@ pub(crate) fn report(
     if json_mode {
         return json_report(writer, results, summary, child, verdict);
     }
-    let palette = Palette(color.stdout());
+    let palette = Palette::new(color.stdout());
     let mut text = String::new();
     for scope in [Scope::Host, Scope::Session] {
         text.push_str(&palette.heading(scope_heading(scope)));
@@ -259,13 +194,7 @@ fn render_row(row: &Row<'_>, palette: Palette) -> String {
     let prefix = format!("  {token}{pad}");
     let body = " ".repeat(BODY_INDENT);
 
-    let colour = |text: String| {
-        if palette.0 {
-            text.replacen(&token, &palette.status(result.status), 1)
-        } else {
-            text
-        }
-    };
+    let colour = |text: String| palette.recolour(text, result.status);
 
     if result.status == CheckStatus::Pass {
         if result.message.is_empty() {
@@ -382,10 +311,6 @@ fn render_summary(summary: Summary, child: &ChildReport, verdict: Verdict) -> St
     text
 }
 
-const fn plural(count: usize, one: &'static str, many: &'static str) -> &'static str {
-    if count == 1 { one } else { many }
-}
-
 fn json_report(
     writer: &OutputWriter,
     results: &[CheckResult],
@@ -458,24 +383,18 @@ fn json_report(
 mod tests {
     use super::*;
 
-    /// Wrapping is a constant, and a path longer than the room left is not
-    /// broken across lines: a broken path cannot be pasted back into a shell.
+    /// The row layout is this renderer's, even though the wrap is shared: a
+    /// status word pads to the body column whatever the word is.
     #[test]
-    fn prose_wraps_at_a_constant_and_never_splits_a_word() {
-        let long = "a".repeat(90);
-        let wrapped = wrap(&format!("start {long} end"), "  ", "    ");
-        let lines: Vec<&str> = wrapped.lines().collect();
-        assert_eq!(lines[1], format!("    {long}"));
-        assert!(wrapped.lines().all(|line| line.starts_with("  ")));
-        assert_eq!(lines[2], "    end");
-    }
-
-    /// Rule 1: colour is decoration, so stripping it leaves the same text.
-    #[test]
-    fn colour_changes_no_character_of_the_status_word() {
-        let coloured = Palette(true).status(CheckStatus::Warn);
-        assert!(coloured.contains("[warn]"));
-        assert!(coloured.starts_with('\u{1b}'));
-        assert_eq!(Palette(false).status(CheckStatus::Warn), "[warn]");
+    fn every_status_word_pads_to_the_one_body_column() {
+        for status in [
+            CheckStatus::Pass,
+            CheckStatus::Warn,
+            CheckStatus::Fail,
+            CheckStatus::Skipped,
+        ] {
+            let token = Palette::new(false).status(status);
+            assert!(token.chars().count() + 2 <= BODY_INDENT, "{token}");
+        }
     }
 }

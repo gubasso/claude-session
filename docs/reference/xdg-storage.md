@@ -33,6 +33,7 @@ Every artifact has one writer.
 | Profiles                 | Config | `profiles/<profile>.yaml`                       | User                                                 | `0644`                         | Until changed                         |
 | Account directory        | State  | `accounts/<account>/`                           | Account subsystem                                    | `0700`                         | Until account removal                 |
 | Auth-mode metadata       | State  | `accounts/<account>/auth-mode.json`             | Account subsystem                                    | `0600`                         | Until mode replacement                |
+| Profile binding          | State  | `accounts/<account>/profile.json`               | Account subsystem                                    | `0600`                         | Until rebinding or account removal    |
 | Local OAuth token        | State  | `accounts/<account>/oauth-token`                | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
 | Native account config    | State  | `accounts/<account>/config/`                    | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
 | Native saved login       | State  | `accounts/<account>/config/.credentials.json`   | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |

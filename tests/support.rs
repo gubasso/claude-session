@@ -503,3 +503,13 @@ pub(crate) fn bytes(value: &OsStr) -> &[u8] {
     use std::os::unix::ffi::OsStrExt;
     value.as_bytes()
 }
+
+/// Collapses a human report's wrapping, so an assertion can name a sentence
+/// without also encoding where the renderer chose to break it.
+///
+/// The wrap column is a constant the renderer pins in its own unit test
+/// (`presentation.md`); repeating it in every integration assertion would make
+/// each of them a second, weaker copy of that test.
+pub(crate) fn flowed(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}

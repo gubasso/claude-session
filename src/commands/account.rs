@@ -17,6 +17,7 @@ pub(crate) fn list(context: &AppContext) -> Result<DispatchOutcome, AppError> {
     crate::ui::account::list(
         context.writer(),
         context.output_mode() == OutputMode::Json,
+        context.color(),
         context.account_selection().source(),
         &accounts,
     )?;
@@ -39,6 +40,7 @@ pub(crate) fn status(
     crate::ui::account::status(
         context.writer(),
         context.output_mode() == OutputMode::Json,
+        context.color(),
         &status,
     )?;
     Ok(DispatchOutcome::Complete(0))
@@ -70,6 +72,7 @@ pub(crate) fn remove(
         crate::ui::account::removal(
             context.writer(),
             context.output_mode() == OutputMode::Json,
+            context.color(),
             &declined,
         )?;
         return Ok(DispatchOutcome::Complete(0));
@@ -84,6 +87,7 @@ pub(crate) fn remove(
     crate::ui::account::removal(
         context.writer(),
         context.output_mode() == OutputMode::Json,
+        context.color(),
         &removal,
     )?;
     crate::ui::account::removal_consequences(context.writer(), &removal);
@@ -116,8 +120,13 @@ fn confirm(context: &AppContext, account: &Identifier) -> Result<bool, AppError>
         }
         Err(error) => return Err(unavailable(error.to_string())),
     }
+    // The question a person is answering, with what it costs them stated
+    // before they answer it rather than after.
     let prompt = format!(
-        "Remove account '{}' and all of its local state? [y/N] ",
+        concat!(
+            "This deletes everything this wrapper stored for \"{}\", and revokes",
+            " nothing at the provider.\nRemove it? [y/N] "
+        ),
         account.as_str()
     );
     let answer = context
@@ -126,6 +135,66 @@ fn confirm(context: &AppContext, account: &Identifier) -> Result<bool, AppError>
         .ask(&prompt)
         .map_err(|error| unavailable(error.to_string()))?;
     Ok(crate::domain::consent::decide(answer.as_deref()).granted())
+}
+
+/// Binds one account to the profile it runs with.
+///
+/// Its own verb rather than a re-login, because changing which settings an
+/// account uses should not cost a browser flow or a pasted token
+/// ([ADR-0097](../../docs/decisions/ADR-0097-rebind-a-profile-without-re-authenticating.md)).
+pub(crate) fn bind(
+    context: &AppContext,
+    account: &Identifier,
+    profile: &Identifier,
+) -> Result<DispatchOutcome, AppError> {
+    let binding = crate::services::account::bind::perform(context, account, profile)?;
+    crate::ui::account::binding(
+        context.writer(),
+        context.output_mode() == OutputMode::Json,
+        context.color(),
+        account,
+        &binding,
+    )?;
+    Ok(DispatchOutcome::Complete(0))
+}
+
+/// Resolves the profile a login binds the account to, and where it came from.
+///
+/// Three rungs, refusing rather than guessing at the end of them: an account
+/// created without a profile is the state this slice exists to remove, so the
+/// refusal names both ways to supply one instead of leaving the choice implicit.
+fn login_profile(
+    context: &AppContext,
+    account: &Identifier,
+    requested: Option<Identifier>,
+) -> Result<(Identifier, crate::domain::config::Source), AppError> {
+    use crate::domain::config::Source;
+    if let Some(profile) = requested {
+        return Ok((profile, Source::Cli));
+    }
+    if let Some(binding) = crate::services::account::bind::read(context.paths(), account)? {
+        return Ok((binding.profile, Source::Account));
+    }
+    context.config().profile().cloned().map_or_else(
+        || {
+            Err(AppError::new(
+                ErrorKind::Config,
+                Diagnostic::new(
+                    "account login needs a profile",
+                    "account login",
+                    concat!(
+                        "no profile was given, this account has no binding, and no",
+                        " default_profile is configured"
+                    ),
+                    concat!(
+                        "pass --profile <name>, or set default_profile in your",
+                        " configuration file"
+                    ),
+                ),
+            ))
+        },
+        |profile| Ok((profile, context.config().profile_source())),
+    )
 }
 
 /// Logs in, in whichever mode was requested.
@@ -138,6 +207,7 @@ pub(crate) fn login(
     context: &AppContext,
     name: Option<Identifier>,
     token: Option<TokenIngest>,
+    profile: Option<Identifier>,
 ) -> Result<DispatchOutcome, AppError> {
     let account = name
         .or_else(|| context.account_selection().account().cloned())
@@ -152,6 +222,10 @@ pub(crate) fn login(
                 ),
             )
         })?;
+    // Before the child and before any directory is made: a login that cannot
+    // say which profile the account runs with is refused while refusing is
+    // still free.
+    let profile = login_profile(context, &account, profile)?;
     let program = crate::services::child::program(context)?;
     let directory = context.paths().account(&account);
     let existed = SystemFileSystem::look(&directory)
@@ -168,8 +242,8 @@ pub(crate) fn login(
         })?
         .is_some();
     let result = match token {
-        Some(request) => token_login(context, &account, &directory, &program, &request),
-        None => native_login(context, &account, &directory, program),
+        Some(request) => token_login(context, &account, &directory, &program, &request, &profile),
+        None => native_login(context, &account, &directory, program, &profile),
     };
     if result.is_err() && !existed && !crate::services::account::committed(context, &account) {
         // Removal is part of the failed first login (accounts.md), so a
@@ -207,6 +281,7 @@ fn token_login(
     directory: &std::path::Path,
     program: &std::path::Path,
     request: &TokenIngest,
+    profile: &(Identifier, crate::domain::config::Source),
 ) -> Result<DispatchOutcome, AppError> {
     use crate::services::account::token;
     // The configuration directory exists before the probe, because the probe
@@ -224,14 +299,76 @@ fn token_login(
         &candidate,
         token::recorded_at(context, request),
     )?;
+    let binding = commit_binding(context, account, profile)?;
     crate::ui::account::login(
         context.writer(),
         context.output_mode() == OutputMode::Json,
         account.as_str(),
         directory,
         &metadata,
+        &binding,
+        context.color(),
     )?;
     Ok(DispatchOutcome::Complete(0))
+}
+
+/// Records the profile this login bound, and how the report should say so.
+///
+/// Written after the authentication commits, so a failed login never leaves a
+/// binding behind for an account that does not exist, and never replaces a
+/// working account's binding with one whose login went on to fail.
+///
+/// That order has one cost, and the diagnostic below is what pays it: the
+/// credential is already durable when this runs, so a failure here leaves an
+/// account that authenticated and did not record its profile. Removing the
+/// account over it would destroy a credential the user just proved, and the
+/// state is one the wrapper already reports and already repairs — an unbound
+/// account. So the refusal says what survived and names the verb that finishes
+/// the job, rather than reporting a bare write failure whose next action would
+/// send the reader to the wrong place.
+fn commit_binding(
+    context: &AppContext,
+    account: &Identifier,
+    profile: &(Identifier, crate::domain::config::Source),
+) -> Result<crate::ui::account::Binding, AppError> {
+    use crate::services::account::bind;
+    let (name, source) = profile;
+    let binding = crate::domain::account::ProfileBinding {
+        profile: name.clone(),
+        recorded_at: crate::domain::account::RecordedAt::new_unchecked(
+            crate::adapters::clock::rfc3339_utc(crate::adapters::clock::Clock::now(
+                &context.adapters().clock(),
+            )),
+        ),
+    };
+    // Under the account lock, as every other write to an account is: a login
+    // racing a rebind must not interleave the two, or the account ends up
+    // authenticated by one and bound by the other.
+    let write = crate::services::account::hold(context, account)
+        .and_then(|_lock| bind::write(context, account, &binding));
+    if let Err(error) = write {
+        let mut diagnostic = error.diagnostic().clone();
+        "account authenticated but its profile was not recorded".clone_into(&mut diagnostic.what);
+        diagnostic.why = format!(
+            concat!(
+                "{}. The credential for \"{}\" is stored and usable, so this login",
+                " is not being undone; only the profile binding is missing"
+            ),
+            diagnostic.why.trim_end_matches('.'),
+            account.as_str()
+        );
+        diagnostic.hint = format!(
+            "run claude-session-rs account bind {} --profile {}",
+            account.as_str(),
+            name.as_str()
+        );
+        return Err(AppError::new(error.kind(), diagnostic));
+    }
+    Ok(crate::ui::account::Binding {
+        profile: name.clone(),
+        source: *source,
+        present: bind::profile_present(context, name),
+    })
 }
 
 #[allow(
@@ -243,6 +380,7 @@ fn native_login(
     account: &Identifier,
     directory: &std::path::Path,
     program: std::path::PathBuf,
+    profile: &(Identifier, crate::domain::config::Source),
 ) -> Result<DispatchOutcome, AppError> {
     let account = account.clone();
     match context.adapters().terminal().available() {
@@ -299,12 +437,15 @@ fn native_login(
     match (outcome, committable) {
         (Ok(ChildOutcome::Exited(0)), Ok(true)) => {
             crate::services::account::write_login_metadata(context, &account).and_then(|metadata| {
+                let binding = commit_binding(context, &account, profile)?;
                 crate::ui::account::login(
                     context.writer(),
                     context.output_mode() == OutputMode::Json,
                     account.as_str(),
                     directory,
                     &metadata,
+                    &binding,
+                    context.color(),
                 )?;
                 Ok(DispatchOutcome::Complete(0))
             })

@@ -1,17 +1,31 @@
-//! Deterministic account human and JSON reports.
+//! Deterministic account reports, in both forms.
+//!
+//! The two forms have two audiences and one source. `human` writes the sentences
+//! a person reads; everything below is the machine document, whose field set is
+//! what makes those sentences affordable to change.
 
 #![allow(
     clippy::format_push_string,
     reason = "the renderer assembles one deterministic document before its sole write"
 )]
 
+pub(crate) mod human;
+
 use crate::{
     domain::{
-        account::{AccountFinding, AccountStatus, AuthModeMetadata, Removal, SelectionSource},
+        account::{
+            AccountFinding, AccountStatus, AuthModeMetadata, ProfileBinding, Removal,
+            SelectionSource,
+        },
+        config::Source,
+        identifier::Identifier,
         secret::Fingerprint,
     },
     error::AppError,
-    ui::writer::{OutputWriter, output_error},
+    ui::{
+        prose::Palette,
+        writer::{Color, OutputWriter, output_error},
+    },
 };
 
 /// Encodes one report document, naming the surface that failed.
@@ -41,12 +55,44 @@ fn optional(target: &mut serde_json::Value, key: &str, value: Option<serde_json:
     }
 }
 
+/// The profile a login bound, and how the report should say where it came from.
+pub(crate) struct Binding {
+    pub(crate) profile: Identifier,
+    pub(crate) source: Source,
+    pub(crate) present: bool,
+}
+
+/// Renders one account's new profile binding.
+pub(crate) fn binding(
+    writer: &OutputWriter,
+    json_mode: bool,
+    color: Color,
+    account: &Identifier,
+    binding: &ProfileBinding,
+) -> Result<(), AppError> {
+    let bytes = if json_mode {
+        document(
+            &serde_json::json!({
+                "account": account.as_str(),
+                "profile": binding.profile.as_str(),
+                "recorded_at": binding.recorded_at.as_str(),
+            }),
+            "account bind document",
+        )?
+    } else {
+        human::binding(Palette::new(color.stdout()), account, binding).into_bytes()
+    };
+    writer.stdout(&bytes).map_err(|error| output_error(&error))
+}
+
 pub(crate) fn login(
     writer: &OutputWriter,
     json_mode: bool,
     account: &str,
     path: &std::path::Path,
     metadata: &AuthModeMetadata,
+    binding: &Binding,
+    color: Color,
 ) -> Result<(), AppError> {
     let fingerprint = metadata.token_fingerprint().map(Fingerprint::as_str);
     let expiry = metadata
@@ -58,24 +104,22 @@ pub(crate) fn login(
             "mode": metadata.mode.spelling(),
             "path": path.display().to_string(),
             "recorded_at": metadata.recorded_at.as_str(),
+            "profile": binding.profile.as_str(),
+            "profile_source": binding.source.spelling(),
+            "profile_present": binding.present,
         });
         optional(&mut value, "fingerprint", fingerprint.map(Into::into));
         optional(&mut value, "estimated_expiry", expiry.map(Into::into));
         document(&value, "account login document")?
     } else {
-        let mut text = format!(
-            "account: {account}\nmode: {}\npath: {}\nrecorded_at: {}\n",
-            metadata.mode.spelling(),
-            path.display(),
-            metadata.recorded_at.as_str()
-        );
-        if let Some(fingerprint) = fingerprint {
-            text.push_str(&format!("fingerprint: {fingerprint}\n"));
-        }
-        if let Some(expiry) = expiry {
-            text.push_str(&format!("estimated_expiry: {expiry}\n"));
-        }
-        text.into_bytes()
+        human::login(
+            Palette::new(color.stdout()),
+            account,
+            path,
+            metadata,
+            binding,
+        )
+        .into_bytes()
     };
     writer.stdout(&bytes).map_err(|error| output_error(&error))
 }
@@ -87,6 +131,7 @@ pub(crate) fn login(
 pub(crate) fn status(
     writer: &OutputWriter,
     json_mode: bool,
+    color: Color,
     status: &AccountStatus,
 ) -> Result<(), AppError> {
     let warnings: Vec<String> = status
@@ -97,7 +142,7 @@ pub(crate) fn status(
     let bytes = if json_mode {
         status_document(status, &warnings)?
     } else {
-        status_text(status, &warnings)
+        human::status(Palette::new(color.stdout()), status).into_bytes()
     };
     writer.stdout(&bytes).map_err(|error| output_error(&error))
 }
@@ -118,6 +163,21 @@ fn status_document(status: &AccountStatus, warnings: &[String]) -> Result<Vec<u8
             status
                 .selection_source
                 .map(|source| source.spelling().into()),
+        );
+        optional(
+            &mut value,
+            "profile",
+            status.profile.as_ref().map(|name| name.as_str().into()),
+        );
+        optional(
+            &mut value,
+            "profile_present",
+            status.profile_present.map(Into::into),
+        );
+        optional(
+            &mut value,
+            "profile_source",
+            status.profile_source.map(|source| source.spelling().into()),
         );
         optional(
             &mut value,
@@ -162,54 +222,11 @@ fn status_document(status: &AccountStatus, warnings: &[String]) -> Result<Vec<u8
     }
 }
 
-/// The status report's human form, carrying the same fields as labelled lines.
-fn status_text(status: &AccountStatus, warnings: &[String]) -> Vec<u8> {
-    {
-        let mut text = format!(
-            "account: {}\nselected: {}\nmode: {}\nusable: {}\n",
-            status.account.as_str(),
-            status.selected,
-            status.mode.spelling(),
-            status.usable
-        );
-        if let Some(source) = status.selection_source {
-            text.push_str(&format!("selection_source: {}\n", source.spelling()));
-        }
-        if let Some(at) = &status.recorded_at {
-            text.push_str(&format!("recorded_at: {}\n", at.as_str()));
-        }
-        if let Some(age) = status.age_seconds {
-            text.push_str(&format!("age_seconds: {age}\n"));
-        }
-        if let Some(expiry) = &status.estimated_expiry {
-            text.push_str(&format!("estimated_expiry: {expiry}\n"));
-        }
-        if let Some(fingerprint) = &status.fingerprint {
-            text.push_str(&format!("fingerprint: {}\n", fingerprint.as_str()));
-        }
-        if let Some(consistent) = status.metadata_consistent {
-            text.push_str(&format!("metadata_consistent: {consistent}\n"));
-        }
-        if let Some(present) = status.child_login_present {
-            text.push_str(&format!("child_login_present: {present}\n"));
-        }
-        if let Some(probe) = status.child_probe {
-            text.push_str(&format!("child_probe: {}\n", probe.status.spelling()));
-            if let Some(code) = probe.exit_code {
-                text.push_str(&format!("child_probe_exit_code: {code}\n"));
-            }
-        }
-        for warning in warnings {
-            text.push_str(&format!("warning: {warning}\n"));
-        }
-        text.into_bytes()
-    }
-}
-
 /// Renders what one removal did, or that nothing was removed.
 pub(crate) fn removal(
     writer: &OutputWriter,
     json_mode: bool,
+    color: Color,
     removal: &Removal,
 ) -> Result<(), AppError> {
     let bytes = if json_mode {
@@ -230,19 +247,7 @@ pub(crate) fn removal(
         );
         document(&value, "account remove document")?
     } else {
-        let mut text = format!(
-            "account: {}\npath: {}\nremoved: {}\n",
-            removal.account.as_str(),
-            removal.path.display(),
-            removal.removed
-        );
-        if let Some(mode) = removal.mode {
-            text.push_str(&format!("mode: {}\n", mode.spelling()));
-        }
-        if let Some(cleared) = removal.marker_cleared {
-            text.push_str(&format!("marker_cleared: {cleared}\n"));
-        }
-        text.into_bytes()
+        human::removal(Palette::new(color.stdout()), removal).into_bytes()
     };
     writer.stdout(&bytes).map_err(|error| output_error(&error))
 }
@@ -293,6 +298,7 @@ pub(crate) fn removal_consequences(writer: &OutputWriter, removal: &Removal) {
 pub(crate) fn list(
     writer: &OutputWriter,
     json_mode: bool,
+    color: Color,
     source: SelectionSource,
     accounts: &[AccountFinding],
 ) -> Result<(), AppError> {
@@ -305,6 +311,11 @@ pub(crate) fn list(
                     "mode": account.mode.spelling(),
                     "usable": account.usable,
                 });
+                optional(
+                    &mut value,
+                    "profile",
+                    account.profile.as_ref().map(|name| name.as_str().into()),
+                );
                 if account.selected {
                     value["selected"] = serde_json::Value::Bool(true);
                 }
@@ -328,19 +339,7 @@ pub(crate) fn list(
         bytes.push(b'\n');
         bytes
     } else {
-        let mut text = format!("selection_source: {}\n", source.spelling());
-        for account in accounts {
-            text.push_str(&format!(
-                "account: {}\nmode: {}\nusable: {}\n",
-                account.name.as_str(),
-                account.mode.spelling(),
-                account.usable
-            ));
-            if account.selected {
-                text.push_str("selected: true\n");
-            }
-        }
-        text.into_bytes()
+        human::list(Palette::new(color.stdout()), source, accounts).into_bytes()
     };
     writer.stdout(&bytes).map_err(|error| output_error(&error))
 }

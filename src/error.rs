@@ -340,22 +340,13 @@ impl From<ConfigError> for AppError {
     }
 }
 
+/// One wording for the human diagnostic, undecorated.
+///
+/// Delegated to the renderer so the stream write and any other reader of a
+/// failure cannot spell the same failure two ways.
 impl fmt::Display for AppError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let diagnostic = self.diagnostic();
-        write!(
-            formatter,
-            "claude-session-rs: error[{}]: {}\nWhere: {}\nWhy: {}\nHint: {}",
-            self.kind().spelling(),
-            diagnostic.what,
-            diagnostic.where_,
-            diagnostic.why,
-            diagnostic.hint
-        )?;
-        if let Some(code) = diagnostic.child_exit {
-            write!(formatter, "\nChild exit: {code}")?;
-        }
-        Ok(())
+        formatter.write_str(crate::ui::diagnostic::render(self, false).trim_end())
     }
 }
 

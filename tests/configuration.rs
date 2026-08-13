@@ -467,10 +467,25 @@ fn config_json_and_human_reports_carry_the_same_facts() {
                 .command()
                 .args(["--profile", "dev", "config", "--json"]),
         );
-    assert!(text.contains("default_profile: dev [cli]"), "{text}");
-    assert!(text.contains("piece: base"), "{text}");
+    let flowed = support::flowed(&text);
+    // The same facts, said rather than labelled: the resolved value, the layer
+    // that supplied it, and the pieces the profile composes (ADR-0093).
     assert!(
-        text.contains(
+        flowed.contains("default_profile is dev, from the command line."),
+        "{text}"
+    );
+    assert!(
+        flowed.contains("It composes one settings piece, in the order it lists them: base."),
+        "{text}"
+    );
+    for field in ["default_profile:", "piece:", "digest:", "[cli]"] {
+        assert!(!text.contains(field), "{field} survives in {text}");
+    }
+    // The full digest is machine data: a person cannot act on it, and the
+    // machine document carries it. The path it keys, which a person can open,
+    // is what the human form names instead.
+    assert!(
+        !text.contains(
             document["profile"]["entry"]["digest"]
                 .as_str()
                 .expect("digest")
@@ -485,16 +500,21 @@ fn config_json_and_human_reports_carry_the_same_facts() {
         ),
         "{text}"
     );
+    // A check id belongs to the machine document, which carries every one of
+    // them; the human form carries the reason and the next action instead.
     for defect in document["defects"].as_array().expect("defects") {
-        assert!(
-            text.contains(defect["id"].as_str().expect("id")),
-            "the human form omits {}: {text}",
-            defect["id"]
-        );
+        let id = defect["id"].as_str().expect("id");
+        assert!(!text.contains(id), "the human form names {id}: {text}");
+        if let Some(reason) = defect["reason"].as_str() {
+            assert!(
+                flowed.contains(&support::flowed(reason)),
+                "the human form omits why {id} applies: {text}"
+            );
+        }
     }
     // Never claims the composed entry is the child's whole configuration.
     assert!(
-        text.contains("not the child's whole effective configuration"),
+        flowed.contains("not claude's whole effective configuration"),
         "{text}"
     );
 }

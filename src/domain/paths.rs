@@ -98,6 +98,14 @@ impl XdgPaths {
     pub(crate) fn account_auth_mode(&self, account: &Identifier) -> PathBuf {
         self.account(account).join("auth-mode.json")
     }
+    /// Returns one account's profile binding.
+    ///
+    /// Beside the authentication metadata rather than inside it, so rebinding
+    /// never writes the file the token rotation sequence commits
+    /// ([ADR-0096](../../docs/decisions/ADR-0096-bind-a-profile-to-an-account.md)).
+    pub(crate) fn account_profile(&self, account: &Identifier) -> PathBuf {
+        self.account(account).join("profile.json")
+    }
     /// Returns one account's wrapper-owned token path.
     pub(crate) fn account_oauth_token(&self, account: &Identifier) -> PathBuf {
         self.account(account).join("oauth-token")
@@ -177,6 +185,10 @@ mod tests {
         assert_eq!(
             paths.account_auth_mode(&work),
             Path::new("/s/claude-session-rs/accounts/work/auth-mode.json")
+        );
+        assert_eq!(
+            paths.account_profile(&work),
+            Path::new("/s/claude-session-rs/accounts/work/profile.json")
         );
         assert_eq!(
             paths.account_oauth_token(&work),

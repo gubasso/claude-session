@@ -91,16 +91,21 @@ pub(crate) fn run(context: &AppContext) -> Result<DispatchOutcome, AppError> {
             .stdout(&bytes)
             .map_err(|error| output_error(&error))?;
     } else {
+        let mut text = crate::ui::prose::paragraph(&format!(
+            "This is claude-session-rs {}.",
+            env!("CARGO_PKG_VERSION")
+        ));
+        text.push_str(&crate::ui::prose::paragraph(&match &resolved {
+            Ok(invocation) => format!(
+                "It wraps the claude at {}, whose own version follows.",
+                invocation.program().display()
+            ),
+            Err(_) => "No claude could be resolved, so there is nothing below to wrap.".to_owned(),
+        }));
         context
             .writer()
-            .stdout(format!("claude-session-rs {}\n", env!("CARGO_PKG_VERSION")).as_bytes())
+            .stdout(text.as_bytes())
             .map_err(|error| output_error(&error))?;
-        if let Ok(invocation) = &resolved {
-            context
-                .writer()
-                .stdout(format!("claude [{}]\n", invocation.program().display()).as_bytes())
-                .map_err(|error| output_error(&error))?;
-        }
         context
             .writer()
             .delimiter("--version")

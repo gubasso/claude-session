@@ -92,6 +92,10 @@ The default sink is a file under the state base directory, written non-blocking 
 
 The stderr mirror is driven by verbosity, and it is a human channel. In JSON mode it is off: standard error carries the error document there, and a mirrored record beside it would corrupt the one document shape a verb does not choose.
 
+Being a human channel is what decides its shape. One event reaches two audiences: the file gets the key-value record below, and the mirror gets the record's message alone, as one sentence prefixed by the level word and wrapped like every other human surface ([presentation](./presentation.md)). No field the file carries is repeated on the terminal, so an event's message must be complete on its own — a record whose meaning lived in its fields says nothing to the person reading it.
+
+An event a renderer is already stating in full opts out of the mirror rather than being said twice in two shapes. The dispatch failure is the one that does: the diagnostic beside it is the same failure, written better.
+
 Each record is one line, with a stable field set:
 
 | Field      | Content                                                             |

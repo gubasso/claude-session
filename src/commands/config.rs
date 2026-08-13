@@ -83,6 +83,7 @@ pub(crate) fn run(context: &AppContext) -> Result<DispatchOutcome, AppError> {
     crate::ui::config::report(
         context.writer(),
         context.output_mode() == OutputMode::Json,
+        context.color(),
         &report,
     )?;
     Ok(DispatchOutcome::Complete(verdict(&report)))

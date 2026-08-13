@@ -5,9 +5,18 @@ use std::{fmt, str::FromStr};
 use crate::error::DomainError;
 
 /// A lowercase, path-safe account or profile identifier.
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
-#[serde(try_from = "String")]
+/// Serialization is the durable-record direction only: the grammar is checked
+/// on the way in, so writing one back out cannot produce a value the reader
+/// would refuse. Report documents still print through [`Identifier::as_str`].
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(try_from = "String", into = "String")]
 pub(crate) struct Identifier(String);
+
+impl From<Identifier> for String {
+    fn from(value: Identifier) -> Self {
+        value.0
+    }
+}
 
 impl FromStr for Identifier {
     type Err = DomainError;

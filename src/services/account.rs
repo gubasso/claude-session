@@ -1,5 +1,6 @@
 //! Account selection, discovery, local usability, and launch guards.
 
+pub(crate) mod bind;
 pub(crate) mod lock;
 pub(crate) mod remove;
 pub(crate) mod status;
@@ -166,7 +167,7 @@ fn selected_credentials(
     let Some(selected) = context.account_selection().account() else {
         return CheckResult::skipped(
             credentials,
-            "no account is selected. Choose one with: claude-session-rs account use <name>",
+            "no account is selected. Choose one with: claude-session-rs --account <name>",
         );
     };
     match accounts.iter().find(|account| &account.name == selected) {
@@ -251,9 +252,10 @@ fn plural_accounts(count: usize) -> String {
     clippy::option_if_let_else,
     reason = "the two doctor skip and evaluation branches mirror catalog semantics"
 )]
-pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 2] {
+pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 3] {
     let registry = Check::Account(AccountCheck::RegistryReadable);
     let credentials = Check::Account(AccountCheck::CredentialsUsable);
+    let bound = Check::Account(AccountCheck::ProfileBound);
     match discover(context) {
         Err(error) => [
             CheckResult::defect(
@@ -265,6 +267,13 @@ pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 2] {
             ),
             CheckResult::skipped(
                 credentials,
+                concat!(
+                    "the account list could not be read, so no account could be examined. ",
+                    "Fix the check above first."
+                ),
+            ),
+            CheckResult::skipped(
+                bound,
                 concat!(
                     "the account list could not be read, so no account could be examined. ",
                     "Fix the check above first."
@@ -286,6 +295,13 @@ pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 2] {
                     "claude-session-rs account login <name>"
                 ),
             ),
+            CheckResult::skipped(
+                bound,
+                concat!(
+                    "there are no accounts yet. Create one with: ",
+                    "claude-session-rs account login <name>"
+                ),
+            ),
         ],
         Ok(accounts) => {
             let registry_result = CheckResult::pass(
@@ -293,8 +309,78 @@ pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 2] {
                 format!("{} stored on this machine", plural_accounts(accounts.len())),
             );
             let credentials_result = selected_credentials(context, &accounts, credentials);
-            [registry_result, credentials_result]
+            let bound_result = selected_binding(context, bound);
+            [registry_result, credentials_result, bound_result]
         }
+    }
+}
+
+/// Reports whether the selected account names a profile that exists.
+///
+/// Skipped rather than failed when nothing is selected, for the reason the
+/// sign-in check skips: there is no account for the question to be about.
+fn selected_binding(context: &AppContext, bound: Check) -> CheckResult {
+    let Some(selected) = context.account_selection().account() else {
+        return CheckResult::skipped(
+            bound,
+            concat!(
+                "no account is selected, so no binding applies. Select one with: ",
+                "claude-session-rs --account <name>"
+            ),
+        );
+    };
+    let hint = |check: Check| {
+        check
+            .hint(&[("account", selected.as_str())])
+            .unwrap_or_default()
+    };
+    // A binding that is not safe to read is this check's own answer rather than
+    // a reason to abandon the report: `doctor` is the verb that exists to name
+    // a defect, and calling an unsafe binding "not bound" would name the wrong
+    // one and send the reader to `account bind`, which would refuse too.
+    let binding = match bind::read(context.paths(), selected) {
+        Ok(binding) => binding,
+        Err(error) => {
+            return CheckResult::defect(
+                bound,
+                format!(
+                    "account \"{}\" has a profile binding that is not safe to read: {}.",
+                    selected.as_str(),
+                    error.diagnostic().why
+                ),
+                hint(bound),
+            );
+        }
+    };
+    match binding {
+        None => CheckResult::defect(
+            bound,
+            format!(
+                "account \"{}\" is not bound to a profile.",
+                selected.as_str()
+            ),
+            hint(bound),
+        ),
+        Some(binding) if bind::profile_present(context, &binding.profile) => CheckResult::pass(
+            bound,
+            format!(
+                "\"{}\" runs with the \"{}\" profile",
+                selected.as_str(),
+                binding.profile.as_str()
+            ),
+        ),
+        Some(binding) => CheckResult::defect(
+            bound,
+            format!(
+                concat!(
+                    "account \"{}\" is bound to the \"{}\" profile, which has no ",
+                    "document."
+                ),
+                selected.as_str(),
+                binding.profile.as_str()
+            ),
+            hint(bound),
+        ),
     }
 }
 
@@ -329,11 +415,19 @@ fn inspect(context: &AppContext, name: Identifier) -> AccountFinding {
         }
         None => (ReportMode::Invalid, false),
     };
+    // The listing scans every account and judges none of them: it does not probe
+    // a token and does not open one, so a binding it cannot safely read is left
+    // unreported here and named by `account status`, the verb asked about it.
+    let profile = bind::read(paths, &name)
+        .ok()
+        .flatten()
+        .map(|binding| binding.profile);
     AccountFinding {
         name,
         mode,
         usable,
         selected,
+        profile,
     }
 }
 

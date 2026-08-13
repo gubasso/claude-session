@@ -11,7 +11,7 @@ A wrapper session is an account plus a profile:
 - The account selects one shared child `config/` directory and one stored authentication mode.
 - The profile selects one composed `settings.json` and its provenance sidecar.
 
-Every run of one account uses the same `CLAUDE_CONFIG_DIR`. The child exclusively owns its saved login and other native state there. The wrapper passes the profile's composed document through the native `--settings` flag. The two selections are independent: an account can be selected without a profile, and a profile without an account.
+Every run of one account uses the same `CLAUDE_CONFIG_DIR`. The child exclusively owns its saved login and other native state there. The wrapper passes the profile's composed document through the native `--settings` flag. The two selections are related rather than independent: an account carries [the profile it runs with](../reference/accounts.md#the-bound-profile), and that binding is one rung of the profile ladder. An explicit flag, the environment, or a project file still overrides it, and an account created before the binding existed resolves its profile from configuration alone.
 
 Sessions are not conversations. Runs of one account intentionally share the child's projects, history, onboarding, and trust state. A caller needing conversation separation uses the child's own session identifier.
 

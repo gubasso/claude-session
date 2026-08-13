@@ -96,7 +96,7 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 
 | Verb         | Purpose                                                                   | Grammar specified in                         |
 | ------------ | ------------------------------------------------------------------------- | -------------------------------------------- |
-| `account`    | Manage accounts: login, list, status, remove                              | [accounts](./accounts.md)                    |
+| `account`    | Manage accounts: login, bind, list, status, remove                        | [accounts](./accounts.md)                    |
 | `config`     | Resolve, validate, and report the wrapper's configuration; no subcommands | [configuration](./configuration.md#commands) |
 | `profile`    | List the available settings profiles; no subcommands                      | [configuration](./configuration.md#commands) |
 | `doctor`     | Diagnose every subsystem, then run the child's own `doctor`               | [doctor](./doctor.md)                        |
@@ -216,14 +216,16 @@ The page states an `about` and a version that `--help` never shows, because the 
 `--version` and the `version` verb compose wrapper and child output on standard output:
 
 ```text
-claude-session-rs 0.1.0
+  This is claude-session-rs 0.1.0.
+  It wraps the claude at /usr/local/bin/claude, whose own version follows.
+
 
 --- claude --version ---
 
 1.0.2
 ```
 
-The wrapper line is followed by the shared composed-output delimiter and the child's native `--version` bytes unchanged. Reporting both is the point: a user debugging wrapper behaviour needs to know the wrapper and child versions, while the delimiter makes their ownership explicit.
+The wrapper's own sentences are followed by the shared composed-output delimiter and the child's native `--version` bytes unchanged. Reporting both is the point: a user debugging wrapper behaviour needs to know the wrapper and child versions, while the delimiter makes their ownership explicit.
 
 When the child cannot be resolved or its version cannot be read, one condition line replaces the child section and the exit stays `0`. The wrapper's version is a fact it always knows; refusing to report it because the child is missing would withhold the one answer the user came for. `doctor` is where a missing child fails.
 
@@ -262,7 +264,8 @@ The prompt and its answer use that same handle, which is why a confirmation is [
 ### The exchange
 
 ```text
-Remove account 'work' and all of its local state? [y/N]
+This deletes everything this wrapper stored for "work", and revokes nothing at the provider.
+Remove it? [y/N]
 ```
 
 `y` and `yes` consent, case-insensitively and after trimming surrounding whitespace. Everything else declines — a bare Enter, an unrecognized answer, and end of input alike. There is one question and one answer; an unrecognized answer is not re-asked, because a verb that loops on a terminal it may not fully control is a verb that can hang.

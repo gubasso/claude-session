@@ -33,8 +33,18 @@ pub(crate) fn child_section(
     let Some(error) = failure else {
         return Ok(());
     };
+    // The wrapper's own section already rendered, so this says why the child's
+    // is missing rather than failing the verb. The kind token stays in the
+    // diagnostic and the log, where a caller reads it; here a person is told
+    // what happened ([ADR-0093]).
     context
         .writer()
-        .stdout(format!("claude unavailable: {}\n", error.kind().spelling()).as_bytes())
+        .stdout(
+            crate::ui::prose::paragraph(&format!(
+                "claude could not be run, so its own report is missing: {}.",
+                error.diagnostic().why
+            ))
+            .as_bytes(),
+        )
         .map_err(|output| output_error(&output))
 }

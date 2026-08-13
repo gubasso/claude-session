@@ -66,6 +66,12 @@ pub(crate) enum InvocationKind {
     AccountLogin {
         name: Option<Identifier>,
         token: Option<TokenIngest>,
+        profile: Option<Identifier>,
+        mode: OutputMode,
+    },
+    AccountBind {
+        name: Identifier,
+        profile: Identifier,
         mode: OutputMode,
     },
     AccountList {
@@ -132,6 +138,7 @@ impl Invocation {
             | InvocationKind::AccountList { mode }
             | InvocationKind::AccountStatus { mode, .. }
             | InvocationKind::AccountRemove { mode, .. }
+            | InvocationKind::AccountBind { mode, .. }
             | InvocationKind::Config { mode }
             | InvocationKind::Profile { mode } => mode,
             _ => OutputMode::Human,
@@ -406,6 +413,7 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
                 Some(AccountCommand::List(_)) => Some("list"),
                 Some(AccountCommand::Status(_)) => Some("status"),
                 Some(AccountCommand::Remove(_)) => Some("remove"),
+                Some(AccountCommand::Bind(_)) => Some("bind"),
             },
         });
     }
@@ -431,6 +439,7 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
             Ok(InvocationKind::AccountLogin {
                 name: value.name,
                 token: token_ingest(value.token, value.stdin, value.minted_at)?,
+                profile: value.profile,
                 mode: mode(json),
             })
         }
@@ -444,6 +453,11 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
         Some(AccountCommand::Remove(value)) => Ok(InvocationKind::AccountRemove {
             name: value.name,
             consented: value.yes,
+            mode: mode(value.json),
+        }),
+        Some(AccountCommand::Bind(value)) => Ok(InvocationKind::AccountBind {
+            name: value.name,
+            profile: value.profile,
             mode: mode(value.json),
         }),
     }
@@ -497,8 +511,14 @@ pub(crate) fn dispatch(
         InvocationKind::Help => super::help::run(context),
         InvocationKind::Version { .. } => super::version::run(context),
         InvocationKind::Doctor { list, strict, .. } => super::doctor::run(context, list, strict),
-        InvocationKind::AccountLogin { name, token, .. } => {
-            super::account::login(context, name, token)
+        InvocationKind::AccountLogin {
+            name,
+            token,
+            profile,
+            ..
+        } => super::account::login(context, name, token, profile),
+        InvocationKind::AccountBind { name, profile, .. } => {
+            super::account::bind(context, &name, &profile)
         }
         InvocationKind::AccountList { .. } => super::account::list(context),
         InvocationKind::AccountStatus { name, .. } => super::account::status(context, name),

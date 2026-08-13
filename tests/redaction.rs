@@ -104,6 +104,8 @@ fn no_surface_ever_emits_credential_material() {
             "account",
             "login",
             "work",
+            "--profile",
+            "companion",
             "--token",
             "--stdin",
             "--verbose",
@@ -142,7 +144,15 @@ fn no_surface_ever_emits_credential_material() {
     ));
     steps.push(run(
         "rotation refused by the child",
-        &["account", "login", "work", "--token", "--stdin"],
+        &[
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ],
         Some(&format!("{sentinel}\n")),
         Some("1"),
     ));

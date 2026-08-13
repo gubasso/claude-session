@@ -1,10 +1,13 @@
 //! Deterministic profile listing reports.
 
 use crate::{
-    domain::encoding::with_lossy_sibling,
+    domain::{config::Source, encoding::with_lossy_sibling},
     error::AppError,
     services::profile::ProfileFinding,
-    ui::writer::{OutputWriter, output_error},
+    ui::{
+        prose::{Palette, paragraph},
+        writer::{Color, OutputWriter, output_error},
+    },
 };
 
 /// Renders the available profile names.
@@ -16,25 +19,73 @@ use crate::{
 pub(crate) fn list(
     writer: &OutputWriter,
     json_mode: bool,
+    color: Color,
+    source: Source,
     profiles: &[ProfileFinding],
 ) -> Result<(), AppError> {
     let bytes = if json_mode {
         document(profiles)?
     } else {
-        text(profiles)
+        text(Palette::new(color.stdout()), source, profiles)
     };
     writer.stdout(&bytes).map_err(|error| output_error(&error))
 }
 
-fn text(profiles: &[ProfileFinding]) -> Vec<u8> {
-    let mut out = String::new();
-    for profile in profiles {
-        out.push_str(profile.name.as_str());
-        if profile.selected {
-            out.push_str(" (selected)");
+/// Names the layer that selected a profile, as the end of a sentence.
+const fn chose(source: Source) -> &'static str {
+    match source {
+        Source::Cli => "because you named it with --profile",
+        Source::Environment => {
+            "because CLAUDE_SESSION_RS_DEFAULT_PROFILE names it in your environment"
         }
-        out.push('\n');
+        Source::Project => "because the project configuration file in this tree names it",
+        Source::Account => "because it is the profile the selected account is bound to",
+        Source::User => "because default_profile names it in your configuration file",
+        Source::Default => "",
     }
+}
+
+fn text(palette: Palette, source: Source, profiles: &[ProfileFinding]) -> Vec<u8> {
+    let mut out = format!("{}\n\n", palette.heading("Profiles"));
+    if profiles.is_empty() {
+        out.push_str(&paragraph(concat!(
+            "No profiles are written yet. Every launch needs one, so write the",
+            " first as a YAML document under the profiles directory, then bind",
+            " an account to it with: claude-session-rs account bind <account>",
+            " --profile <name>"
+        )));
+        return out.into_bytes();
+    }
+    for profile in profiles {
+        out.push_str(&paragraph(&format!(
+            "{} — {}",
+            profile.name.as_str(),
+            profile.path.display()
+        )));
+    }
+    out.push('\n');
+    out.push_str(&paragraph(
+        &profiles
+            .iter()
+            .find(|profile| profile.selected)
+            .map_or_else(
+                || {
+                    concat!(
+                        "None of them is selected, so a launch refuses until one",
+                        " is. Bind one to the account with: claude-session-rs",
+                        " account bind <account> --profile <name>"
+                    )
+                    .to_owned()
+                },
+                |profile| {
+                    format!(
+                        "This run would use {}, {}.",
+                        profile.name.as_str(),
+                        chose(source)
+                    )
+                },
+            ),
+    ));
     out.into_bytes()
 }
 

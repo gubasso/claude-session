@@ -35,7 +35,24 @@ fn profile_lists_the_available_names_in_order() {
         .output()
         .expect("profile runs");
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(stdout_of(&output), "personal\nwork\nzeta\n");
+    assert_eq!(names_in(&stdout_of(&output)), ["personal", "work", "zeta"]);
+}
+
+/// The names a listing carries, in the order it carries them.
+///
+/// Read from the rows rather than from every line, because the report is prose
+/// with a heading and a closing sentence around them (ADR-0093).
+fn names_in(text: &str) -> Vec<String> {
+    // A row is "<name> — <path>", and a path long enough to wrap leaves the
+    // dash at the end of the line, so the dash is matched as a token rather
+    // than as a separator with text on both sides of it.
+    text.lines()
+        .filter_map(|line| {
+            let mut tokens = line.split_whitespace();
+            let name = tokens.next()?;
+            (tokens.next()? == "—").then(|| name.to_owned())
+        })
+        .collect()
 }
 
 /// A user who has written no profile has asked a question whose answer is
@@ -50,7 +67,11 @@ fn profile_reports_an_empty_list_without_failing() {
         .output()
         .expect("profile runs");
     assert_eq!(output.status.code(), Some(0));
-    assert!(output.stdout.is_empty(), "stdout: {:?}", output.stdout);
+    let text = stdout_of(&output);
+    // Zero bytes was the old answer and told a reader nothing. "None yet" is
+    // the answer, and it names what would create the first one.
+    assert!(text.contains("No profiles are written yet"), "{text}");
+    assert!(text.contains("account bind"), "{text}");
     assert!(output.stderr.is_empty(), "stderr: {:?}", output.stderr);
 }
 
@@ -64,7 +85,13 @@ fn profile_marks_the_selected_name() {
         .output()
         .expect("profile runs");
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(stdout_of(&output), "personal\nwork (selected)\nzeta\n");
+    let text = stdout_of(&output);
+    assert_eq!(names_in(&text), ["personal", "work", "zeta"]);
+    // The selection is a sentence naming the layer that made it, not a suffix.
+    assert!(
+        text.contains("This run would use work, because you named it with --profile."),
+        "{text}"
+    );
 }
 
 #[test]
@@ -92,11 +119,7 @@ fn profile_json_reports_the_same_names_as_the_human_form() {
         .iter()
         .map(|value| value["name"].as_str().expect("name"))
         .collect();
-    let human_names: Vec<String> = stdout_of(&human)
-        .lines()
-        .map(|line| line.trim_end_matches(" (selected)").to_owned())
-        .collect();
-    assert_eq!(names, human_names);
+    assert_eq!(names, names_in(&stdout_of(&human)));
     assert_eq!(profiles[1]["selected"], serde_json::Value::Bool(true));
     assert!(
         profiles[0].get("selected").is_none(),
@@ -143,7 +166,7 @@ fn profile_skips_a_file_that_is_not_a_profile_name() {
         .output()
         .expect("profile runs");
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(stdout_of(&output), "personal\nwork\nzeta\n");
+    assert_eq!(names_in(&stdout_of(&output)), ["personal", "work", "zeta"]);
 }
 
 #[test]

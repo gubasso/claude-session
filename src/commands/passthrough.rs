@@ -89,12 +89,26 @@ fn validate_binding(context: &AppContext) -> Result<(), AppError> {
         (Some(_), None) => MissingBinding::Profile,
         (None, None) => MissingBinding::AccountAndProfile,
     };
-    let account = session
-        .account()
-        .map_or("none", |selected| selected.id.as_str());
-    let profile = session
-        .profile()
-        .map_or("none", |selected| selected.as_str());
+    // The subject the diagnostic renders as a sentence, so the half that did
+    // resolve is named and the half that did not is said in words. A pair of
+    // `key=value` tokens carried the same two facts and read as a field dump
+    // at a person, which is the shape [ADR-0093] removed from every surface
+    // the wrapper writes outside `--json`.
+    let subject = match missing {
+        MissingBinding::Account => format!(
+            "this launch, which resolved the \"{}\" profile but no account",
+            session.profile().map_or("", |selected| selected.as_str())
+        ),
+        MissingBinding::Profile => format!(
+            "this launch, which resolved the \"{}\" account but no profile",
+            session
+                .account()
+                .map_or("", |selected| selected.id.as_str())
+        ),
+        MissingBinding::AccountAndProfile => {
+            "this launch, which resolved neither an account nor a profile".to_owned()
+        }
+    };
     // The hint names the wrapper's own surfaces and the directory it reads,
     // never a repository path: the published crate excludes `docs/`, so a
     // path that exists in the checkout does not exist for an installed
@@ -109,7 +123,11 @@ fn validate_binding(context: &AppContext) -> Result<(), AppError> {
         ),
         MissingBinding::Profile => (
             "a child launch requires a resolved profile",
-            format!("{author}, then select it with --profile or default_profile"),
+            format!(
+                "{author}, then bind it with claude-session-rs account bind \
+                <account> --profile <name>, or select it with --profile or \
+                default_profile"
+            ),
         ),
         MissingBinding::AccountAndProfile => (
             "a child launch requires a resolved account and profile",
@@ -120,7 +138,7 @@ fn validate_binding(context: &AppContext) -> Result<(), AppError> {
         ErrorKind::Config,
         Diagnostic::new(
             "child launch is not bound to a complete session",
-            format!("account={account}, profile={profile}"),
+            subject,
             why,
             hint,
         ),

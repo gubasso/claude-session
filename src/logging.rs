@@ -48,6 +48,9 @@ impl Drop for LoggingGuard {
 struct FileSubscriber {
     sender: Mutex<SyncSender<Option<String>>>,
     terminal: Option<Level>,
+    /// Whether the mirror decorates its level word, resolved once by the same
+    /// ladder every other surface reads.
+    color: bool,
     next_span: AtomicU64,
 }
 
@@ -69,9 +72,13 @@ impl Subscriber for FileSubscriber {
         let mut visitor = Fields::default();
         event.record(&mut visitor);
         let message = visitor.values.remove("message").unwrap_or_default();
+        let sentence = std::mem::take(&mut visitor.message);
         let status = visitor.take("status");
         let duration = visitor.take("dur_ms");
         let error_kind = visitor.take("err.kind");
+        // An event a renderer is already saying in full opts out of the mirror
+        // rather than being said twice in two shapes.
+        let mirrored = visitor.values.remove("mirror").as_deref() != Some("false");
         let mut line = format!(
             "ts={} level={} target={} op={} msg={}",
             timestamp(),
@@ -95,11 +102,16 @@ impl Subscriber for FileSubscriber {
         {
             let _ = sender.try_send(Some(line.clone()));
         }
-        if self
-            .terminal
-            .is_some_and(|level| *metadata.level() <= level)
+        // The file keeps the key-value record; the terminal gets the sentence.
+        // One event, two audiences, and the machine one is the reason the human
+        // one can drop every field ([ADR-0093]).
+        if mirrored
+            && self
+                .terminal
+                .is_some_and(|level| *metadata.level() <= level)
         {
-            let _ = OutputWriter::system().stderr(line.as_bytes());
+            let _ = OutputWriter::system()
+                .stderr(mirror(self.color, *metadata.level(), &sentence).as_bytes());
         }
     }
     fn enter(&self, _span: &Id) {}
@@ -125,6 +137,10 @@ fn append_optional(line: &mut String, key: &str, value: &str) {
 #[derive(Default)]
 struct Fields {
     values: BTreeMap<String, String>,
+    /// The message exactly as it was written, before the key-value form
+    /// escapes and quotes it. The file needs the escaped one and the terminal
+    /// needs this one, so both are kept rather than one being recovered.
+    message: String,
 }
 
 impl Fields {
@@ -142,6 +158,9 @@ impl Visit for Fields {
             .strip_prefix('"')
             .and_then(|rest| rest.strip_suffix('"'))
             .unwrap_or(&rendered);
+        if field.name() == "message" {
+            unquoted.clone_into(&mut self.message);
+        }
         self.values
             .insert(field.name().to_owned(), escape(unquoted));
     }
@@ -209,9 +228,17 @@ pub(crate) fn install(
         }
     });
     let terminal = terminal_level(verbosity, mode, environment);
+    let writer = OutputWriter::system();
     let subscriber = FileSubscriber {
         sender: Mutex::new(sender.clone()),
         terminal,
+        color: crate::ui::writer::Color::resolve(
+            environment,
+            mode,
+            writer.stdout_is_terminal(),
+            writer.stderr_is_terminal(),
+        )
+        .stderr(),
         next_span: AtomicU64::new(1),
     };
     if let Err(error) = tracing::subscriber::set_global_default(subscriber) {
@@ -225,8 +252,48 @@ pub(crate) fn install(
 }
 
 fn report_unavailable(error: &std::io::Error) {
-    let _ = OutputWriter::system()
-        .stderr(format!("claude-session-rs: warning: logging unavailable: {error}\n").as_bytes());
+    // The one warning raised before a subscriber exists, so it cannot go
+    // through the mirror and instead borrows its exact shape.
+    let _ = OutputWriter::system().stderr(
+        mirror(
+            false,
+            Level::WARN,
+            &format!(
+                concat!(
+                    "this run is not being logged, because its log file could not",
+                    " be opened: {}. Everything else works; only the record of",
+                    " what happened is missing"
+                ),
+                error
+            ),
+        )
+        .as_bytes(),
+    );
+}
+
+/// The stderr mirror's one line: a level word, then a sentence.
+///
+/// Wrapped and indented like every other human surface, and carrying no field
+/// the log file does not already have.
+fn mirror(color: bool, level: Level, message: &str) -> String {
+    let word = level.as_str().to_ascii_lowercase();
+    let decorated = if color {
+        let code = match level {
+            Level::ERROR => "31",
+            Level::WARN => "33",
+            _ => "2",
+        };
+        format!("\u{1b}[{code}m{word}\u{1b}[0m")
+    } else {
+        word.clone()
+    };
+    let prefix = format!("claude-session-rs: {word}: ");
+    let text = crate::ui::prose::wrap(message, &prefix, "  ");
+    if color {
+        text.replacen(&prefix, &format!("claude-session-rs: {decorated}: "), 1)
+    } else {
+        text
+    }
 }
 
 /// Resolves the level of the stderr mirror, which is a human channel.

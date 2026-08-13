@@ -2,7 +2,7 @@
 
 How every human-facing byte looks. Which stream carries it is [logging and output](./logging-and-output.md)'s to say; this page owns appearance, and every verb's renderer satisfies what follows.
 
-Two surfaces are rendered today: the error diagnostic and the composed-output delimiter. The contract is written for every renderer because a rule discovered while building one verb binds the next one, whose author has no reason to read the first verb's page ([ADR-0081](../decisions/ADR-0081-bind-every-human-surface-to-one-presentation-contract.md)).
+Every surface the wrapper owns is rendered under it: the reports of `doctor`, `account`, `profile`, and `config`, the error diagnostic, the standard-error log mirror, and the composed-output delimiter. The contract is written for every renderer because a rule discovered while building one verb binds the next one, whose author has no reason to read the first verb's page ([ADR-0081](../decisions/ADR-0081-bind-every-human-surface-to-one-presentation-contract.md)).
 
 ## The contract
 
@@ -19,6 +19,8 @@ Rule 7 is a floor, not a licence: a next action is named only where one exists, 
 ### Wrapping and columns
 
 A renderer that pads or wraps does so at a constant, so rule 3 holds: status words pad to a fixed column, and prose wraps at column 76. Both are the same in a pipe and in a terminal, which is the property the golden tests pin. Reading `COLUMNS` or the terminal size to do either is the thing rule 3 forbids.
+
+Both constants live in one module every renderer imports, so a second renderer cannot pick a second column. Text the wrapper did not compose — a parser's own usage block, which arrives already laid out — passes through with its lines intact rather than reflowed, because reflowing a grammar destroys it.
 
 ## Colour
 
@@ -57,18 +59,26 @@ The set is closed ([ADR-0082](../decisions/ADR-0082-colour-a-closed-set-of-named
 | The `error[Kind]` token in a diagnostic | stderr                    | Nothing the kind does not already spell         |
 | The level word in the stderr log mirror | stderr                    | Nothing the level does not already spell        |
 | The composed-output delimiter line      | stdout, human format only | Nothing the command name does not already state |
-| The `doctor` status word in a row       | stdout, human format only | Nothing the bracketed word does not already say |
-| The `doctor` scope and summary headings | stdout, human format only | Nothing the heading text does not already say   |
+| A status word in any report row         | stdout, human format only | Nothing the bracketed word does not already say |
+| A section heading in any report         | stdout, human format only | Nothing the heading text does not already say   |
 
-A verb that renders a status word may colour it under the same rule, and its own page names that surface — [doctor](./doctor.md#the-report) does. The two `doctor` rows above are the whole of it: green, yellow, and red follow `pass`, `warn`, and `fail`, a skip is dim, and a heading is bold. Nothing else in a report is coloured, because nothing else would be carrying its own meaning.
+The last two rows are written per shape rather than per verb, because the shape is what carries the rule: green, yellow, and red follow `pass`, `warn`, and `fail`, a skip is dim, and a heading is bold. A renderer that emits neither shape emits no colour. Nothing else in a report is coloured, because nothing else would be carrying its own meaning.
 
 Colour is emitted as four-bit SGR by the one renderer. Eight-bit and true-colour sequences buy a shade a terminal may not have, for a decoration rule 1 already says carries nothing.
 
 ## Tables, progress, and prompts
 
-The wrapper renders none of the three today, and a progress indicator is forbidden during a passthrough for the reason a banner is: standard output belongs to the child, and standard error already carries the child's own diagnostics. Rule 3 rules out a spinner everywhere else, since it works by moving the cursor.
+The wrapper renders none of the three today. The one prompt each of `account remove` and `account login --token` raises reaches [the controlling terminal](./cli-surface.md#the-predicate) rather than either standard stream, and states what answering costs before it asks. A progress indicator is forbidden during a passthrough for the reason a banner is: standard output belongs to the child, and standard error already carries the child's own diagnostics. Rule 3 rules out a spinner everywhere else, since it works by moving the cursor.
 
 A table or an interactive prompt arrives through the verb that needs it, which names the surface on its own page and admits any crate through [the dependency procedure](./dependencies.md#adding-a-dependency). Neither is a renderer's decision.
+
+## Where the rule stops
+
+Three surfaces a reader will meet are outside this contract, and their absence is stated rather than left to be inferred:
+
+- The child's own bytes, which pass through unchanged under rule 6.
+- The generated completion scripts and man page, whose shapes belong to the shells and to `roff`. The prose inside them — every `about` string and the wrapper's own help text — is authored for a person and is governed; the layout around it is not. The same holds for the usage block `clap` renders into a `Usage` diagnostic, which passes through with its lines intact.
+- The developer task runner under `xtask`, which no user runs and which writes to its own streams.
 
 ## Further reading
 

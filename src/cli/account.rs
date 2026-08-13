@@ -40,6 +40,22 @@ pub(crate) enum AccountCommand {
     Status(StatusArgs),
     /// Remove one account's local state.
     Remove(RemoveArgs),
+    /// Bind one account to the profile it runs with.
+    Bind(BindArgs),
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct BindArgs {
+    // Required, like removal's: rebinding "whichever account was used last"
+    // changes durable state under a name nobody typed.
+    /// Account to bind.
+    pub(crate) name: Identifier,
+    /// Profile the account runs with.
+    #[arg(long, value_name = "NAME")]
+    pub(crate) profile: Identifier,
+    /// Emit the report as one JSON document.
+    #[arg(long)]
+    pub(crate) json: bool,
 }
 
 #[derive(Args, Debug)]
@@ -49,6 +65,12 @@ pub(crate) struct LoginArgs {
     /// Store a long-lived subscription token instead of a native saved login.
     #[arg(long)]
     pub(crate) token: bool,
+    // Not `requires`-gated on anything: an account's profile is orthogonal to
+    // how it authenticates, and login is where the choice is made explicit
+    // ([ADR-0096](../../docs/decisions/ADR-0096-bind-a-profile-to-an-account.md)).
+    /// Profile the account runs with; `default_profile` when omitted.
+    #[arg(long, value_name = "NAME")]
+    pub(crate) profile: Option<Identifier>,
     // The two token-only flags require `--token` rather than being silently
     // ignored without it, because each one alone reads as a request the wrapper
     // would then not honour.

@@ -15,6 +15,8 @@ pub(crate) fn list(context: &AppContext) -> Result<DispatchOutcome, AppError> {
     crate::ui::profile::list(
         context.writer(),
         context.output_mode() == OutputMode::Json,
+        context.color(),
+        context.config().profile_source(),
         &profiles,
     )?;
     Ok(DispatchOutcome::Complete(0))

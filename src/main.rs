@@ -42,22 +42,34 @@ struct Prepared {
 
 fn main() -> ExitCode {
     let environment = SystemEnvironment::capture();
+    // Resolved once, from the environment alone, so the very first failure is
+    // decorated by the same ladder the last one is.
+    let resolve_colour = |mode| {
+        let writer = crate::ui::writer::OutputWriter::system();
+        crate::ui::writer::Color::resolve(
+            environment.variables(),
+            mode,
+            writer.stdout_is_terminal(),
+            writer.stderr_is_terminal(),
+        )
+    };
     let invocation = match commands::dispatch::classify(environment.args()) {
         Ok(value) => value,
-        Err(error) => return ExitCode::from(ui::writer::report(&error, OutputMode::Human)),
+        Err(error) => {
+            return ExitCode::from(ui::writer::report(
+                &error,
+                OutputMode::Human,
+                resolve_colour(OutputMode::Human),
+            ));
+        }
     };
     if invocation.is_doctor_list() {
         let writer = crate::ui::writer::OutputWriter::system();
-        let color = crate::ui::writer::Color::resolve(
-            environment.variables(),
-            invocation.output_mode(),
-            writer.stdout_is_terminal(),
-            writer.stderr_is_terminal(),
-        );
+        let color = resolve_colour(invocation.output_mode());
         let code =
             crate::ui::doctor::list(&writer, invocation.output_mode() == OutputMode::Json, color)
                 .map_or_else(
-                    |error| ui::writer::report(&error, invocation.output_mode()),
+                    |error| ui::writer::report(&error, invocation.output_mode(), color),
                     |()| 0,
                 );
         return ExitCode::from(code);
@@ -78,7 +90,13 @@ fn main() -> ExitCode {
                 &error,
             ));
         }
-        Err(error) => return ExitCode::from(ui::writer::report(&error, OutputMode::Human)),
+        Err(error) => {
+            return ExitCode::from(ui::writer::report(
+                &error,
+                OutputMode::Human,
+                resolve_colour(OutputMode::Human),
+            ));
+        }
     };
     let logging = logging::install(
         &prepared.paths,
@@ -90,9 +108,12 @@ fn main() -> ExitCode {
     // still alive, flush it, then exit or exec. It stays here, in one piece,
     // because splitting it puts the flush and the two things it separates in
     // three places a reader has to hold at once.
+    let launch_colour = resolve_colour(mode);
     let ending = match run(prepared) {
         Ok(value) => value,
-        Err(error) => DispatchOutcome::Complete(ui::writer::report(&error, mode)),
+        Err(error) => {
+            DispatchOutcome::Complete(ui::writer::report(&error, mode, resolve_colour(mode)))
+        }
     };
     finish(
         ending,
@@ -100,7 +121,7 @@ fn main() -> ExitCode {
         |invocation| {
             use adapters::process::ProcessRunner as _;
             let error = adapters::process::SystemProcessRunner.exec(invocation);
-            ui::writer::report(&error, mode)
+            ui::writer::report(&error, mode, launch_colour)
         },
     )
 }
@@ -153,8 +174,12 @@ fn run(prepared: Prepared) -> Result<DispatchOutcome, AppError> {
     let config = config::load::resolve(&environment, &paths, invocation.config_overrides());
     let mode = invocation.output_mode();
     let context = match config {
-        Ok(resolution) => {
+        Ok(mut resolution) => {
             let selection = services::account::resolve_selection(&resolution.config, &paths)?;
+            // After the selection and before the context, because the binding
+            // rung is the selected account's own, and the context is immutable
+            // once built.
+            services::account::bind::apply(&mut resolution.config, selection.account(), &paths);
             AppContext::new(resolution, selection, paths, environment, mode)
         }
         Err(error) if invocation.reports_config_defects() => AppContext::with_config_error(
