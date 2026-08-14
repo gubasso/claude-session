@@ -81,7 +81,7 @@ carried:
 
   - fact: CLAUDE_CODE_OAUTH_SCOPES
     obligation: launch
-    why: The wrapper sets it beside the refresh token, because the child requires the scopes the grant was issued with and refuses the exchange without them. Documented upstream; the five spellings the wrapper defaults to are not, and are tracked in ./research-tracking.yaml.
+    why: The wrapper sets it beside the refresh token, because the child requires the scopes the grant was issued with and refuses the exchange without them. Documented upstream; the set the wrapper defaults to is not, and is tracked in ./research-tracking.yaml.
     sites:
       - docs/reference/accounts.md
       - docs/reference/research-tracking.yaml

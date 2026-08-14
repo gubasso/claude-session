@@ -84,11 +84,14 @@ tracked:
       instead of opening a browser, and that `setup-token` is still described as
       able to make model requests only. Measured, and the reason this entry
       covers the default: that a claude.ai login is still issued
-      `user:profile user:inference user:sessions:claude_code user:mcp_servers
-      user:file_upload`, and that the profile and usage endpoints still refuse a
-      grant without `user:profile`. Read the issued set from the scopes list of a
-      scratch login, never its tokens, and read the refusal from a status code
-      alone. Also record which release first carried the exchange branch if that
+      `org:create_api_key user:profile user:inference user:sessions:claude_code
+      user:mcp_servers user:file_upload`, and that the profile and usage
+      endpoints still refuse a grant without `user:profile`. Read the issued set
+      from the authorize URL a real login prints, or from the scopes list of a
+      scratch login, never from its tokens, and read the refusal from a status
+      code alone. The set was recorded without `org:create_api_key` until
+      2026-08-14, when a login was watched rather than inferred from the child's
+      source, so read it from a flow. Also record which release first carried the exchange branch if that
       ever becomes published, since it is unknown and a child without it falls
       through to a browser.
     dependents:

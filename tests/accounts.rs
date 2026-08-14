@@ -2285,6 +2285,7 @@ fn a_refresh_login_without_scopes_uses_the_set_a_login_is_issued() {
     // Spelled out rather than imported, so a change to the default has to be
     // made here too and cannot pass by agreeing with itself.
     let expected = [
+        "org:create_api_key",
         "user:profile",
         "user:inference",
         "user:sessions:claude_code",

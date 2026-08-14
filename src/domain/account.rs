@@ -238,7 +238,15 @@ impl Scopes {
     /// launch obligation in `docs/reference/child-facts.yaml`, and tracked as
     /// perishable in `docs/reference/research-tracking.yaml`, because the set
     /// is the child's to change and is undocumented as a default.
-    pub(crate) const DEFAULT: [&'static str; 5] = [
+    ///
+    /// `org:create_api_key` leads it because the child's own authorize URL
+    /// leads with it, and this list is a transcription rather than a judgement
+    /// about which scopes a wrapper would want. It was missing until an actual
+    /// login was read on 2026-08-14: the first version of this constant was
+    /// taken from the child's source rather than from a flow, and it had the
+    /// five that looked like Claude Code's own.
+    pub(crate) const DEFAULT: [&'static str; 6] = [
+        "org:create_api_key",
         "user:profile",
         "user:inference",
         "user:sessions:claude_code",
