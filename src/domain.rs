@@ -15,3 +15,4 @@ pub(crate) mod pointer;
 pub(crate) mod profile;
 pub(crate) mod secret;
 pub(crate) mod strategy;
+pub(crate) mod terminal;

@@ -73,7 +73,15 @@ pub fn config_example_toml() -> String {
         // Optional keys are commented out; a required one would be active. Every
         // key is optional today, which is why none of them is.
         let prefix = if key.required { "" } else { "# " };
-        out.push_str(&format!("{prefix}{} = \"{}\"\n", key.name, key.placeholder));
+        // A boolean placeholder is a TOML literal, not a string: quoting it
+        // would produce an example the loader refuses for the one reason an
+        // example must never fail, its own type.
+        let value = if key.type_name == "boolean" {
+            key.placeholder.to_owned()
+        } else {
+            format!("\"{}\"", key.placeholder)
+        };
+        out.push_str(&format!("{prefix}{} = {value}\n", key.name));
     }
     out
 }

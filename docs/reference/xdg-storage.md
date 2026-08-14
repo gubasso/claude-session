@@ -19,29 +19,35 @@ A relative XDG value is invalid and treated as unset, with a debug diagnostic. T
 
 The `0700` on wrapper-managed directories is the specification's own default rather than a wrapper invention: "If, when attempting to write a file, the destination directory is non-existent an attempt should be made to create it with permission `0700`."
 
+The asset tree is the one artifact under the Data base, and the one the wrapper reads without managing: it holds user-authored content, it is read for presence and linked from, and it is never created, validated, or corrected ([ADR-0106](../decisions/ADR-0106-supply-child-assets-from-one-tree.md)).
+
 `XDG_RUNTIME_DIR` is not used. A lock lives beside the file it guards, so it is reachable wherever that file is ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)), and the one base with no portable default is also the one base with nothing to put in it. Durable state never falls back to it or to a shared temporary directory.
 
 ## Artifact table
 
 Every artifact has one writer.
 
-| Artifact                 | Base   | Path within base                                | Writer                                               | Mode                           | Lifetime                              |
-| ------------------------ | ------ | ----------------------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------------------------------- |
-| Wrapper configuration    | Config | `config.toml`                                   | User                                                 | `0644`                         | Until changed                         |
-| Project configuration    | none   | `.claude-session-rs.toml` at a repository root  | User                                                 | `0644`                         | Until changed                         |
-| Settings pieces          | Config | `settings/<piece>.json`                         | User                                                 | `0644`                         | Until changed                         |
-| Profiles                 | Config | `profiles/<profile>.yaml`                       | User                                                 | `0644`                         | Until changed                         |
-| Account directory        | State  | `accounts/<account>/`                           | Account subsystem                                    | `0700`                         | Until account removal                 |
-| Auth-mode metadata       | State  | `accounts/<account>/auth-mode.json`             | Account subsystem                                    | `0600`                         | Until mode replacement                |
-| Profile binding          | State  | `accounts/<account>/profile.json`               | Account subsystem                                    | `0600`                         | Until rebinding or account removal    |
-| Local OAuth token        | State  | `accounts/<account>/oauth-token`                | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
-| Native account config    | State  | `accounts/<account>/config/`                    | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
-| Native saved login       | State  | `accounts/<account>/config/.credentials.json`   | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |
-| Composed settings        | State  | `composed/profile-<name>-<digest>.json`         | Composition subsystem                                | `0600`                         | Permanent                             |
-| Composition provenance   | State  | `composed/profile-<name>-<digest>.compose.json` | Composition subsystem                                | `0600`                         | Permanent                             |
-| Last-used account marker | State  | `state/last-account`                            | Account subsystem                                    | `0600`                         | Until selection changes               |
-| Write lock               | State  | `accounts/.<account>.lock`                      | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
-| Log file                 | State  | `claude-session-rs.log`                         | Logging subsystem                                    | `0600`                         | Rotated                               |
+| Artifact                 | Base   | Path within base                                      | Writer                                               | Mode                           | Lifetime                              |
+| ------------------------ | ------ | ----------------------------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------------------------------- |
+| Wrapper configuration    | Config | `config.toml`                                         | User                                                 | `0644`                         | Until changed                         |
+| Project configuration    | none   | `.claude-session-rs.toml` at a repository root        | User                                                 | `0644`                         | Until changed                         |
+| Settings pieces          | Config | `settings/<piece>.json`                               | User                                                 | `0644`                         | Until changed                         |
+| Profiles                 | Config | `profiles/<profile>.yaml`                             | User                                                 | `0644`                         | Until changed                         |
+| Account directory        | State  | `accounts/<account>/`                                 | Account subsystem                                    | `0700`                         | Until account removal                 |
+| Auth-mode metadata       | State  | `accounts/<account>/auth-mode.json`                   | Account subsystem                                    | `0600`                         | Until mode replacement                |
+| Profile binding          | State  | `accounts/<account>/profile.json`                     | Account subsystem                                    | `0600`                         | Until rebinding or account removal    |
+| Local OAuth token        | State  | `accounts/<account>/oauth-token`                      | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
+| Native account config    | State  | `accounts/<account>/config/`                          | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
+| Shared projects tree     | State  | `accounts/<account>/config/projects/`                 | Child, after the launch creates the directory        | `0700`                         | Until account removal                 |
+| Session directory        | State  | `accounts/<account>/sessions/<terminal>/`             | Child, after the launch creates the directory        | `0700`                         | Until account removal                 |
+| Session child config     | State  | `accounts/<account>/sessions/<terminal>/.claude.json` | Child, with the two keys a launch seeds              | `0600`                         | Until account removal                 |
+| Shared projects link     | State  | `accounts/<account>/sessions/<terminal>/projects`     | Session subsystem                                    | Link; the kernel's own         | Until account removal                 |
+| Native saved login       | State  | `accounts/<account>/config/.credentials.json`         | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |
+| Composed settings        | State  | `composed/profile-<name>-<digest>.json`               | Composition subsystem                                | `0600`                         | Permanent                             |
+| Composition provenance   | State  | `composed/profile-<name>-<digest>.compose.json`       | Composition subsystem                                | `0600`                         | Permanent                             |
+| Last-used account marker | State  | `state/last-account`                                  | Account subsystem                                    | `0600`                         | Until selection changes               |
+| Write lock               | State  | `accounts/.<account>.lock`                            | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted              |
+| Log file                 | State  | `claude-session-rs.log`                               | Logging subsystem                                    | `0600`                         | Rotated                               |
 
 The project configuration file is the one artifact with no XDG base: it lives in the user's repository because that is what makes it per-repository, and it is listed here so the table stays the whole inventory. [Configuration](./configuration.md#project-file-discovery) owns how it is found and what it may set.
 
@@ -92,8 +98,11 @@ A wrapper-managed component begins at the `claude-session` namespace directory i
 | Expected file type    | Every wrapper-managed path                                             | Refuse with `Permission` | `storage-paths-typed`       |
 | Mode `0700`           | Wrapper-managed directories                                            | Correct, then proceed    | `storage-directory-modes`   |
 | Mode `0600`           | Wrapper-owned secret, metadata, settings, provenance, and marker files | Correct, then proceed    | `storage-secret-modes`      |
+| Declared link target  | A symbolic link at a name the wrapper declares                         | Refuse with `Permission` | `storage-declared-links`    |
 
 Each condition is reported by exactly one [catalog check](./doctor.md#the-catalog), which is what lets a guard and `doctor` describe one problem in one wording ([ADR-0018](../decisions/ADR-0018-one-probe-set-with-stable-check-ids.md)).
+
+The first row has one exception, and only one. A symbolic link is accepted where the wrapper declared one, at the last component of the path, resolving to the target the wrapper recorded; anything else at that name, and any link anywhere else, is refused as before ([ADR-0103](../decisions/ADR-0103-permit-a-declared-link.md)). The exception keeps what the rule protects: a link where none was declared fails on its location, and a declared link something re-pointed fails on its target. The wrapper never validates through a declared link, because everything below one belongs to the child.
 
 ### How a path is validated
 

@@ -172,6 +172,35 @@ impl SystemFileSystem {
     /// is explicitly not the threat.
     ///
     /// [ADR-0061]: ../../docs/decisions/ADR-0061-protect-storage-from-accidental-local-drift.md
+    /// Creates one symbolic link, treating an existing one as done.
+    ///
+    /// Only the guard calls this, and only at a name the wrapper declares, so
+    /// the link a run finds is the link a run would have made
+    /// ([ADR-0103](../../docs/decisions/ADR-0103-permit-a-declared-link.md)).
+    /// `AlreadyExists` is success rather than a race to resolve: the caller has
+    /// just validated that whatever sits there is the declared link pointing at
+    /// the declared target, and a second run computing the same pair is the
+    /// normal case rather than a conflict.
+    ///
+    /// No mode is set. A symbolic link carries the kernel's own permissions,
+    /// `chmod(2)` follows it to the target, and the symlink-safe form is out of
+    /// reach for the same reason `xdg-storage.md#how-a-path-is-validated`
+    /// records against `fchmodat(2)`.
+    pub(crate) fn create_symlink(target: &Path, path: &Path) -> io::Result<()> {
+        match std::os::unix::fs::symlink(target, path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+    /// Reads one symbolic link's target without resolving it.
+    ///
+    /// Verbatim, never canonicalized: the guard compares it against the target
+    /// the wrapper recorded, and a resolved form would compare something the
+    /// wrapper never wrote.
+    pub(crate) fn read_link(path: &Path) -> io::Result<std::path::PathBuf> {
+        fs::read_link(path)
+    }
     pub(crate) fn set_dir_mode(path: &Path) -> io::Result<()> {
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))
     }

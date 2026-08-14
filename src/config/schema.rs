@@ -29,6 +29,7 @@ pub(crate) struct FileConfig {
     pub(crate) child_bin: Option<PathBuf>,
     pub(crate) default_account: Option<String>,
     pub(crate) default_profile: Option<String>,
+    pub(crate) auto_trust_cwd: Option<bool>,
 }
 
 /// One configuration key, as the generated artifacts render it.
@@ -131,5 +132,16 @@ pub const KEYS: &[ConfigKey] = &[
         required: false,
         description: "Profile to compose when --profile is absent. Unset composes nothing.",
         placeholder: "replace-me",
+    },
+    ConfigKey {
+        name: "auto_trust_cwd",
+        type_name: "boolean",
+        required: false,
+        description: concat!(
+            "Record the directory a launch starts in as trusted, in that ",
+            "terminal's own session directory. Set false to answer claude's ",
+            "workspace-trust prompt yourself.",
+        ),
+        placeholder: "true",
     },
 ];

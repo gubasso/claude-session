@@ -122,6 +122,14 @@ fn assemble(context: &AppContext) -> Report {
             value: config.profile().map(|name| name.as_str().to_owned()),
             source: config.profile_source(),
         },
+        // Reported with its effective value rather than only when a layer set
+        // one, because it is the one key whose unset behaviour a reader has to
+        // be told: the wrapper answers a trust question on their behalf.
+        KeyReport {
+            name: "auto_trust_cwd",
+            value: Some(config.auto_trust_cwd().to_string()),
+            source: config.auto_trust_cwd_source(),
+        },
     ];
 
     let selected = context.session().profile().cloned();

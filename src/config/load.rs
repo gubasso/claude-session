@@ -121,11 +121,20 @@ fn apply_file(
             path: path.to_path_buf(),
             message: error.to_string(),
         })?;
-    if project && (file.child_bin.is_some() || file.default_account.is_some()) {
+    // A repository may not answer a question about whether to trust itself,
+    // which is the same reason it may not name the binary or the account
+    // ([ADR-0071](../../docs/decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
+    if project
+        && (file.child_bin.is_some()
+            || file.default_account.is_some()
+            || file.auto_trust_cwd.is_some())
+    {
         let key = if file.child_bin.is_some() {
             "child_bin"
-        } else {
+        } else if file.default_account.is_some() {
             "default_account"
+        } else {
+            "auto_trust_cwd"
         };
         return Err(ConfigError::Decode {
             path: path.to_path_buf(),
@@ -144,6 +153,9 @@ fn apply_file(
         resolved
             .profile_mut()
             .set(identifier("default_profile", &value, path)?, source);
+    }
+    if let Some(value) = file.auto_trust_cwd {
+        resolved.auto_trust_cwd_mut().set(value, source);
     }
     Ok(true)
 }
@@ -165,10 +177,35 @@ fn apply_environment(
                 environment_identifier("default_profile", value)?,
                 Source::Environment,
             ),
+            Some("CLAUDE_SESSION_RS_AUTO_TRUST_CWD") => resolved.auto_trust_cwd_mut().set(
+                environment_flag("auto_trust_cwd", value)?,
+                Source::Environment,
+            ),
             _ => {}
         }
     }
     Ok(())
+}
+
+/// Decodes a boolean environment value, refusing anything ambiguous.
+///
+/// The four spellings TOML and the shell agree on, and nothing else: a value
+/// the wrapper guessed at would silently answer a trust question the user meant
+/// to answer themselves.
+fn environment_flag(key: &'static str, value: &OsStr) -> Result<bool, ConfigError> {
+    match value.to_str() {
+        Some("true" | "1") => Ok(true),
+        Some("false" | "0") => Ok(false),
+        // Deliberately not the identifier error: there is no grammar to
+        // correct, only two spellings that mean yes and two that mean no.
+        _ => Err(ConfigError::Value {
+            key,
+            origin: format!(
+                "{} (expected true, false, 1, or 0)",
+                environment_spelling(key)
+            ),
+        }),
+    }
 }
 
 fn identifier(key: &'static str, value: &str, path: &Path) -> Result<Identifier, ConfigError> {
@@ -199,6 +236,7 @@ fn environment_identifier(key: &'static str, value: &OsStr) -> Result<Identifier
 const fn environment_spelling(key: &str) -> &'static str {
     match key.as_bytes() {
         b"default_account" => "CLAUDE_SESSION_RS_DEFAULT_ACCOUNT",
+        b"auto_trust_cwd" => "CLAUDE_SESSION_RS_AUTO_TRUST_CWD",
         _ => "CLAUDE_SESSION_RS_DEFAULT_PROFILE",
     }
 }
@@ -218,7 +256,14 @@ mod tests {
         let mut document = String::new();
         for key in KEYS {
             use std::fmt::Write as _;
-            let _ = writeln!(document, "{} = \"placeholder\"", key.name);
+            // Typed, because a boolean field cannot decode from a quoted
+            // placeholder and the point of the round trip is that it decodes.
+            let value = if key.type_name == "boolean" {
+                "true".to_owned()
+            } else {
+                "\"placeholder\"".to_owned()
+            };
+            let _ = writeln!(document, "{} = {value}", key.name);
         }
         let decoded: FileConfig =
             toml::from_str(&document).expect("every described key is a field");
@@ -226,6 +271,7 @@ mod tests {
             decoded.child_bin.is_some(),
             decoded.default_account.is_some(),
             decoded.default_profile.is_some(),
+            decoded.auto_trust_cwd.is_some(),
         ];
         assert_eq!(
             set.iter().filter(|value| **value).count(),

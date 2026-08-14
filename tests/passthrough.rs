@@ -102,9 +102,11 @@ fn a_non_utf8_state_home_reaches_the_child_byte_exact() {
     assert_eq!(argv[3], b"run");
 }
 
-/// The account's own directory is the child's, and it is the only key besides
-/// the marker that the wrapper adds. A second `CLAUDE_SESSION_RS_*` key would mean
-/// wrapper state reached a program that has no business reading it.
+/// This terminal's own session directory is the child's configuration
+/// directory, the account's directory is its credential store, and those are
+/// the only keys besides the marker that the wrapper adds. A second
+/// `CLAUDE_SESSION_RS_*` key would mean wrapper state reached a program that
+/// has no business reading it.
 #[test]
 fn a_selected_account_injects_its_config_directory_and_the_marker_alone() {
     let harness = Harness::new();
@@ -119,12 +121,21 @@ fn a_selected_account_injects_its_config_directory_and_the_marker_alone() {
             .success()
     );
     let environ = read_nul(&harness.record_dir().join("environ"));
+    let sessions = harness.state().join("accounts/work/sessions");
     let config = harness.state().join("accounts/work/config");
     assert!(
-        environ
-            .windows(2)
-            .any(|pair| pair[0] == b"CLAUDE_CONFIG_DIR" && pair[1] == bytes(config.as_os_str())),
-        "the account configuration directory did not reach the child"
+        environ.windows(2).any(|pair| {
+            pair[0] == b"CLAUDE_CONFIG_DIR"
+                && pair[1].starts_with(bytes(sessions.as_os_str()))
+                && pair[1] != bytes(sessions.as_os_str())
+        }),
+        "this terminal's session directory did not reach the child"
+    );
+    assert!(
+        environ.windows(2).any(|pair| {
+            pair[0] == b"CLAUDE_SECURESTORAGE_CONFIG_DIR" && pair[1] == bytes(config.as_os_str())
+        }),
+        "the account credential store did not reach the child"
     );
     let internal: Vec<_> = environ
         .iter()

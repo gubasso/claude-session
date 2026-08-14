@@ -1,19 +1,30 @@
 # Session isolation
 
-`claude-session` separates two scopes. An account supplies durable native identity, authentication, configuration, projects, history, and trust state. A profile supplies the composed settings the child is launched with, and their provenance. This page explains that split.
+`claude-session` separates three scopes. An account supplies durable native identity, authentication, and the project tree every run of it shares. A terminal supplies the child state directory one run writes into. A profile supplies the composed settings the child is launched with, and their provenance. This page explains that split.
 
 Exact paths, modes, and writers are in [XDG storage](../reference/xdg-storage.md). Launch injection is in [the wrapper model](./wrapper-model.md).
 
 ## What a session is
 
-A wrapper session is an account plus a profile:
+A wrapper session is an account, a terminal, and a profile:
 
-- The account selects one shared child `config/` directory and one stored authentication mode.
+- The account selects one stored authentication mode, one credential store, and one projects tree.
+- The terminal selects one child state directory, which is what `CLAUDE_CONFIG_DIR` points at.
 - The profile selects one composed `settings.json` and its provenance sidecar.
 
-Every run of one account uses the same `CLAUDE_CONFIG_DIR`. The child exclusively owns its saved login and other native state there. The wrapper passes the profile's composed document through the native `--settings` flag. The two selections are related rather than independent: an account carries [the profile it runs with](../reference/accounts.md#the-bound-profile), and that binding is one rung of the profile ladder. An explicit flag, the environment, or a project file still overrides it, and an account created before the binding existed resolves its profile from configuration alone.
+The child exclusively owns its saved login and its native state. The wrapper passes the profile's composed document through the native `--settings` flag. The account and profile selections are related rather than independent: an account carries [the profile it runs with](../reference/accounts.md#the-bound-profile), and that binding is one rung of the profile ladder. An explicit flag, the environment, or a project file still overrides it, and an account created before the binding existed resolves its profile from configuration alone.
 
-Sessions are not conversations. Runs of one account intentionally share the child's projects, history, onboarding, and trust state. A caller needing conversation separation uses the child's own session identifier.
+Sessions are not conversations. Two terminals of one account share the login and the project tree, including the durable per-project memory the child writes there. A caller needing conversation separation uses the child's own session identifier.
+
+## Why the terminal is a scope
+
+`CLAUDE_CONFIG_DIR` relocates every path the child reads, at once. Inside it, almost everything the child writes is already keyed by something: transcripts by session identifier, session registrations by process id, per-session environments by session identifier. Three files are keyed by nothing — the child's own `.claude.json`, `history.jsonl`, and `.credentials.json` — and two panes of one account interleave their writes to them.
+
+The first two are split by giving each terminal its own directory ([ADR-0102](../decisions/ADR-0102-key-child-state-by-terminal.md)). The third must not be: the child rotates and revokes on refresh and coordinates that across processes through one file, so N copies is the failure [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md) exists to prevent. It stays at the account and is reached through the child's own credential-store variable ([ADR-0104](../decisions/ADR-0104-share-one-credential-store.md)), which relocates it independently.
+
+Splitting at directory granularity instead would take `projects/` with it, and durable per-project memory lives under that. A wrapper of this same shape was observed doing exactly that: one machine accumulated fifty-two memory directories, two of them for a single repository, neither able to read the other. So the tree stays at the account and each session directory reaches it through a declared link ([ADR-0103](../decisions/ADR-0103-permit-a-declared-link.md)).
+
+The terminal keys the child's state directory and nothing else. It does not key composed settings, which is the error the next section describes.
 
 ## Why the profile is the key
 

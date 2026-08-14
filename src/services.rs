@@ -1,6 +1,7 @@
 //! Shared application orchestration independent of command spelling.
 
 pub(crate) mod account;
+pub(crate) mod assets;
 pub(crate) mod child;
 pub(crate) mod profile;
 pub(crate) mod session;

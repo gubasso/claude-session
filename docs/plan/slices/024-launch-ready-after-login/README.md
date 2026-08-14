@@ -59,11 +59,11 @@ After one successful `account login`, a bare launch under that account reaches t
 
 ## Acceptance
 
-- When a token login succeeds, the wrapper shall leave the account's child configuration recording that the child's first-run onboarding is complete. -> accounts::a_token_login_records_the_first_run_setup_as_done
-- When a native login succeeds, the wrapper shall leave the same record, and every key the child wrote beside it shall survive unchanged. -> accounts::a_native_login_records_it_without_disturbing_the_other_keys
-- When the account's child configuration is present and is not an object, the wrapper shall refuse as `DataFormat` and shall leave the stored credential in place. -> accounts::a_child_configuration_that_is_not_an_object_is_refused_and_keeps_the_credential
-- When a launch resolves an account whose child configuration would still trigger onboarding, the wrapper shall warn before the exec, name the verb that repairs it, and launch anyway. -> accounts::a_launch_under_an_account_that_would_onboard_warns_and_still_execs
-- When `doctor` runs against a selected account that would still onboard, the report shall carry that as a defect with its next action. -> doctor::an_account_that_would_onboard_is_a_defect_with_its_next_action
+- When an authenticated account launches, the wrapper shall leave the child configuration the child reads recording that its first-run onboarding is complete. -> accounts::a_launch_records_the_first_run_setup_as_done
+- When that record is written, every key the child wrote beside it shall survive unchanged. -> accounts::a_launch_records_it_without_disturbing_the_other_keys
+- When that child configuration is present and is not an object, the wrapper shall refuse as `DataFormat` and shall leave the file alone. -> accounts::a_child_configuration_that_is_not_an_object_is_refused_and_left_alone
+- When a launch creates a session directory, the child shall meet its prompt rather than its first-run setup, and the wrapper shall warn about neither. -> accounts::a_launch_into_a_fresh_session_answers_onboarding_rather_than_warning
+- When `doctor` runs against a selected account whose session directory does not exist yet, the readiness check shall pass rather than report a defect the next launch repairs. -> doctor::an_unreadable_child_configuration_is_a_defect_with_its_next_action
 - When `doctor` runs with no account selected, the readiness check shall be skipped rather than reported as a defect. -> doctor::doctor_skips_inapplicable_session_checks_with_reasons
 - When a login is reported, the human form shall say that a launch under the account reaches the child's prompt. -> accounts::a_login_report_says_the_launch_reaches_the_prompt
 
@@ -71,7 +71,7 @@ After one successful `account login`, a bare launch under that account reaches t
 
 - Seeding a second key because the child asks another question; escape: one key, and any further question is the child's to ask.
 - Rewriting the whole child configuration from a wrapper-side template; escape: read, set one key, write, and refuse anything that is not an object.
-- Ensuring readiness on every launch so the guarantee cannot lapse; escape: a launch reads and warns, and only a login writes.
+- Ensuring readiness on every launch so the guarantee cannot lapse; escape: this is what [ADR-0105](../../../decisions/ADR-0105-seed-a-session-at-launch.md) later chose, once per-terminal directories made a login unable to answer for a terminal that did not exist.
 - Modelling the child's onboarding as a state machine to skip it precisely; escape: the single documented key is the whole carry, registered against the launch obligation.
 - Widening the child-facts scanner into a general identifier search; escape: an explicit literal list beside the existing prefixes, and nothing else.
 
@@ -81,4 +81,5 @@ One `account login` produces an account a bare launch reaches the prompt with, a
 
 ## Revisions
 
+- 2026-08-14: [ADR-0105](../../../decisions/ADR-0105-seed-a-session-at-launch.md) moved the write from the login to the launch, because [028](../028-per-terminal-session-isolation/README.md) put the file the child reads in a per-terminal directory that does not exist at login. The guarantee is unchanged and the first three acceptance lines name the launch that now carries it; what a login can no longer do is answer for a terminal that has not appeared yet.
 - 2026-08-13: the login report says this in the human form only. The machine document would have carried a field that is `true` on every login the report is reached from, because the login refuses rather than reports when the record was not written, and [ADR-0051](../../../decisions/ADR-0051-let-every-surface-element-discriminate.md) refuses a surface element that discriminates nothing.

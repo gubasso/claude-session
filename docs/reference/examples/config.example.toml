@@ -20,3 +20,8 @@
 
 # Profile to compose when --profile is absent. Unset composes nothing.
 # default_profile = "replace-me"
+
+# Record the directory a launch starts in as trusted, in that terminal's own
+# session directory. Set false to answer claude's workspace-trust prompt
+# yourself.
+# auto_trust_cwd = true

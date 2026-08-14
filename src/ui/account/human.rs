@@ -384,23 +384,27 @@ pub(super) fn login(
         },
         &profile_row,
     ));
-    // Always a pass, because the login refused rather than reported if this had
-    // not been recorded. It is here at all because it is the half of "ready" a
-    // reader cannot check: the credential half is what the two rows above say,
-    // and this is what a first launch used to fail on silently.
+    // Always a pass, because it states what a launch will do rather than what
+    // this login wrote. Since [ADR-0105] the first-run answer is seeded by the
+    // launch that creates this terminal's session directory, so a login has
+    // nothing recorded to report here. It is still the half of "ready" a reader
+    // cannot check: the credential half is what the two rows above say, and
+    // this is what a first launch used to fail on silently.
     //
     // The claim narrows when the profile has no document, because the row above
     // has just said that a launch refuses before the child starts. Stating both
-    // would make the report contradict itself, so the recorded fact is reported
-    // without the whole-launch promise it does not on its own establish.
+    // would make the report contradict itself, so the promise is confined to
+    // what happens once that launch does run.
+    //
+    // [ADR-0105]: ../../../docs/decisions/ADR-0105-seed-a-session-at-launch.md
     rows.push_str(&row(
         palette,
         CheckStatus::Pass,
         if binding.present {
             "A launch under it goes straight to claude's prompt, with no first-run setup."
         } else {
-            "Claude's first-run setup is recorded as done, so it will not stand between \
-            this account and the prompt."
+            "Once that is dealt with, a launch records claude's first-run setup as done \
+            before starting it, so it will not stand between this account and the prompt."
         },
     ));
     // Token mode only, because a saved login carries its own plan to the child

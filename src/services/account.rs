@@ -404,26 +404,21 @@ pub(crate) fn launch_ready_result(context: &AppContext) -> CheckResult {
             ),
         );
     };
+    // The remediation names the file to move aside, so the path has to reach
+    // the substitution or the reader is told to move `{path}`.
+    let path = onboarding::session_config_path(context, selected).map_or_else(
+        || "this terminal's child configuration file".to_owned(),
+        |path| path.display().to_string(),
+    );
     let hint = || {
         check
-            .hint(&[("account", selected.as_str())])
+            .hint(&[("account", selected.as_str()), ("path", &path)])
             .unwrap_or_default()
     };
     match onboarding::readiness(context, selected) {
         onboarding::Readiness::Ready => CheckResult::pass(
             check,
             format!("\"{}\" goes straight to claude's prompt", selected.as_str()),
-        ),
-        onboarding::Readiness::WouldOnboard => CheckResult::defect(
-            check,
-            format!(
-                concat!(
-                    "account \"{}\" has not recorded that claude's first-run setup is ",
-                    "done, so claude would run it."
-                ),
-                selected.as_str()
-            ),
-            hint(),
         ),
         onboarding::Readiness::Unreadable(why) => CheckResult::defect(
             check,

@@ -7,6 +7,22 @@
 # inside each artifact's `revalidate` field.
 
 tracked:
+  - path: docs/decisions/ADR-0104-share-one-credential-store.md
+    last_checked: 2026-08-14
+    cadence: monthly
+    why: The child's credential-store variable is undocumented, so its name, its precedence over the configuration directory, and its empty-value behavior can all change without a note anywhere a reader would look.
+    revalidate: >-
+      Confirm the installed child still reads the variable and still resolves
+      the credential store from it independently of the configuration
+      directory. Confirm an empty value still falls back to the home directory
+      rather than to the configuration directory, since the wrapper relies on
+      never passing one. Check whether the name has become documented, which
+      would move this entry to a slower cadence.
+    dependents:
+      - docs/reference/accounts.md
+      - docs/reference/process-runtime.md
+      - src/services/child.rs
+
   - path: .github/workflows/ci.yml
     last_checked: 2026-07-30
     cadence: quarterly

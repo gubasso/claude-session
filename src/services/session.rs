@@ -6,7 +6,82 @@
 
 use std::path::PathBuf;
 
-use crate::{context::AppContext, domain::identifier::Identifier};
+use crate::{
+    adapters::terminal::Terminal as _,
+    context::AppContext,
+    domain::{checks::Check, identifier::Identifier, terminal::Terminal},
+    error::{AppError, Diagnostic},
+    services::storage::guard,
+};
+
+/// Names the terminal this run's child state directory belongs to, or refuses.
+///
+/// The refusal is the ladder's last rung and is deliberate: with nothing to
+/// name, the only alternatives are sharing another terminal's state, which is
+/// what the separation exists to prevent, or inventing a directory the user
+/// can never find again ([ADR-0102]).
+///
+/// [ADR-0102]: ../../docs/decisions/ADR-0102-key-child-state-by-terminal.md
+pub(crate) fn terminal(context: &AppContext) -> Result<Terminal, AppError> {
+    let derived = context
+        .adapters()
+        .terminal()
+        .identity()
+        .map_err(|error| refuse(&error.to_string()))?;
+    derived.ok_or_else(|| refuse("neither a controlling terminal nor a session leader named one"))
+}
+
+fn refuse(why: &str) -> AppError {
+    AppError::new(
+        Check::SessionTerminalDerives.kind(),
+        Diagnostic::new(
+            "this run's terminal could not be named",
+            "the controlling terminal and the session leader",
+            why.to_owned(),
+            Check::SessionTerminalDerives
+                .remediation()
+                .unwrap_or_default(),
+        ),
+    )
+}
+
+/// Prepares one terminal's child state directory and the tree it shares back.
+///
+/// Three steps, in this order: the session directory, the account's projects
+/// tree, and the declared link between them. The tree is created before the
+/// link so the link is never dangling, which is what lets the guard verify it
+/// on the next run ([ADR-0103]).
+///
+/// Idempotent. A second run of the same terminal validates what the first one
+/// built and creates nothing.
+///
+/// [ADR-0103]: ../../docs/decisions/ADR-0103-permit-a-declared-link.md
+pub(crate) fn materialise(
+    context: &AppContext,
+    account: &Identifier,
+    terminal: &Terminal,
+) -> Result<PathBuf, AppError> {
+    let paths = context.paths();
+    let state = paths.state();
+    let directory = paths.account_session(account, terminal.id());
+    guard::ensure_directory(state, &directory)?;
+    let projects = paths.account_projects(account);
+    guard::ensure_directory(state, &projects)?;
+    guard::ensure_link(
+        state,
+        &paths.session_projects_link(account, terminal.id()),
+        &projects,
+    )?;
+    tracing::info!(
+        op = "materialise_session",
+        status = "ok",
+        terminal = terminal.id().as_str(),
+        path = %directory.display(),
+        "this run will use the session directory at {}",
+        directory.display()
+    );
+    Ok(directory)
+}
 
 /// The paths one run's selection resolves to.
 ///

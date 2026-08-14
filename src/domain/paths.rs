@@ -70,7 +70,7 @@ impl XdgPaths {
     // carried without a reader rather than dropped. The allow is scoped to the
     // item so a genuinely dead addition elsewhere still reports.
     /// Returns the data namespace.
-    #[allow(dead_code, reason = "no namespace has a durable artifact yet")]
+    #[allow(dead_code, reason = "the asset tree is the base's only artifact")]
     pub(crate) fn data(&self) -> &Path {
         &self.data
     }
@@ -80,6 +80,14 @@ impl XdgPaths {
         &self.cache
     }
 
+    /// Returns the user's machine-local tree of child assets.
+    ///
+    /// Data rather than State: it is user-authored content, portable between
+    /// machines, and the wrapper never writes it
+    /// ([ADR-0106](../../docs/decisions/ADR-0106-supply-child-assets-from-one-tree.md)).
+    pub(crate) fn assets(&self) -> PathBuf {
+        self.data.join("assets")
+    }
     /// Returns the accounts collection directory.
     pub(crate) fn accounts(&self) -> PathBuf {
         self.state.join("accounts")
@@ -93,6 +101,43 @@ impl XdgPaths {
     /// The wrapper creates it; the child writes everything inside it.
     pub(crate) fn account_config(&self, account: &Identifier) -> PathBuf {
         self.account(account).join("config")
+    }
+    /// Returns the collection of one account's per-terminal state directories.
+    pub(crate) fn account_sessions(&self, account: &Identifier) -> PathBuf {
+        self.account(account).join("sessions")
+    }
+    /// Returns the child state directory for one account and one terminal.
+    ///
+    /// This is what `CLAUDE_CONFIG_DIR` points at. It is per terminal because
+    /// three of the files the child writes there are keyed by nothing and
+    /// interleave between panes
+    /// ([ADR-0102](../../docs/decisions/ADR-0102-key-child-state-by-terminal.md)).
+    pub(crate) fn account_session(&self, account: &Identifier, terminal: &Identifier) -> PathBuf {
+        self.account_sessions(account).join(terminal.as_str())
+    }
+    /// Returns the projects tree every terminal of one account shares.
+    ///
+    /// Inside `config/` rather than beside it, so an account that predates the
+    /// split keeps the tree the child already filled, and durable per-project
+    /// memory is not divided per terminal.
+    pub(crate) fn account_projects(&self, account: &Identifier) -> PathBuf {
+        self.account_config(account).join("projects")
+    }
+    /// Returns the child's own configuration file inside one session directory.
+    pub(crate) fn session_native_config(
+        &self,
+        account: &Identifier,
+        terminal: &Identifier,
+    ) -> PathBuf {
+        self.account_session(account, terminal).join(".claude.json")
+    }
+    /// Returns the shared-projects link inside one session directory.
+    pub(crate) fn session_projects_link(
+        &self,
+        account: &Identifier,
+        terminal: &Identifier,
+    ) -> PathBuf {
+        self.account_session(account, terminal).join("projects")
     }
     /// Returns one account's authentication-mode metadata.
     pub(crate) fn account_auth_mode(&self, account: &Identifier) -> PathBuf {
@@ -126,15 +171,6 @@ impl XdgPaths {
     /// Returns the child-owned saved-login path without opening it.
     pub(crate) fn account_credentials(&self, account: &Identifier) -> PathBuf {
         self.account_config(account).join(".credentials.json")
-    }
-    /// Returns the child's own configuration file inside one account's directory.
-    ///
-    /// The child owns every key in it but one. The wrapper created the
-    /// directory the child reads it from, so the wrapper answers the one
-    /// question that directory being new makes the child ask
-    /// ([ADR-0098](../../docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md)).
-    pub(crate) fn account_native_config(&self, account: &Identifier) -> PathBuf {
-        self.account_config(account).join(".claude.json")
     }
     /// Returns the last-used account marker.
     pub(crate) fn last_account(&self) -> PathBuf {
@@ -210,6 +246,27 @@ mod tests {
         assert_eq!(
             paths.account_credentials(&work),
             Path::new("/s/claude-session-rs/accounts/work/config/.credentials.json")
+        );
+        let pane = "pts-3".parse().expect("terminal identifier");
+        assert_eq!(
+            paths.account_sessions(&work),
+            Path::new("/s/claude-session-rs/accounts/work/sessions")
+        );
+        assert_eq!(
+            paths.account_session(&work, &pane),
+            Path::new("/s/claude-session-rs/accounts/work/sessions/pts-3")
+        );
+        assert_eq!(
+            paths.account_projects(&work),
+            Path::new("/s/claude-session-rs/accounts/work/config/projects")
+        );
+        assert_eq!(
+            paths.session_native_config(&work, &pane),
+            Path::new("/s/claude-session-rs/accounts/work/sessions/pts-3/.claude.json")
+        );
+        assert_eq!(
+            paths.session_projects_link(&work, &pane),
+            Path::new("/s/claude-session-rs/accounts/work/sessions/pts-3/projects")
         );
         assert_eq!(
             paths.last_account(),

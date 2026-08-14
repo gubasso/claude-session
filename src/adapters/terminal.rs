@@ -8,9 +8,13 @@
 use std::{
     fs::{File, OpenOptions},
     io::{self, Read as _, Write as _},
+    os::unix::ffi::OsStrExt as _,
 };
 
-use crate::domain::secret::{Secret, SecretError};
+use crate::domain::{
+    secret::{Secret, SecretError},
+    terminal::Terminal as TerminalIdentity,
+};
 
 pub(crate) trait Terminal {
     /// Reports whether a controlling terminal can be opened.
@@ -21,10 +25,31 @@ pub(crate) trait Terminal {
     fn ask(&self, prompt: &str) -> io::Result<Option<String>>;
     /// Writes a prompt and reads one line with terminal echo disabled.
     fn read_secret(&self, prompt: &str) -> io::Result<Result<Secret, SecretError>>;
+    /// Names the terminal this run's child state directory belongs to.
+    ///
+    /// `Ok(None)` is the refusal rung: neither a controlling terminal nor a
+    /// session leader named anything usable, and the caller must fail rather
+    /// than invent a directory ([ADR-0102]).
+    ///
+    /// [ADR-0102]: ../../docs/decisions/ADR-0102-key-child-state-by-terminal.md
+    fn identity(&self) -> io::Result<Option<TerminalIdentity>>;
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct SystemTerminal;
+
+/// Reads the session leader's start time from `procfs`, in clock ticks.
+///
+/// Field 22 of `/proc/<pid>/stat`, counted from the last `)` because the
+/// second field is the executable name and may itself contain both spaces and
+/// parentheses. Linux-only, which [ADR-0046] already is.
+///
+/// [ADR-0046]: ../../docs/decisions/ADR-0046-support-linux-and-a-single-child-baseline.md
+fn leader_started(pid: u32) -> Option<u64> {
+    let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let tail = text.rsplit_once(')')?.1;
+    tail.split_whitespace().nth(19)?.parse().ok()
+}
 
 /// `ENXIO` and `EBADF`, the two ways an absent controlling terminal reports.
 const NO_TERMINAL: [i32; 2] = [6, 25];
@@ -49,6 +74,29 @@ impl Terminal for SystemTerminal {
         write_prompt(&tty, prompt)?;
         let line = read_line(&tty)?;
         Ok(line.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
+    }
+
+    fn identity(&self) -> io::Result<Option<TerminalIdentity>> {
+        // The pane's own pseudo-terminal first, opened rather than inferred
+        // from `isatty(0)`, matching every other predicate in this module.
+        if let Ok(tty) = open_tty()
+            && let Ok(name) = rustix::termios::ttyname(&tty, Vec::new())
+            && let Some(terminal) =
+                TerminalIdentity::from_tty(std::ffi::OsStr::from_bytes(name.as_bytes()))
+        {
+            return Ok(Some(terminal));
+        }
+        let Ok(sid) = rustix::process::getsid(None) else {
+            return Ok(None);
+        };
+        let raw = sid.as_raw_nonzero().get().unsigned_abs();
+        // Without the leader's start time a recycled process id would inherit
+        // an earlier session's directory, so a leader whose start time cannot
+        // be read is no answer at all.
+        let Some(started) = leader_started(raw) else {
+            return Ok(None);
+        };
+        Ok(TerminalIdentity::from_session_leader(raw, started))
     }
 
     fn read_secret(&self, prompt: &str) -> io::Result<Result<Secret, SecretError>> {

@@ -60,17 +60,20 @@ The command protocol and configuration schema remain deferred under [ADR-0029](.
 
 ### Keys
 
-Three keys. All optional; the default of each is unset.
+Four keys. All optional; the default of each is unset, except the trust seed, whose unset value is enabled.
 
-| Key               | Type          | Unset means                          | Environment                         | Layers                     | Meaning                                                                                                |
-| ----------------- | ------------- | ------------------------------------ | ----------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `child_bin`       | absolute path | search `PATH`                        | `CLAUDE_SESSION_RS_CHILD_BIN`       | user, environment          | The child to run ([process runtime](./process-runtime.md#child-resolution))                            |
-| `default_account` | identifier    | fall through to the last-used marker | `CLAUDE_SESSION_RS_DEFAULT_ACCOUNT` | user, environment          | The account when `--account` is absent ([accounts](./accounts.md#selection))                           |
-| `default_profile` | identifier    | report no profile; refuse a launch   | `CLAUDE_SESSION_RS_DEFAULT_PROFILE` | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile)) |
+| Key               | Type          | Unset means                          | Environment                         | Layers                     | Meaning                                                                                                                                     |
+| ----------------- | ------------- | ------------------------------------ | ----------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `child_bin`       | absolute path | search `PATH`                        | `CLAUDE_SESSION_RS_CHILD_BIN`       | user, environment          | The child to run ([process runtime](./process-runtime.md#child-resolution))                                                                 |
+| `default_account` | identifier    | fall through to the last-used marker | `CLAUDE_SESSION_RS_DEFAULT_ACCOUNT` | user, environment          | The account when `--account` is absent ([accounts](./accounts.md#selection))                                                                |
+| `default_profile` | identifier    | report no profile; refuse a launch   | `CLAUDE_SESSION_RS_DEFAULT_PROFILE` | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile))                                      |
+| `auto_trust_cwd`  | boolean       | enabled                              | `CLAUDE_SESSION_RS_AUTO_TRUST_CWD`  | user, environment          | Record the launch directory as trusted in this terminal's session directory ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)) |
 
 Identifiers follow [the identifier rules](./xdg-storage.md#identifiers); an absolute path is validated where it is used.
 
-The project layer may set `default_profile` only. A repository that could set `child_bin` would choose the executable that runs, and one that could set `default_account` would choose the credential it runs under — both before the user has read a line of it. Either key in a project file is `Config`, not a silent ignore ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
+The project layer may set `default_profile` only. A repository that could set `child_bin` would choose the executable that runs, one that could set `default_account` would choose the credential it runs under, and one that could set `auto_trust_cwd` would answer the question of whether to trust itself — all before the user has read a line of it. Any of the three in a project file is `Config`, not a silent ignore ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
+
+The environment value is one of `true`, `false`, `1`, or `0`; anything else is `Config` rather than a guess, because a guessed value answers a trust question the user meant to answer themselves. It is the same exit as an invalid value in a file, since the environment is a configuration layer and not an argument.
 
 No other key earns a row. Verbosity is invocation-scoped, colour is `NO_COLOR` ([presentation](./presentation.md#colour)), and `token_helper` stays deferred by [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md). A key is a permanent contract, so it is added by a present need rather than by symmetry ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 

@@ -40,7 +40,17 @@ impl Harness {
             .status()
             .expect("run pinned rustc");
         assert!(status.success(), "recording child must compile");
+        // A machine somebody has set up holds at least one asset, and that is
+        // the fixture's baseline: an empty tree is the warning the assets check
+        // exists to raise, and it belongs to the test that asks for it.
+        let assets = root.path().join("data/claude-session-rs/assets/skills");
+        fs::create_dir_all(&assets).expect("asset fixture");
         Self { root, child }
+    }
+
+    /// The user's machine-local asset tree inside this fixture's XDG data base.
+    pub(crate) fn assets(&self) -> PathBuf {
+        self.root.path().join("data/claude-session-rs/assets")
     }
 
     pub(crate) fn root(&self) -> &Path {

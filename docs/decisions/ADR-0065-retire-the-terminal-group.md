@@ -27,6 +27,6 @@ The account is untouched: one shared child `config/`, one saved login, one proje
 
 ## Status
 
-Accepted
+Superseded
 
-Supersedes [ADR-0062](./ADR-0062-derive-the-group-from-the-controlling-terminal.md) and [ADR-0063](./ADR-0063-claim-a-group-by-its-derivation-fingerprint.md). Their reasoning against multiplexer and emulator variables stays there as history and needs no successor, because nothing derives a terminal identity now. Amends [ADR-0018](./ADR-0018-one-probe-set-with-stable-check-ids.md) and [ADR-0061](./ADR-0061-protect-storage-from-accidental-local-drift.md).
+Superseded by [ADR-0102](./ADR-0102-key-child-state-by-terminal.md), which reinstates a terminal axis for the child's own state directory after the collisions it keys turned out to be reachable. Supersedes [ADR-0062](./ADR-0062-derive-the-group-from-the-controlling-terminal.md) and [ADR-0063](./ADR-0063-claim-a-group-by-its-derivation-fingerprint.md). Their reasoning against multiplexer and emulator variables stays there as history and needs no successor, because nothing derives a terminal identity now. Amends [ADR-0018](./ADR-0018-one-probe-set-with-stable-check-ids.md) and [ADR-0061](./ADR-0061-protect-storage-from-accidental-local-drift.md).

@@ -15,6 +15,10 @@
     "default_profile": {
       "type": "string",
       "description": "Profile to compose when --profile is absent. Unset composes nothing."
+    },
+    "auto_trust_cwd": {
+      "type": "boolean",
+      "description": "Record the directory a launch starts in as trusted, in that terminal's own session directory. Set false to answer claude's workspace-trust prompt yourself."
     }
   }
 }

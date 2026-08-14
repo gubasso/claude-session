@@ -358,15 +358,19 @@ fn marker_is_written_before_the_selected_account_exec() {
     let visibility =
         fs::read_to_string(harness.record_dir().join("marker-visible")).expect("visibility");
     assert_eq!(visibility.lines().collect::<Vec<_>>(), ["0", "1"]);
-    // The same acceptance sentence binds the launch environment: the account's
-    // configuration directory is set, and no wrapper token variable is.
+    // The same acceptance sentence binds the launch environment: this
+    // terminal's session directory is the child's configuration directory, the
+    // account's directory is its credential store, and no wrapper token
+    // variable is set.
     let environment = read_nul(&harness.record_dir().join("environ"));
+    let sessions = harness.state().join("accounts/work/sessions");
     let config = harness.state().join("accounts/work/config");
-    assert!(
-        environment
-            .windows(2)
-            .any(|pair| pair[0] == b"CLAUDE_CONFIG_DIR" && pair[1] == bytes(config.as_os_str()))
-    );
+    assert!(environment.windows(2).any(|pair| {
+        pair[0] == b"CLAUDE_CONFIG_DIR" && pair[1].starts_with(bytes(sessions.as_os_str()))
+    }));
+    assert!(environment.windows(2).any(|pair| {
+        pair[0] == b"CLAUDE_SECURESTORAGE_CONFIG_DIR" && pair[1] == bytes(config.as_os_str())
+    }));
     assert!(
         !environment
             .iter()
@@ -407,12 +411,14 @@ fn marker_selection_is_used_when_no_higher_rung_answers() {
             .success()
     );
     let environment = read_nul(&harness.record_dir().join("environ"));
+    let sessions = harness.state().join("accounts/work/sessions");
     let config = harness.state().join("accounts/work/config");
-    assert!(
-        environment
-            .windows(2)
-            .any(|pair| pair[0] == b"CLAUDE_CONFIG_DIR" && pair[1] == bytes(config.as_os_str()))
-    );
+    assert!(environment.windows(2).any(|pair| {
+        pair[0] == b"CLAUDE_CONFIG_DIR" && pair[1].starts_with(bytes(sessions.as_os_str()))
+    }));
+    assert!(environment.windows(2).any(|pair| {
+        pair[0] == b"CLAUDE_SECURESTORAGE_CONFIG_DIR" && pair[1] == bytes(config.as_os_str())
+    }));
 }
 
 #[test]
@@ -1654,35 +1660,271 @@ fn the_published_status_example_matches_the_renderer() {
     assert!(rendered.contains("[pass]"), "{rendered}");
 }
 
-/// Slice 024 acceptance: a token login leaves an account a launch reaches the
-/// prompt with, and says so.
+/// Returns the one session directory a launch created under an account.
+///
+/// The name is derived from whatever terminal the test process happens to be
+/// in, which no test can know, so the directory is found rather than spelled.
+fn only_session_dir(harness: &Harness, account: &str) -> std::path::PathBuf {
+    let sessions = harness.state().join(format!("accounts/{account}/sessions"));
+    let mut entries: Vec<_> = fs::read_dir(&sessions)
+        .expect("sessions directory")
+        .map(|entry| entry.expect("entry").path())
+        .collect();
+    assert_eq!(entries.len(), 1, "one launch makes one session directory");
+    entries.pop().expect("session directory")
+}
+
+/// Slice 028 acceptance: the split itself. What a terminal owns is its own
+/// child configuration and prompt history; what the account keeps is the one
+/// saved login and the one projects tree, reached through a declared link.
+///
+/// One process is one terminal, so this proves the layout rather than the
+/// two-pane case: the second terminal is the same assertion with a different
+/// derived name, and nothing in the wrapper distinguishes them.
 #[test]
-fn a_token_login_records_the_first_run_setup_as_done() {
+fn a_launch_splits_state_by_terminal_and_shares_the_login_and_projects() {
     let harness = Harness::new();
+    harness.initialize_login("work");
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let session = only_session_dir(&harness, "work");
+    assert!(
+        session.join(".claude.json").is_file(),
+        "the terminal owns its own child configuration"
+    );
+    let link = session.join("projects");
+    assert!(
+        link.symlink_metadata().expect("projects").is_symlink(),
+        "the projects tree is reached through a declared link"
+    );
+    assert_eq!(
+        fs::read_link(&link).expect("link target"),
+        harness.state().join("accounts/work/config/projects"),
+        "the link points at the tree every terminal of this account shares"
+    );
+    assert!(
+        harness
+            .state()
+            .join("accounts/work/config/.credentials.json")
+            .exists(),
+        "the saved login stays one file, outside every session directory"
+    );
+    assert!(
+        !session.join(".credentials.json").exists(),
+        "no credential is copied into a session directory"
+    );
+}
+
+/// Slice 029 acceptance: the user's own assets reach the session directory,
+/// and a name their tree does not hold is simply absent rather than empty.
+#[test]
+fn a_launch_supplies_the_assets_the_tree_holds_and_no_others() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    // `skills` is the fixture's baseline; `agents` is added here so the test
+    // covers a supplied name and an absent one in the same run.
+    fs::create_dir_all(harness.assets().join("agents")).expect("asset fixture");
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let session = only_session_dir(&harness, "work");
+    for name in ["skills", "agents"] {
+        let link = session.join(name);
+        assert!(
+            link.symlink_metadata()
+                .unwrap_or_else(|_| panic!("{name} was not supplied"))
+                .is_symlink(),
+            "{name} reaches the session directory as a declared link"
+        );
+        assert_eq!(
+            fs::read_link(&link).expect("link target"),
+            harness.assets().join(name)
+        );
+    }
+    for name in ["commands", "rules", "workflows", "themes", "CLAUDE.md"] {
+        assert!(
+            session.join(name).symlink_metadata().is_err(),
+            "{name} is absent from the tree, so nothing is created for it"
+        );
+    }
+    assert!(
+        session.join("plugins").symlink_metadata().is_err(),
+        "the plugin tree is never supplied"
+    );
+}
+
+/// Slice 029 acceptance: an occupant the wrapper never declared is refused at
+/// an asset name, whether or not the user's tree holds that asset.
+///
+/// The absent case is the one worth pinning: skipping the name because there is
+/// nothing to link would leave whatever is sitting there in front of the child
+/// for as long as the tree happens to lack the asset.
+#[test]
+fn an_undeclared_occupant_at_an_asset_name_is_refused() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    // The first launch makes the session directory; the squatter then goes in
+    // at a name the tree holds nothing for.
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let session = only_session_dir(&harness, "work");
+    assert!(
+        !harness.assets().join("agents").exists(),
+        "the asset this name would carry is absent, which is the case under test"
+    );
+    fs::write(session.join("agents"), b"not the wrapper's\n").expect("squatter fixture");
     let output = harness
         .assert_command()
-        .args([
-            "account",
-            "login",
-            "work",
-            "--profile",
-            "companion",
-            "--token",
-            "--stdin",
-        ])
-        .write_stdin("sk-first-run\n")
+        .args(["--profile", "companion", "--account", "work"])
         .output()
-        .expect("token login");
+        .expect("wrapper");
+    assert!(!output.status.success(), "the launch must refuse");
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+        stderr.contains("agents"),
+        "the refusal names the occupied path: {stderr}"
     );
-    let path = harness.state().join("accounts/work/config/.claude.json");
+}
+
+/// Slice 028 acceptance: the declared-links check covers every link the wrapper
+/// declared, which includes the assets a launch supplies.
+///
+/// Without this the report and the launch disagree: `doctor` passes while the
+/// next launch refuses the same tree.
+#[test]
+fn a_repointed_asset_link_fails_the_declared_links_check() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let link = only_session_dir(&harness, "work").join("skills");
+    fs::remove_file(&link).expect("declared link");
+    std::os::unix::fs::symlink(harness.root().join("elsewhere"), &link).expect("repointed link");
+    // The source goes too. A launch validates the seat whether or not the tree
+    // still holds the asset, so a report that looked only at held names would
+    // pass here while the next launch refused.
+    fs::remove_dir(harness.assets().join("skills")).expect("asset fixture");
+    let output = harness
+        .assert_command()
+        .args(["--profile", "companion", "--account", "work", "doctor"])
+        .output()
+        .expect("doctor");
+    let stdout = support::flowed(&String::from_utf8_lossy(&output.stdout));
+    assert!(
+        stdout.contains("Shared links in the session directory") && stdout.contains("[fail]"),
+        "the repointed asset link must fail storage-declared-links: {stdout}"
+    );
+}
+
+/// Slice 028 acceptance: the launch that creates a session directory answers
+/// the question that directory's newness makes the child ask.
+#[test]
+fn a_launch_records_the_first_run_setup_as_done() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let path = only_session_dir(&harness, "work").join(".claude.json");
     let document: serde_json::Value =
         serde_json::from_slice(&fs::read(&path).expect("child configuration")).expect("json");
     assert_eq!(document["hasCompletedOnboarding"], true);
     assert_eq!(mode(&path), 0o600);
+}
+
+/// Slice 028 acceptance: while the trust key is enabled, a launch records the
+/// working directory as trusted in the session directory it created.
+///
+/// Enabled is the default, so this is also what the gate's default answers for.
+/// The launch directory is the harness root, which is what every wrapper
+/// command in these tests runs in.
+#[test]
+fn a_launch_records_the_working_directory_as_trusted() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let path = only_session_dir(&harness, "work").join(".claude.json");
+    let document: serde_json::Value =
+        serde_json::from_slice(&fs::read(&path).expect("child configuration")).expect("json");
+    let workspace = &document["projects"][harness.root().to_str().expect("utf-8 fixture path")];
+    // Both keys, because the child asks two questions about a new workspace and
+    // answering one leaves the other prompt standing.
+    assert_eq!(workspace["hasTrustDialogAccepted"], true, "{document}");
+    assert_eq!(
+        workspace["hasCompletedProjectOnboarding"], true,
+        "{document}"
+    );
+}
+
+/// The gate is a configuration key, so turning it off has to reach the launch.
+///
+/// Both layers the key accepts are exercised, because a launch that read only
+/// one of them would leave the other silently inert.
+#[test]
+fn a_disabled_trust_gate_records_no_workspace() {
+    for layer in ["file", "environment"] {
+        let harness = Harness::new();
+        harness.initialize_login("work");
+        if layer == "file" {
+            fs::create_dir_all(harness.config_base()).expect("config fixture");
+            fs::write(
+                harness.config_base().join("config.toml"),
+                "auto_trust_cwd = false\n",
+            )
+            .expect("config fixture");
+        }
+        let mut command = harness.companion_profile_command();
+        command.args(["--account", "work"]);
+        if layer == "environment" {
+            command.env("CLAUDE_SESSION_RS_AUTO_TRUST_CWD", "false");
+        }
+        assert!(command.status().expect("wrapper").success());
+        let path = only_session_dir(&harness, "work").join(".claude.json");
+        let document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).expect("child configuration")).expect("json");
+        // The seed the launch owns unconditionally is still there; only the
+        // workspace answer is withheld.
+        assert_eq!(document["hasCompletedOnboarding"], true, "{layer}");
+        assert!(
+            document.get("projects").is_none(),
+            "{layer} left a workspace record the gate refuses: {document}"
+        );
+    }
 }
 
 /// The half of "ready" a reader cannot check for themselves is the half the
@@ -1719,11 +1961,12 @@ fn a_login_report_says_the_launch_reaches_the_prompt() {
 /// A report that warns the launch refuses must not also promise it reaches the
 /// prompt.
 ///
-/// The recorded fact is still a pass, because the login refused rather than
-/// reported if it had not been written. What narrows is the claim built on top
-/// of it: the profile row above has just said this launch stops before the
-/// child starts, and two rows disagreeing leave the reader with no report at
-/// all.
+/// The first-run row is still a pass, because it states what a launch does
+/// rather than something this login wrote: since ADR-0105 the seed happens when
+/// a launch creates the terminal's session directory. What narrows is the claim
+/// built on top of it: the profile row above has just said this launch stops
+/// before the child starts, and two rows disagreeing leave the reader with no
+/// report at all.
 #[test]
 fn a_login_report_without_a_profile_document_claims_only_what_it_recorded() {
     let harness = Harness::new();
@@ -1751,35 +1994,44 @@ fn a_login_report_without_a_profile_document_claims_only_what_it_recorded() {
         "the report must not promise a launch the profile row just refused: {stdout}"
     );
     assert!(
-        stdout.contains("Claude's first-run setup is recorded as done"),
-        "{stdout}"
+        stdout.contains("a launch records claude's first-run setup as done before starting it"),
+        "the report must promise the launch's own write, not one this login made: {stdout}"
     );
 }
 
 /// The child owns every other key in that file, including the trust records a
 /// blind overwrite would silently withdraw.
 #[test]
-fn a_native_login_records_it_without_disturbing_the_other_keys() {
+fn a_launch_records_it_without_disturbing_the_other_keys() {
     let harness = Harness::new();
-    let output = harness
-        .terminal_command("account login work --profile companion")
-        .env("CS_TEST_CREATE_CREDENTIAL", "1")
-        .env(
-            "CS_TEST_CHILD_CONFIG",
-            "{\"userID\":\"abc\",\"projects\":{\"/tmp/x\":{\"hasTrustDialogAccepted\":true}}}",
-        )
-        .output()
-        .expect("terminal login");
+    harness.initialize_login("work");
+    // The first launch makes the directory; the doctored document then stands
+    // in for everything the child owns in that file, and the second launch is
+    // the write under test.
     assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
     );
-    let document: serde_json::Value = serde_json::from_slice(
-        &fs::read(harness.state().join("accounts/work/config/.claude.json"))
-            .expect("child configuration"),
+    let path = only_session_dir(&harness, "work").join(".claude.json");
+    fs::write(
+        &path,
+        b"{\"userID\":\"abc\",\"projects\":{\"/tmp/x\":{\"hasTrustDialogAccepted\":true}}}",
     )
-    .expect("json");
+    .expect("child configuration");
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let document: serde_json::Value =
+        serde_json::from_slice(&fs::read(&path).expect("child configuration")).expect("json");
     assert_eq!(document["hasCompletedOnboarding"], true);
     assert_eq!(document["userID"], "abc");
     assert_eq!(
@@ -1791,36 +2043,27 @@ fn a_native_login_records_it_without_disturbing_the_other_keys() {
 /// The wrapper cannot tell a child file it does not understand from one that is
 /// broken, and destroying it would be the same act either way.
 #[test]
-fn a_child_configuration_that_is_not_an_object_is_refused_and_keeps_the_credential() {
+fn a_child_configuration_that_is_not_an_object_is_refused_and_left_alone() {
     let harness = Harness::new();
-    harness.initialize_token("work", b"sk-existing", b"sk-existing");
-    let path = harness.state().join("accounts/work/config/.claude.json");
+    harness.initialize_login("work");
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let path = only_session_dir(&harness, "work").join(".claude.json");
     fs::write(&path, b"[]\n").expect("child configuration");
     let output = harness
-        .assert_command()
-        .args([
-            "account",
-            "login",
-            "work",
-            "--profile",
-            "companion",
-            "--token",
-            "--stdin",
-        ])
-        .write_stdin("sk-rotated\n")
+        .companion_profile_command()
+        .args(["--account", "work"])
         .output()
-        .expect("token login");
+        .expect("wrapper");
     assert_eq!(output.status.code(), Some(65));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("account authenticated but was not made ready to launch"),
-        "{stderr}"
-    );
-    assert_eq!(
-        fs::read(harness.state().join("accounts/work/oauth-token")).expect("token file"),
-        b"sk-rotated",
-        "the credential this login committed survives the refusal"
-    );
+    assert!(stderr.contains("could not be understood"), "{stderr}");
     assert_eq!(
         fs::read(&path).expect("child configuration"),
         b"[]\n",
@@ -1831,32 +2074,28 @@ fn a_child_configuration_that_is_not_an_object_is_refused_and_keeps_the_credenti
 /// An account created before this behaviour existed still launches, and the
 /// reader hears what they are about to meet before the exec rather than after.
 #[test]
-fn a_launch_under_an_account_that_would_onboard_warns_and_still_execs() {
+fn a_launch_into_a_fresh_session_answers_onboarding_rather_than_warning() {
     let harness = Harness::new();
     harness.initialize_login("work");
-    fs::remove_file(harness.state().join("accounts/work/config/.claude.json"))
-        .expect("predate the record");
     let output = harness
         .companion_profile_command()
         .args(["--account", "work", "run"])
         .output()
         .expect("launch");
-    assert!(
-        output.status.success(),
-        "the launch is never refused over it"
-    );
+    assert!(output.status.success());
     let stderr = support::flowed(&String::from_utf8_lossy(&output.stderr));
+    // The warning belonged to a launch that could only read this file. Since
+    // the launch writes it on the way past, warning would name a state nothing
+    // can be in by the time the child runs.
     assert!(
-        stderr.contains("has not recorded that claude's first-run setup is done"),
-        "{stderr}"
+        !stderr.contains("first-run setup is done"),
+        "a launch that seeds the key does not warn about it: {stderr}"
     );
-    assert!(
-        !harness
-            .state()
-            .join("accounts/work/config/.claude.json")
-            .exists(),
-        "a launch reads this and never writes it"
-    );
+    let document: serde_json::Value = serde_json::from_slice(
+        &fs::read(only_session_dir(&harness, "work").join(".claude.json")).expect("seeded"),
+    )
+    .expect("json");
+    assert_eq!(document["hasCompletedOnboarding"], true);
 }
 
 /// Slice 025 acceptance: the plan the command line declared reaches the

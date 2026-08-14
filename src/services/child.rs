@@ -141,6 +141,7 @@ pub(crate) fn launch(
     settings: Option<&Path>,
     arguments: Vec<OsString>,
     auth: Option<&crate::services::account::LaunchAccount>,
+    session: &Path,
 ) -> Result<ChildInvocation, AppError> {
     let mode = auth.map(|auth| auth.mode);
     let mut vector = Vec::with_capacity(arguments.len() + 2);
@@ -151,8 +152,24 @@ pub(crate) fn launch(
     vector.extend(arguments);
     let mut environment = scrubbed(context);
     if let Some(account) = context.session().account() {
+        // The configuration directory is this terminal's, and the credential
+        // store is the account's. Splitting them is the whole design: three of
+        // the files the child writes into the first are keyed by nothing and
+        // interleave between panes, while the saved login in the second must
+        // stay one file for the child's own refresh coordination to mean
+        // anything ([ADR-0102], [ADR-0104]).
+        //
+        // Both are absolute and already resolved. The child compares the store
+        // value after Unicode normalization only — no canonicalization and no
+        // tilde expansion — so a value it has to interpret would select a
+        // different store than the wrapper prepared.
+        //
+        // [ADR-0102]: ../../docs/decisions/ADR-0102-key-child-state-by-terminal.md
+        // [ADR-0104]: ../../docs/decisions/ADR-0104-share-one-credential-store.md
+        environment.push(("CLAUDE_CONFIG_DIR".into(), session.as_os_str().to_owned()));
+        environment.retain(|(key, _)| key != "CLAUDE_SECURESTORAGE_CONFIG_DIR");
         environment.push((
-            "CLAUDE_CONFIG_DIR".into(),
+            "CLAUDE_SECURESTORAGE_CONFIG_DIR".into(),
             account.config.as_os_str().to_owned(),
         ));
         if mode == Some(AuthMode::Token) {

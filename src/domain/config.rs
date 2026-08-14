@@ -82,6 +82,7 @@ pub(crate) struct ResolvedConfig {
     child_bin: Sourced<PathBuf>,
     default_account: Sourced<Identifier>,
     default_profile: Sourced<Identifier>,
+    auto_trust_cwd: Sourced<bool>,
 }
 
 impl ResolvedConfig {
@@ -91,7 +92,26 @@ impl ResolvedConfig {
             child_bin: Sourced::unset(),
             default_account: Sourced::unset(),
             default_profile: Sourced::unset(),
+            auto_trust_cwd: Sourced::unset(),
         }
+    }
+
+    /// Reports whether a launch records its working directory as trusted.
+    ///
+    /// Defaults to enabled. Every terminal gets its own child state directory,
+    /// and workspace trust is recorded per directory, so the alternative is
+    /// answering the same prompt again in every terminal for every project
+    /// ([ADR-0105](../../docs/decisions/ADR-0105-seed-a-session-at-launch.md)).
+    pub(crate) fn auto_trust_cwd(&self) -> bool {
+        self.auto_trust_cwd.value().copied().unwrap_or(true)
+    }
+    /// Returns the trust-seed provenance.
+    pub(crate) const fn auto_trust_cwd_source(&self) -> Source {
+        self.auto_trust_cwd.source()
+    }
+    /// Mutably accesses the trust-seed value during resolution only.
+    pub(crate) const fn auto_trust_cwd_mut(&mut self) -> &mut Sourced<bool> {
+        &mut self.auto_trust_cwd
     }
 
     /// Returns the configured child override.

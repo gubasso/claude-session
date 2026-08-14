@@ -40,7 +40,7 @@ Resolution cannot recurse, the child's status and terminal behaviour are native 
 - When the child runs, the wrapper shall have been replaced by it, so its exit code and signal death are the child's own.
 - If the exec fails, then the wrapper shall report the documented class for the refusing errno rather than a child status. -> child_resolution::exec_failure_errno_is_classified
 - When a profile is selected, the wrapper shall prepend the composed settings pair and keep user argv as an untouched suffix. -> passthrough::golden_argv_prefixes_the_settings_pair_before_an_untouched_suffix
-- When the child environment is built, the wrapper shall scrub its namespace, restore only the reentry marker, set the account configuration directory, and preserve unrelated raw environment bytes. -> passthrough::a_selected_account_injects_its_config_directory_and_the_marker_alone
+- When the child environment is built, the wrapper shall scrub its namespace, restore only the reentry marker, set the session configuration directory and the account credential store, and preserve unrelated raw environment bytes. -> passthrough::a_selected_account_injects_its_config_directory_and_the_marker_alone
 - While a log record is buffered, the wrapper shall flush the sink before replacing its image. -> tests::the_flush_precedes_the_launch
 
 ## Rabbit holes

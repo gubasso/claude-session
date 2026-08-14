@@ -51,10 +51,10 @@ Composed settings are unaffected: they are keyed by profile and input digest wit
 
 Mode is chosen by `account login` and resolved deterministically on every later run. Ambient state never changes the stored mode.
 
-| Mode    | Wrapper-provided child environment                                             | Authentication owner                                                    |
-| ------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `login` | `CLAUDE_CONFIG_DIR=<account config directory>`                                 | Child reads and refreshes its saved login                               |
-| `token` | The same `CLAUDE_CONFIG_DIR`, plus `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>` | Wrapper stores or retrieves the long-lived token; the child consumes it |
+| Mode    | Wrapper-provided child environment                                                                                    | Authentication owner                                                    |
+| ------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `login` | `CLAUDE_CONFIG_DIR=<this terminal's session directory>`, `CLAUDE_SECURESTORAGE_CONFIG_DIR=<account config directory>` | Child reads and refreshes its saved login, from one file per account    |
+| `token` | The same pair, plus `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>`                                                       | Wrapper stores or retrieves the long-lived token; the child consumes it |
 
 In token mode, `CLAUDE_CODE_OAUTH_TOKEN` outranks a saved login that may also exist in `config/`. The wrapper reports that shadowing. It removes neither credential over it, which is a separate question from [the retirement a mode switch performs](#switching-modes): that one runs because the switch made an artifact unreachable, and shadowing leaves both reachable by whoever points the child at them.
 
@@ -76,15 +76,21 @@ There are three ways in and two stored modes. [Native login](#native-login-mode)
 
 ### What a login leaves ready
 
-A login commits three things, in this order: the authentication, [the bound profile](#the-bound-profile), and `hasCompletedOnboarding` in the child's `.claude.json` inside the account's configuration directory, recording that the child's first-run setup is done.
+A login commits two things, in this order: the authentication and [the bound profile](#the-bound-profile). The child's own first-run answers are not among them, because the file that holds them does not exist yet: it lives in [this terminal's session directory](./xdg-storage.md#artifact-table), which no login can name and which the first launch creates ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)).
 
-The third exists because the first two are not enough. The child runs its first-run setup when that key is not `true`, and decides that without consulting authentication — so a brand-new account directory sends an authenticated account into a browser sign-in it does not need, and which token mode cannot even absorb, since the stored token shadows whatever that sign-in saves. The wrapper created the directory whose newness makes the child ask, so the wrapper answers ([ADR-0098](../decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md)).
+### What a launch seeds
 
-Nothing else in that file is touched. The write is read-modify-write under the account's credential lock, so the child's own keys and its per-workspace trust records survive it, and a file that is not a JSON object is refused rather than replaced. That lock excludes another wrapper run rather than a `claude` already running under the account, which is why the write happens at login and never on a launch. The workspace trust prompt still fires on the first launch in each directory, because that is a safety question the child asks about the workspace rather than about the account.
+A launch that materialises a session directory writes two of the child's own keys into the `.claude.json` inside it.
 
-An account created before this behaviour existed keeps working and is not migrated silently. It is named by `doctor` under `account-launch-ready`, by `account status` as a warning, and on standard error before the exec; running `account login` again records the key. Run it in the mode the account already uses: the bare form is a [native login](#native-login-mode), so a token account needs its `--token` input again or the login replaces its stored mode.
+`hasCompletedOnboarding` is unconditional. The child runs its first-run setup when that key is not `true`, and decides that without consulting authentication — so a brand-new directory sends an authenticated account into a browser sign-in it does not need, and which token mode cannot even absorb, since the stored token shadows whatever that sign-in saves. The wrapper created the directory whose newness makes the child ask, so the wrapper answers ([ADR-0098](../decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md)).
 
-A failure to write it does not undo the login. The credential is already durable, so the refusal says the account authenticated, says what the launch would meet, and names the login to run again once the file is dealt with.
+The workspace trust keys are written for the launch directory alone, and only while [`auto_trust_cwd`](./configuration.md#keys) is enabled. Marking a directory trusted is a decision about running code found in it, so the key exists to let the user take that answer back; it defaults to enabled, since the alternative is re-approving every project in every terminal.
+
+Nothing else in that file is touched. The write is read-modify-write under the account's credential lock, so the child's own keys and the trust records of every other workspace survive it, and a file that is not a JSON object is refused rather than replaced. That lock excludes another wrapper run rather than a `claude` already running under the account, so the write happens only when this launch would actually change a key — a launch into a directory that already carries both answers reads and returns, leaving a file a running child may be writing alone.
+
+A file the launch cannot read is the one state it cannot repair, since a missing key is simply seeded on the way past. That state is named by `doctor` under `account-launch-ready`, by `account status` as a warning, and on standard error before the exec. The remedy is to move the file aside; the next launch writes a fresh one, and the child rebuilds everything it kept there except its own trust records.
+
+A failure to write does not undo anything already durable. The refusal says what the launch would meet and names the file to deal with.
 
 ### Native login mode
 
@@ -98,7 +104,7 @@ A saved login carries two clocks. The access token expires in hours, and its ren
 
 Concurrent runs of one account share that saved login. From child version 2.1.211 the child coordinates renewal across the processes holding it, so one refresh happens and the rest observe its result. That coordination is why [ADR-0025](../decisions/ADR-0025-share-one-native-login-per-account.md) shares a login rather than copying it, and why a `login`-mode launch below the floor [fails before the exec](./process-runtime.md#child-version-floor).
 
-An in-TUI `/login` inherits the launch environment and reaches the same child-owned location: the child relocates `.credentials.json` under `CLAUDE_CONFIG_DIR` and manages that file through `/login` and `/logout`. In token mode it does not silently fail either — from child version 2.1.118, a successful `/login` clears the injected `CLAUDE_CODE_OAUTH_TOKEN` inside the child's own process, so the login it just wrote serves the rest of that session.
+An in-TUI `/login` inherits the launch environment and reaches the same child-owned location: the child relocates `.credentials.json` under `CLAUDE_SECURESTORAGE_CONFIG_DIR` when that name is set, and manages that file through `/login` and `/logout`. In token mode it does not silently fail either — from child version 2.1.118, a successful `/login` clears the injected `CLAUDE_CODE_OAUTH_TOKEN` inside the child's own process, so the login it just wrote serves the rest of that session.
 
 That clearing is process-local, which is the whole of the wrapper's concern. It cannot reach the wrapper's stored token, so the next launch injects that token again and shadows the saved login again, and the account's stored mode never changed. A user who ran `/login` and a wrapper that still reports token mode are both correct, and only `account login` changes a mode durably. This is why a token-mode launch says so before the exec rather than after, and why nothing here reads the result of a slash command the wrapper never sees.
 

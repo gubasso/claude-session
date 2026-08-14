@@ -497,10 +497,16 @@ pub(crate) enum Warning {
     Ambient(AmbientCredential),
     /// A stored token shadows a saved login that also exists.
     TokenOverLogin,
-    /// The account has not recorded that the child's first-run setup is done.
+    /// The child configuration this terminal would launch with cannot be read.
+    ///
+    /// Not "the first run is unrecorded": since [ADR-0105] moved the seed to
+    /// launch, an unrecorded key is repaired on the way past and is nothing to
+    /// warn about. What survives is the file the launch cannot read.
     ///
     /// Carries no name for the reason the one below carries none: every surface
     /// raising it has already said which account it is about.
+    ///
+    /// [ADR-0105]: ../../docs/decisions/ADR-0105-seed-a-session-at-launch.md
     FirstRunOnboarding,
     /// A token account declared no subscription plan.
     ///
@@ -532,10 +538,9 @@ impl Warning {
             )
             .to_owned(),
             Self::FirstRunOnboarding => concat!(
-                "this account has not recorded that claude's first-run setup is done,",
-                " so claude will run it and ask to sign in again; run claude-session-rs",
-                " account login for this account, in the mode it already signs in with,",
-                " to record it"
+                "the claude configuration file this terminal would launch with could not",
+                " be read, so claude will meet its first-run setup and ask to sign in",
+                " again; move that file aside and the next launch writes a fresh one"
             )
             .to_owned(),
             Self::PlanUndeclared => concat!(

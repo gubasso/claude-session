@@ -19,26 +19,37 @@ use crate::{
 
 /// What a wrapper-managed path is expected to be.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Expected {
+pub(crate) enum Expected<'a> {
     /// A directory, at mode `0700`.
     Directory,
     /// A wrapper-owned private file, at mode `0600`.
     PrivateFile,
+    /// A symbolic link the wrapper declared, pointing at the carried target.
+    ///
+    /// The one link the no-symlink rule accounts for, and only as the last
+    /// component ([ADR-0103](../../../docs/decisions/ADR-0103-permit-a-declared-link.md)).
+    DeclaredLink(&'a Path),
 }
 
-impl Expected {
+impl Expected<'_> {
     /// Returns the artifact table's name for this type.
     const fn spelling(self) -> &'static str {
         match self {
             Self::Directory => "directory",
             Self::PrivateFile => "regular file",
+            Self::DeclaredLink(_) => "symbolic link",
         }
     }
     /// Returns the mode the artifact table assigns this type.
+    ///
+    /// A declared link has none the wrapper can set — `chmod(2)` follows a link
+    /// to its target — so it reports the kernel's own link mode and is never
+    /// compared against one.
     const fn mode(self) -> u32 {
         match self {
             Self::Directory => 0o700,
             Self::PrivateFile => 0o600,
+            Self::DeclaredLink(_) => 0o777,
         }
     }
 }
@@ -47,7 +58,7 @@ impl Expected {
 #[derive(Clone, Copy)]
 pub(crate) struct ProbeTarget<'a> {
     pub(crate) path: &'a Path,
-    pub(crate) expected: Expected,
+    pub(crate) expected: Expected<'a>,
 }
 
 /// Observes all five storage conditions over selected paths without creating them.
@@ -69,6 +80,7 @@ fn probe_internal(
         StorageCheck::Typed,
         StorageCheck::DirectoryModes,
         StorageCheck::SecretModes,
+        StorageCheck::DeclaredLinks,
     ];
     let mut results: Vec<CheckResult> = checks
         .iter()
@@ -102,6 +114,32 @@ fn probe_internal(
                 Err(error) => return (results, Some(io_error(&current, &error))),
             };
             if facts.symlink {
+                // The one link the rule accounts for: declared by this caller,
+                // at the last component, resolving to the recorded target. The
+                // walk stops here either way — nothing below a declared link is
+                // the wrapper's to check ([ADR-0103]).
+                //
+                // [ADR-0103]: ../../../docs/decisions/ADR-0103-permit-a-declared-link.md
+                if let Expected::DeclaredLink(target) = expected
+                    && index == last
+                {
+                    match SystemFileSystem::read_link(&current) {
+                        Ok(actual) if actual == target => break,
+                        Ok(actual) => {
+                            record_defect(
+                                &mut results,
+                                StorageCheck::DeclaredLinks,
+                                &current,
+                                expected,
+                                &actual.display().to_string(),
+                                None,
+                                &mut first_error,
+                            );
+                            break;
+                        }
+                        Err(error) => return (results, Some(io_error(&current, &error))),
+                    }
+                }
                 record_defect(
                     &mut results,
                     StorageCheck::NoSymlinks,
@@ -163,9 +201,12 @@ fn probe_internal(
                 continue;
             }
             if facts.uid == current_uid() && facts.mode != expected.mode() {
-                let check = match expected {
-                    Expected::Directory => StorageCheck::DirectoryModes,
-                    Expected::PrivateFile => StorageCheck::SecretModes,
+                let Some(check) = (match expected {
+                    Expected::Directory => Some(StorageCheck::DirectoryModes),
+                    Expected::PrivateFile => Some(StorageCheck::SecretModes),
+                    Expected::DeclaredLink(_) => None,
+                }) else {
+                    continue;
                 };
                 if let Err(error) = correct_mode(&current, facts, expected) {
                     let index = checks
@@ -207,10 +248,12 @@ fn probe_internal(
     (results, first_error)
 }
 
-fn skip_mode(results: &mut [CheckResult], expected: Expected, path: &Path, reason: &str) {
+fn skip_mode(results: &mut [CheckResult], expected: Expected<'_>, path: &Path, reason: &str) {
     let index = match expected {
         Expected::Directory => 3,
         Expected::PrivateFile => 4,
+        // A declared link has no mode row to skip: the wrapper never sets one.
+        Expected::DeclaredLink(_) => return,
     };
     if results[index].status == CheckStatus::Pass {
         results[index] = CheckResult::skipped(
@@ -224,7 +267,7 @@ fn record_defect(
     results: &mut [CheckResult],
     check: StorageCheck,
     path: &Path,
-    expected: Expected,
+    expected: Expected<'_>,
     actual: &str,
     mode: Option<u32>,
     first_error: &mut Option<AppError>,
@@ -235,6 +278,7 @@ fn record_defect(
         StorageCheck::Typed => 2,
         StorageCheck::DirectoryModes => 3,
         StorageCheck::SecretModes => 4,
+        StorageCheck::DeclaredLinks => 5,
     };
     if results[index].status == CheckStatus::Pass {
         let diagnostic = check.diagnostic(path, expected.spelling(), actual, mode);
@@ -253,7 +297,7 @@ fn record_defect(
 /// requires the check to run immediately before each operation, against the
 /// state that operation will meet, so caching one would be caching the answer
 /// to a question about a moment that has passed.
-pub(crate) fn validate(root: &Path, path: &Path, expected: Expected) -> Result<(), AppError> {
+pub(crate) fn validate(root: &Path, path: &Path, expected: Expected<'_>) -> Result<(), AppError> {
     probe_internal(root, &[ProbeTarget { path, expected }])
         .1
         .map_or(Ok(()), Err)
@@ -279,13 +323,35 @@ pub(crate) fn ensure_directory(root: &Path, path: &Path) -> Result<(), AppError>
     Ok(())
 }
 
+/// Validates and idempotently creates one declared symbolic link.
+///
+/// The parent is the caller's to have created: this validates the whole path,
+/// which stops at the first component that does not exist, so a missing parent
+/// surfaces as a failed `symlink(2)` rather than as a silently created tree.
+///
+/// Creation is skipped when anything already occupies the name, because
+/// `validate` has just established that whatever is there is this exact link
+/// pointing at this exact target ([ADR-0103]).
+///
+/// [ADR-0103]: ../../../docs/decisions/ADR-0103-permit-a-declared-link.md
+pub(crate) fn ensure_link(root: &Path, path: &Path, target: &Path) -> Result<(), AppError> {
+    validate(root, path, Expected::DeclaredLink(target))?;
+    if SystemFileSystem::look(path)
+        .map_err(|error| io_error(path, &error))?
+        .is_none()
+    {
+        SystemFileSystem::create_symlink(target, path).map_err(|error| io_error(path, &error))?;
+    }
+    Ok(())
+}
+
 /// Runs the five checks over one existing component.
 ///
 /// Order matters only in that a link is refused before anything reads through
 /// it. The type and ownership checks are independent, and the mode check is a
 /// correction rather than a refusal, so it runs last.
 #[cfg(test)]
-fn inspect(path: &Path, facts: PathFacts, expected: Expected) -> Result<(), AppError> {
+fn inspect(path: &Path, facts: PathFacts, expected: Expected<'_>) -> Result<(), AppError> {
     if facts.symlink {
         return Err(refuse(
             StorageCheck::NoSymlinks,
@@ -324,7 +390,7 @@ fn inspect(path: &Path, facts: PathFacts, expected: Expected) -> Result<(), AppE
 /// differ only in mechanism. A directory is corrected by path, after its own
 /// non-following check. A file is corrected through a descriptor this walk
 /// opens, because a path-based `chmod(2)` dereferences a symbolic link.
-fn correct_mode(path: &Path, facts: PathFacts, expected: Expected) -> Result<(), AppError> {
+fn correct_mode(path: &Path, facts: PathFacts, expected: Expected<'_>) -> Result<(), AppError> {
     if facts.mode == expected.mode() {
         return Ok(());
     }
@@ -340,6 +406,9 @@ fn correct_mode(path: &Path, facts: PathFacts, expected: Expected) -> Result<(),
             StorageCheck::SecretModes,
             SystemFileSystem::open_private_file(path).map(drop),
         ),
+        // Nothing to correct: a link's mode is the kernel's, and `chmod(2)`
+        // would follow it to the target the wrapper does not own.
+        Expected::DeclaredLink(_) => return Ok(()),
     };
     match outcome {
         Ok(()) => {
@@ -392,10 +461,13 @@ fn refuse(
     AppError::new(check.kind(), check.diagnostic(path, expected, actual, mode))
 }
 
-const fn matches_type(facts: PathFacts, expected: Expected) -> bool {
+const fn matches_type(facts: PathFacts, expected: Expected<'_>) -> bool {
     match expected {
         Expected::Directory => facts.directory,
         Expected::PrivateFile => facts.regular,
+        // Reached only when something that is not a link sits at a declared
+        // name; an actual link is settled before the type check runs.
+        Expected::DeclaredLink(_) => false,
     }
 }
 
@@ -654,6 +726,79 @@ mod tests {
                 Expected::Directory,
             )
             .is_ok()
+        );
+    }
+
+    /// The four rules of [ADR-0103], on a real tree because every one of them
+    /// turns on `lstat` and `readlink` answers a fake cannot supply.
+    ///
+    /// [ADR-0103]: ../../../docs/decisions/ADR-0103-permit-a-declared-link.md
+    #[test]
+    fn a_declared_link_is_accepted_only_where_and_where_it_points() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let root = root.path();
+        let target = root.join("shared");
+        std::fs::create_dir(&target).expect("target");
+        let link = root.join("session-projects");
+
+        // Created where the wrapper declares it, pointing where it recorded.
+        ensure_link(root, &link, &target).expect("the declared link is created");
+        assert!(link.symlink_metadata().expect("link").is_symlink());
+        // Idempotent: a second run validates and creates nothing.
+        ensure_link(root, &link, &target).expect("the declared link is reused");
+
+        // The same link, judged against a target the wrapper did not record.
+        let elsewhere = root.join("elsewhere");
+        std::fs::create_dir(&elsewhere).expect("elsewhere");
+        let error = validate(root, &link, Expected::DeclaredLink(&elsewhere))
+            .expect_err("a re-pointed link is refused");
+        assert_eq!(error.kind(), ErrorKind::Permission);
+
+        // The same link, at a name nothing declared, is the original rule.
+        let error =
+            validate(root, &link, Expected::Directory).expect_err("an undeclared link is refused");
+        assert_eq!(error.kind(), ErrorKind::Permission);
+    }
+
+    /// A declared name is the last component or it is nothing: accepting a link
+    /// part-way through a path would let the wrapper walk into a tree it does
+    /// not manage.
+    #[test]
+    fn a_link_above_the_declared_name_is_still_refused() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let root = root.path();
+        let target = root.join("shared");
+        std::fs::create_dir(&target).expect("target");
+        let midway = root.join("midway");
+        std::os::unix::fs::symlink(&target, &midway).expect("intermediate link");
+        let below = midway.join("leaf");
+        let error = validate(root, &below, Expected::DeclaredLink(&target))
+            .expect_err("an intermediate link is refused");
+        assert_eq!(error.kind(), ErrorKind::Permission);
+    }
+
+    /// A regular file squatting on a declared name is a type defect, not a link
+    /// one, so the report sends the reader to the right remedy.
+    #[test]
+    fn something_that_is_not_a_link_at_a_declared_name_is_a_type_defect() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let root = root.path();
+        let target = root.join("shared");
+        std::fs::create_dir(&target).expect("target");
+        let name = root.join("session-projects");
+        std::fs::write(&name, b"squatter").expect("file");
+        let results = probe(
+            root,
+            &[ProbeTarget {
+                path: &name,
+                expected: Expected::DeclaredLink(&target),
+            }],
+        );
+        assert_eq!(results[2].status, CheckStatus::Fail, "the type row failed");
+        assert_eq!(
+            results[5].status,
+            CheckStatus::Pass,
+            "the link row is silent"
         );
     }
 }

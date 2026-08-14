@@ -28,6 +28,17 @@
 # shape — a key inside the child's own configuration file, for instance — is
 # reached only by being listed in the test's own literal set, which is why adding
 # one is two edits rather than one.
+#
+# Two shapes are therefore outside this file rather than missing from it. Child
+# behaviour carried as prose is one. The other is a child-owned name that is an
+# ordinary English word — the asset directories `skills`, `agents`, `rules`, and
+# the rest of the set in ../../src/services/assets.rs. A literal entry for one of
+# those matches this comment and every document that uses the word, so the scan
+# cannot see them and an entry here would fail the dead-registry gate for having
+# no scannable occurrence. Their obligation is recorded where they are declared,
+# in that module and in ADR-0106, and enforced at review. Whether this file
+# should govern a carried filename at all is Q-012 in ../plan/open-questions.md;
+# until that is answered, silence here is a limit of the scan and not coverage.
 
 carried:
   - fact: CLAUDE_CONFIG_DIR
@@ -40,6 +51,9 @@ carried:
       - docs/decisions/ADR-0064-key-composed-settings-by-profile-and-input-digest.md
       - docs/decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md
       - docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md
+      - docs/decisions/ADR-0102-key-child-state-by-terminal.md
+      - docs/decisions/ADR-0103-permit-a-declared-link.md
+      - docs/decisions/ADR-0104-share-one-credential-store.md
       - docs/explanation/session-isolation.md
       - docs/explanation/wrapper-model.md
       - docs/plan/slices/005-account-authentication/README.md
@@ -51,6 +65,7 @@ carried:
       - docs/reference/prior-art.md
       - docs/reference/process-runtime.md
       - src/commands/account.rs
+      - src/domain/paths.rs
       - src/services/account.rs
       - src/services/child.rs
       - tests/accounts.rs
@@ -98,11 +113,37 @@ carried:
       - src/services/child.rs
       - tests/accounts.rs
 
+  - fact: CLAUDE_SECURESTORAGE_CONFIG_DIR
+    obligation: launch
+    why: The wrapper sets it to the account directory holding the saved login, so the per-terminal configuration directories of one account share one credential rather than one each. Undocumented by the child, so its freshness is tracked in ./research-tracking.yaml.
+    sites:
+      - docs/decisions/ADR-0104-share-one-credential-store.md
+      - docs/reference/accounts.md
+      - docs/reference/process-runtime.md
+      - src/services/child.rs
+      - tests/accounts.rs
+      - tests/passthrough.rs
+
+  - fact: hasTrustDialogAccepted
+    obligation: launch
+    why: The wrapper writes it for the launch directory, because a per-terminal configuration directory resets the child's workspace-trust record and the same person already answered that prompt once. Written only while auto_trust_cwd is enabled.
+    sites:
+      - src/services/account/onboarding.rs
+      - tests/accounts.rs
+
+  - fact: hasCompletedProjectOnboarding
+    obligation: launch
+    why: Written beside the trust key, because the child asks two questions about a new workspace and answering one leaves the other prompt standing.
+    sites:
+      - src/services/account/onboarding.rs
+      - tests/accounts.rs
+
   - fact: hasCompletedOnboarding
     obligation: launch
-    why: The wrapper writes it once at login, because it created the configuration directory whose newness makes the child run its first-run setup instead of launching.
+    why: The wrapper writes it when a launch creates this terminal's session directory, because it created the directory whose newness makes the child run its first-run setup instead of launching.
     sites:
       - docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md
+      - docs/decisions/ADR-0105-seed-a-session-at-launch.md
       - docs/reference/accounts.md
       - src/services/account/onboarding.rs
       - tests/accounts.rs

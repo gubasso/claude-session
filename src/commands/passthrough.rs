@@ -1,6 +1,7 @@
 //! Native passthrough orchestration.
 
 use crate::{
+    adapters::environment::Environment as _,
     commands::dispatch::DispatchOutcome,
     context::AppContext,
     error::{AppError, Diagnostic, ErrorKind},
@@ -54,12 +55,12 @@ pub(crate) fn run(
         {
             tracing::warn!("{}", warning.message());
         }
-        // Read, never written: only a login writes this, where no child of the
-        // account is running ([ADR-0098]). A launch that would work is never
-        // refused over it, so this says what the reader is about to meet and
-        // then gets out of the way.
+        // Read here, written below. This run reports what it is about to meet
+        // in the session directory as it stands, before the seed answers it;
+        // a launch that would work is never refused over the answer
+        // ([ADR-0105]).
         //
-        // [ADR-0098]: ../../docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md
+        // [ADR-0105]: ../../docs/decisions/ADR-0105-seed-a-session-at-launch.md
         if !crate::services::account::onboarding::readiness(context, &selected.id).ready() {
             tracing::warn!(
                 "{}",
@@ -85,6 +86,34 @@ pub(crate) fn run(
         Some(profile) => Some(crate::services::storage::entry::resolve(context, profile)?),
         None => None,
     };
+    // The session directory is this run's, so it is built here rather than at
+    // login: no terminal is knowable before one launches ([ADR-0105]). The
+    // seed follows the directory it writes into, and the trust answer follows
+    // the seed, because both are questions the directory's newness makes the
+    // child ask.
+    //
+    // [ADR-0105]: ../../docs/decisions/ADR-0105-seed-a-session-at-launch.md
+    let selected = context.session().account().ok_or_else(|| {
+        AppError::new(
+            ErrorKind::Internal,
+            Diagnostic::new(
+                "a bound launch reached the session step with no account",
+                "the launch sequence",
+                "the binding gate above should have refused this run",
+                "report this invariant",
+            ),
+        )
+    })?;
+    let terminal = crate::services::session::terminal(context)?;
+    let session = crate::services::session::materialise(context, &selected.id, &terminal)?;
+    crate::services::assets::supply(context, &session)?;
+    let trust = context
+        .config()
+        .auto_trust_cwd()
+        .then(|| context.environment().current_dir());
+    crate::services::account::hold(context, &selected.id).and_then(|_lock| {
+        crate::services::account::onboarding::make_launchable(context, &selected.id, trust)
+    })?;
     crate::services::account::write_marker(context)?;
     Ok(DispatchOutcome::Exec(crate::services::child::launch(
         context,
@@ -92,6 +121,7 @@ pub(crate) fn run(
         entry.as_ref().map(|resolved| resolved.settings.as_path()),
         arguments,
         account.as_ref(),
+        &session,
     )?))
 }
 

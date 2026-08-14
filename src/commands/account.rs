@@ -311,7 +311,6 @@ fn token_login(
         plan,
     )?;
     let binding = commit_binding(context, account, profile)?;
-    commit_launch_readiness(context, account)?;
     crate::ui::account::login(
         context.writer(),
         context.output_mode() == OutputMode::Json,
@@ -383,7 +382,6 @@ fn commit_saved_login(
 ) -> Result<DispatchOutcome, AppError> {
     let commit = crate::services::account::write_login_metadata(context, account)?;
     let binding = commit_binding(context, account, profile)?;
-    commit_launch_readiness(context, account)?;
     crate::ui::account::login(
         context.writer(),
         context.output_mode() == OutputMode::Json,
@@ -453,42 +451,6 @@ fn commit_binding(
         source: *source,
         present: bind::profile_present(context, name),
     })
-}
-
-/// Records that the child's first-run setup is done for a freshly logged-in account.
-///
-/// Last of the three commits, and for the same reason the binding is second: it
-/// is the least of them. The credential is already durable when this runs, so a
-/// failure here must not remove the account — it leaves an account that
-/// authenticated and will meet the child's first-run wizard, which is a state
-/// the wrapper already reports through `doctor`, `account status`, and the
-/// pre-launch line. The refusal therefore says what survived and names the verb
-/// that finishes the job, rather than reporting a bare write failure whose next
-/// action would send the reader to the wrong place.
-fn commit_launch_readiness(context: &AppContext, account: &Identifier) -> Result<(), AppError> {
-    let write = crate::services::account::hold(context, account)
-        .and_then(|_lock| crate::services::account::onboarding::make_launchable(context, account));
-    let Err(error) = write else { return Ok(()) };
-    let mut diagnostic = error.diagnostic().clone();
-    "account authenticated but was not made ready to launch".clone_into(&mut diagnostic.what);
-    diagnostic.why = format!(
-        concat!(
-            "{}. The credential for \"{}\" is stored and usable, so this login is",
-            " not being undone; claude would run its first-run setup on the next",
-            " launch"
-        ),
-        diagnostic.why.trim_end_matches('.'),
-        account.as_str()
-    );
-    // "the same way" rather than a bare command: the bare form is a native
-    // login, so spelling it out to a reader who just logged in with --token
-    // would name the one repair that also changes the account's stored mode.
-    diagnostic.hint = format!(
-        "run claude-session-rs account login {} again, the same way you just did, once the \
-        file above is dealt with",
-        account.as_str()
-    );
-    Err(AppError::new(error.kind(), diagnostic))
 }
 
 #[allow(

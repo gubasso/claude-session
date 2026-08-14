@@ -36,7 +36,15 @@ const DISCOVERY: &[&str] = &["ANTHROPIC_", "CLAUDE_CODE_", "CLAUDE_CONFIG_"];
 /// here. The list is explicit rather than a pattern for that reason: a general
 /// identifier search over this tree would demand a registry entry for every
 /// word in it.
-const LITERALS: &[&str] = &["hasCompletedOnboarding"];
+const LITERALS: &[&str] = &[
+    "hasCompletedOnboarding",
+    "hasTrustDialogAccepted",
+    "hasCompletedProjectOnboarding",
+    // No `DISCOVERY` prefix reaches this one: the wrapper's namespace scan
+    // covers `ANTHROPIC_`, `CLAUDE_CODE_`, and `CLAUDE_CONFIG_`, and the
+    // child's credential-store variable is in none of them.
+    "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+];
 
 /// The obligations ADR-0089 names, plus the temporary state a contested carry
 /// sits in while a question decides it.

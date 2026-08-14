@@ -56,6 +56,10 @@ pub(crate) enum Check {
     Storage(StorageCheck),
     Entry(EntryCheck),
     Account(AccountCheck),
+    /// The terminal this run's child state directory is derived from.
+    SessionTerminalDerives,
+    /// The user's own child assets a launch would supply.
+    SessionAssetsLinked,
 }
 
 /// The implemented public catalog, in its append-only order.
@@ -71,6 +75,7 @@ pub(crate) const CATALOG: &[Check] = &[
     Check::Storage(StorageCheck::Typed),
     Check::Storage(StorageCheck::DirectoryModes),
     Check::Storage(StorageCheck::SecretModes),
+    Check::Storage(StorageCheck::DeclaredLinks),
     Check::Entry(EntryCheck::Compose),
     Check::Entry(EntryCheck::Consistent),
     Check::Account(AccountCheck::RegistryReadable),
@@ -79,6 +84,8 @@ pub(crate) const CATALOG: &[Check] = &[
     Check::Entry(EntryCheck::Valid),
     Check::Account(AccountCheck::LaunchReady),
     Check::Account(AccountCheck::PlanDeclared),
+    Check::SessionTerminalDerives,
+    Check::SessionAssetsLinked,
 ];
 
 impl Check {
@@ -91,6 +98,8 @@ impl Check {
             Self::ChildBinaryResolves => "child-binary-resolves",
             Self::ChildIsExecutable => "child-is-executable",
             Self::ChildVersionFloor => "child-version-floor",
+            Self::SessionTerminalDerives => "session-terminal-derives",
+            Self::SessionAssetsLinked => "session-assets-linked",
             Self::Storage(value) => value.id(),
             Self::Entry(value) => value.id(),
             Self::Account(value) => value.id(),
@@ -111,6 +120,8 @@ impl Check {
             Self::ChildBinaryResolves => "The claude program",
             Self::ChildIsExecutable => "Permission to run claude",
             Self::ChildVersionFloor => "The claude version",
+            Self::SessionTerminalDerives => "The terminal this session belongs to",
+            Self::SessionAssetsLinked => "Your own skills, agents, and rules",
             Self::Storage(value) => value.title(),
             Self::Entry(value) => value.title(),
             Self::Account(value) => value.title(),
@@ -150,6 +161,14 @@ impl Check {
                 "Saved-login accounts share one login between processes, and older \
                 versions of claude do not lock the token refresh that makes sharing safe."
             }
+            Self::SessionTerminalDerives => {
+                "Without a terminal to name, this run cannot be given state of its own, and \
+                sharing another terminal's is what the separation exists to prevent."
+            }
+            Self::SessionAssetsLinked => {
+                "An isolated configuration directory reaches none of the skills, agents, or \
+                rules you wrote, so claude starts without them."
+            }
             Self::Storage(value) => value.consequence(),
             Self::Entry(value) => value.consequence(),
             Self::Account(value) => value.consequence(),
@@ -177,13 +196,20 @@ impl Check {
             | Self::ChildBinaryResolves
             | Self::ChildIsExecutable
             | Self::ChildVersionFloor => Scope::Host,
-            Self::Storage(_) | Self::Entry(_) | Self::Account(_) => Scope::Session,
+            Self::Storage(_)
+            | Self::Entry(_)
+            | Self::Account(_)
+            | Self::SessionTerminalDerives
+            | Self::SessionAssetsLinked => Scope::Session,
         }
     }
     /// Returns the published severity.
     pub(crate) const fn severity(self) -> Severity {
         match self {
-            Self::RuntimeDirPresent | Self::ChildVersionFloor | Self::Account(_) => Severity::Soft,
+            Self::RuntimeDirPresent
+            | Self::ChildVersionFloor
+            | Self::SessionAssetsLinked
+            | Self::Account(_) => Severity::Soft,
             _ => Severity::Hard,
         }
     }
@@ -193,9 +219,10 @@ impl Check {
             Self::BaseDirsResolve | Self::RuntimeDirPresent | Self::ChildVersionFloor => {
                 ErrorKind::Unavailable
             }
-            Self::WrapperConfigParses => ErrorKind::Config,
+            Self::WrapperConfigParses | Self::SessionAssetsLinked => ErrorKind::Config,
             Self::ChildBinaryResolves => ErrorKind::ChildNotFound,
             Self::ChildIsExecutable => ErrorKind::ChildNotExecutable,
+            Self::SessionTerminalDerives => ErrorKind::Unavailable,
             Self::Storage(value) => value.kind(),
             Self::Entry(value) => value.kind(),
             Self::Account(value) => value.kind(),
@@ -227,6 +254,14 @@ impl Check {
             Self::ChildVersionFloor => Some(concat!(
                 "Upgrade claude to {minimum} or newer before using a saved-login account. ",
                 "Token accounts are unaffected and still work below that version."
+            )),
+            Self::SessionTerminalDerives => Some(concat!(
+                "Run this from a terminal. A pipeline or a service without one still ",
+                "works when its own process group leads a session."
+            )),
+            Self::SessionAssetsLinked => Some(concat!(
+                "Put the skills, agents, and other assets you want in every session ",
+                "under {path}. Moving an existing collection there is enough."
             )),
             Self::Storage(value) => Some(value.remediation()),
             Self::Entry(value) => Some(value.remediation()),
@@ -286,9 +321,8 @@ impl AccountCheck {
                 refuses before the child starts."
             }
             Self::LaunchReady => {
-                "A launch under the selected account meets the child's first-run setup \
-                instead of its prompt, which asks to sign in again even though this \
-                account already can."
+                "The child configuration this terminal would launch with cannot be read, so \
+                the launch refuses rather than write into a file it does not understand."
             }
             Self::PlanDeclared => {
                 "Claude cannot tell which subscription the stored token belongs to, so \
@@ -323,10 +357,8 @@ impl AccountCheck {
                 profile this account runs with."
             }
             Self::LaunchReady => {
-                "Run claude-session-rs account login {account} again to record that the \
-                child's first-run setup is done. Pass the same --token input if this is a \
-                token account: the bare form signs in through the browser and stores that \
-                mode instead."
+                "Move {path} aside. The next launch writes a fresh one, and the child \
+                rebuilds everything it kept there except its own trust records."
             }
             Self::PlanDeclared => {
                 "Run claude-session-rs account login {account} --token --plan <plan> to \
@@ -558,6 +590,8 @@ pub(crate) enum StorageCheck {
     DirectoryModes,
     /// Every wrapper-owned private file is `0600` after correction.
     SecretModes,
+    /// Every link the wrapper declared resolves to the target it recorded.
+    DeclaredLinks,
 }
 
 impl StorageCheck {
@@ -572,6 +606,7 @@ impl StorageCheck {
             Self::Typed => "storage-paths-typed",
             Self::DirectoryModes => "storage-directory-modes",
             Self::SecretModes => "storage-secret-modes",
+            Self::DeclaredLinks => "storage-declared-links",
         }
     }
 
@@ -583,6 +618,7 @@ impl StorageCheck {
             Self::Typed => "File types of session paths",
             Self::DirectoryModes => "Session directory permissions",
             Self::SecretModes => "Stored secret permissions",
+            Self::DeclaredLinks => "Shared links in the session directory",
         }
     }
 
@@ -608,6 +644,10 @@ impl StorageCheck {
                 "A stored credential other users can read is a credential to treat as \
                 exposed."
             }
+            Self::DeclaredLinks => {
+                "A link the wrapper shares state through now points somewhere else, so this \
+                session would read state that is not its own."
+            }
         }
     }
 
@@ -618,7 +658,8 @@ impl StorageCheck {
             | Self::Owned
             | Self::Typed
             | Self::DirectoryModes
-            | Self::SecretModes => ErrorKind::Permission,
+            | Self::SecretModes
+            | Self::DeclaredLinks => ErrorKind::Permission,
         }
     }
 
@@ -658,6 +699,10 @@ impl StorageCheck {
                 "Could not restrict {path} to mode {expected_mode}. Move the file to \
                 storage that supports Unix permissions before using it again."
             }
+            Self::DeclaredLinks => {
+                "{path} is a link to {actual_type}, and this wrapper made it point \
+                somewhere else. Remove the link and let the wrapper recreate it."
+            }
         }
     }
 
@@ -693,6 +738,9 @@ impl StorageCheck {
             }
             Self::DirectoryModes | Self::SecretModes => {
                 format!("{rendered} could not be restricted to mode {expected_mode}.")
+            }
+            Self::DeclaredLinks => {
+                format!("{rendered} points at {actual}, which is not where the wrapper put it.")
             }
         };
         Diagnostic::new(
@@ -814,6 +862,7 @@ mod tests {
         (StorageCheck::Typed, "storage-paths-typed"),
         (StorageCheck::DirectoryModes, "storage-directory-modes"),
         (StorageCheck::SecretModes, "storage-secret-modes"),
+        (StorageCheck::DeclaredLinks, "storage-declared-links"),
     ];
 
     #[test]
@@ -838,7 +887,7 @@ mod tests {
         );
         assert_eq!(
             STORAGE_CATALOG.len(),
-            5,
+            6,
             "a storage check was added or removed without updating the catalog"
         );
     }
@@ -916,6 +965,12 @@ mod tests {
             ErrorKind::Permission,
         ),
         (
+            "storage-declared-links",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::Permission,
+        ),
+        (
             "settings-compose",
             Scope::Session,
             Severity::Hard,
@@ -963,12 +1018,24 @@ mod tests {
             Severity::Soft,
             ErrorKind::Config,
         ),
+        (
+            "session-terminal-derives",
+            Scope::Session,
+            Severity::Hard,
+            ErrorKind::Unavailable,
+        ),
+        (
+            "session-assets-linked",
+            Scope::Session,
+            Severity::Soft,
+            ErrorKind::Config,
+        ),
     ];
 
     #[test]
     fn complete_catalog_metadata_and_order_are_pinned() {
         assert_eq!(CATALOG.len(), FULL_CATALOG.len());
-        assert_eq!(CATALOG.len(), 19);
+        assert_eq!(CATALOG.len(), 22);
         for (check, (id, scope, severity, kind)) in CATALOG.iter().zip(FULL_CATALOG) {
             assert_eq!(
                 (check.id(), check.scope(), check.severity(), check.kind()),
