@@ -21,8 +21,8 @@ use crate::{
     context::AppContext,
     domain::{
         account::{
-            AccountFinding, AccountSelection, AmbientCredential, AuthMode, AuthModeMetadata, Plan,
-            RecordedAt, ReportMode, SelectionSource, Warning,
+            AccountFinding, AccountSelection, AmbientCredential, AuthMode, AuthModeMetadata,
+            ModeCommit, Plan, RecordedAt, ReportMode, SelectionSource, Warning,
         },
         checks::{AccountCheck, Check, CheckResult},
         child::{ChildInvocation, ChildOutcome, ChildVersion, MINIMUM_CHILD_VERSION},
@@ -799,10 +799,16 @@ pub(crate) fn write_marker(context: &AppContext) -> Result<(), AppError> {
 /// lock could land inside a tree a concurrent `account remove` had already
 /// committed to destroying, leaving metadata describing an account that is
 /// being deleted around it.
+///
+/// The retirement follows the rename and never precedes it, so an interruption
+/// between the two leaves a working stored token described by metadata that has
+/// moved on, which `account status` reports — rather than an account holding
+/// neither credential. Placed here rather than in the commands layer because
+/// both saved-login entry points reach it, and because the lock is already held.
 pub(crate) fn write_login_metadata(
     context: &AppContext,
     account: &Identifier,
-) -> Result<AuthModeMetadata, AppError> {
+) -> Result<ModeCommit, AppError> {
     let metadata = AuthModeMetadata {
         mode: AuthMode::Login,
         recorded_at: RecordedAt::new_unchecked(rfc3339_utc(context.adapters().clock().now())),
@@ -812,8 +818,47 @@ pub(crate) fn write_login_metadata(
         plan: None,
     };
     let _lock = hold(context, account)?;
+    // Asked again, now that the lock is held. Both callers judged the child's
+    // credential before taking it, which was survivable while a switch only
+    // recorded a mode: a token login that committed in between left this run
+    // writing `login` over it and abandoning its token, and the account still
+    // held one working credential. Retirement removes that slack — this run
+    // would go on to unlink the token the other one just committed, and the
+    // saved login it thinks it is committing is already gone, so the account
+    // would end up holding neither. The lock is what makes the answer stable
+    // through the write and the unlink, so the question has to be asked inside
+    // it and before anything is written.
+    if !credentials_committable(context, account)? {
+        return Err(lost_race(account));
+    }
     write_metadata(context, account, &metadata)?;
-    Ok(metadata)
+    let retired = retire_superseded(context, account, AuthMode::Login)?;
+    Ok(ModeCommit { metadata, retired })
+}
+
+/// Reports a login overtaken by another one against the same account.
+///
+/// Nothing is written and nothing is retired, so the account still holds
+/// whatever the other login committed. That is the fact worth leading with: the
+/// reader's next move depends on whether the authentication now recorded is the
+/// one they wanted, not on this run's failure.
+fn lost_race(account: &Identifier) -> AppError {
+    AppError::new(
+        ErrorKind::Auth,
+        Diagnostic::new(
+            "another login committed against this account first",
+            account.as_str(),
+            concat!(
+                "the saved login this run was about to commit is no longer there, so",
+                " a concurrent login replaced this account's authentication while this",
+                " one was finishing. Nothing was written and nothing was removed"
+            ),
+            concat!(
+                "run claude-session-rs account status to see which authentication the ",
+                "account now has, and log in again only if it is not the one you wanted"
+            ),
+        ),
+    )
 }
 
 /// Acquires one account's credential lock at the standard deadline.
@@ -879,6 +924,119 @@ pub(crate) fn credentials_committable(
         guard::Expected::Directory,
     )?;
     Ok(owned_regular(&context.paths().account_credentials(account)))
+}
+
+/// Unlinks the credential the mode just recorded does not use.
+///
+/// A switch used to record the new mode and stop, which left the other
+/// artifact on disk with nothing able to reach it: every read is gated on the
+/// recorded mode, no rotation refreshes it, and only removing the account
+/// cleared it. A stored token outlives its account's token mode by up to a year
+/// that way (ADR-0101).
+///
+/// Unconditional rather than conditional on the mode being replaced. It needs
+/// no read of metadata this run is overwriting, it is idempotent on an account
+/// that never held the other artifact, and the same property repairs an account
+/// orphaned by a switch made before this existed.
+///
+/// The unlink takes the final component only, so an artifact replaced by a link
+/// loses the link rather than whatever it pointed at. Its parents are a
+/// different matter, and [`retirement_walk`] validates them.
+///
+/// Callers hold the credential lock. Both call sites already do, and the
+/// retirement belongs inside that scope: a concurrent removal treats unlinking
+/// `auth-mode.json` as its own commit, and this must not run into a tree that
+/// commit has already claimed.
+pub(crate) fn retire_superseded(
+    context: &AppContext,
+    account: &Identifier,
+    recorded: AuthMode,
+) -> Result<bool, AppError> {
+    let superseded = match recorded {
+        AuthMode::Login => context.paths().account_oauth_token(account),
+        AuthMode::Token => context.paths().account_credentials(account),
+    };
+    // A guard that refuses a component is refusing this retirement, and it is
+    // reached only after the rename that commits the new mode. So it owes the
+    // reader what the failed unlink below owes, and is reported as a retirement
+    // failure carrying its own kind rather than as a bare storage defect that
+    // says nothing about the login that just succeeded (ADR-0101).
+    retirement_walk(context, account, recorded).map_err(|error| {
+        retirement_failure(account, &superseded, error.kind(), &error.diagnostic().why)
+    })?;
+    match fs::remove_file(&superseded) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(retirement_failure(
+            account,
+            &superseded,
+            ErrorKind::Io,
+            &error.to_string(),
+        )),
+    }
+}
+
+/// Validates the managed components the retirement's unlink reads through.
+///
+/// `config` is validated in its own right for the reason
+/// [`credentials_committable`] validates it: an `lstat` follows every component
+/// above the leaf, so a `config` replaced by a link would otherwise aim the
+/// unlink at a path outside the account. It is walked only in token mode,
+/// because that is the only mode whose superseded artifact lives below it.
+fn retirement_walk(
+    context: &AppContext,
+    account: &Identifier,
+    recorded: AuthMode,
+) -> Result<(), AppError> {
+    let state = context.paths().state();
+    guard::validate(
+        state,
+        &context.paths().account(account),
+        guard::Expected::Directory,
+    )?;
+    if matches!(recorded, AuthMode::Token) {
+        guard::validate(
+            state,
+            &context.paths().account_config(account),
+            guard::Expected::Directory,
+        )?;
+    }
+    Ok(())
+}
+
+/// Reports a credential that survived the login meant to supersede it.
+///
+/// The removal module's own unlink error is not reused: it tells the reader the
+/// account is already unusable, which is false of one that just authenticated.
+/// What is true is the pair of facts this names — the new credential is
+/// committed and is not being undone, and a live credential is still at a path
+/// only the reader can now clear.
+///
+/// `kind` and `cause` come from whatever refused the retirement, so a guard's
+/// own kind and sentence survive being reframed. The alternative flattens every
+/// refusal to one kind, which would decide a reader's exit code by where the
+/// failure was caught rather than by what went wrong.
+fn retirement_failure(account: &Identifier, path: &Path, kind: ErrorKind, cause: &str) -> AppError {
+    AppError::new(
+        kind,
+        Diagnostic::new(
+            "the superseded credential could not be retired",
+            path.display().to_string(),
+            format!(
+                concat!(
+                    "{}. The new credential for \"{}\" is stored and usable, so this",
+                    " login is not being undone; the file above is the previous one and",
+                    " nothing will read it again"
+                ),
+                cause.trim_end_matches('.'),
+                account.as_str()
+            ),
+            concat!(
+                "remove the file above once you can, or run claude-session-rs account ",
+                "remove to clear the whole account"
+            ),
+        ),
+    )
 }
 
 /// Reports whether the last-used marker names this account.

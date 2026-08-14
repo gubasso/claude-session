@@ -35,3 +35,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 024 launch-ready-after-login — done — 2 implementation sessions — after 005 and 013; landed in one session, and the walk that found it also proved the fix against the real child
 - 025 declared-subscription-plan — done — 2 implementation sessions — after 013 and 024; landed in one session, and review caught an ambient value answering for an account that declared none
 - 026 refresh-token-bootstrap — done — 2 implementation sessions — after 005 and 025; landed in one session, and proved the child takes the exchange branch by watching it refuse a deliberately invalid grant
+- 027 superseded-credential-retirement — done — 1 implementation session — after 013 and 026; landed in one session, and the failure branch turned out reachable without an unwritable parent

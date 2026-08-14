@@ -303,7 +303,7 @@ fn token_login(
     // token has already been proven to work. Declining leaves the account
     // undeclared rather than unmade.
     let plan = token::declare_plan(context, request);
-    let metadata = token::rotate(
+    let commit = token::rotate(
         context,
         account,
         &candidate,
@@ -317,7 +317,7 @@ fn token_login(
         context.output_mode() == OutputMode::Json,
         account.as_str(),
         directory,
-        &metadata,
+        &commit,
         &binding,
         context.color(),
     )?;
@@ -381,7 +381,7 @@ fn commit_saved_login(
     directory: &std::path::Path,
     profile: &(Identifier, crate::domain::config::Source),
 ) -> Result<DispatchOutcome, AppError> {
-    let metadata = crate::services::account::write_login_metadata(context, account)?;
+    let commit = crate::services::account::write_login_metadata(context, account)?;
     let binding = commit_binding(context, account, profile)?;
     commit_launch_readiness(context, account)?;
     crate::ui::account::login(
@@ -389,7 +389,7 @@ fn commit_saved_login(
         context.output_mode() == OutputMode::Json,
         account.as_str(),
         directory,
-        &metadata,
+        &commit,
         &binding,
         context.color(),
     )?;

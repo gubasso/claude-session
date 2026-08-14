@@ -2475,3 +2475,269 @@ fn a_token_and_a_refresh_token_together_are_refused() {
     assert!(!harness.record_dir().join("argv").exists());
     assert!(!harness.state().join("accounts/work").exists());
 }
+
+/// Stores a token under `work`, so a later login has something to supersede.
+fn token_account(harness: &Harness) {
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ])
+        .write_stdin("sk-superseded-token\n")
+        .output()
+        .expect("token login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// Leaves `work` holding a child-owned saved login, without needing a terminal.
+fn saved_login_account(harness: &Harness) {
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--refresh-token",
+            "--stdin",
+        ])
+        .env("CS_TEST_CREATE_CREDENTIAL", "1")
+        .write_stdin("sk-ant-ort01-seed\n")
+        .output()
+        .expect("refresh login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// Slice 027 acceptance: recording a saved login takes the stored token with
+/// it, and leaves the credential it just recorded alone.
+#[test]
+fn a_native_login_retires_the_token_it_supersedes() {
+    let harness = Harness::new();
+    token_account(&harness);
+    let account = harness.state().join("accounts/work");
+    assert!(account.join("oauth-token").is_file(), "fixture");
+    let output = harness
+        .terminal_command("account login work --profile companion")
+        .env("CS_TEST_CREATE_CREDENTIAL", "1")
+        .output()
+        .expect("native login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !account.join("oauth-token").exists(),
+        "the superseded token survived the login that replaced it"
+    );
+    assert_eq!(
+        fs::read(account.join("config/.credentials.json")).expect("credential"),
+        b"child-owned-login-bytes",
+        "the credential this login recorded must survive it"
+    );
+    let metadata: serde_json::Value =
+        serde_json::from_slice(&fs::read(account.join("auth-mode.json")).expect("metadata"))
+            .expect("json");
+    assert_eq!(metadata["mode"], "login");
+}
+
+/// Slice 027 acceptance: the retirement rides the commit rather than the entry
+/// point, so the terminal-less login gets it on the same terms.
+#[test]
+fn a_refresh_login_retires_the_token_it_supersedes() {
+    let harness = Harness::new();
+    token_account(&harness);
+    let account = harness.state().join("accounts/work");
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--refresh-token",
+            "--stdin",
+        ])
+        .env("CS_TEST_CREATE_CREDENTIAL", "1")
+        .write_stdin("sk-ant-ort01-replacement\n")
+        .output()
+        .expect("refresh login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!account.join("oauth-token").exists());
+    assert!(account.join("config/.credentials.json").is_file());
+}
+
+/// Slice 027 acceptance: the other direction, where what is abandoned is the
+/// child's own credential rather than the wrapper's.
+#[test]
+fn a_token_login_retires_the_saved_login_it_supersedes() {
+    let harness = Harness::new();
+    saved_login_account(&harness);
+    let account = harness.state().join("accounts/work");
+    assert!(
+        account.join("config/.credentials.json").is_file(),
+        "fixture"
+    );
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ])
+        .write_stdin("sk-replacing-token\n")
+        .output()
+        .expect("token login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !account.join("config/.credentials.json").exists(),
+        "the superseded saved login survived the token that replaced it"
+    );
+    assert!(
+        account.join("config").is_dir(),
+        "only the credential is retired, not the directory the child owns"
+    );
+    assert_eq!(
+        fs::read(account.join("oauth-token")).expect("token file"),
+        b"sk-replacing-token"
+    );
+}
+
+/// Slice 027 acceptance: an account that never held the other artifact is the
+/// common case, and it must not read as a failed retirement.
+#[test]
+fn a_login_that_supersedes_nothing_succeeds_and_says_nothing() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+            "--json",
+        ])
+        .write_stdin("sk-first-token\n")
+        .output()
+        .expect("token login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(report["mode"], "token");
+    assert!(
+        report.get("retired_superseded_credential").is_none(),
+        "a login with nothing to retire must not report one: {report}"
+    );
+}
+
+/// Slice 027 acceptance: a retirement is irreversible, so the report names it.
+#[test]
+fn a_login_that_retires_a_credential_reports_it() {
+    let harness = Harness::new();
+    harness.initialize_companion_profile();
+    token_account(&harness);
+    let output = harness
+        .terminal_command("account login work --profile companion")
+        .env("CS_TEST_CREATE_CREDENTIAL", "1")
+        .output()
+        .expect("native login");
+    let stdout = support::flowed(&String::from_utf8_lossy(&output.stdout));
+    assert!(
+        stdout.contains("The token this account had stored is gone"),
+        "{stdout}"
+    );
+    let json = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+            "--json",
+        ])
+        .write_stdin("sk-back-to-token\n")
+        .output()
+        .expect("token login");
+    let report: serde_json::Value = serde_json::from_slice(&json.stdout).expect("json");
+    assert_eq!(report["retired_superseded_credential"], true);
+}
+
+/// Slice 027 acceptance: the credential is durable before the retirement runs,
+/// so a retirement that cannot complete reports rather than undoes.
+#[test]
+fn a_retirement_that_cannot_complete_keeps_the_credential_it_committed() {
+    let harness = Harness::new();
+    token_account(&harness);
+    let account = harness.state().join("accounts/work");
+    // A directory where the token file was: `remove_file` refuses it, which is
+    // the one way to reach the failure branch without an unwritable parent.
+    fs::remove_file(account.join("oauth-token")).expect("fixture");
+    fs::create_dir(account.join("oauth-token")).expect("fixture");
+    let output = harness
+        .terminal_command("account login work --profile companion")
+        .env("CS_TEST_CREATE_CREDENTIAL", "1")
+        .output()
+        .expect("native login");
+    // The pseudo-terminal merges both streams, so the diagnostic is read out of
+    // one buffer rather than assumed to be on standard error.
+    let reported = support::flowed(&format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    ));
+    assert!(!output.status.success(), "{reported}");
+    assert!(
+        reported.contains("superseded credential could not be retired"),
+        "{reported}"
+    );
+    assert!(
+        reported.contains("oauth-token"),
+        "the surviving path is what the reader acts on: {reported}"
+    );
+    assert_eq!(
+        fs::read(account.join("config/.credentials.json")).expect("credential"),
+        b"child-owned-login-bytes",
+        "the login is reported, not undone"
+    );
+    let metadata: serde_json::Value =
+        serde_json::from_slice(&fs::read(account.join("auth-mode.json")).expect("metadata"))
+            .expect("json");
+    assert_eq!(metadata["mode"], "login");
+}

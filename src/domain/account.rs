@@ -659,6 +659,19 @@ pub(crate) struct AccountStatus {
     pub(crate) effective_profile: Option<Identifier>,
 }
 
+/// What the commit that records one account's authentication mode did.
+///
+/// The retirement rides here rather than in the metadata because it is about
+/// the mode being replaced rather than the one being recorded, and nothing
+/// durable should remember it: the artifact is gone, so the fact has exactly
+/// one reader, which is the report of the login that did it.
+#[derive(Clone, Debug)]
+pub(crate) struct ModeCommit {
+    pub(crate) metadata: AuthModeMetadata,
+    /// Whether this commit unlinked the artifact the replaced mode used.
+    pub(crate) retired: bool,
+}
+
 /// What one removal did.
 #[derive(Clone, Debug)]
 pub(crate) struct Removal {

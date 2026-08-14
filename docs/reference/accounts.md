@@ -18,6 +18,8 @@ It also contains `profile.json`, the [bound profile](#the-bound-profile). That i
 
 The wrapper owns account selection, mode metadata, and any stored token. The child owns everything below the account's `config/`, including `.credentials.json`. The wrapper never reads, copies, writes, refreshes, synchronizes, or fingerprints a child credential, and caches no child authentication state. `account status` may `stat` the credential path on demand.
 
+It does unlink one, in two places, and nowhere else: [removal](#removal) deletes the account's whole tree, and [a mode switch](#switching-modes) retires the credential it supersedes ([ADR-0101](../decisions/ADR-0101-retire-the-credential-a-mode-switch-supersedes.md)). Both delete a path without reading it, which is why neither is an exception to the sentence above so much as the limit of it.
+
 Account identifiers follow [the identifier rules](./xdg-storage.md#identifiers).
 
 ## Selection
@@ -54,7 +56,7 @@ Mode is chosen by `account login` and resolved deterministically on every later 
 | `login` | `CLAUDE_CONFIG_DIR=<account config directory>`                                 | Child reads and refreshes its saved login                               |
 | `token` | The same `CLAUDE_CONFIG_DIR`, plus `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>` | Wrapper stores or retrieves the long-lived token; the child consumes it |
 
-In token mode, `CLAUDE_CODE_OAUTH_TOKEN` outranks a saved login that may also exist in `config/`. The wrapper reports that shadowing but does not remove either credential.
+In token mode, `CLAUDE_CODE_OAUTH_TOKEN` outranks a saved login that may also exist in `config/`. The wrapper reports that shadowing. It removes neither credential over it, which is a separate question from [the retirement a mode switch performs](#switching-modes): that one runs because the switch made an artifact unreachable, and shadowing leaves both reachable by whoever points the child at them.
 
 The following ambient child mechanisms outrank the selected subscription account: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `apiKeyHelper`, Bedrock, Vertex, and Foundry configuration. They are never wrapper-managed and never stripped from a launch. Which of them the child would prefer over another is the child's own arbitration and is not modelled here. The wrapper observes the environment mechanisms among them, so their presence may produce a warning only:
 
@@ -169,15 +171,27 @@ Rotation verifies the candidate before it writes anything, and [the metadata ren
 
 `account remove` deletes local use but cannot revoke a token upstream; [its report says so](#removal).
 
+### Switching modes
+
+`account login` against an account that already exists records the mode it was asked for, whichever one was there before. The switch is the whole instruction, so nothing is confirmed and nothing is refused.
+
+That login also retires the credential it supersedes: recording a saved login unlinks the account's `oauth-token`, and recording a token unlinks the child's `.credentials.json`. Only that one file goes; the directory around it is the child's and stays. The unlink follows the metadata rename that commits the mode, so an interruption before that rename leaves the previous credential working rather than the account holding neither ([ADR-0101](../decisions/ADR-0101-retire-the-credential-a-mode-switch-supersedes.md)).
+
+It runs on every login rather than only on a detected switch, which is what repairs an account already carrying a leftover from a switch made before this behaviour existed. A login with nothing to retire is silent about it; one that retires something says so, because the act cannot be undone.
+
+Two logins against one account are ordered by [the credential lock](./xdg-storage.md#lock-scopes), and a saved-login run asks again inside it whether the credential it is about to commit is still there. A run that lost the race refuses without writing a mode and without retiring anything, so the authentication the winner committed survives whole; the diagnostic says which happened and points at `account status` rather than at another login.
+
+Retirement is local. Neither credential is revoked at the provider, and both stay valid until they expire — the same limit [removal](#removal) reports. If the retirement itself fails, the login fails after its credential is already durable: the diagnostic names the path that still holds the previous credential and says the new one is not being undone, because the alternative is destroying a credential that was just proven to work.
+
 ## Commands
 
-| Command                 | Arguments                                                                                                     | Reports                                                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `account login [name]`  | optional account; `--profile`, `--token` or `--refresh-token`, `--stdin`, and the options each selector takes | Selected mode, account path, the bound profile and its provenance, and success without credential material |
-| `account list`          | —                                                                                                             | Every account's mode and local-state usability, and which one is currently selected                        |
-| `account status [name]` | named account or selected account                                                                             | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing                |
-| `account remove <name>` | account; `--yes`                                                                                              | Whether local state was removed, and that upstream revocation did not occur                                |
-| `account bind <name>`   | account; `--profile <name>`                                                                                   | The account, the profile it is now bound to, and when that was recorded                                    |
+| Command                 | Arguments                                                                                                     | Reports                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account login [name]`  | optional account; `--profile`, `--token` or `--refresh-token`, `--stdin`, and the options each selector takes | Selected mode, account path, the bound profile and its provenance, any credential this login retired, and success without credential material |
+| `account list`          | —                                                                                                             | Every account's mode and local-state usability, and which one is currently selected                                                           |
+| `account status [name]` | named account or selected account                                                                             | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing                                                   |
+| `account remove <name>` | account; `--yes`                                                                                              | Whether local state was removed, and that upstream revocation did not occur                                                                   |
+| `account bind <name>`   | account; `--profile <name>`                                                                                   | The account, the profile it is now bound to, and when that was recorded                                                                       |
 
 Each declares its own `--json`, as [every verb that produces data does](./logging-and-output.md#machine-output). Data goes to standard output; diagnostics and warnings go to standard error, and a confirmation prompt goes to [the controlling terminal](./cli-surface.md#the-predicate). No subcommand ever prints a credential, at any verbosity or in any format.
 
@@ -187,7 +201,7 @@ The [shared document rules](./logging-and-output.md#machine-output) hold for all
 
 | Subcommand | Always present                                                                           | Present when applicable                                                                                                                                                                          |
 | ---------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `login`    | `account`, `mode`, `path`, `recorded_at`, `profile`, `profile_source`, `profile_present` | `fingerprint`, `estimated_expiry` — token mode only                                                                                                                                              |
+| `login`    | `account`, `mode`, `path`, `recorded_at`, `profile`, `profile_source`, `profile_present` | `fingerprint`, `estimated_expiry` — token mode only; `retired_superseded_credential`, `true` on the login that [retired one](#switching-modes) and absent on every other                         |
 | `list`     | `accounts[]` of `name`, `mode`, `usable`                                                 | `profile` on a bound entry; `selected` on the one entry; `selection_source` at the top level                                                                                                     |
 | `status`   | `account`, `selected`, `mode`, `usable`, `warnings[]`                                    | `profile`, `profile_present`, `profile_source`, `selection_source`, `recorded_at`, `age_seconds`, `estimated_expiry`, `fingerprint`, `metadata_consistent`, `child_login_present`, `child_probe` |
 | `remove`   | `account`, `path`, `removed`                                                             | `mode`, `marker_cleared` — when something was removed                                                                                                                                            |

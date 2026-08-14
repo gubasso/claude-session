@@ -15,7 +15,7 @@
 use crate::{
     domain::{
         account::{
-            AccountFinding, AccountStatus, AuthMode, AuthModeMetadata, ProfileBinding, Removal,
+            AccountFinding, AccountStatus, AuthMode, ModeCommit, ProfileBinding, Removal,
             ReportMode, SelectionSource, Warning,
         },
         checks::CheckStatus,
@@ -325,9 +325,10 @@ pub(super) fn login(
     palette: Palette,
     account: &str,
     path: &std::path::Path,
-    metadata: &AuthModeMetadata,
+    commit: &ModeCommit,
     binding: &Binding,
 ) -> String {
+    let metadata = &commit.metadata;
     let mut rows = row(
         palette,
         CheckStatus::Pass,
@@ -336,6 +337,29 @@ pub(super) fn login(
             signs_in(metadata.mode.report())
         ),
     );
+    // Only when this login actually changed the mode, because on every other
+    // login there was nothing to retire and a row saying so would report the
+    // absence of an event ([ADR-0051]). Destroying a credential is worth one
+    // line: it is irreversible, and the reader is the only one who can tell
+    // whether they wanted the other mode back.
+    //
+    // [ADR-0051]: ../../../docs/decisions/ADR-0051-let-every-surface-element-discriminate.md
+    if commit.retired {
+        rows.push_str(&row(
+            palette,
+            CheckStatus::Pass,
+            match metadata.mode {
+                AuthMode::Login => {
+                    "The token this account had stored is gone, removed by this login rather \
+                    than left on disk for nothing to read."
+                }
+                AuthMode::Token => {
+                    "The saved login this account had is gone, removed by this token rather \
+                    than left on disk for nothing to read."
+                }
+            },
+        ));
+    }
     let profile_row = if binding.present {
         format!(
             "It runs with the \"{}\" profile, {}.",

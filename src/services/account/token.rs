@@ -18,8 +18,8 @@ use crate::{
     context::AppContext,
     domain::{
         account::{
-            AuthMode, AuthModeMetadata, Plan, Probe, ProbeStatus, RecordedAt, TokenIngest,
-            TokenSource,
+            AuthMode, AuthModeMetadata, ModeCommit, Plan, Probe, ProbeStatus, RecordedAt,
+            TokenIngest, TokenSource,
         },
         child::{ChildInvocation, ChildOutcome},
         identifier::Identifier,
@@ -238,13 +238,18 @@ pub(crate) fn verification_failure(probe: Probe) -> AppError {
 /// from outliving the credential it describes: a rotation that does not
 /// re-declare a plan clears it, and the account reports as undeclared rather
 /// than carrying an answer given about a token that is gone.
+///
+/// Last comes the retirement of the child's own saved login, if the account
+/// had one. It follows the rename for the reason everything else here does: the
+/// rename is the commit, and an interruption before it must leave the previous
+/// credential working.
 pub(crate) fn rotate(
     context: &AppContext,
     account: &Identifier,
     candidate: &Secret,
     recorded_at: RecordedAt,
     plan: Option<Plan>,
-) -> Result<AuthModeMetadata, AppError> {
+) -> Result<ModeCommit, AppError> {
     let state = context.paths().state();
     let _lock = super::hold(context, account)?;
     let token_path = context.paths().account_oauth_token(account);
@@ -260,7 +265,8 @@ pub(crate) fn rotate(
         plan,
     };
     super::write_metadata(context, account, &metadata)?;
-    Ok(metadata)
+    let retired = super::retire_superseded(context, account, AuthMode::Token)?;
+    Ok(ModeCommit { metadata, retired })
 }
 
 /// Returns the ingest time to record for one request.

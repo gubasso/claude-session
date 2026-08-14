@@ -14,8 +14,7 @@ pub(crate) mod human;
 use crate::{
     domain::{
         account::{
-            AccountFinding, AccountStatus, AuthModeMetadata, ProfileBinding, Removal,
-            SelectionSource,
+            AccountFinding, AccountStatus, ModeCommit, ProfileBinding, Removal, SelectionSource,
         },
         config::Source,
         identifier::Identifier,
@@ -90,10 +89,11 @@ pub(crate) fn login(
     json_mode: bool,
     account: &str,
     path: &std::path::Path,
-    metadata: &AuthModeMetadata,
+    commit: &ModeCommit,
     binding: &Binding,
     color: Color,
 ) -> Result<(), AppError> {
+    let metadata = &commit.metadata;
     let fingerprint = metadata.token_fingerprint().map(Fingerprint::as_str);
     let expiry = metadata
         .token_fingerprint()
@@ -122,16 +122,17 @@ pub(crate) fn login(
                 .declared_plan()
                 .map(|plan| plan.as_str().to_owned().into()),
         );
+        // Present only when this login changed the mode, on the same rule as
+        // the keys above: a `false` on every ordinary login would be a field
+        // whose value never varies for the reader who is actually asking.
+        optional(
+            &mut value,
+            "retired_superseded_credential",
+            commit.retired.then_some(true.into()),
+        );
         document(&value, "account login document")?
     } else {
-        human::login(
-            Palette::new(color.stdout()),
-            account,
-            path,
-            metadata,
-            binding,
-        )
-        .into_bytes()
+        human::login(Palette::new(color.stdout()), account, path, commit, binding).into_bytes()
     };
     writer.stdout(&bytes).map_err(|error| output_error(&error))
 }
