@@ -1662,16 +1662,26 @@ fn the_published_status_example_matches_the_renderer() {
 
 /// Returns the one session directory a launch created under an account.
 ///
-/// The name is derived from whatever terminal the test process happens to be
-/// in, which no test can know, so the directory is found rather than spelled.
+/// Both names are derived from whatever terminal and namespace the test process
+/// happens to be in, which no test can know, so the directory is found rather
+/// than spelled. Two levels, because a terminal name is unique only inside the
+/// namespace that issued it ([ADR-0107]).
+///
+/// [ADR-0107]: ../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
 fn only_session_dir(harness: &Harness, account: &str) -> std::path::PathBuf {
     let sessions = harness.state().join(format!("accounts/{account}/sessions"));
-    let mut entries: Vec<_> = fs::read_dir(&sessions)
-        .expect("sessions directory")
+    let namespace = only_child(&sessions, "one launch makes one namespace directory");
+    only_child(&namespace, "one launch makes one session directory")
+}
+
+/// Returns the single entry of a directory, or fails saying what was expected.
+fn only_child(directory: &std::path::Path, why: &str) -> std::path::PathBuf {
+    let mut entries: Vec<_> = fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("{}: {error}", directory.display()))
         .map(|entry| entry.expect("entry").path())
         .collect();
-    assert_eq!(entries.len(), 1, "one launch makes one session directory");
-    entries.pop().expect("session directory")
+    assert_eq!(entries.len(), 1, "{why}");
+    entries.pop().expect("entry")
 }
 
 /// Slice 028 acceptance: the split itself. What a terminal owns is its own

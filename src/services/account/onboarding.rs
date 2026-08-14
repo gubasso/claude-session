@@ -53,7 +53,7 @@ fn session_config(context: &AppContext, account: &Identifier) -> Result<PathBuf,
     let terminal = crate::services::session::terminal(context)?;
     Ok(context
         .paths()
-        .session_native_config(account, terminal.id()))
+        .session_native_config(account, terminal.namespace().id(), terminal.id()))
 }
 
 /// Names the file this terminal's launch would read, for a report to cite.

@@ -106,14 +106,32 @@ impl XdgPaths {
     pub(crate) fn account_sessions(&self, account: &Identifier) -> PathBuf {
         self.account(account).join("sessions")
     }
+    /// Returns the namespace directory one account's terminals are grouped by.
+    ///
+    /// A terminal name is unique only inside the namespace that issued it, so
+    /// the namespace is a component of its own rather than part of the name
+    /// ([ADR-0107](../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md)).
+    pub(crate) fn account_namespace(
+        &self,
+        account: &Identifier,
+        namespace: &Identifier,
+    ) -> PathBuf {
+        self.account_sessions(account).join(namespace.as_str())
+    }
     /// Returns the child state directory for one account and one terminal.
     ///
     /// This is what `CLAUDE_CONFIG_DIR` points at. It is per terminal because
     /// three of the files the child writes there are keyed by nothing and
     /// interleave between panes
     /// ([ADR-0102](../../docs/decisions/ADR-0102-key-child-state-by-terminal.md)).
-    pub(crate) fn account_session(&self, account: &Identifier, terminal: &Identifier) -> PathBuf {
-        self.account_sessions(account).join(terminal.as_str())
+    pub(crate) fn account_session(
+        &self,
+        account: &Identifier,
+        namespace: &Identifier,
+        terminal: &Identifier,
+    ) -> PathBuf {
+        self.account_namespace(account, namespace)
+            .join(terminal.as_str())
     }
     /// Returns the projects tree every terminal of one account shares.
     ///
@@ -127,17 +145,21 @@ impl XdgPaths {
     pub(crate) fn session_native_config(
         &self,
         account: &Identifier,
+        namespace: &Identifier,
         terminal: &Identifier,
     ) -> PathBuf {
-        self.account_session(account, terminal).join(".claude.json")
+        self.account_session(account, namespace, terminal)
+            .join(".claude.json")
     }
     /// Returns the shared-projects link inside one session directory.
     pub(crate) fn session_projects_link(
         &self,
         account: &Identifier,
+        namespace: &Identifier,
         terminal: &Identifier,
     ) -> PathBuf {
-        self.account_session(account, terminal).join("projects")
+        self.account_session(account, namespace, terminal)
+            .join("projects")
     }
     /// Returns one account's authentication-mode metadata.
     pub(crate) fn account_auth_mode(&self, account: &Identifier) -> PathBuf {
@@ -248,25 +270,32 @@ mod tests {
             Path::new("/s/claude-session-rs/accounts/work/config/.credentials.json")
         );
         let pane = "pts-3".parse().expect("terminal identifier");
+        let space = "mnt-1a2b3c4d".parse().expect("namespace identifier");
         assert_eq!(
             paths.account_sessions(&work),
             Path::new("/s/claude-session-rs/accounts/work/sessions")
         );
         assert_eq!(
-            paths.account_session(&work, &pane),
-            Path::new("/s/claude-session-rs/accounts/work/sessions/pts-3")
+            paths.account_namespace(&work, &space),
+            Path::new("/s/claude-session-rs/accounts/work/sessions/mnt-1a2b3c4d")
+        );
+        assert_eq!(
+            paths.account_session(&work, &space, &pane),
+            Path::new("/s/claude-session-rs/accounts/work/sessions/mnt-1a2b3c4d/pts-3")
         );
         assert_eq!(
             paths.account_projects(&work),
             Path::new("/s/claude-session-rs/accounts/work/config/projects")
         );
         assert_eq!(
-            paths.session_native_config(&work, &pane),
-            Path::new("/s/claude-session-rs/accounts/work/sessions/pts-3/.claude.json")
+            paths.session_native_config(&work, &space, &pane),
+            Path::new(
+                "/s/claude-session-rs/accounts/work/sessions/mnt-1a2b3c4d/pts-3/.claude.json"
+            )
         );
         assert_eq!(
-            paths.session_projects_link(&work, &pane),
-            Path::new("/s/claude-session-rs/accounts/work/sessions/pts-3/projects")
+            paths.session_projects_link(&work, &space, &pane),
+            Path::new("/s/claude-session-rs/accounts/work/sessions/mnt-1a2b3c4d/pts-3/projects")
         );
         assert_eq!(
             paths.last_account(),

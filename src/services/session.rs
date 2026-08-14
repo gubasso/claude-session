@@ -47,15 +47,17 @@ fn refuse(why: &str) -> AppError {
 
 /// Prepares one terminal's child state directory and the tree it shares back.
 ///
-/// Three steps, in this order: the session directory, the account's projects
-/// tree, and the declared link between them. The tree is created before the
-/// link so the link is never dangling, which is what lets the guard verify it
-/// on the next run ([ADR-0103]).
+/// Four steps, in this order: the terminal's namespace directory, the session
+/// directory inside it, the account's projects tree, and the declared link
+/// between them. The tree is created before the link so the link is never
+/// dangling, which is what lets the guard verify it on the next run
+/// ([ADR-0103]).
 ///
 /// Idempotent. A second run of the same terminal validates what the first one
 /// built and creates nothing.
 ///
 /// [ADR-0103]: ../../docs/decisions/ADR-0103-permit-a-declared-link.md
+/// [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
 pub(crate) fn materialise(
     context: &AppContext,
     account: &Identifier,
@@ -63,19 +65,24 @@ pub(crate) fn materialise(
 ) -> Result<PathBuf, AppError> {
     let paths = context.paths();
     let state = paths.state();
-    let directory = paths.account_session(account, terminal.id());
+    let namespace = terminal.namespace().id();
+    // Its own component, validated in its own right: a terminal name is unique
+    // only inside the namespace that issued it ([ADR-0107]).
+    guard::ensure_directory(state, &paths.account_namespace(account, namespace))?;
+    let directory = paths.account_session(account, namespace, terminal.id());
     guard::ensure_directory(state, &directory)?;
     let projects = paths.account_projects(account);
     guard::ensure_directory(state, &projects)?;
     guard::ensure_link(
         state,
-        &paths.session_projects_link(account, terminal.id()),
+        &paths.session_projects_link(account, namespace, terminal.id()),
         &projects,
     )?;
     tracing::info!(
         op = "materialise_session",
         status = "ok",
         terminal = terminal.id().as_str(),
+        namespace = namespace.as_str(),
         path = %directory.display(),
         "this run will use the session directory at {}",
         directory.display()

@@ -39,9 +39,10 @@ Every artifact has one writer.
 | Local OAuth token        | State  | `accounts/<account>/oauth-token`                      | Account subsystem                                    | `0600`                         | Token mode; until rotation or removal |
 | Native account config    | State  | `accounts/<account>/config/`                          | Child, after account subsystem creates the directory | `0700`                         | Until account removal                 |
 | Shared projects tree     | State  | `accounts/<account>/config/projects/`                 | Child, after the launch creates the directory        | `0700`                         | Until account removal                 |
-| Session directory        | State  | `accounts/<account>/sessions/<terminal>/`             | Child, after the launch creates the directory        | `0700`                         | Until account removal                 |
-| Session child config     | State  | `accounts/<account>/sessions/<terminal>/.claude.json` | Child, with the two keys a launch seeds              | `0600`                         | Until account removal                 |
-| Shared projects link     | State  | `accounts/<account>/sessions/<terminal>/projects`     | Session subsystem                                    | Link; the kernel's own         | Until account removal                 |
+| Namespace directory      | State  | `accounts/<account>/sessions/<namespace>/`            | Session subsystem                                    | `0700`                         | Until account removal                 |
+| Session directory        | State  | `accounts/<account>/sessions/<namespace>/<terminal>/` | Child, after the launch creates the directory        | `0700`                         | Until account removal                 |
+| Session child config     | State  | `.../sessions/<namespace>/<terminal>/.claude.json`    | Child, with the two keys a launch seeds              | `0600`                         | Until account removal                 |
+| Shared projects link     | State  | `.../sessions/<namespace>/<terminal>/projects`        | Session subsystem                                    | Link; the kernel's own         | Until account removal                 |
 | Native saved login       | State  | `accounts/<account>/config/.credentials.json`         | Child only                                           | Child-managed; expected `0600` | Until child logout or account removal |
 | Composed settings        | State  | `composed/profile-<name>-<digest>.json`               | Composition subsystem                                | `0600`                         | Permanent                             |
 | Composition provenance   | State  | `composed/profile-<name>-<digest>.compose.json`       | Composition subsystem                                | `0600`                         | Permanent                             |
@@ -52,6 +53,8 @@ Every artifact has one writer.
 The project configuration file is the one artifact with no XDG base: it lives in the user's repository because that is what makes it per-repository, and it is listed here so the table stays the whole inventory. [Configuration](./configuration.md#project-file-discovery) owns how it is found and what it may set.
 
 The child may create other files and directories below `config/`; it owns their names, contents, modes, and lifecycle.
+
+A terminal names one pane only inside the namespace that issued it, so the namespace is the component above it rather than part of its name. Two processes that share this tree without sharing their namespaces — a container and its host, reaching one bind mount — therefore never reach one session directory ([ADR-0107](../decisions/ADR-0107-scope-a-terminal-to-its-namespace.md)). A namespace directory is not stable across a container's recreation, which is why session directories accumulate and nothing prunes them.
 
 Credentials are state, not data or cache: they are durable, machine-specific, and unsafe to lose silently. Generated settings are state because removing them during a run changes child behavior.
 

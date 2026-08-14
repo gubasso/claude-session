@@ -51,10 +51,10 @@ Composed settings are unaffected: they are keyed by profile and input digest wit
 
 Mode is chosen by `account login` and resolved deterministically on every later run. Ambient state never changes the stored mode.
 
-| Mode    | Wrapper-provided child environment                                                                                    | Authentication owner                                                    |
-| ------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `login` | `CLAUDE_CONFIG_DIR=<this terminal's session directory>`, `CLAUDE_SECURESTORAGE_CONFIG_DIR=<account config directory>` | Child reads and refreshes its saved login, from one file per account    |
-| `token` | The same pair, plus `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>`                                                       | Wrapper stores or retrieves the long-lived token; the child consumes it |
+| Mode    | Wrapper-provided child environment                                                                                                         | Authentication owner                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `login` | `CLAUDE_CONFIG_DIR=<this terminal's session directory, under its namespace>`, `CLAUDE_SECURESTORAGE_CONFIG_DIR=<account config directory>` | Child reads and refreshes its saved login, from one file per account    |
+| `token` | The same pair, plus `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>`                                                                            | Wrapper stores or retrieves the long-lived token; the child consumes it |
 
 In token mode, `CLAUDE_CODE_OAUTH_TOKEN` outranks a saved login that may also exist in `config/`. The wrapper reports that shadowing. It removes neither credential over it, which is a separate question from [the retirement a mode switch performs](#switching-modes): that one runs because the switch made an artifact unreachable, and shadowing leaves both reachable by whoever points the child at them.
 

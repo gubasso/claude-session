@@ -10,6 +10,7 @@ pub(crate) mod encoding;
 pub(crate) mod entry;
 pub(crate) mod identifier;
 pub(crate) mod merge;
+pub(crate) mod namespace;
 pub(crate) mod paths;
 pub(crate) mod pointer;
 pub(crate) mod profile;

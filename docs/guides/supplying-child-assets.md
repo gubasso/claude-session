@@ -63,7 +63,7 @@ The `session-assets-linked` check names what a launch would supply. An empty tre
 After a launch, the assets appear inside the session directory as links:
 
 ```bash
-ls -la "${XDG_STATE_HOME:-$HOME/.local/state}"/claude-session-rs/accounts/*/sessions/*/
+ls -la "${XDG_STATE_HOME:-$HOME/.local/state}"/claude-session-rs/accounts/*/sessions/*/*/
 ```
 
 ## Hooks and scripts

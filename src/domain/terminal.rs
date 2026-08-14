@@ -8,15 +8,19 @@
 //! [ADR-0065] retired, and reinstated by [ADR-0102] for the child's own state
 //! directory alone.
 //!
+//! A name here is unique only inside the namespace that issued it, so every
+//! rung carries the namespace owning the identifier it read ([ADR-0107]).
+//!
 //! [ADR-0062]: ../../docs/decisions/ADR-0062-derive-the-group-from-the-controlling-terminal.md
 //! [ADR-0065]: ../../docs/decisions/ADR-0065-retire-the-terminal-group.md
 //! [ADR-0102]: ../../docs/decisions/ADR-0102-key-child-state-by-terminal.md
+//! [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
 
 use std::{ffi::OsStr, os::unix::ffi::OsStrExt as _, str::FromStr as _};
 
 use sha2::{Digest as _, Sha256};
 
-use crate::domain::identifier::Identifier;
+use crate::domain::{identifier::Identifier, namespace::Namespace};
 
 /// Which rung of the ladder named this run's terminal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -37,10 +41,12 @@ impl Source {
     }
 }
 
-/// One run's terminal: the path component, and the rung that named it.
+/// One run's terminal: the path component, the namespace it is unique inside,
+/// and the rung that named it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Terminal {
     id: Identifier,
+    namespace: Namespace,
     source: Source,
 }
 
@@ -48,6 +54,11 @@ impl Terminal {
     /// Borrows the validated path component.
     pub(crate) const fn id(&self) -> &Identifier {
         &self.id
+    }
+
+    /// Borrows the namespace this terminal's name is unique inside.
+    pub(crate) const fn namespace(&self) -> &Namespace {
+        &self.namespace
     }
 
     /// Returns the rung that named this terminal.
@@ -62,9 +73,13 @@ impl Terminal {
     /// nothing survives the mapping or the result is too long to be an
     /// identifier, so the caller falls to the next rung instead of storing
     /// state under a name two different devices could share.
-    pub(crate) fn from_tty(device: &OsStr) -> Option<Self> {
+    ///
+    /// The namespace is the mount namespace, which is what carries the devpts
+    /// instance this device name was issued by.
+    pub(crate) fn from_tty(namespace: Namespace, device: &OsStr) -> Option<Self> {
         sanitize(device.as_bytes()).map(|id| Self {
             id,
+            namespace,
             source: Source::Tty,
         })
     }
@@ -73,11 +88,19 @@ impl Terminal {
     ///
     /// The start time is what stops a recycled process id from inheriting an
     /// earlier session's directory, which a bare identifier cannot promise.
-    pub(crate) fn from_session_leader(sid: u32, started: u64) -> Option<Self> {
+    ///
+    /// The namespace is the process namespace, which is what issued the session
+    /// id and the process ids `/proc` reported it against.
+    pub(crate) fn from_session_leader(
+        namespace: Namespace,
+        sid: u32,
+        started: u64,
+    ) -> Option<Self> {
         Identifier::from_str(&format!("sid-{sid}-{started}"))
             .ok()
             .map(|id| Self {
                 id,
+                namespace,
                 source: Source::SessionLeader,
             })
     }
@@ -153,10 +176,22 @@ fn fingerprint(device: &[u8]) -> String {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::domain::namespace::Kind;
     use std::ffi::OsString;
 
+    fn space(kind: Kind, link: &str) -> Namespace {
+        Namespace::from_link(kind, &OsString::from(link)).expect("a link names a namespace")
+    }
+
     fn tty(value: &str) -> Option<Terminal> {
-        Terminal::from_tty(&OsString::from(value))
+        Terminal::from_tty(
+            space(Kind::Mount, "mnt:[4026531840]"),
+            &OsString::from(value),
+        )
+    }
+
+    fn leader(sid: u32, started: u64) -> Option<Terminal> {
+        Terminal::from_session_leader(space(Kind::Pid, "pid:[4026531836]"), sid, started)
     }
 
     #[test]
@@ -224,7 +259,7 @@ mod tests {
 
     #[test]
     fn the_session_rung_carries_the_leader_and_its_start_time() {
-        let terminal = Terminal::from_session_leader(4242, 987_654).expect("session names one");
+        let terminal = leader(4242, 987_654).expect("session names one");
         assert_eq!(terminal.id().as_str(), "sid-4242-987654");
         assert_eq!(terminal.source(), Source::SessionLeader);
     }
@@ -233,8 +268,37 @@ mod tests {
     /// to reach the name.
     #[test]
     fn a_recycled_process_id_does_not_inherit_the_earlier_directory() {
-        let first = Terminal::from_session_leader(4242, 1).expect("first");
-        let second = Terminal::from_session_leader(4242, 2).expect("second");
+        let first = leader(4242, 1).expect("first");
+        let second = leader(4242, 2).expect("second");
         assert_ne!(first.id(), second.id());
+    }
+
+    /// The whole point of the namespace axis: a container's first pane and the
+    /// host's carry one device name, and must not carry one directory.
+    #[test]
+    fn one_device_in_two_namespaces_names_two_terminals() {
+        let host = Terminal::from_tty(
+            space(Kind::Mount, "mnt:[4026531840]"),
+            &OsString::from("/dev/pts/0"),
+        )
+        .expect("host pane");
+        let container = Terminal::from_tty(
+            space(Kind::Mount, "mnt:[4026533412]"),
+            &OsString::from("/dev/pts/0"),
+        )
+        .expect("container pane");
+        assert_eq!(host.id(), container.id());
+        assert_ne!(host.namespace().id(), container.namespace().id());
+        assert_ne!(host, container);
+    }
+
+    /// The longest name each rung can produce still has room for the namespace
+    /// beside it, because the two are separate path components rather than one
+    /// identifier ([ADR-0107]).
+    #[test]
+    fn the_longest_name_of_each_rung_stays_an_identifier() {
+        let longest = leader(4_194_304, 18_446_744_073_709_551_615).expect("longest leader");
+        assert_eq!(longest.id().as_str(), "sid-4194304-18446744073709551615");
+        assert_eq!(longest.namespace().id().as_str().len(), 28);
     }
 }

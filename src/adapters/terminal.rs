@@ -12,6 +12,7 @@ use std::{
 };
 
 use crate::domain::{
+    namespace::{Kind, Namespace},
     secret::{Secret, SecretError},
     terminal::Terminal as TerminalIdentity,
 };
@@ -31,7 +32,12 @@ pub(crate) trait Terminal {
     /// session leader named anything usable, and the caller must fail rather
     /// than invent a directory ([ADR-0102]).
     ///
+    /// A rung whose namespace cannot be read names nothing and the ladder falls
+    /// past it, so an unreadable `/proc` costs a rung rather than adding a
+    /// failure of its own ([ADR-0107]).
+    ///
     /// [ADR-0102]: ../../docs/decisions/ADR-0102-key-child-state-by-terminal.md
+    /// [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
     fn identity(&self) -> io::Result<Option<TerminalIdentity>>;
 }
 
@@ -49,6 +55,19 @@ fn leader_started(pid: u32) -> Option<u64> {
     let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let tail = text.rsplit_once(')')?.1;
     tail.split_whitespace().nth(19)?.parse().ok()
+}
+
+/// Reads one of this process's namespace links, verbatim.
+///
+/// `/proc/self/ns/<kind>` is a magic link whose value — `pid:[4026533427]` —
+/// identifies the namespace. Read rather than resolved: there is nothing behind
+/// it to resolve, and the value is the identity. `None` when `/proc` does not
+/// answer, which makes the rung asking unavailable ([ADR-0107]).
+///
+/// [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
+fn namespace(kind: Kind) -> Option<Namespace> {
+    let link = std::fs::read_link(format!("/proc/self/ns/{}", kind.procfs_name())).ok()?;
+    Namespace::from_link(kind, link.as_os_str())
 }
 
 /// `ENXIO` and `EBADF`, the two ways an absent controlling terminal reports.
@@ -78,14 +97,23 @@ impl Terminal for SystemTerminal {
 
     fn identity(&self) -> io::Result<Option<TerminalIdentity>> {
         // The pane's own pseudo-terminal first, opened rather than inferred
-        // from `isatty(0)`, matching every other predicate in this module.
-        if let Ok(tty) = open_tty()
+        // from `isatty(0)`, matching every other predicate in this module. The
+        // mount namespace leads the chain because it carries the devpts
+        // instance that issued the device name, so an unreadable one costs this
+        // rung and nothing below it.
+        if let Some(space) = namespace(Kind::Mount)
+            && let Ok(tty) = open_tty()
             && let Ok(name) = rustix::termios::ttyname(&tty, Vec::new())
             && let Some(terminal) =
-                TerminalIdentity::from_tty(std::ffi::OsStr::from_bytes(name.as_bytes()))
+                TerminalIdentity::from_tty(space, std::ffi::OsStr::from_bytes(name.as_bytes()))
         {
             return Ok(Some(terminal));
         }
+        // The process namespace issued both the session id and the process ids
+        // `/proc` reports it against, so it is this rung's namespace.
+        let Some(space) = namespace(Kind::Pid) else {
+            return Ok(None);
+        };
         let Ok(sid) = rustix::process::getsid(None) else {
             return Ok(None);
         };
@@ -96,7 +124,7 @@ impl Terminal for SystemTerminal {
         let Some(started) = leader_started(raw) else {
             return Ok(None);
         };
-        Ok(TerminalIdentity::from_session_leader(raw, started))
+        Ok(TerminalIdentity::from_session_leader(space, raw, started))
     }
 
     fn read_secret(&self, prompt: &str) -> io::Result<Result<Secret, SecretError>> {

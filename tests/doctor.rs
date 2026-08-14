@@ -402,6 +402,38 @@ fn plan_row(harness: &Harness, account: &str) -> serde_json::Value {
         .clone()
 }
 
+/// Slice 030 acceptance: a terminal name answers "which pane" only inside the
+/// namespace that issued it, so a report naming one without the other invites
+/// the reader to compare two names that are not comparable.
+#[test]
+fn the_terminal_report_names_the_namespace() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    let output = healthy(&harness)
+        .args(["--account", "work", "doctor", "--json"])
+        .output()
+        .expect("doctor");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    let row = value["wrapper"]["checks"]
+        .as_array()
+        .expect("checks")
+        .iter()
+        .find(|row| row["id"] == "session-terminal-derives")
+        .expect("the check is in the report")
+        .clone();
+    let detail = row["message"].as_str().unwrap_or_default().to_owned();
+    // Whichever rung named this run, the namespace it was named in is the
+    // component above it and the report carries both.
+    assert!(
+        detail.contains("mnt-") || detail.contains("pid-"),
+        "the report names no namespace: {detail}"
+    );
+    assert!(
+        detail.contains("namespace"),
+        "the report does not say which namespace: {detail}"
+    );
+}
+
 #[test]
 fn doctor_summary_counts_every_public_result_once() {
     doctor_json_report_matches_the_public_catalog();

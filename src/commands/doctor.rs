@@ -223,14 +223,18 @@ pub(crate) fn run(
             // below; here it simply means this run has no session directory to
             // look at, which is not a storage defect.
             if let Ok(terminal) = crate::services::session::terminal(context) {
+                let space = terminal.namespace().id();
+                paths.push((context.paths().account_namespace(&account.id, space), None));
                 paths.push((
-                    context.paths().account_session(&account.id, terminal.id()),
+                    context
+                        .paths()
+                        .account_session(&account.id, space, terminal.id()),
                     None,
                 ));
                 paths.push((
                     context
                         .paths()
-                        .session_projects_link(&account.id, terminal.id()),
+                        .session_projects_link(&account.id, space, terminal.id()),
                     Some(context.paths().account_projects(&account.id)),
                 ));
                 // Every asset seat a launch would inspect is a declared link,
@@ -242,7 +246,9 @@ pub(crate) fn run(
                 // tree makes the next launch refuse. A seat that does not exist
                 // produces no defect, because the walk stops at the first
                 // component that is not there.
-                let session = context.paths().account_session(&account.id, terminal.id());
+                let session = context
+                    .paths()
+                    .account_session(&account.id, space, terminal.id());
                 let tree = context.paths().assets();
                 for name in crate::services::assets::declared() {
                     paths.push((session.join(name), Some(tree.join(name))));
@@ -428,8 +434,10 @@ fn terminal_result(context: &AppContext) -> CheckResult {
         Ok(terminal) => CheckResult::pass(
             Check::SessionTerminalDerives,
             format!(
-                "this run is \"{}\", named from {}",
+                "this run is \"{}\" in {} \"{}\", named from {}",
                 terminal.id().as_str(),
+                terminal.namespace().kind().as_str(),
+                terminal.namespace().id().as_str(),
                 terminal.source().as_str()
             ),
         ),

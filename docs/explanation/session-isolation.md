@@ -26,6 +26,14 @@ Splitting at directory granularity instead would take `projects/` with it, and d
 
 The terminal keys the child's state directory and nothing else. It does not key composed settings, which is the error the next section describes.
 
+## Why the terminal is not enough on its own
+
+A terminal name answers "which pane" only inside the namespace that issued it. Bind-mounting the state tree into containers — which is what makes one saved login serve every container, and is wanted — crosses that boundary: each container carries its own devpts, so the first pane in each is `/dev/pts/0` and every one of them derives `pts-0`. The names stop discriminating exactly where the state is shared, which is the worst place for it, because the directories still look separate.
+
+So the namespace that issued the name is the path component above it ([ADR-0107](../decisions/ADR-0107-scope-a-terminal-to-its-namespace.md)). It is read per rung rather than once, because the two rungs read identifiers the kernel scopes differently: the mount namespace carries the devpts instance that issued a device name, and the process namespace issues the session ids the second rung reads. A container run with the host's process namespace is the configuration where one uniform choice would collide and these do not.
+
+A rung whose namespace cannot be read names nothing, so the ladder falls past it and the existing refusal absorbs the case. The alternative — naming the terminal anyway — would restore the collision knowingly.
+
 ## Why the profile is the key
 
 The composed document is a pure function of the profile, its ordered pieces, and their contents. Nothing about the terminal, the working directory, or the project enters it. Keying it by any of those is the error of keying a build artifact by who ran the build: two runs that should share an artifact get two, and two runs that should not share one get one.

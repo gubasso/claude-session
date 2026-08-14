@@ -38,3 +38,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 027 superseded-credential-retirement — done — 1 implementation session — after 013 and 026; landed in one session, and the failure branch turned out reachable without an unwritable parent
 - 028 per-terminal-session-isolation — done — 3 implementation sessions — after 017; landed in one session, and the guard's blanket symlink refusal turned out to be the thing that shaped the design
 - 029 machine-global-child-assets — done — 2 implementation sessions — after 028; landed in one session, and the asset set is the child's published tree rather than a list somebody chose
+- 030 namespace-scoped-terminal-identity — done — 1 implementation session — after 028; landed in one session, and the two rungs turned out to be scoped by different namespaces
