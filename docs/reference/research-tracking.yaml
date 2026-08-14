@@ -78,12 +78,25 @@ tracked:
       acts on, and that a session without one describes itself as an API session
       and defaults to a different model. Observe it from a launch banner against
       a scratch configuration directory, recording only the rendered label and
-      model name.
+      model name. Re-establish the two halves the refresh-token bootstrap rests
+      on. Published: that `CLAUDE_CODE_OAUTH_REFRESH_TOKEN` and
+      `CLAUDE_CODE_OAUTH_SCOPES` still make `auth login` exchange a grant
+      instead of opening a browser, and that `setup-token` is still described as
+      able to make model requests only. Measured, and the reason this entry
+      covers the default: that a claude.ai login is still issued
+      `user:profile user:inference user:sessions:claude_code user:mcp_servers
+      user:file_upload`, and that the profile and usage endpoints still refuse a
+      grant without `user:profile`. Read the issued set from the scopes list of a
+      scratch login, never its tokens, and read the refusal from a status code
+      alone. Also record which release first carried the exchange branch if that
+      ever becomes published, since it is unknown and a child without it falls
+      through to a browser.
     dependents:
       - docs/decisions/ADR-0025-share-one-native-login-per-account.md
       - docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md
       - docs/decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md
       - docs/decisions/ADR-0099-declare-the-plan-a-token-cannot-carry.md
+      - docs/decisions/ADR-0100-bootstrap-a-saved-login-from-a-refresh-token.md
       - docs/decisions/ADR-0031-enforce-the-child-refresh-lock-version-floor.md
       - docs/reference/exit-codes.md
       - docs/reference/logging-and-output.md

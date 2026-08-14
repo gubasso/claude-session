@@ -5,7 +5,7 @@ use crate::{
     commands::dispatch::{DispatchOutcome, OutputMode},
     context::AppContext,
     domain::{
-        account::TokenIngest,
+        account::{LoginRequest, RefreshIngest, TokenIngest},
         child::{ChildInvocation, ChildOutcome},
         identifier::Identifier,
     },
@@ -197,16 +197,17 @@ fn login_profile(
     )
 }
 
-/// Logs in, in whichever mode was requested.
+/// Logs in, in whichever way was requested.
 ///
-/// Both modes share one wrapper: a first login that fails removes the account
-/// directory it created, so neither leaves a half-made account behind. What
-/// differs is entirely inside — one delegates a browser flow to the child and
-/// commits nothing of its own, the other ingests a secret and commits a pair.
+/// All three share one wrapper: a first login that fails removes the account
+/// directory it created, so none leaves a half-made account behind. What
+/// differs is entirely inside — one delegates a browser flow to the child, one
+/// ingests a secret the wrapper then owns and commits as a pair, and one hands
+/// the child a secret it exchanges for a login of its own.
 pub(crate) fn login(
     context: &AppContext,
     name: Option<Identifier>,
-    token: Option<TokenIngest>,
+    request: LoginRequest,
     profile: Option<Identifier>,
 ) -> Result<DispatchOutcome, AppError> {
     let account = name
@@ -241,9 +242,14 @@ pub(crate) fn login(
             )
         })?
         .is_some();
-    let result = match token {
-        Some(request) => token_login(context, &account, &directory, &program, &request, &profile),
-        None => native_login(context, &account, &directory, program, &profile),
+    let result = match request {
+        LoginRequest::Token(request) => {
+            token_login(context, &account, &directory, &program, &request, &profile)
+        }
+        LoginRequest::Refresh(request) => {
+            refresh_login(context, &account, &directory, &program, &request, &profile)
+        }
+        LoginRequest::Native => native_login(context, &account, &directory, program, &profile),
     };
     if result.is_err() && !existed && !crate::services::account::committed(context, &account) {
         // Removal is part of the failed first login (accounts.md), so a
@@ -304,6 +310,78 @@ fn token_login(
         token::recorded_at(context, request),
         plan,
     )?;
+    let binding = commit_binding(context, account, profile)?;
+    commit_launch_readiness(context, account)?;
+    crate::ui::account::login(
+        context.writer(),
+        context.output_mode() == OutputMode::Json,
+        account.as_str(),
+        directory,
+        &metadata,
+        &binding,
+        context.color(),
+    )?;
+    Ok(DispatchOutcome::Complete(0))
+}
+
+/// Exchanges a supplied refresh token for a saved login the child owns.
+///
+/// The native login's shape without its browser, and the absence of the
+/// terminal check is the point: this exists for a machine that has no terminal
+/// to run one on. `--stdin` is how such a machine supplies the secret, and a
+/// run without it still asks the controlling terminal, which is the ingest
+/// rule's other half rather than a second mode
+/// ([ADR-0027](../../docs/decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md)).
+///
+/// Nothing of the refresh token is written. What commits is the credential the
+/// child left behind, judged by the same gate a native login is judged by.
+fn refresh_login(
+    context: &AppContext,
+    account: &Identifier,
+    directory: &std::path::Path,
+    program: &std::path::Path,
+    request: &RefreshIngest,
+    profile: &(Identifier, crate::domain::config::Source),
+) -> Result<DispatchOutcome, AppError> {
+    use crate::services::account::refresh;
+    // The ingest comes first, so a refusal costs nothing: no directory is made
+    // and no child runs for a secret that was never going to be accepted.
+    let secret = refresh::ingest(context, request)?;
+    crate::services::account::prepare_login(context, account)?;
+    refresh::bootstrap(context, account, program, &secret, &request.scopes)?;
+    // Revalidated here rather than trusted from `prepare_login`, because the
+    // child ran in between and the walk has to meet the state the commit will
+    // ([XDG storage](../../docs/reference/xdg-storage.md#how-a-path-is-validated)).
+    if !crate::services::account::credentials_committable(context, account)? {
+        let mut diagnostic = Diagnostic::new(
+            "the refresh token was exchanged but left no saved login",
+            "claude auth login",
+            "the child exited successfully and did not leave a safe saved-login path",
+            concat!(
+                "check that this claude is new enough to exchange a refresh token, then ",
+                "run account login --refresh-token again"
+            ),
+        );
+        diagnostic.child_exit = Some(0);
+        return Err(AppError::new(ErrorKind::Auth, diagnostic));
+    }
+    commit_saved_login(context, account, directory, profile)
+}
+
+/// Commits whatever saved login the child just left, however it got there.
+///
+/// Shared by the two logins that end in a child-owned credential, so the order
+/// of the three commits — authentication, profile, first-run key — has one
+/// owner rather than a copy per entry point. Each caller decides for itself
+/// that there is something to commit, because each has a different way of
+/// failing to reach one and a different next action to name.
+fn commit_saved_login(
+    context: &AppContext,
+    account: &Identifier,
+    directory: &std::path::Path,
+    profile: &(Identifier, crate::domain::config::Source),
+) -> Result<DispatchOutcome, AppError> {
+    let metadata = crate::services::account::write_login_metadata(context, account)?;
     let binding = commit_binding(context, account, profile)?;
     commit_launch_readiness(context, account)?;
     crate::ui::account::login(
@@ -478,20 +556,7 @@ fn native_login(
     };
     match (outcome, committable) {
         (Ok(ChildOutcome::Exited(0)), Ok(true)) => {
-            crate::services::account::write_login_metadata(context, &account).and_then(|metadata| {
-                let binding = commit_binding(context, &account, profile)?;
-                commit_launch_readiness(context, &account)?;
-                crate::ui::account::login(
-                    context.writer(),
-                    context.output_mode() == OutputMode::Json,
-                    account.as_str(),
-                    directory,
-                    &metadata,
-                    &binding,
-                    context.color(),
-                )?;
-                Ok(DispatchOutcome::Complete(0))
-            })
+            commit_saved_login(context, &account, directory, profile)
         }
         (Ok(outcome), Ok(_)) => {
             let child_exit = match outcome {

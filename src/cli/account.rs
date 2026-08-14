@@ -58,25 +58,51 @@ pub(crate) struct BindArgs {
     pub(crate) json: bool,
 }
 
+// The `secret` group holds the two selectors that bring their own credential.
+// It is what makes `--token --refresh-token` a parse error rather than a
+// precedence question, and what lets `--stdin` say "whichever secret was asked
+// for" instead of naming one of them.
+// Four independent presence flags rather than a state the wrapper models: each
+// one is on the command line or is not, the parser owns which combinations are
+// legal, and folding them into an enum here would move that arbitration off the
+// node that already renders its own usage.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each bool is one command-line flag, and clap owns their exclusivity"
+)]
 #[derive(Args, Debug)]
+#[command(group = clap::ArgGroup::new("secret").multiple(false))]
 pub(crate) struct LoginArgs {
     /// Account to log in; the selected account when omitted.
     pub(crate) name: Option<Identifier>,
     /// Store a long-lived subscription token instead of a native saved login.
-    #[arg(long)]
+    #[arg(long, group = "secret")]
     pub(crate) token: bool,
+    // Takes no value, for the reason `--token` takes none: a credential never
+    // enters through argv
+    // ([ADR-0027](../../docs/decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md)).
+    /// Exchange a claude.ai refresh token for a saved login, without a browser.
+    #[arg(long = "refresh-token", group = "secret")]
+    pub(crate) refresh_token: bool,
     // Not `requires`-gated on anything: an account's profile is orthogonal to
     // how it authenticates, and login is where the choice is made explicit
     // ([ADR-0096](../../docs/decisions/ADR-0096-bind-a-profile-to-an-account.md)).
     /// Profile the account runs with; `default_profile` when omitted.
     #[arg(long, value_name = "NAME")]
     pub(crate) profile: Option<Identifier>,
-    // The two token-only flags require `--token` rather than being silently
+    // The token-only flags require `--token` rather than being silently
     // ignored without it, because each one alone reads as a request the wrapper
-    // would then not honour.
-    /// Read the token from standard input instead of prompting.
-    #[arg(long, requires = "token")]
+    // would then not honour. `--stdin` requires the group instead of one
+    // member, because both secrets are read the same two ways.
+    /// Read the secret from standard input instead of prompting.
+    #[arg(long, requires = "secret")]
     pub(crate) stdin: bool,
+    // Bound to `--refresh-token` alone: a saved login and a stored token are
+    // each issued their own scopes by a flow this option does not take part in,
+    // so offering it beside either would name a knob that changes nothing.
+    /// The scopes the refresh token was issued with; a login's own when omitted.
+    #[arg(long, requires = "refresh_token", value_name = "SCOPES")]
+    pub(crate) scopes: Option<String>,
     /// The time the token was minted, when it was not minted just now.
     #[arg(long, requires = "token", value_name = "RFC3339")]
     pub(crate) minted_at: Option<String>,

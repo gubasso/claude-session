@@ -1,13 +1,15 @@
 //! Account selection, discovery, local usability, and launch guards.
 
 pub(crate) mod bind;
+pub(crate) mod ingest;
 pub(crate) mod lock;
 pub(crate) mod onboarding;
+pub(crate) mod refresh;
 pub(crate) mod remove;
 pub(crate) mod status;
 pub(crate) mod token;
 
-use std::{fs, io::Read as _, path::Path, str::FromStr};
+use std::{ffi::OsString, fs, io::Read as _, path::Path, str::FromStr};
 
 use crate::{
     adapters::{
@@ -894,6 +896,48 @@ pub(super) fn marker_names(context: &AppContext, account: &Identifier) -> bool {
             Ok(bytes)
         })
         .is_ok_and(|bytes| bytes == account.as_str().as_bytes())
+}
+
+/// Builds the child environment for one account-scoped subroutine.
+///
+/// The account's own configuration directory replaces whatever the caller
+/// inherited, and any inherited `CLAUDE_CODE_OAUTH_TOKEN` goes: a subroutine
+/// this wrapper spawns is asking about one account, and a credential that
+/// arrived from somewhere else would answer instead of it.
+///
+/// What each caller adds on top is the credential its own question is about.
+pub(super) fn scoped_environment(
+    context: &AppContext,
+    account: &Identifier,
+) -> Vec<(OsString, OsString)> {
+    let mut environment = super::child::subroutine_environment(context);
+    environment.retain(|(key, _)| key != "CLAUDE_CONFIG_DIR" && key != "CLAUDE_CODE_OAUTH_TOKEN");
+    environment.push((
+        "CLAUDE_CONFIG_DIR".into(),
+        context.paths().account_config(account).into_os_string(),
+    ));
+    environment
+}
+
+/// Removes every ambient mechanism that would outrank a supplied credential.
+///
+/// This is what makes a subroutine's answer be about the credential the wrapper
+/// supplied. The child's precedence ladder puts a bearer token, an API key, and
+/// a cloud provider selector above one this wrapper passes in, so a subroutine
+/// that inherited one would report on that credential instead — and, for a
+/// verification, would accept any string at all.
+///
+/// It is not the launch, where these are never stripped because they are the
+/// user's own choice about their own session. The one mechanism this cannot
+/// clear is `apiKeyHelper`, which lives in the child's settings rather than the
+/// environment; clearing it would mean authoring a settings document, which the
+/// wrapper does not do to ask a question.
+pub(super) fn strip_ambient(environment: &mut Vec<(OsString, OsString)>) {
+    environment.retain(|(key, _)| {
+        !AmbientCredential::ALL
+            .iter()
+            .any(|credential| key == credential.spelling())
+    });
 }
 
 pub(crate) fn prepare_login(context: &AppContext, account: &Identifier) -> Result<(), AppError> {

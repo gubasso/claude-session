@@ -6,11 +6,7 @@
 //! it cannot appear in a process listing. And verification happens before the
 //! credential lock is taken, so the lock is never held across a child spawn.
 
-use std::{
-    ffi::OsString,
-    io::Read as _,
-    path::{Path, PathBuf},
-};
+use std::{ffi::OsString, io::Read as _, path::Path};
 
 use crate::{
     adapters::{
@@ -22,16 +18,21 @@ use crate::{
     context::AppContext,
     domain::{
         account::{
-            AmbientCredential, AuthMode, AuthModeMetadata, Plan, Probe, ProbeStatus, RecordedAt,
-            TokenIngest, TokenSource,
+            AuthMode, AuthModeMetadata, Plan, Probe, ProbeStatus, RecordedAt, TokenIngest,
+            TokenSource,
         },
         child::{ChildInvocation, ChildOutcome},
         identifier::Identifier,
-        secret::{Fingerprint, Secret, SecretError},
+        secret::{Fingerprint, Secret},
     },
     error::{AppError, Diagnostic, ErrorKind},
     services::storage::{atomic, guard},
 };
+
+// Reached through `super` rather than imported, because this module's own
+// public entry point is also called `ingest` and a bare name would be two
+// things at one call site.
+use super::ingest as source;
 
 /// The estimated lifetime of a long-lived subscription token.
 ///
@@ -42,8 +43,8 @@ use crate::{
 /// credential can offer, and every surface labels it as an estimate.
 pub(crate) const ESTIMATED_LIFETIME_DAYS: u64 = 365;
 
-/// The escape a confirming or prompting token login names when it refuses.
-const STDIN_ESCAPE: &str = "run account login --token --stdin with the token on standard input";
+/// The credential this module reads, for the shared ingest's wording.
+const SUBJECT: source::Subject = source::Subject::Token;
 
 /// Obtains one token candidate from a terminal or from standard input.
 pub(crate) fn ingest(
@@ -53,16 +54,20 @@ pub(crate) fn ingest(
     request: &TokenIngest,
 ) -> Result<Secret, AppError> {
     match request.source {
-        TokenSource::Stdin => read_stdin(),
+        TokenSource::Stdin => source::read_stdin(SUBJECT),
         TokenSource::Terminal => {
-            require_terminal(context)?;
+            source::require_terminal(context, SUBJECT)?;
             // Inherited streams, so the token the child prints goes to the
             // user's terminal and never through a pipe this process reads. The
             // wrapper then asks for it back, which is what keeps the value out
             // of any buffer the wrapper owns until the user chooses to paste
             // it.
             run_setup_token(context, account, program)?;
-            read_terminal(context)
+            source::read_terminal(
+                context,
+                SUBJECT,
+                "Paste the token, then press Enter (it is not echoed): ",
+            )
         }
     }
 }
@@ -143,27 +148,6 @@ fn plan_question() -> String {
     )
 }
 
-fn require_terminal(context: &AppContext) -> Result<(), AppError> {
-    let unavailable = |why: String| {
-        AppError::new(
-            ErrorKind::Unavailable,
-            Diagnostic::new(
-                "token entry needs a controlling terminal",
-                "/dev/tty",
-                why,
-                STDIN_ESCAPE,
-            ),
-        )
-    };
-    match context.adapters().terminal().available() {
-        Ok(true) => Ok(()),
-        Ok(false) => Err(unavailable(
-            "no controlling terminal is available".to_owned(),
-        )),
-        Err(error) => Err(unavailable(error.to_string())),
-    }
-}
-
 fn run_setup_token(
     context: &AppContext,
     account: &Identifier,
@@ -187,71 +171,6 @@ fn run_setup_token(
         Ok(other) => Err(child_failure("claude setup-token", other)),
         Err(error) => Err(error),
     }
-}
-
-fn read_terminal(context: &AppContext) -> Result<Secret, AppError> {
-    context
-        .adapters()
-        .terminal()
-        .read_secret("Paste the token, then press Enter (it is not echoed): ")
-        .map_err(|error| {
-            AppError::new(
-                ErrorKind::Unavailable,
-                Diagnostic::new(
-                    "the token could not be read from the terminal",
-                    "/dev/tty",
-                    error.to_string(),
-                    STDIN_ESCAPE,
-                ),
-            )
-        })?
-        .map_err(|reason| refused(reason, "the pasted token"))
-}
-
-/// Reads standard input to end of file and requires exactly one line.
-///
-/// To end of file rather than one line: a reader that took the first line and
-/// discarded the rest would silently accept a two-line paste and store half of
-/// what the user meant. Bounded by [`Secret::INGEST_BOUND`] rather than by the
-/// stream's own end, so the refusal costs one byte past the limit instead of
-/// however much a pipe chooses to send.
-fn read_stdin() -> Result<Secret, AppError> {
-    let bytes = read_bounded(std::io::stdin().lock()).map_err(|error| {
-        AppError::new(
-            ErrorKind::NoInput,
-            Diagnostic::new(
-                "the token could not be read from standard input",
-                "standard input",
-                error.to_string(),
-                "supply the token on standard input, as one line",
-            ),
-        )
-    })?;
-    Secret::parse_line(&bytes).map_err(|reason| refused(reason, "standard input"))
-}
-
-/// Reads at most [`Secret::INGEST_BOUND`] bytes from one ingest stream.
-///
-/// Taking one byte past the limit is what keeps the refusal and the bound in
-/// the same place: the caller's `parse_line` still decides, and it decides from
-/// a buffer that can never exceed a credential's accepted length by more than
-/// the single byte that proves it was exceeded.
-fn read_bounded(reader: impl std::io::Read) -> std::io::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    reader.take(Secret::INGEST_BOUND).read_to_end(&mut bytes)?;
-    Ok(bytes)
-}
-
-fn refused(reason: SecretError, where_: &str) -> AppError {
-    AppError::new(
-        ErrorKind::Usage,
-        Diagnostic::new(
-            "the token was not accepted",
-            where_.to_owned(),
-            reason.reason().to_owned(),
-            "supply exactly one line holding the token and nothing else",
-        ),
-    )
 }
 
 /// Asks the child whether a candidate authenticates.
@@ -412,53 +331,28 @@ pub(crate) fn age_seconds(context: &AppContext, minted: &RecordedAt) -> Option<u
     )
 }
 
-/// Builds the child environment for one account-scoped subroutine.
+/// Builds the child environment for one token-mode subroutine.
 ///
 /// The candidate, when present, goes in `CLAUDE_CODE_OAUTH_TOKEN`, which is the
-/// child's own documented consumption path.
-///
-/// A candidate also clears every ambient credential the wrapper can see, and
-/// that is what makes the verification mean anything. The child's precedence
-/// ladder puts a bearer token, an API key, and a cloud provider selector above
-/// an injected token — the same ladder the wrapper warns about before a launch
-/// — so a probe that inherited one would report the ambient credential's
-/// health and accept any string as a working token.
-///
-/// This is not the launch, where those mechanisms are never stripped because
-/// they are the user's choice about their own session. It is a question the
-/// wrapper asks about one specific credential, and the answer has to be about
-/// that credential.
-///
-/// The one mechanism this cannot clear is `apiKeyHelper`, which lives in the
-/// child's settings rather than the environment. Clearing it would mean writing
-/// a settings document, and the wrapper does not author one to ask a question.
+/// child's own documented consumption path, and clears every ambient credential
+/// that would outrank it — which is what makes the verification mean anything.
+/// [`super::strip_ambient`] owns that reasoning; the mint run passes no
+/// candidate, because it is asking the child to produce one rather than asking
+/// about one.
 fn account_environment(
     context: &AppContext,
     account: &Identifier,
     candidate: Option<&Secret>,
 ) -> Vec<(OsString, OsString)> {
-    let mut environment = crate::services::child::subroutine_environment(context);
-    environment.retain(|(key, _)| key != "CLAUDE_CONFIG_DIR" && key != "CLAUDE_CODE_OAUTH_TOKEN");
-    environment.push((
-        "CLAUDE_CONFIG_DIR".into(),
-        config_directory(context, account).into_os_string(),
-    ));
+    let mut environment = super::scoped_environment(context, account);
     if let Some(candidate) = candidate {
-        environment.retain(|(key, _)| {
-            !AmbientCredential::ALL
-                .iter()
-                .any(|credential| key == credential.spelling())
-        });
+        super::strip_ambient(&mut environment);
         environment.push((
             "CLAUDE_CODE_OAUTH_TOKEN".into(),
             OsString::from(String::from_utf8_lossy(candidate.expose()).into_owned()),
         ));
     }
     environment
-}
-
-fn config_directory(context: &AppContext, account: &Identifier) -> PathBuf {
-    context.paths().account_config(account)
 }
 
 fn child_failure(command: &str, outcome: ChildOutcome) -> AppError {
@@ -473,40 +367,4 @@ fn child_failure(command: &str, outcome: ChildOutcome) -> AppError {
         ChildOutcome::Signaled(_) => None,
     };
     AppError::new(ErrorKind::Auth, diagnostic)
-}
-
-#[cfg(test)]
-#[allow(clippy::expect_used)]
-mod tests {
-    use super::*;
-
-    /// The bound has to live on the read rather than on the parse, or an ingest
-    /// source that never reaches end of file would be held in memory in full
-    /// before the length check could refuse it. `io::repeat` is exactly that
-    /// source: this test does not terminate at all if the read is unbounded.
-    /// The bound, as a length, for the two tests that build inputs from it.
-    fn bound() -> usize {
-        usize::try_from(Secret::INGEST_BOUND).expect("the ingest bound fits a usize")
-    }
-
-    #[test]
-    fn an_endless_ingest_stream_is_refused_without_being_consumed() {
-        let bytes = read_bounded(std::io::repeat(b'a')).expect("a bounded read succeeds");
-        assert_eq!(bytes.len(), bound());
-        assert_eq!(
-            Secret::parse_line(&bytes).err(),
-            Some(SecretError::TooLong),
-            "one byte past the limit is what proves the limit was exceeded"
-        );
-    }
-
-    /// The bound is one byte past the accepted length, so a credential exactly
-    /// at the limit still survives the same reader.
-    #[test]
-    fn a_credential_at_the_limit_survives_the_bounded_read() {
-        let source = vec![b'a'; bound() - 1];
-        let bytes = read_bounded(source.as_slice()).expect("a bounded read succeeds");
-        assert_eq!(bytes, source);
-        assert!(Secret::parse_line(&bytes).is_ok());
-    }
 }

@@ -2,7 +2,7 @@
 
 The wrapper's own grammar: what `claude-session` claims, what it forwards, and the parser shape that makes verbatim passthrough work. For the reasoning behind these rules, see [the wrapper model](../explanation/wrapper-model.md).
 
-The passthrough, `help`, `version`, `doctor`, the whole `account` namespace — `login [name]` with `--token`, `--stdin`, `--minted-at`, and `--plan`, plus `list`, `status`, and `remove` with `--yes` — `completion <shell>`, `man`, `profile`, and `config` are implemented, and so is requested help for every verb that answers one on its own — `account --help`, `account <subcommand> --help`, `completion --help`, `man --help`, `profile --help`, `config --help`, `doctor --help`, `version --help`, and the matching `help <verb>` spellings. The `help` verb has no requested help of its own, because a reader asking for it is already reading the composed surface it would describe.
+The passthrough, `help`, `version`, `doctor`, the whole `account` namespace — `login [name]` with `--token`, `--refresh-token`, `--stdin`, `--minted-at`, `--plan`, and `--scopes`, plus `list`, `status`, and `remove` with `--yes` — `completion <shell>`, `man`, `profile`, and `config` are implemented, and so is requested help for every verb that answers one on its own — `account --help`, `account <subcommand> --help`, `completion --help`, `man --help`, `profile --help`, `config --help`, `doctor --help`, `version --help`, and the matching `help <verb>` spellings. The `help` verb has no requested help of its own, because a reader asking for it is already reading the composed surface it would describe.
 
 ## Invocation shape
 
@@ -244,14 +244,16 @@ The verb also takes `--json`, and the flag form does not — `--version` is inte
 
 Two verbs need a person present. No others do.
 
-| Verb             | Why a person is needed                                                       | Escape when there is no terminal                          |
-| ---------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `account remove` | It removes local authentication and child state                              | `--yes`                                                   |
-| `account login`  | Native login uses the child's interactive flow; token paste reads a terminal | Long-lived subscription-token mode with `--token --stdin` |
+| Verb             | Why a person is needed                                                   | Escape when there is no terminal          |
+| ---------------- | ------------------------------------------------------------------------ | ----------------------------------------- |
+| `account remove` | It removes local authentication and child state                          | `--yes`                                   |
+| `account login`  | Native login uses the child's interactive flow; a paste reads a terminal | Either secret-bearing mode with `--stdin` |
 
 Every other verb — `config`, `profile`, `doctor`, `completion`, `man`, `version`, `help` — is read-only or inert. There is nothing to agree to, so none of them prompts and none of them gates.
 
-Without a terminal, a confirming verb fails rather than prompting or proceeding. When no controlling terminal is available and no escape was given, the verb stops before any side effect and exits `Unavailable` (69). The diagnostic names the escape above; token ingestion through `--stdin` follows [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md).
+Without a terminal, a confirming verb fails rather than prompting or proceeding. When no controlling terminal is available and no escape was given, the verb stops before any side effect and exits `Unavailable` (69). The diagnostic names the escape above; secret ingestion through `--stdin` follows [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md), which governs both secrets the same way.
+
+`--refresh-token --stdin` is the escape that needs no terminal at any point, because the exchange it runs is the child's non-interactive one. `--token --stdin` skips the paste but not the mint: a token nobody has yet still comes from `setup-token`, and that is a browser flow.
 
 A token login also asks which subscription plan the token belongs to, which is neither of those things: it is a question a person can decline, and declining completes the login. So no escape is listed for it. `--plan` answers it without being asked, `--stdin` never raises it, and an account that declared none is [reported rather than refused](./accounts.md#declared-subscription-plan).
 

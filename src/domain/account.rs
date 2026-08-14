@@ -174,11 +174,15 @@ pub(crate) struct ProfileBinding {
     pub(crate) recorded_at: RecordedAt,
 }
 
-/// Where a token-mode login reads its candidate.
+/// Where a login reads the secret it was given.
 ///
 /// The two sources are the whole of what the ingest rule permits: a controlling
 /// terminal, or standard input. Argv, an environment variable, a file flag, and
 /// scraped child output are all absent by design rather than unimplemented.
+/// Shared by both secret-bearing logins, because [ADR-0027] governs the entry
+/// of a credential rather than of one particular credential.
+///
+/// [ADR-0027]: ../../docs/decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TokenSource {
     Terminal,
@@ -202,6 +206,108 @@ pub(crate) struct TokenIngest {
     /// records an account without a plan. Carried on the token request rather
     /// than beside it, so a plan without a token cannot be expressed.
     pub(crate) plan: Option<Plan>,
+}
+
+/// The scopes a refresh token was issued with, as the user supplied them.
+///
+/// Carried because the child requires them beside the refresh token and refuses
+/// the exchange without them: it forwards the string to the token endpoint, and
+/// asking for a scope the grant does not hold fails the whole login. The
+/// wrapper neither issues the token nor learns what it holds, so this is
+/// declared for the same reason [`Plan`] is
+/// ([ADR-0100](../../docs/decisions/ADR-0100-bootstrap-a-saved-login-from-a-refresh-token.md)).
+///
+/// Validated for shape and never against a vocabulary. The shape is RFC 6749's
+/// `scope-token` — printable ASCII without space, quote, or backslash —
+/// because which scopes exist belongs to the issuer, and a set this type has
+/// never heard of has to survive to reach the child.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Scopes(String);
+
+impl Scopes {
+    /// The longest scope string accepted, well past any issued set.
+    const LIMIT: usize = 512;
+
+    /// The scopes a claude.ai login is issued with, used when none is given.
+    ///
+    /// A default rather than a vocabulary, and the one place the wrapper
+    /// guesses on the user's behalf: nearly every refresh token comes from such
+    /// a login, and requiring the set to be typed would make the common case
+    /// depend on knowing an OAuth detail. A token issued with a different set
+    /// passes `--scopes`. Read from child 2.1.220, registered against the
+    /// launch obligation in `docs/reference/child-facts.yaml`, and tracked as
+    /// perishable in `docs/reference/research-tracking.yaml`, because the set
+    /// is the child's to change and is undocumented as a default.
+    pub(crate) const DEFAULT: [&'static str; 5] = [
+        "user:profile",
+        "user:inference",
+        "user:sessions:claude_code",
+        "user:mcp_servers",
+        "user:file_upload",
+    ];
+
+    /// Validates one scope string, normalizing the separators.
+    ///
+    /// Whitespace is collapsed to the single spaces the child splits on, for
+    /// the reason [`Plan::parse`] lowercases: the wrapper is typing an
+    /// environment value on the user's behalf, and a set pasted across two
+    /// lines meant the same set. Nothing inside a scope is touched, and case is
+    /// left alone — the value is forwarded to an endpoint this wrapper does not
+    /// speak and cannot second-guess.
+    pub(crate) fn parse(value: &str) -> Result<Self, String> {
+        if value.len() > Self::LIMIT {
+            return Err(format!("a scope set is at most {} characters", Self::LIMIT));
+        }
+        let scopes: Vec<&str> = value.split_whitespace().collect();
+        if scopes.is_empty() {
+            return Err("a scope set cannot be empty".into());
+        }
+        if !scopes.iter().all(|scope| {
+            scope
+                .bytes()
+                .all(|byte| byte.is_ascii_graphic() && byte != b'"' && byte != b'\\')
+        }) {
+            return Err(
+                "a scope is printable ASCII without a quote or a backslash (RFC 6749)".into(),
+            );
+        }
+        Ok(Self(scopes.join(" ")))
+    }
+
+    /// The scope set a login uses when the command line named none.
+    pub(crate) fn issued_by_a_login() -> Self {
+        Self(Self::DEFAULT.join(" "))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// A refresh-token login's ingest request.
+///
+/// No mint time and no plan, unlike [`TokenIngest`]: the child exchanges this
+/// credential for one it saves and describes itself, so both questions token
+/// mode has to ask are answered by the exchange.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RefreshIngest {
+    pub(crate) source: TokenSource,
+    pub(crate) scopes: Scopes,
+}
+
+/// Which of the three logins one `account login` invocation asked for.
+///
+/// An enum rather than a pair of options, so "both a token and a refresh token"
+/// cannot be expressed past the parser and no arm has to decide what it would
+/// mean.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum LoginRequest {
+    /// The child's own interactive browser flow.
+    Native,
+    /// A long-lived subscription token this wrapper stores.
+    Token(TokenIngest),
+    /// A refresh token the child exchanges for a saved login.
+    Refresh(RefreshIngest),
 }
 
 /// A validated RFC 3339 UTC timestamp.

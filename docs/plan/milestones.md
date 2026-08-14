@@ -34,3 +34,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 023 human-first-verbs — done — 3 implementation sessions — after 020 and 022; a sweep of every wrapper write widened it past the verbs, and split the log mirror from the log file
 - 024 launch-ready-after-login — done — 2 implementation sessions — after 005 and 013; landed in one session, and the walk that found it also proved the fix against the real child
 - 025 declared-subscription-plan — done — 2 implementation sessions — after 013 and 024; landed in one session, and review caught an ambient value answering for an account that declared none
+- 026 refresh-token-bootstrap — done — 2 implementation sessions — after 005 and 025; landed in one session, and proved the child takes the exchange branch by watching it refuse a deliberately invalid grant

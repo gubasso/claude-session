@@ -70,6 +70,8 @@ The wrapper never intercepts a slash command.
 
 `account login [name]` is idempotent. It creates the account on the first successful login and safely replaces its mode on later successful runs. A failed first login removes the incomplete account.
 
+There are three ways in and two stored modes. [Native login](#native-login-mode) and [the refresh-token bootstrap](#refresh-token-bootstrap) both end in a child-owned saved login and both record `login`; they differ only in whether a browser or a supplied grant got there. [Token mode](#long-lived-token-mode) is the one that stores a credential of the wrapper's own. `--token` and `--refresh-token` are answers to the same question and are refused together.
+
 ### What a login leaves ready
 
 A login commits three things, in this order: the authentication, [the bound profile](#the-bound-profile), and `hasCompletedOnboarding` in the child's `.claude.json` inside the account's configuration directory, recording that the child's first-run setup is done.
@@ -97,6 +99,24 @@ Concurrent runs of one account share that saved login. From child version 2.1.21
 An in-TUI `/login` inherits the launch environment and reaches the same child-owned location: the child relocates `.credentials.json` under `CLAUDE_CONFIG_DIR` and manages that file through `/login` and `/logout`. In token mode it does not silently fail either — from child version 2.1.118, a successful `/login` clears the injected `CLAUDE_CODE_OAUTH_TOKEN` inside the child's own process, so the login it just wrote serves the rest of that session.
 
 That clearing is process-local, which is the whole of the wrapper's concern. It cannot reach the wrapper's stored token, so the next launch injects that token again and shadows the saved login again, and the account's stored mode never changed. A user who ran `/login` and a wrapper that still reports token mode are both correct, and only `account login` changes a mode durably. This is why a token-mode launch says so before the exec rather than after, and why nothing here reads the result of a slash command the wrapper never sees.
+
+### Refresh-token bootstrap
+
+`account login [name] --refresh-token` reaches the same saved login without a browser, for a machine that has none. It exists because [token mode](#long-lived-token-mode) cannot: `claude setup-token` requests `user:inference` and nothing else, and the endpoints behind the child's subscription, organization, email, and usage surfaces all require `user:profile`, which the server refuses that token. No wrapper-side value substitutes for a scope the grant does not hold ([ADR-0100](../decisions/ADR-0100-bootstrap-a-saved-login-from-a-refresh-token.md)).
+
+The wrapper reads one refresh token — from standard input with `--stdin`, otherwise from the controlling terminal with echo disabled, under the same rule as a stored token — and runs the child's own `auth login` with `CLAUDE_CODE_OAUTH_REFRESH_TOKEN` and `CLAUDE_CODE_OAUTH_SCOPES` set, in the account's `config/`. Everything after that is the child's: the exchange, its `.credentials.json`, the account profile it fetches, the organization roles, and its own first-run key. The wrapper reads none of it and commits what a native login commits.
+
+With `--stdin` this needs no terminal, which is the whole point. Without it, the terminal is where the paste comes from, so the terminal is required for the same reason a token paste requires one.
+
+A refresh token is issued only by a completed claude.ai login. On a machine that has one it is `claudeAiOauth.refreshToken` inside the child's `.credentials.json`, under that installation's configuration directory. The wrapper does not mint one, does not read that file to obtain one, and does not speak the endpoint that issues one; the operator supplies it.
+
+`--scopes` declares the scopes the grant was issued with. Without it the wrapper uses the set a claude.ai login is issued with — `user:profile`, `user:inference`, `user:sessions:claude_code`, `user:mcp_servers`, and `user:file_upload`, read from child 2.1.220 — because nearly every refresh token comes from such a login and the child refuses the exchange without a set. This is the one place the wrapper guesses on the user's behalf, and a grant issued differently says so with `--scopes`; asking for a scope the grant does not hold fails the whole exchange, and the child reports that itself. A declared set is validated as RFC 6749 scope tokens and normalized to single spaces, never checked against a vocabulary.
+
+The refresh token is used once and never stored. The exchange may rotate it, so a copy kept beside the account could be dead with nothing local able to tell — which also means repairing such an account later needs a fresh refresh token, or a browser. Nothing under the account holds it afterwards.
+
+What commits is the credential the child left, judged the way a native login judges it: the file is there, and the path to it is safe. A child that exits successfully and leaves none has logged nothing in, so the login fails as `Auth` and a first login removes the account it created.
+
+That gate is a presence test and not a comparison, which bounds what it can say. Against a fresh account it is exact, because there is nothing there to mistake for a new credential. Against an account that already holds a saved login — a repeat login, or a token account carrying one an in-TUI `/login` left — it cannot tell this run's exchange from the credential that was already present, and a child exiting successfully without exchanging would be reported as a success. Nothing in child 2.1.220 does that, since its exchange either completes or exits non-zero, and a `claude` too old to know these variables falls through to a browser flow that cannot complete against the closed standard input this login leaves it. Neither is ruled out by the gate, and the wrapper does not read a child credential to make the comparison that would ([Q-010](../plan/open-questions.md)).
 
 ### Long-lived token mode
 
@@ -151,13 +171,13 @@ Rotation verifies the candidate before it writes anything, and [the metadata ren
 
 ## Commands
 
-| Command                 | Arguments                                                                                       | Reports                                                                                                    |
-| ----------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `account login [name]`  | optional account; `--profile`, `--token`, `--stdin`, and token-time correction where applicable | Selected mode, account path, the bound profile and its provenance, and success without credential material |
-| `account list`          | —                                                                                               | Every account's mode and local-state usability, and which one is currently selected                        |
-| `account status [name]` | named account or selected account                                                               | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing                |
-| `account remove <name>` | account; `--yes`                                                                                | Whether local state was removed, and that upstream revocation did not occur                                |
-| `account bind <name>`   | account; `--profile <name>`                                                                     | The account, the profile it is now bound to, and when that was recorded                                    |
+| Command                 | Arguments                                                                                                     | Reports                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `account login [name]`  | optional account; `--profile`, `--token` or `--refresh-token`, `--stdin`, and the options each selector takes | Selected mode, account path, the bound profile and its provenance, and success without credential material |
+| `account list`          | —                                                                                                             | Every account's mode and local-state usability, and which one is currently selected                        |
+| `account status [name]` | named account or selected account                                                                             | Mode metadata, safe token status, child-login presence, selection provenance, and shadowing                |
+| `account remove <name>` | account; `--yes`                                                                                              | Whether local state was removed, and that upstream revocation did not occur                                |
+| `account bind <name>`   | account; `--profile <name>`                                                                                   | The account, the profile it is now bound to, and when that was recorded                                    |
 
 Each declares its own `--json`, as [every verb that produces data does](./logging-and-output.md#machine-output). Data goes to standard output; diagnostics and warnings go to standard error, and a confirmation prompt goes to [the controlling terminal](./cli-surface.md#the-predicate). No subcommand ever prints a credential, at any verbosity or in any format.
 

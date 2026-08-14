@@ -2116,3 +2116,362 @@ fn a_login_report_names_the_declared_plan() {
     let stdout = support::flowed(&String::from_utf8_lossy(&output.stdout));
     assert!(stdout.contains("It declares the team plan"), "{stdout}");
 }
+
+/// Reads one variable out of the recording child's environment dump.
+fn recorded_env(harness: &Harness, key: &str) -> Option<Vec<u8>> {
+    let environ = read_nul(&harness.record_dir().join("environ"));
+    environ
+        .iter()
+        .position(|value| value == key.as_bytes())
+        .and_then(|index| environ.get(index + 1).cloned())
+}
+
+/// Runs a refresh-token login with the secret on standard input.
+fn refresh_login(harness: &Harness, secret: &str, extra: &[&str]) -> std::process::Output {
+    let mut command = harness.assert_command();
+    command.args([
+        "account",
+        "login",
+        "work",
+        "--profile",
+        "companion",
+        "--refresh-token",
+        "--stdin",
+    ]);
+    command.args(extra);
+    command
+        .write_stdin(format!("{secret}\n"))
+        .output()
+        .expect("refresh login")
+}
+
+/// Slice 026 acceptance: the exchange ends in the child's own saved login, so
+/// the account records the mode a browser login records and nothing more.
+#[test]
+fn a_refresh_login_records_a_saved_login() {
+    let harness = Harness::new();
+    let mut command = harness.assert_command();
+    command
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--refresh-token",
+            "--stdin",
+        ])
+        .env("CS_TEST_CREATE_CREDENTIAL", "1");
+    let output = command
+        .write_stdin("sk-ant-ort01-recorded\n")
+        .output()
+        .expect("refresh login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let account = harness.state().join("accounts/work");
+    let metadata: serde_json::Value =
+        serde_json::from_slice(&fs::read(account.join("auth-mode.json")).expect("metadata"))
+            .expect("json");
+    assert_eq!(metadata["mode"], "login");
+    assert!(
+        metadata.get("fingerprint").is_none(),
+        "there is no wrapper-owned secret to describe"
+    );
+    assert_eq!(
+        fs::read(account.join("config/.credentials.json")).expect("credential"),
+        b"child-owned-login-bytes"
+    );
+}
+
+/// Slice 026 acceptance: the secret reaches the child the one way the ingest
+/// rule permits it to leave this process, so it cannot appear in a listing.
+#[test]
+fn a_refresh_login_carries_the_secret_in_the_environment_only() {
+    let harness = Harness::new();
+    let mut command = harness.assert_command();
+    command
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--refresh-token",
+            "--stdin",
+        ])
+        .env("CS_TEST_CREATE_CREDENTIAL", "1");
+    let output = command
+        .write_stdin("sk-ant-ort01-environment\n")
+        .output()
+        .expect("refresh login");
+    assert!(output.status.success());
+    let argv = read_nul(&harness.record_dir().join("argv"));
+    assert_eq!(&argv[1..], &[b"auth".to_vec(), b"login".to_vec()]);
+    assert!(
+        !argv
+            .iter()
+            .any(|value| value == b"sk-ant-ort01-environment"),
+        "a credential never enters through argv"
+    );
+    assert_eq!(
+        recorded_env(&harness, "CLAUDE_CODE_OAUTH_REFRESH_TOKEN").as_deref(),
+        Some(b"sk-ant-ort01-environment".as_slice())
+    );
+}
+
+/// The ingest accepts every non-control byte on purpose, so that a change in
+/// the provider's token format cannot make it refuse a working credential. A
+/// conversion through a Rust string on the way to the child would undo that
+/// silently: the secret would be accepted here and substituted before it left,
+/// and the exchange would fail for a reason nothing local could name.
+#[test]
+fn a_refresh_token_reaches_the_child_byte_for_byte() {
+    let harness = Harness::new();
+    // Accepted by the ingest — no byte below 0x20 and no 0x7f — and not valid
+    // UTF-8, which is the pair that makes a lossy conversion observable.
+    let secret: Vec<u8> = b"sk-ant-ort01-\xff\xfe-raw".to_vec();
+    let mut command = harness.assert_command();
+    command
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--refresh-token",
+            "--stdin",
+        ])
+        .env("CS_TEST_CREATE_CREDENTIAL", "1");
+    let mut stdin = secret.clone();
+    stdin.push(b'\n');
+    let output = command.write_stdin(stdin).output().expect("refresh login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        recorded_env(&harness, "CLAUDE_CODE_OAUTH_REFRESH_TOKEN").as_deref(),
+        Some(secret.as_slice()),
+        "the child receives the bytes the ingest accepted"
+    );
+}
+
+/// Slice 026 acceptance: the common case is a token a claude.ai login issued,
+/// and the wrapper types that set rather than making the user know it.
+#[test]
+fn a_refresh_login_without_scopes_uses_the_set_a_login_is_issued() {
+    let harness = Harness::new();
+    let mut command = harness.assert_command();
+    command
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--refresh-token",
+            "--stdin",
+        ])
+        .env("CS_TEST_CREATE_CREDENTIAL", "1");
+    let output = command
+        .write_stdin("sk-ant-ort01-default\n")
+        .output()
+        .expect("refresh login");
+    assert!(output.status.success());
+    // Spelled out rather than imported, so a change to the default has to be
+    // made here too and cannot pass by agreeing with itself.
+    let expected = [
+        "user:profile",
+        "user:inference",
+        "user:sessions:claude_code",
+        "user:mcp_servers",
+        "user:file_upload",
+    ]
+    .join(" ");
+    assert_eq!(
+        recorded_env(&harness, "CLAUDE_CODE_OAUTH_SCOPES").as_deref(),
+        Some(expected.as_bytes())
+    );
+}
+
+/// Slice 026 acceptance: a grant issued with a different set has to be able to
+/// say so, or the exchange fails on scopes the wrapper invented.
+#[test]
+fn a_declared_scope_set_replaces_the_default() {
+    let harness = Harness::new();
+    let mut command = harness.assert_command();
+    command
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--refresh-token",
+            "--stdin",
+            "--scopes",
+            "  user:inference   user:profile  ",
+        ])
+        .env("CS_TEST_CREATE_CREDENTIAL", "1");
+    let output = command
+        .write_stdin("sk-ant-ort01-scoped\n")
+        .output()
+        .expect("refresh login");
+    assert!(output.status.success());
+    assert_eq!(
+        recorded_env(&harness, "CLAUDE_CODE_OAUTH_SCOPES").as_deref(),
+        Some(b"user:inference user:profile".as_slice()),
+        "the separators are normalized to the ones the child splits on"
+    );
+}
+
+/// Slice 026 acceptance: a malformed value is a usage error, and a usage error
+/// costs nothing — no directory, no child, no prompt.
+#[test]
+fn a_malformed_scope_set_is_refused_before_the_child_runs() {
+    let harness = Harness::new();
+    let output = refresh_login(&harness, "sk-ant-ort01-unused", &["--scopes", "bad\"scope"]);
+    assert_eq!(
+        output.status.code(),
+        Some(64),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!harness.record_dir().join("argv").exists());
+    assert!(!harness.state().join("accounts/work").exists());
+}
+
+/// Slice 026 acceptance: the absence of a terminal is the whole reason this
+/// path exists, so it must not be what stops it.
+#[test]
+fn a_refresh_login_needs_no_terminal() {
+    use std::io::Write as _;
+    let harness = Harness::new();
+    let mut command = harness.detached_command(&[
+        "account",
+        "login",
+        "work",
+        "--profile",
+        "companion",
+        "--refresh-token",
+        "--stdin",
+    ]);
+    command
+        .env("CS_TEST_CREATE_CREDENTIAL", "1")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().expect("detached refresh login");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(b"sk-ant-ort01-headless\n")
+        .expect("secret");
+    let output = child.wait_with_output().expect("detached refresh login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let metadata: serde_json::Value = serde_json::from_slice(
+        &fs::read(harness.state().join("accounts/work/auth-mode.json")).expect("metadata"),
+    )
+    .expect("json");
+    assert_eq!(metadata["mode"], "login");
+}
+
+/// Slice 026 acceptance: the credential the child leaves is the only evidence
+/// the exchange worked, so a child that leaves none has not logged anything in.
+#[test]
+fn a_refresh_login_that_leaves_no_saved_login_removes_the_account() {
+    let harness = Harness::new();
+    let output = refresh_login(&harness, "sk-ant-ort01-empty", &[]);
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!harness.state().join("accounts/work").exists());
+}
+
+/// Slice 026 acceptance: the refresh token is spent, not kept. It may be
+/// rotated by the exchange, so a copy on disk could be dead with nothing local
+/// able to tell.
+#[test]
+fn a_refresh_token_is_never_written_under_the_account() {
+    let harness = Harness::new();
+    let mut command = harness.assert_command();
+    command
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--refresh-token",
+            "--stdin",
+        ])
+        .env("CS_TEST_CREATE_CREDENTIAL", "1");
+    let output = command
+        .write_stdin("sk-ant-ort01-unstored\n")
+        .output()
+        .expect("refresh login");
+    assert!(output.status.success());
+    let mut examined = 0_usize;
+    let mut pending = vec![harness.state().join("accounts/work")];
+    while let Some(path) = pending.pop() {
+        for entry in fs::read_dir(&path).expect("account tree") {
+            let entry = entry.expect("entry").path();
+            if entry.is_dir() {
+                pending.push(entry);
+                continue;
+            }
+            let bytes = fs::read(&entry).expect("account file");
+            examined += 1;
+            assert!(
+                !bytes
+                    .windows(b"sk-ant-ort01-unstored".len())
+                    .any(|window| window == b"sk-ant-ort01-unstored"),
+                "{} holds the refresh token",
+                entry.display()
+            );
+        }
+    }
+    assert!(examined > 0, "the walk has to have read something");
+}
+
+/// Slice 026 acceptance: the two selectors are answers to the same question, so
+/// the parser refuses both rather than the wrapper picking one.
+#[test]
+fn a_token_and_a_refresh_token_together_are_refused() {
+    let harness = Harness::new();
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--refresh-token",
+            "--stdin",
+        ])
+        .write_stdin("sk-unused\n")
+        .output()
+        .expect("conflicting login");
+    assert_eq!(
+        output.status.code(),
+        Some(64),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!harness.record_dir().join("argv").exists());
+    assert!(!harness.state().join("accounts/work").exists());
+}

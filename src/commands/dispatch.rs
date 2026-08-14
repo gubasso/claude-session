@@ -8,7 +8,9 @@ use crate::{
     cli::{Cli, Command, account::AccountCommand},
     context::AppContext,
     domain::{
-        account::{Plan, RecordedAt, TokenIngest, TokenSource},
+        account::{
+            LoginRequest, Plan, RecordedAt, RefreshIngest, Scopes, TokenIngest, TokenSource,
+        },
         argv,
         identifier::Identifier,
     },
@@ -65,7 +67,7 @@ pub(crate) enum InvocationKind {
     },
     AccountLogin {
         name: Option<Identifier>,
-        token: Option<TokenIngest>,
+        request: LoginRequest,
         profile: Option<Identifier>,
         mode: OutputMode,
     },
@@ -436,14 +438,12 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
         )),
         Some(AccountCommand::Login(value)) => {
             let json = value.json;
+            // Resolved before the fields move out, so the whole parse result is
+            // still there to be read.
+            let request = login_request(&value)?;
             Ok(InvocationKind::AccountLogin {
                 name: value.name,
-                token: token_ingest(
-                    value.token,
-                    value.stdin,
-                    value.minted_at,
-                    value.plan.as_deref(),
-                )?,
+                request,
                 profile: value.profile,
                 mode: mode(json),
             })
@@ -468,22 +468,15 @@ fn classify_account(value: crate::cli::account::AccountArgs) -> Result<Invocatio
     }
 }
 
-/// Resolves the token-mode flags into an ingest request, or none.
+/// Resolves the login selectors and their options into one request.
 ///
-/// The parser already refuses `--stdin`, `--minted-at`, and `--plan` without
-/// `--token`, so the only validation left is each value's own grammar. Both are
-/// checked here rather than at ingest because a malformed value is a usage
+/// The parser already refuses `--stdin`, `--minted-at`, `--plan`, and
+/// `--scopes` without the selector each belongs to, and already refuses the two
+/// selectors together, so the only validation left is each value's own grammar.
+/// It happens here rather than at ingest because a malformed value is a usage
 /// error, and usage errors belong before any side effect rather than after a
-/// browser flow.
-fn token_ingest(
-    token: bool,
-    stdin: bool,
-    minted_at: Option<String>,
-    plan: Option<&str>,
-) -> Result<Option<TokenIngest>, AppError> {
-    if !token {
-        return Ok(None);
-    }
+/// browser flow or a pasted credential.
+fn login_request(value: &crate::cli::account::LoginArgs) -> Result<LoginRequest, AppError> {
     let usage = |subject: &'static str, hint: String| {
         move |message| {
             AppError::new(
@@ -492,23 +485,50 @@ fn token_ingest(
             )
         }
     };
-    let minted_at = minted_at.map(RecordedAt::parse).transpose().map_err(usage(
-        "--minted-at",
-        "pass an RFC 3339 UTC time such as 2026-08-11T12:34:56Z".to_owned(),
-    ))?;
-    let plan = plan.map(Plan::parse).transpose().map_err(usage(
-        "--plan",
-        format!(
-            "pass one of {}, or the plan you hold",
-            Plan::OFFERED.join(", ")
-        ),
-    ))?;
-    Ok(Some(TokenIngest {
-        source: if stdin {
-            TokenSource::Stdin
-        } else {
-            TokenSource::Terminal
-        },
+    let source = if value.stdin {
+        TokenSource::Stdin
+    } else {
+        TokenSource::Terminal
+    };
+    if value.refresh_token {
+        let scopes = value
+            .scopes
+            .as_deref()
+            .map(Scopes::parse)
+            .transpose()
+            .map_err(usage(
+                "--scopes",
+                "pass the space-separated scopes the refresh token was issued with".to_owned(),
+            ))?
+            .unwrap_or_else(Scopes::issued_by_a_login);
+        return Ok(LoginRequest::Refresh(RefreshIngest { source, scopes }));
+    }
+    if !value.token {
+        return Ok(LoginRequest::Native);
+    }
+    let minted_at = value
+        .minted_at
+        .clone()
+        .map(RecordedAt::parse)
+        .transpose()
+        .map_err(usage(
+            "--minted-at",
+            "pass an RFC 3339 UTC time such as 2026-08-11T12:34:56Z".to_owned(),
+        ))?;
+    let plan = value
+        .plan
+        .as_deref()
+        .map(Plan::parse)
+        .transpose()
+        .map_err(usage(
+            "--plan",
+            format!(
+                "pass one of {}, or the plan you hold",
+                Plan::OFFERED.join(", ")
+            ),
+        ))?;
+    Ok(LoginRequest::Token(TokenIngest {
+        source,
         minted_at,
         plan,
     }))
@@ -526,10 +546,10 @@ pub(crate) fn dispatch(
         InvocationKind::Doctor { list, strict, .. } => super::doctor::run(context, list, strict),
         InvocationKind::AccountLogin {
             name,
-            token,
+            request,
             profile,
             ..
-        } => super::account::login(context, name, token, profile),
+        } => super::account::login(context, name, request, profile),
         InvocationKind::AccountBind { name, profile, .. } => {
             super::account::bind(context, &name, &profile)
         }

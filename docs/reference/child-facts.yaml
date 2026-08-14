@@ -51,7 +51,7 @@ carried:
       - docs/reference/prior-art.md
       - docs/reference/process-runtime.md
       - src/commands/account.rs
-      - src/services/account/token.rs
+      - src/services/account.rs
       - src/services/child.rs
       - tests/accounts.rs
       - tests/passthrough.rs
@@ -59,15 +59,34 @@ carried:
 
   - fact: CLAUDE_CODE_OAUTH_TOKEN
     obligation: launch
-    why: The wrapper sets it in token mode, immediately before the exec, from the secret it stored.
+    why: The wrapper sets it in token mode, immediately before the exec, from the secret it stored. Every account-scoped subroutine drops an inherited one, so a credential from elsewhere cannot answer the question being asked about this account.
     sites:
       - docs/decisions/ADR-0026-store-and-inject-a-long-lived-subscription-token.md
       - docs/reference/accounts.md
       - docs/reference/process-runtime.md
+      - src/services/account.rs
       - src/services/account/token.rs
       - src/services/child.rs
       - tests/accounts.rs
       - tests/support/recording_child.rs
+
+  - fact: CLAUDE_CODE_OAUTH_REFRESH_TOKEN
+    obligation: launch
+    why: The wrapper sets it for the one child run that exchanges a supplied refresh token for a saved login, which is the child's own documented way to authenticate without a browser. Documented upstream, unlike the subscription type below.
+    sites:
+      - docs/reference/accounts.md
+      - docs/reference/research-tracking.yaml
+      - src/services/account/refresh.rs
+      - tests/accounts.rs
+
+  - fact: CLAUDE_CODE_OAUTH_SCOPES
+    obligation: launch
+    why: The wrapper sets it beside the refresh token, because the child requires the scopes the grant was issued with and refuses the exchange without them. Documented upstream; the five spellings the wrapper defaults to are not, and are tracked in ./research-tracking.yaml.
+    sites:
+      - docs/reference/accounts.md
+      - docs/reference/research-tracking.yaml
+      - src/services/account/refresh.rs
+      - tests/accounts.rs
 
   - fact: CLAUDE_CODE_SUBSCRIPTION_TYPE
     obligation: launch
