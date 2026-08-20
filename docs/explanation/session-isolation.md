@@ -34,6 +34,30 @@ So the namespace that issued the name is the path component above it ([ADR-0107]
 
 A rung whose namespace cannot be read names nothing, so the ladder falls past it and the existing refusal absorbs the case. The alternative — naming the terminal anyway — would restore the collision knowingly.
 
+The namespace alone still cannot tell two kernels apart: namespace inodes are per-kernel counters with fixed initial values, so a virtual machine reaching this tree over a filesystem share reports the same links as the host. The component therefore fingerprints the kernel's own identity together with the link — the machine identifier, or the boot identifier where the machine carries none, and a kernel naming neither makes the rung unavailable as above ([ADR-0109](../decisions/ADR-0109-discriminate-namespaces-across-kernels.md)).
+
+## Why the peer registry is shared
+
+The child discovers its peer sessions by reading pid-keyed registrations under its configuration directory's `sessions/` name, and messages them over per-boot sockets. That directory is in the already-keyed class from the section above — registrations interleave nothing — so splitting it per terminal was collateral damage of the all-or-nothing relocation, and it silently cost every session the ability to see the others. Each session directory's `sessions` name is therefore a declared link ([ADR-0103](../decisions/ADR-0103-permit-a-declared-link.md)) to one registry at `peers/<boot>/<namespace>/` in the state root, shared across accounts: awareness across accounts is wanted, and the storage threat model is accident rather than this user's own processes ([ADR-0108](../decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md)).
+
+The scope's two components answer whether a listed peer is reachable. The mount namespace carries both the registry files and the sockets registrations name, so two containers of one kernel — which share a boot — stay apart. The boot identifier separates kernels, which the namespace component cannot: every kernel names its initial mount namespace with the same fixed inode, so a virtual machine reaching this tree over a filesystem share would otherwise land in the host's scope while its sockets stay unreachable. Two sessions list each other exactly when they could also message each other, and a peer in another scope is invisible rather than listed and dead.
+
+The wrapper shares the directory and stops. It never reads, parses, or ages a registration — the child owns that schema, and no delegation obligation covers consuming it ([ADR-0089](../decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md)). A launch that cannot derive the scope, or cannot place the link, degrades to the private registry the terminal always had, because awareness is additive and must never stop an exec.
+
+## Mounting the trees into an isolated environment
+
+Container and virtual-machine setups that bind the wrapper's trees select the sharing they get from the scopes above; the wrapper needs no configuration for it. What crosses, and how:
+
+| Tree                          | Mode       | Why                                                                    |
+| ----------------------------- | ---------- | ---------------------------------------------------------------------- |
+| Config (`claude-session-rs/`) | read-only  | User-authored; the wrapper never writes it                             |
+| State (`claude-session-rs/`)  | read-write | Accounts, sessions, composed settings, and the peer registry live here |
+| Data (`claude-session-rs/`)   | read-only  | The asset tree; supplied to sessions, never written                    |
+
+Mount whole directories rather than single files: a file mount conveys an inode, and the wrapper and child both replace files by rename, which a file mount makes invisible until remount. Mount the state tree whole rather than narrowing it to `accounts/`: the peer registry sits beside it, and a narrowed mount silently costs the environment its session awareness.
+
+Inside one environment the scopes do the right thing without help. Sessions of one container share that container's registry; a separate-kernel guest derives its own boot component and keeps its own; and none of them see the host's sessions, whose sockets they could not reach anyway. This is the same honesty the terminal namespace buys for session directories, applied to discovery.
+
 ## Why the profile is the key
 
 The composed document is a pure function of the profile, its ordered pieces, and their contents. Nothing about the terminal, the working directory, or the project enters it. Keying it by any of those is the error of keying a build artifact by who ran the build: two runs that should share an artifact get two, and two runs that should not share one get one.

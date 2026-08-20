@@ -161,6 +161,37 @@ impl XdgPaths {
         self.account_session(account, namespace, terminal)
             .join("projects")
     }
+    /// Returns the root every peer-registry scope lives under.
+    ///
+    /// Its own path so a stale registry link — one whose target is inside
+    /// this root but names an earlier boot's scope — can be recognised as
+    /// the wrapper's own writing rather than a foreign symlink.
+    pub(crate) fn peers(&self) -> PathBuf {
+        self.state.join("peers")
+    }
+    /// Returns the peer registry one boot-and-namespace scope shares.
+    ///
+    /// At the state root rather than under an account, because the registry
+    /// is host-wide: awareness across accounts is the point, and the records
+    /// are the child's own pid-keyed registrations ([ADR-0108]).
+    ///
+    /// [ADR-0108]: ../../docs/decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md
+    pub(crate) fn peer_registry(&self, boot: &Identifier, namespace: &Identifier) -> PathBuf {
+        self.peers().join(boot.as_str()).join(namespace.as_str())
+    }
+    /// Returns the peer-registry link inside one session directory.
+    ///
+    /// The name is the child's own `sessions`, which is what makes the child
+    /// read the shared registry without knowing the wrapper exists.
+    pub(crate) fn session_registry_link(
+        &self,
+        account: &Identifier,
+        namespace: &Identifier,
+        terminal: &Identifier,
+    ) -> PathBuf {
+        self.account_session(account, namespace, terminal)
+            .join("sessions")
+    }
     /// Returns one account's authentication-mode metadata.
     pub(crate) fn account_auth_mode(&self, account: &Identifier) -> PathBuf {
         self.account(account).join("auth-mode.json")

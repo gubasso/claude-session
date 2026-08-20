@@ -39,3 +39,5 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 028 per-terminal-session-isolation — done — 3 implementation sessions — after 017; landed in one session, and the guard's blanket symlink refusal turned out to be the thing that shaped the design
 - 029 machine-global-child-assets — done — 2 implementation sessions — after 028; landed in one session, and the asset set is the child's published tree rather than a list somebody chose
 - 030 namespace-scoped-terminal-identity — done — 1 implementation session — after 028; landed in one session, and the two rungs turned out to be scoped by different namespaces
+- 031 shared-peer-registry — done — 1 implementation session — after 030; landed in one session, and a live child proved the linked registry before any code moved
+- 032 vm-safe-namespace-identity — done — 1 implementation session — after 031; landed in one session, and the discriminator joined the digest preimage rather than the path

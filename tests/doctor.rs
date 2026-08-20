@@ -434,6 +434,32 @@ fn the_terminal_report_names_the_namespace() {
     );
 }
 
+/// Slice 032 acceptance: the namespace component is discriminated per kernel,
+/// and a reader comparing two reports needs to know which identity did it.
+#[test]
+fn the_terminal_report_names_the_discriminator() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    let output = healthy(&harness)
+        .args(["--account", "work", "doctor", "--json"])
+        .output()
+        .expect("doctor");
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    let row = value["wrapper"]["checks"]
+        .as_array()
+        .expect("checks")
+        .iter()
+        .find(|row| row["id"] == "session-terminal-derives")
+        .expect("the check is in the report")
+        .clone();
+    let detail = row["message"].as_str().unwrap_or_default().to_owned();
+    assert!(
+        detail.contains("discriminated by its machine identifier")
+            || detail.contains("discriminated by its boot identifier"),
+        "the report names no discriminator: {detail}"
+    );
+}
+
 #[test]
 fn doctor_summary_counts_every_public_result_once() {
     doctor_json_report_matches_the_public_catalog();

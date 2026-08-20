@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::domain::{
-    namespace::{Kind, Namespace},
+    namespace::Kind,
     secret::{Secret, SecretError},
     terminal::Terminal as TerminalIdentity,
 };
@@ -57,18 +57,12 @@ fn leader_started(pid: u32) -> Option<u64> {
     tail.split_whitespace().nth(19)?.parse().ok()
 }
 
-/// Reads one of this process's namespace links, verbatim.
-///
-/// `/proc/self/ns/<kind>` is a magic link whose value — `pid:[4026533427]` —
-/// identifies the namespace. Read rather than resolved: there is nothing behind
-/// it to resolve, and the value is the identity. `None` when `/proc` does not
-/// answer, which makes the rung asking unavailable ([ADR-0107]).
-///
-/// [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
-fn namespace(kind: Kind) -> Option<Namespace> {
-    let link = std::fs::read_link(format!("/proc/self/ns/{}", kind.procfs_name())).ok()?;
-    Namespace::from_link(kind, link.as_os_str())
-}
+// The namespace read lives in `adapters::host`, shared with the peer-scope
+// derivation. `None` when `/proc` does not answer, which makes the rung asking
+// unavailable ([ADR-0107]).
+//
+// [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
+use crate::adapters::host::namespace;
 
 /// `ENXIO` and `EBADF`, the two ways an absent controlling terminal reports.
 const NO_TERMINAL: [i32; 2] = [6, 25];

@@ -12,6 +12,7 @@ pub(crate) mod identifier;
 pub(crate) mod merge;
 pub(crate) mod namespace;
 pub(crate) mod paths;
+pub(crate) mod peers;
 pub(crate) mod pointer;
 pub(crate) mod profile;
 pub(crate) mod secret;

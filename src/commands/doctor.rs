@@ -237,6 +237,33 @@ pub(crate) fn run(
                         .session_projects_link(&account.id, space, terminal.id()),
                     Some(context.paths().account_projects(&account.id)),
                 ));
+                // The shared peer registry and its link, probed only when this
+                // run's scope derives: an underivable scope leaves the session
+                // unshared by design, which is not a storage defect
+                // (ADR-0108, share the child peer registry across sessions).
+                if let Some(scope) = crate::adapters::host::boot_id().and_then(|boot| {
+                    crate::adapters::host::namespace_link(crate::domain::namespace::Kind::Mount)
+                        .and_then(|link| crate::domain::peers::Scope::derive(&boot, &link))
+                }) {
+                    let registry = context
+                        .paths()
+                        .peer_registry(scope.boot(), scope.namespace());
+                    let link =
+                        context
+                            .paths()
+                            .session_registry_link(&account.id, space, terminal.id());
+                    // A real directory at the name is the pre-adoption state
+                    // the next launch converts, not a defect worth reporting;
+                    // the probe judges the name once it is absent or linked.
+                    let adopted = !matches!(
+                        crate::adapters::filesystem::SystemFileSystem::look(&link),
+                        Ok(Some(facts)) if facts.directory
+                    );
+                    if adopted {
+                        paths.push((link, Some(registry.clone())));
+                    }
+                    paths.push((registry, None));
+                }
                 // Every asset seat a launch would inspect is a declared link,
                 // and a check promising that declared links resolve has to look
                 // at all of them. Every declared name rather than the ones the
@@ -434,11 +461,12 @@ fn terminal_result(context: &AppContext) -> CheckResult {
         Ok(terminal) => CheckResult::pass(
             Check::SessionTerminalDerives,
             format!(
-                "this run is \"{}\" in {} \"{}\", named from {}",
+                "this run is \"{}\" in {} \"{}\", named from {} and discriminated by {}",
                 terminal.id().as_str(),
                 terminal.namespace().kind().as_str(),
                 terminal.namespace().id().as_str(),
-                terminal.source().as_str()
+                terminal.source().as_str(),
+                terminal.namespace().discriminated_by().as_str()
             ),
         ),
         Err(error) => CheckResult::defect(

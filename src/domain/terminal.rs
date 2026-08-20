@@ -180,7 +180,13 @@ mod tests {
     use std::ffi::OsString;
 
     fn space(kind: Kind, link: &str) -> Namespace {
-        Namespace::from_link(kind, &OsString::from(link)).expect("a link names a namespace")
+        let machine = crate::domain::namespace::Discriminator::new(
+            crate::domain::namespace::DiscriminatorSource::Machine,
+            "machine-fixture",
+        )
+        .expect("a value names a discriminator");
+        Namespace::from_link(kind, &OsString::from(link), &machine)
+            .expect("a link names a namespace")
     }
 
     fn tty(value: &str) -> Option<Terminal> {

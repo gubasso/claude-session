@@ -1071,3 +1071,127 @@ fn a_key_the_wrapper_does_not_model_is_composed_and_forwarded_unchanged() {
     assert_eq!(document["zzzNotAKey"]["deep"], 1);
     assert_eq!(document["zzzNotAKey"]["other"], 2);
 }
+
+/// Walks the two derived levels under one account's `sessions/` tree.
+///
+/// Terminal and namespace names derive from whatever session each launch ran
+/// in, which no test can know, so the directories are found rather than
+/// spelled ([ADR-0107](../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md)).
+fn all_session_dirs(harness: &Harness, account: &str) -> Vec<std::path::PathBuf> {
+    let sessions = harness.state().join(format!("accounts/{account}/sessions"));
+    let mut found = Vec::new();
+    for namespace in fs::read_dir(&sessions).expect("namespace level") {
+        let namespace = namespace.expect("entry").path();
+        for terminal in fs::read_dir(&namespace).expect("terminal level") {
+            found.push(terminal.expect("entry").path());
+        }
+    }
+    found
+}
+
+/// Slice 031 acceptance: one boot and one mount namespace share one registry.
+/// Two launches from two sessions — the runner's own and a detached one — are
+/// two terminals, and both `sessions` names resolve to the same peer registry
+/// under `peers/`
+/// ([ADR-0108](../docs/decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md)).
+#[test]
+fn two_terminals_of_one_scope_link_one_registry() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the bound launch runs"
+    );
+    assert!(
+        harness
+            .detached_command(&["--account", "companion", "--profile", "companion"])
+            .status()
+            .expect("wrapper")
+            .success(),
+        "the detached launch runs"
+    );
+    let dirs = all_session_dirs(&harness, "companion");
+    assert_eq!(dirs.len(), 2, "two sessions are two terminals: {dirs:?}");
+    let targets: Vec<std::path::PathBuf> = dirs
+        .iter()
+        .map(|dir| {
+            let link = dir.join("sessions");
+            assert!(
+                link.symlink_metadata().expect("registry link").is_symlink(),
+                "the registry is reached through a declared link"
+            );
+            fs::read_link(&link).expect("link target")
+        })
+        .collect();
+    assert_eq!(targets[0], targets[1], "one scope names one registry");
+    assert!(
+        targets[0].starts_with(harness.state().join("peers")),
+        "the registry lives host-wide under the state root: {}",
+        targets[0].display()
+    );
+    assert!(targets[0].is_dir(), "the registry directory exists");
+}
+
+/// Slice 031 acceptance: adoption. A terminal used before the share holds a
+/// real `sessions/` directory the child filled; the next launch moves its
+/// entries into the registry and puts the declared link at the freed name.
+#[test]
+fn an_existing_registry_directory_is_adopted() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the first launch runs"
+    );
+    let dirs = all_session_dirs(&harness, "companion");
+    assert_eq!(dirs.len(), 1, "one launch makes one session directory");
+    let link = dirs[0].join("sessions");
+    let registry = fs::read_link(&link).expect("link target");
+    // Rebuild the pre-share shape: a real directory holding one registration.
+    fs::remove_file(&link).expect("unlink");
+    fs::create_dir(&link).expect("real directory");
+    fs::write(link.join("1234.json"), b"{}").expect("registration");
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the adopting launch runs"
+    );
+    assert!(
+        link.symlink_metadata().expect("adopted name").is_symlink(),
+        "the occupied name becomes the declared link again"
+    );
+    assert!(
+        registry.join("1234.json").is_file(),
+        "the existing registration moved into the shared registry"
+    );
+}
+
+/// A link the wrapper wrote for an earlier boot targets a dead scope under
+/// `peers/`; left alone the guard would refuse it on every later launch,
+/// permanently degrading the share. The next launch repoints it to this
+/// boot's registry instead
+/// ([ADR-0108](../docs/decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md)).
+#[test]
+fn a_stale_registry_link_is_repointed() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the first launch runs"
+    );
+    let dirs = all_session_dirs(&harness, "companion");
+    assert_eq!(dirs.len(), 1, "one launch makes one session directory");
+    let link = dirs[0].join("sessions");
+    let registry = fs::read_link(&link).expect("link target");
+    // Rebuild the post-reboot shape: the link targets an earlier boot's
+    // scope, which still exists because nothing prunes one.
+    let stale = harness.state().join("peers/boot-000000000000/stale");
+    fs::create_dir_all(&stale).expect("stale scope");
+    fs::remove_file(&link).expect("unlink");
+    std::os::unix::fs::symlink(&stale, &link).expect("stale link");
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the repointing launch runs"
+    );
+    assert_eq!(
+        fs::read_link(&link).expect("link target"),
+        registry,
+        "the stale link is repointed to this boot's registry"
+    );
+}
