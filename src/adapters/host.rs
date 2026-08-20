@@ -64,6 +64,23 @@ fn machine_id() -> Option<String> {
     Some(trimmed.to_owned())
 }
 
+/// Reads a process's start time from `procfs`, in clock ticks.
+///
+/// Field 22 of `/proc/<pid>/stat`, counted from the last `)` because the
+/// second field is the executable name and may itself contain both spaces and
+/// parentheses. Linux-only, which [ADR-0046] already is. Shared by the
+/// session-leader rung's naming and the liveness judgment that re-asks it
+/// ([ADR-0111]); `None` covers an absent process and an unreadable `/proc`
+/// alike, so a caller that needs the difference tests liveness first.
+///
+/// [ADR-0046]: ../../docs/decisions/ADR-0046-support-linux-and-a-single-child-baseline.md
+/// [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+pub(crate) fn process_started(pid: u32) -> Option<u64> {
+    let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let tail = text.rsplit_once(')')?.1;
+    tail.split_whitespace().nth(19)?.parse().ok()
+}
+
 /// Reads the kernel's boot identifier, trimmed.
 ///
 /// A fresh random UUID per kernel boot, which makes it the one identity two

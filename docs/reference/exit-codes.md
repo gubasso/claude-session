@@ -143,14 +143,14 @@ Changing an existing mapping requires a decision record superseding [ADR-0005](.
 
 Every invocation belongs to exactly one of four regimes, and the regime decides the exit. The first is the boundary [above](#two-regimes); the other three are all wrapper-owned, and they differ in what the exit is about.
 
-| Regime      | Invocations                                                    | The exit answers                   |
-| ----------- | -------------------------------------------------------------- | ---------------------------------- |
-| Passthrough | The bare launch                                                | Nothing — it is the child's status |
-| Inspection  | `profile`, `account list`, `account status`, `version`         | Did the verb run?                  |
-| Assertion   | `config`, `doctor`                                             | Does the property hold?            |
-| Operation   | `account login`, `account remove`, `completion`, `man`, `help` | Did the operation complete?        |
+| Regime      | Invocations                                                                     | The exit answers                   |
+| ----------- | ------------------------------------------------------------------------------- | ---------------------------------- |
+| Passthrough | The bare launch                                                                 | Nothing — it is the child's status |
+| Inspection  | `profile`, `account list`, `account status`, `session list`, `version`          | Did the verb run?                  |
+| Assertion   | `config`, `doctor`                                                              | Does the property hold?            |
+| Operation   | `account login`, `account remove`, `session clean`, `completion`, `man`, `help` | Did the operation complete?        |
 
-Inspection — `profile`, `account list`, `account status`, `version`. These exit `0` when they ran, whatever they found. The state reported is data, not the verb's own outcome: `version` against an unresolvable child, or `account status` with nothing selected, is a produced answer. They exit non-zero only when the wrapper itself failed — it could not read the file it was asked to inspect, or could not resolve a base directory.
+Inspection — `profile`, `account list`, `account status`, `session list`, `version`. These exit `0` when they ran, whatever they found. The state reported is data, not the verb's own outcome: `version` against an unresolvable child, or `account status` with nothing selected, is a produced answer. They exit non-zero only when the wrapper itself failed — it could not read the file it was asked to inspect, or could not resolve a base directory.
 
 A verb that exits non-zero because the answer was unwelcome cannot be used in a conditional, and its caller ends up parsing prose to recover the distinction.
 
@@ -167,7 +167,7 @@ Assertion — `config` and `doctor`. These are asked whether something holds, so
 
 Both draw the same line in the same place: a defect the subject can still function with is advisory and exits `0`, one it cannot is fatal. `--strict` exists so a caller who disagrees about where that line sits can move it without the verb having to guess.
 
-Operation — `account login`, `account remove`, `completion`, `man`, `help`. These change something or produce something rather than reporting on state, so neither of the two rules above applies: there is no finding to exit `0` over and no property to assert. They exit `0` when the operation completed and a matrix code when the wrapper's own handling failed. A `remove` the user declined exits `0` because the exchange completed as designed, not because it inspected anything ([the CLI surface](./cli-surface.md#the-exchange) owns the exchange). Where one of them ran the child as a subroutine, [ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md) still governs the attribution.
+Operation — `account login`, `account remove`, `session clean`, `completion`, `man`, `help`. These change something or produce something rather than reporting on state, so neither of the two rules above applies: there is no finding to exit `0` over and no property to assert. They exit `0` when the operation completed and a matrix code when the wrapper's own handling failed. A `remove` or a `clean` the user declined exits `0` because the exchange completed as designed, not because it inspected anything ([the CLI surface](./cli-surface.md#the-exchange) owns the exchange). Where one of them ran the child as a subroutine, [ADR-0068](../decisions/ADR-0068-spawn-the-child-as-a-subroutine.md) still governs the attribution.
 
 ### Resolving a profile name
 

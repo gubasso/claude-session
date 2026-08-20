@@ -7,6 +7,7 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 ## in flight
 
 - 019 original-namespace-restoration — shaped — 1 implementation session — after 018 and 029; waits on the predecessor's deprecation, which is the entry condition rather than the work
+- 034 account-usage-reporting — shaped — 2 implementation sessions — after 019 and 025; the provider-fact carry needs its own record before code
 
 ## closed
 
@@ -41,3 +42,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 030 namespace-scoped-terminal-identity — done — 1 implementation session — after 028; landed in one session, and the two rungs turned out to be scoped by different namespaces
 - 031 shared-peer-registry — done — 1 implementation session — after 030; landed in one session, and a live child proved the linked registry before any code moved
 - 032 vm-safe-namespace-identity — done — 1 implementation session — after 031; landed in one session, and the discriminator joined the digest preimage rather than the path
+- 033 dead-session-collection — done — 2 implementation sessions — after 028 and 032; landed in one session, and the tty rung ignoring boot turned out to be what lets a slot's history survive a reboot

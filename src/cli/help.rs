@@ -22,5 +22,6 @@ pub(crate) enum HelpTopic {
     Doctor,
     Man,
     Profile,
+    Session,
     Version,
 }

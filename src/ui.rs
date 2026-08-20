@@ -6,4 +6,5 @@ pub(crate) mod diagnostic;
 pub(crate) mod doctor;
 pub(crate) mod profile;
 pub(crate) mod prose;
+pub(crate) mod session;
 pub(crate) mod writer;

@@ -39,15 +39,42 @@ impl Source {
             Self::SessionLeader => "the session it leads, having no controlling terminal",
         }
     }
+
+    /// Returns the machine spelling a document uses for this rung.
+    ///
+    /// The same words the witness record's `rung` tag uses, so the two
+    /// documents cannot disagree about what a rung is called.
+    pub(crate) const fn spelling(self) -> &'static str {
+        match self {
+            Self::Tty => "tty",
+            Self::SessionLeader => "session-leader",
+        }
+    }
+}
+
+/// What a rung read to produce its name, kept so a launch can record it.
+///
+/// The name alone cannot answer a later liveness question, because the mapping
+/// below is deliberately lossy; the witness is the preimage the marker of
+/// [ADR-0110] persists. One variant per [`Source`] rung, so adding a rung
+/// forces the recording and judging arms in the same change.
+///
+/// [ADR-0110]: ../../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Witness {
+    /// The controlling terminal's device path bytes, exactly as read.
+    Tty { device: Vec<u8> },
+    /// The session leader and its start time in clock ticks.
+    SessionLeader { sid: u32, started: u64 },
 }
 
 /// One run's terminal: the path component, the namespace it is unique inside,
-/// and the rung that named it.
+/// and the witness of the rung that named it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Terminal {
     id: Identifier,
     namespace: Namespace,
-    source: Source,
+    witness: Witness,
 }
 
 impl Terminal {
@@ -63,7 +90,15 @@ impl Terminal {
 
     /// Returns the rung that named this terminal.
     pub(crate) const fn source(&self) -> Source {
-        self.source
+        match self.witness {
+            Witness::Tty { .. } => Source::Tty,
+            Witness::SessionLeader { .. } => Source::SessionLeader,
+        }
+    }
+
+    /// Borrows what the naming rung read.
+    pub(crate) const fn witness(&self) -> &Witness {
+        &self.witness
     }
 
     /// Names a terminal from the controlling terminal's device path.
@@ -80,7 +115,9 @@ impl Terminal {
         sanitize(device.as_bytes()).map(|id| Self {
             id,
             namespace,
-            source: Source::Tty,
+            witness: Witness::Tty {
+                device: device.as_bytes().to_vec(),
+            },
         })
     }
 
@@ -101,7 +138,7 @@ impl Terminal {
             .map(|id| Self {
                 id,
                 namespace,
-                source: Source::SessionLeader,
+                witness: Witness::SessionLeader { sid, started },
             })
     }
 }

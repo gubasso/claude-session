@@ -12,6 +12,7 @@ pub(crate) mod doctor;
 pub(crate) mod help;
 pub(crate) mod man;
 pub(crate) mod profile;
+pub(crate) mod session;
 pub(crate) mod version;
 
 /// The small wrapper-owned grammar.
@@ -77,6 +78,8 @@ pub(crate) enum Command {
     Man(man::ManArgs),
     /// List the profiles available to select.
     Profile(profile::ProfileArgs),
+    /// Report and collect per-terminal session directories.
+    Session(session::SessionArgs),
     /// Show wrapper and native version information.
     Version(version::VersionArgs),
 }

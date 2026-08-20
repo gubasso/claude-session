@@ -179,6 +179,23 @@ impl XdgPaths {
     pub(crate) fn peer_registry(&self, boot: &Identifier, namespace: &Identifier) -> PathBuf {
         self.peers().join(boot.as_str()).join(namespace.as_str())
     }
+    /// Returns the witness marker recorded beside one session directory.
+    ///
+    /// Beside rather than inside, following the lock's precedent: the record
+    /// must survive the directory it judges, and the child owns every name
+    /// inside its own state directory
+    /// ([ADR-0110](../../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md)).
+    /// The leading dot keeps it out of terminal discovery twice over: the walk
+    /// takes directories only, and an identifier cannot begin with one.
+    pub(crate) fn session_witness(
+        &self,
+        account: &Identifier,
+        namespace: &Identifier,
+        terminal: &Identifier,
+    ) -> PathBuf {
+        self.account_namespace(account, namespace)
+            .join(format!(".{}.witness.json", terminal.as_str()))
+    }
     /// Returns the peer-registry link inside one session directory.
     ///
     /// The name is the child's own `sessions`, which is what makes the child
@@ -327,6 +344,12 @@ mod tests {
         assert_eq!(
             paths.session_projects_link(&work, &space, &pane),
             Path::new("/s/claude-session-rs/accounts/work/sessions/mnt-1a2b3c4d/pts-3/projects")
+        );
+        assert_eq!(
+            paths.session_witness(&work, &space, &pane),
+            Path::new(
+                "/s/claude-session-rs/accounts/work/sessions/mnt-1a2b3c4d/.pts-3.witness.json"
+            )
         );
         assert_eq!(
             paths.last_account(),

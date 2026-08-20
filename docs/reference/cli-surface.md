@@ -2,7 +2,7 @@
 
 The wrapper's own grammar: what `claude-session` claims, what it forwards, and the parser shape that makes verbatim passthrough work. For the reasoning behind these rules, see [the wrapper model](../explanation/wrapper-model.md).
 
-The passthrough, `help`, `version`, `doctor`, the whole `account` namespace — `login [name]` with `--token`, `--refresh-token`, `--stdin`, `--minted-at`, `--plan`, and `--scopes`, plus `list`, `status`, and `remove` with `--yes` — `completion <shell>`, `man`, `profile`, and `config` are implemented, and so is requested help for every verb that answers one on its own — `account --help`, `account <subcommand> --help`, `completion --help`, `man --help`, `profile --help`, `config --help`, `doctor --help`, `version --help`, and the matching `help <verb>` spellings. The `help` verb has no requested help of its own, because a reader asking for it is already reading the composed surface it would describe.
+The passthrough, `help`, `version`, `doctor`, the whole `account` namespace — `login [name]` with `--token`, `--refresh-token`, `--stdin`, `--minted-at`, `--plan`, and `--scopes`, plus `list`, `status`, and `remove` with `--yes` — `completion <shell>`, `man`, `profile`, `config`, and the `session` namespace — `list`, and `clean` with `--yes` — are implemented, and so is requested help for every verb that answers one on its own — `account --help`, `account <subcommand> --help`, `session --help`, `session <subcommand> --help`, `completion --help`, `man --help`, `profile --help`, `config --help`, `doctor --help`, `version --help`, and the matching `help <verb>` spellings. The `help` verb has no requested help of its own, because a reader asking for it is already reading the composed surface it would describe.
 
 ## Invocation shape
 
@@ -99,6 +99,7 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 | `account`    | Manage accounts: login, bind, list, status, remove                        | [accounts](./accounts.md)                    |
 | `config`     | Resolve, validate, and report the wrapper's configuration; no subcommands | [configuration](./configuration.md#commands) |
 | `profile`    | List the available settings profiles; no subcommands                      | [configuration](./configuration.md#commands) |
+| `session`    | Report and collect per-terminal session directories: list, clean          | [sessions](./sessions.md)                    |
 | `doctor`     | Diagnose every subsystem, then run the child's own `doctor`               | [doctor](./doctor.md)                        |
 | `completion` | Emit shell completions for the wrapper's grammar                          | [Help](#help)                                |
 | `man`        | Emit man pages generated from the wrapper's grammar                       | [Help](#help)                                |
@@ -191,7 +192,7 @@ The child's list is not reproduced because it is delegated. `--help` is a claime
 
 The `help` verb is the same surface under another spelling: `claude-session-rs help [<verb>]` prints exactly what `--help` and `<verb> --help` print. A verb's help composes on the same test: `help doctor` appends `claude doctor --help`, because `doctor` is the one verb whose name the child also owns. `account` appends nothing — it was renamed precisely so there is no shared surface — and neither does any verb the child does not have. Requested help is a result — standard output, exit `0`. Help printed because an invocation was malformed is a diagnostic — standard error, exit `Usage`. The parser's own default differs on both counts and is overridden; see [exit codes](./exit-codes.md#wrapper-matrix).
 
-A namespace verb requires its subcommand. `account`, the only one, satisfies no invocation on its own, so bare `account` is malformed: the verb's help is a diagnostic, and so is an unrecognized subcommand. Both exit `Usage`. Unlike a mistyped wrapper flag, an unrecognized subcommand carries a nearest-match suggestion — the parser's subcommand set is closed and wholly wrapper-owned, so the reasoning that denies one to [flag spelling](#flag-spelling) does not reach it. See [ADR-0052](../decisions/ADR-0052-require-an-explicit-subcommand.md).
+A namespace verb requires its subcommand. `account` and `session` each satisfy no invocation on their own, so a bare namespace verb is malformed: the verb's help is a diagnostic, and so is an unrecognized subcommand. Both exit `Usage`. Unlike a mistyped wrapper flag, an unrecognized subcommand carries a nearest-match suggestion — the parser's subcommand set is closed and wholly wrapper-owned, so the reasoning that denies one to [flag spelling](#flag-spelling) does not reach it. See [ADR-0052](../decisions/ADR-0052-require-an-explicit-subcommand.md).
 
 Shell completions cover the wrapper's grammar for the same reason. Completions never attempt to complete child arguments.
 
@@ -242,14 +243,15 @@ The verb also takes `--json`, and the flag form does not — `--version` is inte
 
 ## Confirmation and non-interactive use
 
-Two verbs need a person present. No others do.
+Three verbs need a person present. No others do.
 
 | Verb             | Why a person is needed                                                   | Escape when there is no terminal          |
 | ---------------- | ------------------------------------------------------------------------ | ----------------------------------------- |
 | `account remove` | It removes local authentication and child state                          | `--yes`                                   |
 | `account login`  | Native login uses the child's interactive flow; a paste reads a terminal | Either secret-bearing mode with `--stdin` |
+| `session clean`  | It removes child state and prompt history                                | `--yes`                                   |
 
-Every other verb — `config`, `profile`, `doctor`, `completion`, `man`, `version`, `help` — is read-only or inert. There is nothing to agree to, so none of them prompts and none of them gates.
+Every other verb — `config`, `profile`, `doctor`, `completion`, `man`, `session list`, `version`, `help` — is read-only or inert. There is nothing to agree to, so none of them prompts and none of them gates.
 
 Without a terminal, a confirming verb fails rather than prompting or proceeding. When no controlling terminal is available and no escape was given, the verb stops before any side effect and exits `Unavailable` (69). The diagnostic names the escape above; secret ingestion through `--stdin` follows [ADR-0027](../decisions/ADR-0027-ingest-secrets-only-from-stdin-or-a-terminal.md), which governs both secrets the same way.
 
@@ -276,7 +278,7 @@ Remove it? [y/N]
 
 The capitalized letter is the default, and it is `N` because the verb is destructive. The prompt names the object and the consequence, so what a person approves and what `--json` reports are the same facts.
 
-Declining is not a failure. The verb stops before any side effect and exits `0`: nothing was removed, which is an outcome rather than an error. What the report says is owned by the verb — for `account remove`, [accounts](./accounts.md#removal).
+Declining is not a failure. The verb stops before any side effect and exits `0`: nothing was removed, which is an outcome rather than an error. What the report says is owned by the verb — for `account remove`, [accounts](./accounts.md#removal); for `session clean`, [sessions](./sessions.md#commands).
 
 ### `--yes` and `--json` are orthogonal
 

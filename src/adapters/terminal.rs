@@ -44,18 +44,12 @@ pub(crate) trait Terminal {
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct SystemTerminal;
 
-/// Reads the session leader's start time from `procfs`, in clock ticks.
-///
-/// Field 22 of `/proc/<pid>/stat`, counted from the last `)` because the
-/// second field is the executable name and may itself contain both spaces and
-/// parentheses. Linux-only, which [ADR-0046] already is.
-///
-/// [ADR-0046]: ../../docs/decisions/ADR-0046-support-linux-and-a-single-child-baseline.md
-fn leader_started(pid: u32) -> Option<u64> {
-    let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-    let tail = text.rsplit_once(')')?.1;
-    tail.split_whitespace().nth(19)?.parse().ok()
-}
+// The leader's start-time read lives in `adapters::host` as `process_started`,
+// shared with the liveness judgment that re-asks the naming question
+// ([ADR-0111]).
+//
+// [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+use crate::adapters::host::process_started as leader_started;
 
 // The namespace read lives in `adapters::host`, shared with the peer-scope
 // derivation. `None` when `/proc` does not answer, which makes the rung asking

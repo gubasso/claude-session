@@ -10,4 +10,5 @@ pub(crate) mod help;
 pub(crate) mod man;
 pub(crate) mod passthrough;
 pub(crate) mod profile;
+pub(crate) mod session;
 pub(crate) mod version;

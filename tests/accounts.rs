@@ -1671,7 +1671,17 @@ fn the_published_status_example_matches_the_renderer() {
 fn only_session_dir(harness: &Harness, account: &str) -> std::path::PathBuf {
     let sessions = harness.state().join(format!("accounts/{account}/sessions"));
     let namespace = only_child(&sessions, "one launch makes one namespace directory");
-    only_child(&namespace, "one launch makes one session directory")
+    // Directories only: the witness record sits beside the directory it
+    // judges ([ADR-0110]).
+    //
+    // [ADR-0110]: ../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
+    let mut entries: Vec<_> = fs::read_dir(&namespace)
+        .unwrap_or_else(|error| panic!("{}: {error}", namespace.display()))
+        .map(|entry| entry.expect("entry").path())
+        .filter(|path| path.is_dir())
+        .collect();
+    assert_eq!(entries.len(), 1, "one launch makes one session directory");
+    entries.pop().expect("entry")
 }
 
 /// Returns the single entry of a directory, or fails saying what was expected.

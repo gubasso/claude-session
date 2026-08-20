@@ -98,6 +98,13 @@ pub(crate) enum InvocationKind {
     Profile {
         mode: OutputMode,
     },
+    SessionList {
+        mode: OutputMode,
+    },
+    SessionClean {
+        consented: bool,
+        mode: OutputMode,
+    },
     /// Requested help for one wrapper verb, or one node inside its namespace.
     VerbHelp {
         verb: &'static str,
@@ -142,7 +149,9 @@ impl Invocation {
             | InvocationKind::AccountRemove { mode, .. }
             | InvocationKind::AccountBind { mode, .. }
             | InvocationKind::Config { mode }
-            | InvocationKind::Profile { mode } => mode,
+            | InvocationKind::Profile { mode }
+            | InvocationKind::SessionList { mode }
+            | InvocationKind::SessionClean { mode, .. } => mode,
             _ => OutputMode::Human,
         }
     }
@@ -208,6 +217,7 @@ pub(crate) fn classify(arguments: &[OsString]) -> Result<Invocation, AppError> {
                     | "help"
                     | "man"
                     | "profile"
+                    | "session"
                     | "version"
             )
         });
@@ -309,6 +319,7 @@ fn classify_command(
                 InvocationKind::Profile { mode }
             })
         }
+        Some(Command::Session(value)) => classify_session(value)?,
         Some(Command::Version(value)) => {
             classify_report("version", value.help_flag, value.json, |mode| {
                 InvocationKind::Version { mode }
@@ -363,7 +374,53 @@ const fn help_topic_node(topic: crate::cli::help::HelpTopic) -> &'static str {
         crate::cli::help::HelpTopic::Doctor => "doctor",
         crate::cli::help::HelpTopic::Man => "man",
         crate::cli::help::HelpTopic::Profile => "profile",
+        crate::cli::help::HelpTopic::Session => "session",
         crate::cli::help::HelpTopic::Version => "version",
+    }
+}
+
+/// Resolves the `session` namespace into one invocation.
+fn classify_session(value: crate::cli::session::SessionArgs) -> Result<InvocationKind, AppError> {
+    use crate::cli::session::SessionCommand;
+    let mode = |json: bool| {
+        if json {
+            OutputMode::Json
+        } else {
+            OutputMode::Human
+        }
+    };
+    if value.help_flag {
+        return Ok(InvocationKind::VerbHelp {
+            verb: "session",
+            subcommand: match value.command {
+                None => None,
+                Some(SessionCommand::List(_)) => Some("list"),
+                Some(SessionCommand::Clean(_)) => Some("clean"),
+            },
+        });
+    }
+    match value.command {
+        // A namespace verb satisfies no invocation on its own ([ADR-0052]),
+        // and the verb's own help is that diagnostic, exactly as `account`
+        // raises it.
+        //
+        // [ADR-0052]: ../../docs/decisions/ADR-0052-require-an-explicit-subcommand.md
+        None => Err(AppError::new(
+            crate::error::ErrorKind::Usage,
+            Diagnostic::new(
+                "session requires a subcommand",
+                "session",
+                node_help_text("session"),
+                "run claude-session-rs session --help",
+            ),
+        )),
+        Some(SessionCommand::List(value)) => Ok(InvocationKind::SessionList {
+            mode: mode(value.json),
+        }),
+        Some(SessionCommand::Clean(value)) => Ok(InvocationKind::SessionClean {
+            consented: value.yes,
+            mode: mode(value.json),
+        }),
     }
 }
 
@@ -562,6 +619,8 @@ pub(crate) fn dispatch(
         InvocationKind::Man => super::man::run(context),
         InvocationKind::Config { .. } => super::config::run(context),
         InvocationKind::Profile { .. } => super::profile::list(context),
+        InvocationKind::SessionList { .. } => super::session::list(context),
+        InvocationKind::SessionClean { consented, .. } => super::session::clean(context, consented),
         InvocationKind::VerbHelp { verb, subcommand } => {
             super::help::verb(context, verb, subcommand)
         }

@@ -14,7 +14,7 @@ One account points every terminal at one `CLAUDE_CONFIG_DIR`. Three files inside
 
 Chosen option: key only the child state directory. `CLAUDE_CONFIG_DIR` becomes `accounts/<account>/sessions/<namespace>/<terminal>/`. The saved login stays at `accounts/<account>/config/`, reached through the child's own credential-store variable ([ADR-0104](./ADR-0104-share-one-credential-store.md)), and `projects/` is shared back through a declared link ([ADR-0103](./ADR-0103-permit-a-declared-link.md)).
 
-Splitting the whole tree was measured rather than argued: `projects/<project>/memory/` splits with it, and one machine accumulated fifty-two memory directories, two for one repository, neither able to read the other.
+Splitting the whole tree was measured: `projects/<project>/memory/` splits with it, and one machine accumulated fifty-two memory directories, two for one repository, neither able to read the other.
 
 The derivation is the ladder [ADR-0062](./ADR-0062-derive-the-group-from-the-controlling-terminal.md) recorded, minus the two rungs ADR-0065 retired: the controlling terminal, then the session leader with its start time, then a refusal.
 
@@ -24,7 +24,7 @@ The derivation is the ladder [ADR-0062](./ADR-0062-derive-the-group-from-the-con
 
 - Good: the three unkeyed files stop colliding, and per-project memory stays whole.
 - Good: one saved login per account survives, so the child's refresh lock still guards one file.
-- Bad: session directories accumulate and nothing prunes them.
+- Bad: session directories accumulate unpruned.
 - Bad: a reused terminal slot inherits the earlier directory, which ADR-0062 already recorded as intended.
 
 ## Status
@@ -33,4 +33,6 @@ Implemented
 
 Supersedes [ADR-0065](./ADR-0065-retire-the-terminal-group.md). Enacted in [the ladder](../../src/domain/terminal.rs) and [the session service](../../src/services/session.rs). Shaped by [028](../plan/slices/028-per-terminal-session-isolation/README.md).
 
-Amended by [ADR-0107](./ADR-0107-scope-a-terminal-to-its-namespace.md): a terminal name is unique only inside the namespace that issued it, so the path gains a component above it.
+Amended by [ADR-0107](./ADR-0107-scope-a-terminal-to-its-namespace.md): a terminal name is unique only inside its issuing namespace, so the path gains a component above it.
+
+Amended by [ADR-0111](./ADR-0111-collect-only-the-provably-dead-session.md): the dead are now collected by `session clean`.

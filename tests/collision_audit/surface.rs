@@ -48,6 +48,7 @@ const CLAIMED_VERB_SENTINELS: &[&str] = &[
     "help",
     "man",
     "profile",
+    "session",
     "version",
 ];
 

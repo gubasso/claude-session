@@ -9,10 +9,12 @@ use std::path::{Path, PathBuf};
 use crate::{
     adapters::terminal::Terminal as _,
     context::AppContext,
-    domain::{checks::Check, identifier::Identifier, terminal::Terminal},
+    domain::{checks::Check, identifier::Identifier, terminal::Terminal, witness::Marker},
     error::{AppError, Diagnostic},
-    services::storage::guard,
+    services::storage::{atomic, guard},
 };
+
+pub(crate) mod gc;
 
 /// Names the terminal this run's child state directory belongs to, or refuses.
 ///
@@ -78,6 +80,20 @@ pub(crate) fn materialise(
         &paths.session_projects_link(account, namespace, terminal.id()),
         &projects,
     )?;
+    // Additive, like the registry share below: a launch that cannot record
+    // its witness leaves the session judged unknown — kept, never collected —
+    // so degrading is honest where refusing the exec would not be
+    // ([ADR-0110]).
+    //
+    // [ADR-0110]: ../../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
+    if let Err(error) = record_witness(context, account, terminal) {
+        tracing::warn!(
+            op = "record_witness",
+            status = "degraded",
+            "this session's terminal witness was not recorded: {}",
+            error.diagnostic().why
+        );
+    }
     // Additive, so a failure degrades to an unshared launch instead of
     // refusing the exec ([ADR-0108]): the child's peer discovery is a
     // convenience, and a damaged shared registry must not stop every
@@ -102,6 +118,47 @@ pub(crate) fn materialise(
         directory.display()
     );
     Ok(directory)
+}
+
+/// Records the witness of this terminal's name beside its session directory.
+///
+/// Write-if-changed: repeated launches of one terminal produce identical
+/// bytes, so the common relaunch touches nothing, and only a changed fact —
+/// a new boot, a rung change on a reused slot — replaces the record
+/// ([ADR-0110]).
+///
+/// [ADR-0110]: ../../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
+fn record_witness(
+    context: &AppContext,
+    account: &Identifier,
+    terminal: &Terminal,
+) -> Result<(), AppError> {
+    let degraded = |why: &str| {
+        AppError::new(
+            crate::error::ErrorKind::Io,
+            Diagnostic::new(
+                "the terminal witness could not be recorded",
+                "the session witness record",
+                why.to_owned(),
+                "the session will be judged unknown and never collected",
+            ),
+        )
+    };
+    let marker = Marker::from_terminal(terminal, crate::adapters::host::boot_id())
+        .ok_or_else(|| degraded("the device path is not valid UTF-8"))?;
+    let bytes = marker
+        .to_bytes()
+        .ok_or_else(|| degraded("the record did not serialize"))?;
+    let paths = context.paths();
+    let path = paths.session_witness(account, terminal.namespace().id(), terminal.id());
+    // The guard runs before the unchanged-bytes fast path, not after: the
+    // comparison must never read through a symbolic link or a foreign owner,
+    // and a widened mode is corrected even when the bytes have not changed.
+    guard::validate(paths.state(), &path, guard::Expected::PrivateFile)?;
+    if std::fs::read(&path).is_ok_and(|existing| existing == bytes) {
+        return Ok(());
+    }
+    atomic::write(&path, &bytes, 0o600)
 }
 
 /// Links one session directory's `sessions` name to the shared peer registry.

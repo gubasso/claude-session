@@ -26,7 +26,7 @@ const SHELLS: [(&str, &str); 5] = [
 ];
 
 /// Verbs whose parser nodes the artifacts must describe.
-const IMPLEMENTED_VERBS: [&str; 8] = [
+const IMPLEMENTED_VERBS: [&str; 9] = [
     "account",
     "completion",
     "config",
@@ -34,6 +34,7 @@ const IMPLEMENTED_VERBS: [&str; 8] = [
     "help",
     "man",
     "profile",
+    "session",
     "version",
 ];
 
@@ -144,6 +145,12 @@ fn artifacts_carry_the_account_grammar_and_no_unimplemented_verb() {
             assert!(
                 script.contains(token),
                 "the {shell} script omits the account grammar token {token}"
+            );
+        }
+        for token in ["session", "clean"] {
+            assert!(
+                script.contains(token),
+                "the {shell} script omits the session grammar token {token}"
             );
         }
         // The verb-level flags, in this shell's own spelling — `fish` writes

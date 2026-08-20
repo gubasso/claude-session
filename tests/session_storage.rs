@@ -1083,7 +1083,14 @@ fn all_session_dirs(harness: &Harness, account: &str) -> Vec<std::path::PathBuf>
     for namespace in fs::read_dir(&sessions).expect("namespace level") {
         let namespace = namespace.expect("entry").path();
         for terminal in fs::read_dir(&namespace).expect("terminal level") {
-            found.push(terminal.expect("entry").path());
+            let path = terminal.expect("entry").path();
+            // Directories only: the witness record sits beside the directory
+            // it judges ([ADR-0110]).
+            //
+            // [ADR-0110]: ../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
+            if path.is_dir() {
+                found.push(path);
+            }
         }
     }
     found

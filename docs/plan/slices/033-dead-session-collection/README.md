@@ -1,0 +1,73 @@
+# 033 — Dead session collection
+
+## Goal
+
+Give the per-terminal session directories a collector: a verb that reports each one's liveness and removes only the ones provably dead, closing the accumulation [ADR-0102](../../../decisions/ADR-0102-key-child-state-by-terminal.md) accepted as a cost.
+
+## Appetite
+
+2 implementation sessions.
+
+## Core
+
+A launch records the inputs that named its terminal, and `session clean` removes exactly the session directories whose recorded terminal is provably gone.
+
+## In scope
+
+- One decision recording the terminal witness at launch: the derivation preimage, written beside the session directory it names, because the sanitized terminal name is deliberately lossy and cannot be inverted.
+- One decision on judgment and collection: three verdicts — live, dead, unknown — with only dead collectable and unknown never, the same reachability honesty [ADR-0108](../../../decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md) applies to peers; it amends ADR-0102's accumulation consequence.
+- The `session` namespace verb: `list` reports every session directory's verdict, and `clean` previews the dead set, prompts, and removes it, with `--yes` skipping the prompt and `--json` per subcommand.
+- Removal under the account's write lock and the guard's symlink refusal, deleting the witness with its directory and a namespace directory only once it is empty.
+- A sessions reference page owning the verb grammar, and alignment of the CLI surface, exit codes, XDG storage, session isolation, and the README where session lifetime is spelled.
+
+## Out of scope
+
+- Pruning the peer registry: a boot component that is not this kernel's may be another kernel's live boot, so its records are unknown rather than dead.
+- Composed settings entries, whose growth curve [XDG storage](../../../reference/xdg-storage.md#composed-settings-entries) already judged too slow to earn a policy.
+- Any age heuristic, which misreads both a long idle session and a fresh crash; liveness here is a fact, not an estimate.
+- Automatic collection at launch or on a schedule; the verb is explicit.
+- The shell predecessor's tree, whose namespace story [019](../019-original-namespace-restoration/README.md) owns.
+
+## Governed by
+
+- [AGENTS.md](../../../../AGENTS.md)
+- [Charter](../../charter.md)
+- [ADR-0006](../../../decisions/ADR-0006-place-files-by-xdg-ownership.md)
+- [ADR-0051](../../../decisions/ADR-0051-let-every-surface-element-discriminate.md)
+- [ADR-0060](../../../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)
+- [ADR-0061](../../../decisions/ADR-0061-protect-storage-from-accidental-local-drift.md)
+- [ADR-0089](../../../decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md)
+- [ADR-0102](../../../decisions/ADR-0102-key-child-state-by-terminal.md)
+- [ADR-0107](../../../decisions/ADR-0107-scope-a-terminal-to-its-namespace.md)
+- [ADR-0108](../../../decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md)
+- [ADR-0109](../../../decisions/ADR-0109-discriminate-namespaces-across-kernels.md)
+- [CLI surface](../../../reference/cli-surface.md)
+- [XDG storage](../../../reference/xdg-storage.md)
+- [Exit codes](../../../reference/exit-codes.md)
+- [Logging and output](../../../reference/logging-and-output.md)
+- [Presentation](../../../reference/presentation.md)
+- [Coding conventions](../../../reference/coding-conventions.md)
+- [Testing and quality](../../../reference/testing-and-quality.md)
+- [Development workflow](../../../guides/development-workflow.md)
+
+## Acceptance
+
+- When a launch materialises a session directory, the wrapper shall record the witness beside it, and a second launch of the same terminal shall leave an unchanged record unwritten. -> sessions_gc::a_launch_records_the_witness_and_rewrites_it_only_on_change
+- When `session list` runs, every session directory shall carry exactly one of `live`, `dead`, or `unknown`, and one without a readable record shall be `unknown`. -> sessions_gc::session_list_tells_the_three_states_apart
+- When `session clean` runs, it shall remove every dead session directory and nothing live or unknown, and a namespace directory only once it is empty. -> sessions_gc::session_clean_removes_exactly_the_dead
+- When `session clean` has no terminal and no `--yes`, it shall refuse before any side effect, and a declined prompt shall exit `0`. -> sessions_gc::a_declined_prompt_removes_nothing_and_exits_zero
+- When the work lands, no current document shall state that nothing prunes a session directory.
+
+## Rabbit holes
+
+- Inverting the sanitized terminal name instead of recording inputs; escape: the mapping is non-injective by design, so the preimage is recorded rather than recovered.
+- Reading the child's peer registrations for liveness; escape: no ADR-0089 obligation covers consuming that schema, so the wrapper judges from its own record.
+- Growing `clean` filters — per account, per age, per rung — before a need exists; escape: the dead set is the whole surface.
+
+## Done when
+
+A launch records its witness, `session list` tells the three states apart, `session clean` removes exactly the dead after a prompt, every owner page tells the new lifetime story, and `just hooks` is green.
+
+## Revisions
+
+None.

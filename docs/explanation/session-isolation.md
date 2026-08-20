@@ -79,6 +79,7 @@ The Runtime base is unused: the wrapper opens no socket, and its [write locks](.
 
 - The child writes account `config/`, including its saved login, projects, history, and trust state. The one exception is a single key in its `.claude.json`, which a login writes so the child's first-run setup does not stand between an authenticated account and its prompt ([ADR-0098](../decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md)).
 - The account subsystem writes `auth-mode.json`, any local OAuth token, and the last-used marker.
+- The session subsystem writes the declared links and, beside each session directory, the witness record a launch leaves so a later run can judge liveness ([ADR-0110](../decisions/ADR-0110-record-the-terminal-witness-at-launch.md)).
 - The composition subsystem writes composed settings and their provenance.
 
 The wrapper never reads, copies, fingerprints, or synchronizes the child credential. Wrapper-owned files use atomic write-then-rename; directory creation is idempotent.
@@ -93,7 +94,7 @@ The child-owned credential is validated only as a path when presence matters. Th
 
 ## Cleanup
 
-Composed settings entries are immutable and permanent; the wrapper ships no pruning. Automatic cleanup removes nothing but an orphaned atomic temporary, and only explicit account removal deletes an account tree — which leaves composed settings alone, because they are not account state.
+Nothing is collected automatically: the only unbidden deletion is an orphaned atomic temporary, and composed settings entries stay immutable and permanent. What a user can ask for is `session clean`, which judges every session directory against its recorded witness — live, dead, or unknown — and removes only the provably dead, after confirming; unknown is kept, because on a shared tree another kernel's sessions are visible without being decidable ([ADR-0111](../decisions/ADR-0111-collect-only-the-provably-dead-session.md)). Exact verdicts and the verb's grammar are in [sessions](../reference/sessions.md). Explicit account removal still deletes the whole account tree — and leaves composed settings alone, because they are not account state.
 
 ## Further reading
 

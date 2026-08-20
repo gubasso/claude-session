@@ -2,7 +2,7 @@
 
 A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 
-> Status: unreleased. The wrapper forwards to `claude` natively and owns `help`, `version`, `doctor`, the `account` namespace, `completion`, `man`, `profile`, and `config`. Everything else described in [docs](./docs/README.md) is design ahead of the code.
+> Status: unreleased. The wrapper forwards to `claude` natively and owns `help`, `version`, `doctor`, the `account` and `session` namespaces, `completion`, `man`, `profile`, and `config`. Everything else described in [docs](./docs/README.md) is design ahead of the code.
 
 ## Usage
 
@@ -128,6 +128,17 @@ The provenance sidecar beside each composed entry records, per key, which piece 
 The keys above are illustrative. A piece is written in the child's own settings format, and the wrapper models none of it: it validates that the composition is well defined, then forwards every key you wrote, whatever it is called.
 
 The composed document reaches the child as an additional native settings layer, so a `--settings` of your own still replaces it and the working directory's own settings still load beneath it. [Milestones](./docs/plan/milestones.md) carries the order the rest lands in.
+
+## Sessions
+
+Each terminal gets its own child state directory, so two panes never interleave their prompt history or their child configuration, while the account's login and projects tree stay shared. A launch records which terminal a directory belongs to, and that record is what makes cleanup honest later:
+
+```bash
+claude-session-rs session list   # every session directory: live, dead, or unknown
+claude-session-rs session clean  # remove the provably dead ones; prompts unless --yes
+```
+
+Only the provably dead are removed — a session whose terminal still exists stays, and one this machine cannot decide about, such as a container's on a shared tree, is kept rather than guessed at. The verdicts and their reasoning live in [sessions](./docs/reference/sessions.md).
 
 ## Design contract
 
