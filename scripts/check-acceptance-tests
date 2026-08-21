@@ -21,17 +21,44 @@ if [[ -n $duplicates ]]; then
   exit 1
 fi
 
-mapfile -t actual < <(cargo nextest list --all-features | awk '
+listing=$(mktemp)
+trap 'rm -f -- "$listing"' EXIT
+
+# Run the listing as a plain command, not inside a process substitution:
+# bash never inspects a substituted subshell's status and `pipefail` does not
+# reach into one, so a failed or truncated listing would arrive here as a set
+# of missing IDs and blame the slice document for a build problem.
+if ! cargo nextest list --all-features >"$listing"; then
+  printf '%s\n' 'cargo nextest list failed; the acceptance IDs are unchecked'
+  exit 1
+fi
+
+mapfile -t actual < <(awk '
   $1 ~ /::bin\// { print $2; next }
   { prefix=$1; sub(/^claude-session::/, "", prefix); print prefix "::" $2 }
-')
+' "$listing")
 
+if ((${#actual[@]} == 0)); then
+  printf '%s\n' 'cargo nextest list named no test; the acceptance IDs are unchecked'
+  exit 1
+fi
+
+unresolved=()
 for test_id in "${named[@]}"; do
   if ! printf '%s\n' "${actual[@]}" | grep -Fxq -- "$test_id"; then
-    printf 'unresolved acceptance test ID: %s\n' "$test_id"
-    exit 1
+    unresolved+=("$test_id")
   fi
 done
+
+# Report the whole set against both totals. One unresolved ID out of many
+# reads as a stale or partial build, a large share as slice drift; the first
+# mismatch alone cannot tell those apart.
+if ((${#unresolved[@]} > 0)); then
+  printf '%d named, %d listed, %d unresolved\n' \
+    "${#named[@]}" "${#actual[@]}" "${#unresolved[@]}"
+  printf 'unresolved acceptance test ID: %s\n' "${unresolved[@]}"
+  exit 1
+fi
 
 fixture=(alpha alpha)
 [[ $(printf '%s\n' "${fixture[@]}" | sort | uniq -d) == alpha ]] || {
