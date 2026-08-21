@@ -47,26 +47,6 @@
             ./xtask
           ];
         };
-        # The devshell serves the working tree, never a store snapshot. Putting
-        # `packages.default` on PATH pins the binary to whatever the flake
-        # evaluated at shell entry, so it silently lags every edit made since,
-        # and a manual check then reports behaviour the tree no longer has.
-        #
-        # Build first, then `exec` the real binary: the shim leaves no process
-        # between the caller and the wrapper, so the signals, streams, and
-        # status a manual passthrough check observes are the ones a direct
-        # invocation produces (ADR-0084). `cargo run` would supervise instead,
-        # which is the contract under test.
-        devWrapper = pkgs.writeShellApplication {
-          name = "claude-session-rs";
-          runtimeInputs = [ toolchain ];
-          text = ''
-            root="$(dirname "$(cargo locate-project --workspace --message-format plain)")"
-            cargo build --quiet --manifest-path "$root/Cargo.toml" \
-              --package claude-session --all-features
-            exec "''${CARGO_TARGET_DIR:-$root/target}/debug/claude-session-rs" "$@"
-          '';
-        };
       in
       {
         # `nix fmt` uses the RFC 166 formatter (also on PATH for the pre-commit hook).
@@ -134,11 +114,10 @@
             # controlling terminal. Without it the tests would read those
             # binaries off the host PATH, which self-containment forbids.
             pkgs.util-linux
-            # The wrapper itself, so entering the shell (or `direnv allow`) puts
-            # `claude-session-rs` on PATH without a separate install step. The
-            # shim, not `packages.${system}.default`, so what PATH resolves is
-            # the working tree rather than the last evaluation of it.
-            devWrapper
+            # The wrapper itself is deliberately absent. `just install` owns the
+            # `claude-session-rs` on PATH, so entering this shell shadows nothing
+            # and one binary answers everywhere. Use `just run` for the working
+            # tree, which is unambiguous about what it builds.
           ];
           # native deps for -sys crates, uncomment as needed:
           # buildInputs = [ pkgs.openssl ];
