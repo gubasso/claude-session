@@ -256,6 +256,24 @@ tracked:
       - docs/guides/releasing.md
       - release-plz.toml
 
+  - path: docs/reference/sessions.md
+    last_checked: 2026-08-21
+    cadence: monthly
+    why: The name a session report carries comes from the child's own peer registration, an undocumented record whose fields, spelling, and location the child may change without a note anywhere a reader would look.
+    revalidate: >-
+      Launch the child through the wrapper and read the registration it writes
+      under the shared peer registry. Confirm the record is still keyed by
+      process identifier, still carries `name` and `procStart`, and that
+      `procStart` still counts the same clock ticks the witness records, since
+      that equality is what proves whose name a row carries. Confirm a rename
+      inside the child still reaches the record. A changed record costs a row
+      its name and never gives it a wrong one, so this entry reports a lost
+      feature rather than a defect.
+    dependents:
+      - docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
+      - src/domain/registration.rs
+      - src/services/session/gc.rs
+
   - path: docs/reference/xdg-storage.md
     last_checked: 2026-08-12
     cadence: monthly

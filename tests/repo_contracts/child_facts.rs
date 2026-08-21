@@ -44,11 +44,21 @@ const LITERALS: &[&str] = &[
     // covers `ANTHROPIC_`, `CLAUDE_CODE_`, and `CLAUDE_CONFIG_`, and the
     // child's credential-store variable is in none of them.
     "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+    // A key inside the child's own peer registration, which the report reads
+    // to name a session as its reader does (ADR-0114). Its companion in that
+    // record is `name`, an ordinary English word this scan cannot reach.
+    "procStart",
 ];
 
-/// The obligations ADR-0089 names, plus the temporary state a contested carry
-/// sits in while a question decides it.
-const OBLIGATIONS: &[&str] = &["launch", "no-collision", "scope-our-claim", "contested"];
+/// The obligations ADR-0089 names, as amended by ADR-0114, plus the temporary
+/// state a contested carry sits in while a question decides it.
+const OBLIGATIONS: &[&str] = &[
+    "launch",
+    "no-collision",
+    "scope-our-claim",
+    "name-the-subject",
+    "contested",
+];
 
 /// Text this repository authors. A binary or generated file carries no carry
 /// decision, and `tree` already excludes the build directories.

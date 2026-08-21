@@ -4,12 +4,18 @@
 //! a script was always meant to look ([ADR-0093]).
 //!
 //! A list is read by scanning, not by reading sentences, so this renders one
-//! aligned row per session and nothing else: the verdict, whose account it is,
-//! the directory that holds it, and the short reason behind the verdict. The
-//! long form of any reason lives in [sessions]; a report that explained itself
-//! on every row would bury the rows it exists to show.
+//! table and nothing else: the verdict, the session, whose account it is, and
+//! the short reason behind the verdict. The long form of any reason lives in
+//! [sessions]; a report that explained itself on every row would bury the rows
+//! it exists to show.
+//!
+//! A session is named as its reader knows it — the name the child registered,
+//! and the directory only where there is no such name ([ADR-0114]). The
+//! directory is on every row of the document beside this one, which is where a
+//! caller that wants the wrapper's own identifier was always meant to look.
 //!
 //! [ADR-0093]: ../../../docs/decisions/ADR-0093-write-every-non-machine-surface-for-a-person.md
+//! [ADR-0114]: ../../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
 //! [sessions]: ../../../docs/reference/sessions.md
 
 #![allow(
@@ -23,7 +29,7 @@ use crate::{
         witness::{Ground, Verdict},
     },
     services::session::gc::SessionFinding,
-    ui::prose::{INDENT, Palette, paragraph, plural, wrap},
+    ui::prose::{INDENT, Palette, paragraph, plural, table, wrap},
 };
 
 /// The short reason a row carries, in the column beside it.
@@ -56,13 +62,35 @@ const fn shade(verdict: Verdict) -> CheckStatus {
     }
 }
 
-/// Pads `text` to `width`, or returns it whole when it is already wider.
-fn column(text: &str, width: usize) -> String {
-    let mut out = text.to_owned();
-    for _ in text.chars().count()..width {
-        out.push(' ');
+/// The columns a row is read across, in scanning order.
+///
+/// The verdict first, because it is what a reader is scanning for; the session
+/// next, because it is what they act on; the account and the reason after,
+/// because they qualify a row already found.
+const COLUMNS: &[&str] = &["status", "session", "account", "why"];
+
+/// Names one session the way its reader does.
+///
+/// The child's name when a registration proved to be that agent's, and the
+/// directory otherwise. The fallback is not a placeholder: an unnamed session
+/// is one no reachable registration accounts for, and its directory is the
+/// only name anybody has for it ([ADR-0114]).
+///
+/// [ADR-0114]: ../../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
+fn subject(finding: &SessionFinding) -> &str {
+    finding
+        .name
+        .as_deref()
+        .unwrap_or_else(|| finding.session.as_str())
+}
+
+/// The reason column: the ground as a phrase, and the reader's own row marked.
+fn why(finding: &SessionFinding) -> String {
+    let mut reason = because(finding.ground).to_owned();
+    if finding.current {
+        reason.push_str(", this session");
     }
-    out
+    reason
 }
 
 /// Renders every session directory and its verdict.
@@ -77,41 +105,24 @@ pub(super) fn list(palette: Palette, findings: &[SessionFinding]) -> String {
             ))
         );
     }
-    let widths = (
-        findings
-            .iter()
-            .map(|it| it.verdict.as_str().chars().count() + 2)
-            .max()
-            .unwrap_or_default(),
-        findings
-            .iter()
-            .map(|it| it.account.as_str().chars().count())
-            .max()
-            .unwrap_or_default(),
-        findings
-            .iter()
-            .map(|it| it.session.as_str().chars().count())
-            .max()
-            .unwrap_or_default(),
-    );
-    let mut out = format!("{}\n\n", palette.heading("Sessions"));
-    for finding in findings {
+    let cells: Vec<Vec<String>> = findings
+        .iter()
+        .map(|finding| {
+            vec![
+                format!("[{}]", finding.verdict.as_str()),
+                subject(finding).to_owned(),
+                finding.account.as_str().to_owned(),
+                why(finding),
+            ]
+        })
+        .collect();
+    let (header, rows) = table(COLUMNS, &cells);
+    let mut out = format!("{}\n\n{header}", palette.heading("Sessions"));
+    for (finding, row) in findings.iter().zip(rows) {
+        // Laid out plain, then coloured, so colour cannot move a column: the
+        // token the palette replaces is the one already sitting in the row.
         let token = format!("[{}]", finding.verdict.as_str());
-        let mut reason = because(finding.ground).to_owned();
-        if finding.current {
-            reason.push_str(", this session");
-        }
-        let row = format!(
-            "{INDENT}{}  {}  {}  {reason}",
-            column(&token, widths.0),
-            column(finding.account.as_str(), widths.1),
-            column(finding.session.as_str(), widths.2),
-        );
-        out.push_str(&palette.recolour_token(
-            format!("{}\n", row.trim_end()),
-            &token,
-            shade(finding.verdict),
-        ));
+        out.push_str(&palette.recolour_token(format!("{row}\n"), &token, shade(finding.verdict)));
     }
     out.push('\n');
     out.push_str(&summary(findings));

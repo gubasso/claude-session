@@ -45,3 +45,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 033 dead-session-collection — done — 2 implementation sessions — after 028 and 032; landed in one session, and the tty rung ignoring boot turned out to be what lets a slot's history survive a reboot
 - 035 total-session-accounting — done — 1 implementation session — after 033; superseded that slice's third verdict, and the reading that found it also found a report row claiming a child was running
 - 036 agent-keyed-sessions — done — 2 implementation sessions — after 035; landed in one session, and keying by the process turned out to retire the alias ground rather than judge it
+- 037 session-report-by-name — done — 1 implementation session — after 036; landed in one session, and the join against the witness turned out to be what makes a borrowed name safe to show at all

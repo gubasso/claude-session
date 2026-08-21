@@ -10,6 +10,7 @@
 #   launch          the wrapper sets it, or passes it in the argument vector
 #   no-collision    the child's own spelling, which passthrough must not claim
 #   scope-our-claim child behaviour carried so the wrapper does not over-claim
+#   name-the-subject the child's name for a thing a wrapper report is about
 #   contested       carried today, with an open question deciding whether it stays
 #
 # `contested` is temporary by construction: its `why` names the question, and the
@@ -123,6 +124,16 @@ carried:
       - src/services/child.rs
       - tests/accounts.rs
       - tests/passthrough.rs
+
+  - fact: procStart
+    obligation: name-the-subject
+    why: The wrapper reads the child's peer registration to name a session in its own report, because the reader knows a session by the name the child gives it and not by the directory the wrapper made (ADR-0114). This field is half the join that proves whose name it is, against the witness the launch wrote, so a reissued process identifier cannot lend a live agent's name to a dead session. The record's `name` key is carried against the same obligation and is an ordinary English word the discovery scan cannot see, the limit this file's header states and ../plan/open-questions.md Q-012 owns.
+    sites:
+      - docs/plan/open-questions.md
+      - docs/reference/research-tracking.yaml
+      - docs/reference/sessions.md
+      - src/domain/registration.rs
+      - tests/sessions_gc.rs
 
   - fact: hasTrustDialogAccepted
     obligation: launch

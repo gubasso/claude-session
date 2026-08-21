@@ -17,6 +17,8 @@ use crate::{
         identifier::Identifier,
         namespace::Kind,
         paths::XdgPaths,
+        peers::Scope,
+        registration::Registration,
         witness::{self, Ground, Marker, Observed, Process, Verdict},
     },
     error::{AppError, Diagnostic, ErrorKind},
@@ -38,6 +40,11 @@ pub(crate) struct SessionFinding {
     pub(crate) ground: Ground,
     /// The process the record names, absent when no record could be read.
     pub(crate) pid: Option<u32>,
+    /// The name the child registered for that process, absent when no
+    /// registration this run can reach names it ([ADR-0114]).
+    ///
+    /// [ADR-0114]: ../../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
+    pub(crate) name: Option<String>,
     /// Whether the reader is running inside this session's agent.
     pub(crate) current: bool,
     /// The session directory.
@@ -61,14 +68,17 @@ struct Observatory {
     /// own: a command is never an agent, so the only session it is "in" is an
     /// agent it descends from.
     lineage: Vec<(u32, u64)>,
+    /// The names the child registered in this run's peer scope, read once.
+    registrations: Vec<Registration>,
 }
 
 impl Observatory {
-    fn capture() -> Self {
+    fn capture(paths: &XdgPaths) -> Self {
         Self {
             namespace: host::namespace(Kind::Pid).map(|space| space.id().clone()),
             boot: host::boot_id(),
             lineage: host::lineage(),
+            registrations: registrations(paths),
         }
     }
 
@@ -96,6 +106,20 @@ impl Observatory {
             boot: self.boot.clone(),
             process,
         }
+    }
+
+    /// Returns the name the child registered for the process a record names.
+    ///
+    /// Both halves of the pair have to match, so a registration a live agent
+    /// wrote cannot lend its name to the exited session that ran under the
+    /// same identifier ([ADR-0114]).
+    ///
+    /// [ADR-0114]: ../../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
+    fn named(&self, marker: &Marker) -> Option<String> {
+        self.registrations
+            .iter()
+            .find(|registration| registration.names(marker.pid(), marker.started()))
+            .map(|registration| registration.name().to_owned())
     }
 
     /// Reports whether the reader descends from the recorded process.
@@ -140,8 +164,8 @@ fn judge_directory(
 /// Findings are ordered by account, then namespace, then session, so two
 /// surveys of one unchanged tree report identically.
 pub(crate) fn survey(context: &AppContext) -> Result<Vec<SessionFinding>, AppError> {
-    let observatory = Observatory::capture();
     let paths = context.paths();
+    let observatory = Observatory::capture(paths);
     let mut findings = Vec::new();
     for account in identifier_directories(&paths.accounts())? {
         findings.extend(survey_account(paths, &observatory, &account)?);
@@ -168,6 +192,7 @@ fn survey_account(
                 verdict: ground.verdict(),
                 ground,
                 pid: marker.as_ref().map(Marker::pid),
+                name: marker.as_ref().and_then(|it| observatory.named(it)),
                 // The ancestry is read in this run's namespace and under this
                 // boot, so a record naming neither cannot be the agent this
                 // reader is inside however its pair compares. `Running` is the
@@ -200,7 +225,7 @@ pub(crate) fn collect(
 ) -> Result<Collection, AppError> {
     let paths = context.paths();
     let state = paths.state();
-    let observatory = Observatory::capture();
+    let observatory = Observatory::capture(paths);
     let mut removed = Vec::new();
     let mut pruned_namespaces = 0;
     let mut accounts: Vec<&Identifier> =
@@ -278,7 +303,7 @@ pub(crate) fn collect(
 ///
 /// [ADR-0113]: ../../../docs/decisions/ADR-0113-key-a-session-to-its-running-agent.md
 pub(crate) fn sweep(context: &AppContext, account: &Identifier) -> Result<usize, AppError> {
-    let observatory = Observatory::capture();
+    let observatory = Observatory::capture(context.paths());
     let dead: Vec<SessionFinding> = survey_account(context.paths(), &observatory, account)?
         .into_iter()
         .filter(|finding| matches!(finding.verdict, Verdict::Dead))
@@ -351,6 +376,54 @@ fn identifier_directories(parent: &Path) -> Result<Vec<Identifier>, AppError> {
         .collect();
     names.sort_by(|left, right| left.as_str().cmp(right.as_str()));
     Ok(names)
+}
+
+/// Reads the child's registrations for this run's peer scope.
+///
+/// One directory read, shared across every judgment, because a survey asks the
+/// same question of every row. A scope this run cannot derive, a registry that
+/// is not there, and a record that does not parse all name nothing: the name is
+/// decoration on a report the verdicts already carry, so every failure here
+/// costs a row its name and nothing else ([ADR-0114]).
+///
+/// The scope is this run's own, which is the only registry it can reach. A
+/// session of another boot or another mount namespace keeps its directory name,
+/// which is what the reader would have seen before this existed.
+///
+/// [ADR-0114]: ../../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
+fn registrations(paths: &XdgPaths) -> Vec<Registration> {
+    let scope = host::boot_id().and_then(|boot| {
+        host::namespace_link(Kind::Mount).and_then(|link| Scope::derive(&boot, &link))
+    });
+    let Some(scope) = scope else {
+        return Vec::new();
+    };
+    let registry = paths.peer_registry(scope.boot(), scope.namespace());
+    let Ok(entries) = SystemFileSystem::dir_entries(&registry) else {
+        return Vec::new();
+    };
+    entries
+        .iter()
+        .filter_map(|entry| read_registration(&registry.join(entry)))
+        .collect()
+}
+
+/// Reads one registration, treating anything unreadable as no registration.
+///
+/// Guarded like the witness beside it, and for the same reason: bytes reached
+/// through a symbolic link or owned by another user must not answer for a
+/// session in a tree this wrapper owns ([ADR-0061]). The mode is not judged —
+/// the child writes these, and its choice of mode is its own.
+///
+/// [ADR-0061]: ../../../docs/decisions/ADR-0061-protect-storage-from-accidental-local-drift.md
+fn read_registration(path: &Path) -> Option<Registration> {
+    let facts = SystemFileSystem::look(path).ok()??;
+    if facts.symlink || !facts.regular || facts.uid != rustix::process::getuid().as_raw() {
+        return None;
+    }
+    std::fs::read(path)
+        .ok()
+        .and_then(|bytes| Registration::from_bytes(&bytes))
 }
 
 /// Reads one witness record, treating anything unreadable as no record.

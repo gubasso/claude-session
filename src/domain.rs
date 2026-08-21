@@ -16,6 +16,7 @@ pub(crate) mod paths;
 pub(crate) mod peers;
 pub(crate) mod pointer;
 pub(crate) mod profile;
+pub(crate) mod registration;
 pub(crate) mod secret;
 pub(crate) mod strategy;
 pub(crate) mod witness;

@@ -141,6 +141,55 @@ fn row(document: &serde_json::Value, session: &str) -> serde_json::Value {
         .clone()
 }
 
+/// Returns the shared peer registry a launch linked this session's `sessions`
+/// name to, which is where the child writes its registrations.
+fn registry(session: &Path) -> PathBuf {
+    fs::read_link(session.join("sessions")).expect("the registry link a launch declares")
+}
+
+/// Plants the registration the child writes when it starts a session.
+///
+/// The field set is the child's, reduced to what the report reads: the process
+/// the session runs as, the start time that proves whose registration it is,
+/// and the name a person knows it by.
+fn register(registry: &Path, pid: u32, ticks: u64, name: &str) {
+    fs::write(
+        registry.join(format!("{pid}.json")),
+        serde_json::to_vec(&serde_json::json!({
+            "pid": pid,
+            "sessionId": "0f9a1c33-6f1e-4c21-9f3f-b0a2d4e6c810",
+            "procStart": ticks.to_string(),
+            "name": name,
+            "nameSource": "derived",
+        }))
+        .expect("registration"),
+    )
+    .expect("registration file");
+}
+
+/// Returns the human `session list` report.
+fn session_text(harness: &Harness) -> String {
+    let output = harness
+        .assert_command()
+        .args(["session", "list"])
+        .output()
+        .expect("human list");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+/// Returns the row of the human report carrying one subject.
+fn text_row(text: &str, subject: &str) -> String {
+    text.lines()
+        .find(|line| line.split_whitespace().any(|cell| cell == subject))
+        .unwrap_or_else(|| panic!("no row for {subject}: {text}"))
+        .to_owned()
+}
+
 /// Slice 036 acceptance: a launch records the agent it is about to become,
 /// named by the process it will run as and the time that process started.
 #[test]
@@ -660,4 +709,175 @@ fn a_declined_prompt_removes_nothing_and_exits_zero() {
     }
     assert!(dead.exists(), "nothing was removed");
     assert!(stray.exists(), "nothing was removed either");
+}
+
+/// Slice 037 acceptance: a row names its session the way its reader does.
+#[test]
+fn a_session_is_named_as_the_child_registered_it() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the launch runs"
+    );
+    let namespace = only_namespace_dir(&harness, "companion");
+    let real = recorded(&namespace);
+    let registry = registry(&only_session_dir_named_agent(&namespace));
+    let live = plant_live(&namespace, &real, "liveslot");
+    let pid = std::process::id();
+    register(&registry, pid, started(pid), "claude-session-53");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    assert_eq!(
+        row(&document, "liveslot")["name"],
+        "claude-session-53",
+        "the document carries the name and the directory both: {document}"
+    );
+    let text = session_text(&harness);
+    let named = text_row(&text, "claude-session-53");
+    assert!(
+        named.contains("[live]") && !named.contains("liveslot"),
+        "the row names the session as the child does: {named}"
+    );
+    assert!(live.exists(), "the report changed nothing about the tree");
+}
+
+/// Slice 037 acceptance: a process identifier is reused within one boot, so a
+/// registration must not lend a live agent's name to the session that ran
+/// under the same number and has exited.
+#[test]
+fn a_registration_of_another_start_time_names_nothing() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the launch runs"
+    );
+    let namespace = only_namespace_dir(&harness, "companion");
+    let real = recorded(&namespace);
+    let registry = registry(&only_session_dir_named_agent(&namespace));
+    // The dead fixture is this process's identifier at a start time no process
+    // of it has, which is exactly the reissue the pair defends against.
+    plant_dead(&namespace, &real, "deadslot");
+    let pid = std::process::id();
+    register(&registry, pid, started(pid), "claude-session-53");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    assert!(
+        row(&document, "deadslot").get("name").is_none(),
+        "a registration the witness does not match names nothing: {document}"
+    );
+    let text = session_text(&harness);
+    assert!(
+        !text.contains("claude-session-53"),
+        "and no row borrows it: {text}"
+    );
+    assert!(
+        text_row(&text, "deadslot").contains("[dead]"),
+        "the session keeps its directory name: {text}"
+    );
+}
+
+/// Slice 037 acceptance: a session no registration accounts for is named by
+/// its directory, which is the only name anybody has for it.
+#[test]
+fn an_unregistered_session_is_named_by_its_directory() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the launch runs"
+    );
+    let namespace = only_namespace_dir(&harness, "companion");
+    let real = recorded(&namespace);
+    plant_live(&namespace, &real, "liveslot");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    assert!(
+        row(&document, "liveslot").get("name").is_none(),
+        "{document}"
+    );
+    assert!(
+        text_row(&session_text(&harness), "liveslot").contains("[live]"),
+        "the row is still there, named by its directory"
+    );
+}
+
+/// Slice 037 acceptance: the report is text the wrapper lays out itself, so a
+/// name that could move a column or forge a status word is refused rather than
+/// rendered.
+#[test]
+fn a_registered_name_holding_a_control_character_is_refused() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the launch runs"
+    );
+    let namespace = only_namespace_dir(&harness, "companion");
+    let real = recorded(&namespace);
+    let registry = registry(&only_session_dir_named_agent(&namespace));
+    plant_live(&namespace, &real, "liveslot");
+    let pid = std::process::id();
+    register(&registry, pid, started(pid), "\u{1b}[31m[live]\u{1b}[0m");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    assert!(
+        row(&document, "liveslot").get("name").is_none(),
+        "{document}"
+    );
+    let text = session_text(&harness);
+    assert!(
+        !text.contains('\u{1b}'),
+        "no escape byte reaches the report: {text:?}"
+    );
+    assert!(text_row(&text, "liveslot").contains("[live]"), "{text}");
+}
+
+/// Slice 037 acceptance: the rows are one table, laid out from the rows alone.
+/// A column that answered to the terminal would make these bytes unpinnable.
+#[test]
+fn the_report_lays_its_rows_out_as_one_table() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the launch runs"
+    );
+    let namespace = only_namespace_dir(&harness, "companion");
+    let real = recorded(&namespace);
+    let registry = registry(&only_session_dir_named_agent(&namespace));
+    plant_live(&namespace, &real, "liveslot");
+    plant_dead(&namespace, &real, "deadslot");
+    let pid = std::process::id();
+    register(&registry, pid, started(pid), "claude-session-53");
+    let text = session_text(&harness);
+    let mut lines = text.lines();
+    assert_eq!(lines.next(), Some("Sessions"), "{text}");
+    assert_eq!(lines.next(), Some(""), "{text}");
+    let header = lines.next().expect("the column names").to_owned();
+    for column in ["status", "session", "account", "why"] {
+        assert!(header.contains(column), "{header}");
+    }
+    let rule = lines.next().expect("the rule under them");
+    assert!(
+        rule.trim().chars().all(|c| c == '\u{2500}' || c == ' '),
+        "the rule is a rule: {rule:?}"
+    );
+    // Each column's rule is that column's full width, so the rule is as wide
+    // as the widest line the table can produce and no line overruns it.
+    let widest = text
+        .lines()
+        .skip(2)
+        .take_while(|line| !line.trim().is_empty())
+        .map(|line| line.chars().count())
+        .max()
+        .expect("a table");
+    assert_eq!(rule.chars().count(), widest, "the rule spans every column");
+    // Every column starts at one offset, which is what makes the report
+    // scannable and what a terminal-driven layout would break.
+    let at = |line: &str, column: &str| line.find(column).expect("a column");
+    let named = text_row(&text, "claude-session-53");
+    let unnamed = text_row(&text, "deadslot");
+    assert_eq!(
+        at(&named, "claude-session-53"),
+        at(&unnamed, "deadslot"),
+        "the session column is one column: {text}"
+    );
+    assert_eq!(
+        at(&named, "companion"),
+        at(&unnamed, "companion"),
+        "so is the account column: {text}"
+    );
 }

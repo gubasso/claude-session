@@ -17,6 +17,10 @@ pub(crate) const BODY_INDENT: usize = 13;
 pub(crate) const WRAP_AT: usize = 76;
 /// The indent a report's body sits at under its heading.
 pub(crate) const INDENT: &str = "  ";
+/// The gap between two table columns.
+const GUTTER: &str = "  ";
+/// The character the rule under a table's header row is drawn with.
+const RULE: char = '\u{2500}';
 
 /// Wraps `text` at [`WRAP_AT`], prefixing the first line and the rest apart.
 ///
@@ -45,6 +49,57 @@ pub(crate) fn wrap(text: &str, first_prefix: &str, continuation: &str) -> String
         out.push('\n');
     }
     out
+}
+
+/// Lays a table out at columns computed from its own rows.
+///
+/// Returns the header block — the column names and the rule under them — and
+/// one laid-out line per row, separately, because a row is coloured after it
+/// is laid out and the header carries no colour at all. Every column pads to
+/// the widest cell in it, header included, and the last column is not padded,
+/// so the same rows produce the same bytes into a pipe and into a terminal
+/// ([presentation]). Nothing here reads the terminal, and nothing is cut to
+/// fit one: a report that dropped half a name would be answering a question
+/// about the window rather than about the sessions.
+///
+/// A row shorter than the header is padded with empty cells rather than
+/// refused, so a caller cannot make the layout disagree with itself.
+///
+/// [presentation]: ../../docs/reference/presentation.md
+pub(crate) fn table(headers: &[&str], rows: &[Vec<String>]) -> (String, Vec<String>) {
+    let widths: Vec<usize> = headers
+        .iter()
+        .enumerate()
+        .map(|(column, header)| {
+            rows.iter()
+                .filter_map(|row| row.get(column))
+                .map(|cell| cell.chars().count())
+                .chain(std::iter::once(header.chars().count()))
+                .max()
+                .unwrap_or_default()
+        })
+        .collect();
+    let lay_out = |cells: &[String]| {
+        let mut line = INDENT.to_owned();
+        for (column, width) in widths.iter().enumerate() {
+            if column > 0 {
+                line.push_str(GUTTER);
+            }
+            let cell = cells.get(column).map_or("", String::as_str);
+            line.push_str(cell);
+            for _ in cell.chars().count()..*width {
+                line.push(' ');
+            }
+        }
+        line.trim_end().to_owned()
+    };
+    let names: Vec<String> = headers.iter().map(|header| (*header).to_owned()).collect();
+    let rule: Vec<String> = widths
+        .iter()
+        .map(|width| RULE.to_string().repeat(*width))
+        .collect();
+    let header = format!("{}\n{}\n", lay_out(&names), lay_out(&rule));
+    (header, rows.iter().map(|row| lay_out(row)).collect())
 }
 
 /// Wraps one paragraph at the shared body indent.
@@ -151,6 +206,52 @@ mod tests {
         ] {
             assert_eq!(plain, strip(&decorated));
         }
+    }
+
+    /// The columns come from the rows, so two callers with the same rows get
+    /// the same bytes whatever they are running under.
+    #[test]
+    fn a_table_pads_every_column_to_its_widest_cell() {
+        let (header, rows) = table(
+            &["status", "session", "why"],
+            &[
+                vec![
+                    "[live]".to_owned(),
+                    "claude-session-53".to_owned(),
+                    "running".to_owned(),
+                ],
+                vec![
+                    "[unknown]".to_owned(),
+                    "agent-9-1".to_owned(),
+                    "no record of what it was".to_owned(),
+                ],
+            ],
+        );
+        let lines: Vec<&str> = header.lines().collect();
+        assert_eq!(lines[0], "  status     session            why");
+        assert_eq!(
+            lines[1],
+            "  ─────────  ─────────────────  ────────────────────────"
+        );
+        assert_eq!(rows[0], "  [live]     claude-session-53  running");
+        assert_eq!(
+            rows[1],
+            "  [unknown]  agent-9-1          no record of what it was"
+        );
+    }
+
+    /// The last column is not padded, so no row carries trailing blanks a
+    /// golden test would have to pin and a copy would carry away.
+    #[test]
+    fn a_table_row_ends_at_its_last_character() {
+        let (header, rows) = table(
+            &["one", "two"],
+            &[vec!["a".to_owned(), "b".to_owned()], vec!["c".to_owned()]],
+        );
+        for line in header.lines().chain(rows.iter().map(String::as_str)) {
+            assert_eq!(line, line.trim_end(), "{line:?} carries trailing blanks");
+        }
+        assert_eq!(rows[1], "  c");
     }
 
     /// Removes every SGR sequence, which is the only escape shape emitted.

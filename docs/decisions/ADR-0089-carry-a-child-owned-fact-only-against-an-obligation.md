@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-[ADR-0088](./ADR-0088-model-nothing-the-child-already-owns.md) removed one list of the child's settings keys. The rule it applied is broader than the record carrying it, and the repository was not clean under it: a shaped slice promised a guide only writable by importing a variable the wrapper never sets, and `prior-art.md` carried a table of child behaviour no obligation rested on. Nothing would have caught either.
+[ADR-0088](./ADR-0088-model-nothing-the-child-already-owns.md) removed one list of the child's settings keys. The rule it applied is broader than that record, and the repository was not clean under it: a shaped slice promised a guide only writable by importing a variable the wrapper never sets, and `prior-art.md` carried a table of child behaviour no obligation rested on. Nothing would have caught either.
 
 ## Considered Options
 
@@ -22,7 +22,7 @@ The credential mechanisms outranking a selected account are scope-our-claim: the
 
 ## Consequences
 
-- Good: shaping meets the rule before the work, rather than a reviewer after it.
+- Good: shaping meets the rule before the work, not a reviewer after it.
 - Good: a removed carry stops being a maintenance obligation at all.
 - Bad: the obligations are a judgement, and a contested carry needs a question first.
 - Bad: a mechanism the wrapper does not name leaves the warning quiet.
@@ -31,4 +31,4 @@ The credential mechanisms outranking a selected account are scope-our-claim: the
 
 Accepted
 
-Amends [ADR-0088](./ADR-0088-model-nothing-the-child-already-owns.md) past settings keys, and [ADR-0044](./ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md) and [ADR-0057](./ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md) by naming the obligation each already rested on.
+Amends [ADR-0088](./ADR-0088-model-nothing-the-child-already-owns.md) past settings keys, and [ADR-0044](./ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md) and [ADR-0057](./ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md) by naming the obligation each already rested on. Amended by [ADR-0114](./ADR-0114-name-a-reported-session-as-the-child-does.md).

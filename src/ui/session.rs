@@ -53,6 +53,14 @@ fn finding_row(finding: &SessionFinding) -> serde_json::Value {
     if let Some(pid) = finding.pid {
         value["pid"] = pid.into();
     }
+    // Absent for the same reason and by the same rule: a session no reachable
+    // registration names carries no name, rather than a key spelling the
+    // directory that is already on the row ([ADR-0051], [ADR-0114]).
+    //
+    // [ADR-0114]: ../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
+    if let Some(name) = finding.name.as_deref() {
+        value["name"] = name.into();
+    }
     value
 }
 

@@ -68,9 +68,11 @@ Colour is emitted as four-bit SGR by the one renderer. Eight-bit and true-colour
 
 ## Tables, progress, and prompts
 
-The wrapper renders none of the three today. The one prompt each of `account remove`, `account login --token`, and `session clean` raises reaches [the controlling terminal](./cli-surface.md#the-predicate) rather than either standard stream, and states what answering costs before it asks. A progress indicator is forbidden during a passthrough for the reason a banner is: standard output belongs to the child, and standard error already carries the child's own diagnostics. Rule 3 rules out a spinner everywhere else, since it works by moving the cursor.
+One table is rendered, by [`session list`](./sessions.md#commands), and the page that owns the verb owns the surface. Every column pads to the widest cell in that report's own rows, the column name included, and the last column is not padded; nothing reads the terminal and nothing is cut to fit one, so rule 3 holds and the rows into a pipe are the rows into a terminal. Column names and the rule under them carry no colour: a column name spells its column, a rule spells nothing, and the status token and the heading stay a report's only decorated parts. A second table comes through the verb that needs it and is laid out by the same shared function, because two layout functions would put two tables at two shapes.
 
-A table or an interactive prompt arrives through the verb that needs it, which names the surface on its own page and admits any crate through [the dependency procedure](./dependencies.md#adding-a-dependency). Neither is a renderer's decision.
+The wrapper renders no progress indicator. One is forbidden during a passthrough for the reason a banner is: standard output belongs to the child, and standard error already carries the child's own diagnostics. Rule 3 rules out a spinner everywhere else, since it works by moving the cursor.
+
+The one prompt each of `account remove`, `account login --token`, and `session clean` raises reaches [the controlling terminal](./cli-surface.md#the-predicate) rather than either standard stream, and states what answering costs before it asks. An interactive prompt of any other shape arrives through the verb that needs it, which names the surface on its own page and admits any crate through [the dependency procedure](./dependencies.md#adding-a-dependency).
 
 ## Where the rule stops
 

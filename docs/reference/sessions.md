@@ -52,6 +52,16 @@ A boot that has ended answers the question without looking at any process, becau
 
 One state stops the verb instead of feeding it. A run that can name neither the namespace its directories are scoped by nor its own boot has placed no record, so every row would read `unplaced` and the collector would empty the tree on the strength of its own blindness. `session clean` refuses there, `Unavailable`, before any side effect; `session list` reports the rows and says so instead of offering the verb.
 
+## The name a row carries
+
+A directory is named `agent-<pid>-<started>`, which is the wrapper's own identifier and not a name anybody has seen. The name a person knows a session by is the child's: the one in a status line, the one its rename sets. A report therefore names each session as its reader does, and falls back to the directory only where there is no such name ([ADR-0114](../decisions/ADR-0114-name-a-reported-session-as-the-child-does.md)).
+
+The name comes from the child's own registration under the [shared peer registry](../explanation/session-isolation.md), which every session's `sessions` name links to ([ADR-0108](../decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md)). A report reads the registry of this run's own scope, takes the `name` of each registration, and keeps it only for the session whose witness the registration's process identifier and `procStart` both match. That pair is what makes the name safe: a process identifier is reused within one boot, so without the start time a live agent's registration would lend its name to the exited session that ran under the same number.
+
+Nothing else in that record is read. The working directory, the child's session identifier, and its busy state are the child's own, and no wrapper obligation reaches them ([ADR-0089](../decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md)). The record is undocumented, so its freshness is [tracked](./research-tracking.yaml).
+
+Every failure costs a row its name and nothing else: a scope this run cannot derive, a registry that is not there, a record that does not parse, a name that does not verify, and a name holding a control character all leave the row named by its directory. A name is never truncated to fit a column, and a registration never changes a verdict — liveness is the witness's question, and a registry the wrapper does not write cannot answer it.
+
 ## Commands
 
 | Command                          | Regime                                             | Effect                                                                    |
@@ -61,11 +71,11 @@ One state stops the verb instead of feeding it. A run that can name neither the 
 
 Bare `session` is malformed, like bare `account` ([ADR-0052](../decisions/ADR-0052-require-an-explicit-subcommand.md)). Requested help composes nothing, because the child owns no verb of this name.
 
-`session list` orders findings by account, namespace, then session, so two surveys of one unchanged tree report identically. The `--json` document is `{"sessions": [...]}` where each row carries `account`, `namespace`, `session`, `verdict`, `ground`, `current`, `path`, plus `pid` only when a record this version reads was read.
+`session list` orders findings by account, namespace, then session, so two surveys of one unchanged tree report identically. The `--json` document is `{"sessions": [...]}` where each row carries `account`, `namespace`, `session`, `verdict`, `ground`, `current`, `path`, plus `pid` only when a record this version reads was read and `name` only when a registration verified against that record.
 
 `current` marks the agent the reading command is running inside. A command is never an agent and never has a session directory of its own, so the only session it can be in is one it descends from; the ancestry says which, and the process identifier and start time together are what confirm it. Every row is `false` when the command is not running under an agent, which is the ordinary case from a shell.
 
-The human report is one aligned row per session — the verdict as a bracketed word, the account, the directory name, and the short reason — with nothing between the rows and the summary line under them. A list is read by scanning, so the long form of any reason lives on this page rather than in the report ([presentation](./presentation.md)).
+The human report is one table — a `status` column carrying the verdict as a bracketed word, then `session`, `account`, and `why` — with a column-name row, a rule under it, and nothing between the rows and the summary line beneath them. The `session` column carries the name above, and the directory only where there is none; the directory is on every row of the document, which is where a caller wanting it was always meant to look. A list is read by scanning, so the long form of any reason lives on this page rather than in the report, and the columns are computed from the rows alone rather than from the terminal ([presentation](./presentation.md#tables-progress-and-prompts)).
 
 `session clean` confirms on the controlling terminal, never on standard input, and the preview is part of the question: the prompt lists every directory it would delete before asking, grouped by verdict, because the two groups cost a reader different things. One question covers them all, and `--yes` skips it. Declining removes nothing and exits `0`, an outcome rather than an error. With no controlling terminal and no `--yes` it refuses `Unavailable` before any side effect, as it does when the run cannot place itself. The `--json` document is `{"removed": [...], "pruned_namespaces": n}`, with `"declined": true` added when the prompt was refused.
 
