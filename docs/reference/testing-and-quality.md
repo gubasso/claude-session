@@ -67,16 +67,19 @@ Advanced-tier tools run on demand, not in a lane. They are diagnostics for a spe
 
 Every test touching the environment or the filesystem must satisfy all of these:
 
-| Requirement          | Rule                                                                                           |
-| -------------------- | ---------------------------------------------------------------------------------------------- |
-| Temporary directory  | Fresh per test, removed after. Never shared.                                                   |
-| Child environment    | Cleared, then explicitly populated. Never inherited and patched.                               |
-| Base directories     | Every `XDG_*` variable points inside the temporary directory                                   |
-| Network              | None                                                                                           |
-| Clock                | Injected where a timestamp is observable                                                       |
-| Test-process globals | Never mutated. No environment mutation in the test process; no changing the working directory. |
+| Requirement          | Rule                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Temporary directory  | Fresh per test, removed after. Never shared.                                                                              |
+| Child environment    | Cleared, then explicitly populated. Never inherited and patched.                                                          |
+| Base directories     | Every `XDG_*` variable points inside the temporary directory                                                              |
+| Network              | None                                                                                                                      |
+| Clock                | Injected where a timestamp is observable                                                                                  |
+| Test-process globals | Never mutated. No environment mutation in the test process; no changing the working directory.                            |
+| Controlling terminal | Never the one the suite was started from. A prompting verb runs with `--yes`, detached, or on its own allocated terminal. |
 
-The last row is the one that produces the worst bugs. Both the environment and the working directory are shared across a parallel test runner, so mutating either corrupts unrelated tests roughly one run in twenty — a failure rate that trains people to re-run rather than read.
+The controlling terminal is not a stream, so clearing the environment and capturing standard input do not take it away: a confirmation addresses `/dev/tty` and finds whichever terminal the developer started the suite from. A test that invokes `account remove`, `account login --token`, or `session clean` without `--yes` therefore asks a real person and waits — passing under a runner with no terminal and hanging a `git push` on a workstation. The fixture must decide it: `detached_command` runs under `setsid` so there is no controlling terminal to find, and `terminal_command` allocates one of its own so the answer comes from the test.
+
+The last row above is the one that produces the worst bugs. Both the environment and the working directory are shared across a parallel test runner, so mutating either corrupts unrelated tests roughly one run in twenty — a failure rate that trains people to re-run rather than read.
 
 ## The recording stub
 

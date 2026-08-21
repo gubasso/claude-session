@@ -578,6 +578,12 @@ fn an_emptied_namespace_directory_is_pruned() {
 
 /// Slice 033 acceptance: with no controlling terminal and no `--yes`, `clean`
 /// refuses before any side effect.
+///
+/// Run detached, and it has to be: the prompt addresses `/dev/tty` rather than
+/// standard input, so a run that inherits one asks the developer's own
+/// terminal and waits there. `setsid` is what makes "no controlling terminal"
+/// a property of the fixture instead of a property of where the suite happens
+/// to be started from.
 #[test]
 fn clean_without_a_terminal_and_without_yes_refuses_first() {
     let harness = Harness::new();
@@ -589,12 +595,21 @@ fn clean_without_a_terminal_and_without_yes_refuses_first() {
     let real = recorded(&namespace);
     let dead = plant_dead(&namespace, &real, "deadslot");
     let output = harness
-        .assert_command()
-        .args(["session", "clean"])
+        .detached_command(&["session", "clean"])
         .output()
-        .expect("clean without a terminal");
-    assert!(!output.status.success(), "a refusal is not a success");
-    assert!(dead.exists(), "it refused before any side effect");
+        .expect("detached clean");
+    assert_eq!(
+        output.status.code(),
+        Some(69),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("--yes"),
+        "the refusal names the escape: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(dead.exists(), "nothing was removed");
 }
 
 /// Slice 033 acceptance: a declined prompt removes nothing and exits `0`, and
