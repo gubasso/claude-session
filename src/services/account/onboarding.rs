@@ -44,22 +44,22 @@ const PROJECTS: &str = "projects";
 const TRUSTED: &str = "hasTrustDialogAccepted";
 const ONBOARDED: &str = "hasCompletedProjectOnboarding";
 
-/// Resolves the child configuration file of this terminal's session directory.
+/// Resolves the child configuration file of this agent's session directory.
 ///
-/// Deriving the terminal is a syscall, which is why this is a service rather
-/// than a path method: `domain::paths` computes, and something has to ask the
-/// operating system which terminal is asking.
+/// Naming the agent is a syscall, which is why this is a service rather than a
+/// path method: `domain::paths` computes, and something has to ask the
+/// operating system which process is asking.
 fn session_config(context: &AppContext, account: &Identifier) -> Result<PathBuf, AppError> {
-    let terminal = crate::services::session::terminal(context)?;
+    let agent = crate::services::session::agent(context)?;
     Ok(context
         .paths()
-        .session_native_config(account, terminal.namespace().id(), terminal.id()))
+        .session_native_config(account, agent.namespace().id(), agent.id()))
 }
 
-/// Names the file this terminal's launch would read, for a report to cite.
+/// Names the file this launch would read, for a report to cite.
 ///
-/// `None` where the terminal itself could not be derived, which is a defect
-/// `session-terminal-derives` owns and reports on its own.
+/// `None` where the agent itself could not be named, which is a defect
+/// `session-identity-derives` owns and reports on its own.
 pub(crate) fn session_config_path(context: &AppContext, account: &Identifier) -> Option<PathBuf> {
     session_config(context, account).ok()
 }

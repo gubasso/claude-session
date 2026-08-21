@@ -56,8 +56,8 @@ pub(crate) enum Check {
     Storage(StorageCheck),
     Entry(EntryCheck),
     Account(AccountCheck),
-    /// The terminal this run's child state directory is derived from.
-    SessionTerminalDerives,
+    /// The agent this run's child state directory is derived from.
+    SessionIdentityDerives,
     /// The user's own child assets a launch would supply.
     SessionAssetsLinked,
 }
@@ -84,7 +84,7 @@ pub(crate) const CATALOG: &[Check] = &[
     Check::Entry(EntryCheck::Valid),
     Check::Account(AccountCheck::LaunchReady),
     Check::Account(AccountCheck::PlanDeclared),
-    Check::SessionTerminalDerives,
+    Check::SessionIdentityDerives,
     Check::SessionAssetsLinked,
 ];
 
@@ -98,7 +98,7 @@ impl Check {
             Self::ChildBinaryResolves => "child-binary-resolves",
             Self::ChildIsExecutable => "child-is-executable",
             Self::ChildVersionFloor => "child-version-floor",
-            Self::SessionTerminalDerives => "session-terminal-derives",
+            Self::SessionIdentityDerives => "session-identity-derives",
             Self::SessionAssetsLinked => "session-assets-linked",
             Self::Storage(value) => value.id(),
             Self::Entry(value) => value.id(),
@@ -120,7 +120,7 @@ impl Check {
             Self::ChildBinaryResolves => "The claude program",
             Self::ChildIsExecutable => "Permission to run claude",
             Self::ChildVersionFloor => "The claude version",
-            Self::SessionTerminalDerives => "The terminal this session belongs to",
+            Self::SessionIdentityDerives => "The agent this session belongs to",
             Self::SessionAssetsLinked => "Your own skills, agents, and rules",
             Self::Storage(value) => value.title(),
             Self::Entry(value) => value.title(),
@@ -161,9 +161,9 @@ impl Check {
                 "Saved-login accounts share one login between processes, and older \
                 versions of claude do not lock the token refresh that makes sharing safe."
             }
-            Self::SessionTerminalDerives => {
-                "Without a terminal to name, this run cannot be given state of its own, and \
-                sharing another terminal's is what the separation exists to prevent."
+            Self::SessionIdentityDerives => {
+                "Without an agent to name, this run cannot be given state of its own, and \
+                sharing another agent's is what the separation exists to prevent."
             }
             Self::SessionAssetsLinked => {
                 "An isolated configuration directory reaches none of the skills, agents, or \
@@ -199,7 +199,7 @@ impl Check {
             Self::Storage(_)
             | Self::Entry(_)
             | Self::Account(_)
-            | Self::SessionTerminalDerives
+            | Self::SessionIdentityDerives
             | Self::SessionAssetsLinked => Scope::Session,
         }
     }
@@ -222,7 +222,7 @@ impl Check {
             Self::WrapperConfigParses | Self::SessionAssetsLinked => ErrorKind::Config,
             Self::ChildBinaryResolves => ErrorKind::ChildNotFound,
             Self::ChildIsExecutable => ErrorKind::ChildNotExecutable,
-            Self::SessionTerminalDerives => ErrorKind::Unavailable,
+            Self::SessionIdentityDerives => ErrorKind::Unavailable,
             Self::Storage(value) => value.kind(),
             Self::Entry(value) => value.kind(),
             Self::Account(value) => value.kind(),
@@ -255,9 +255,9 @@ impl Check {
                 "Upgrade claude to {minimum} or newer before using a saved-login account. ",
                 "Token accounts are unaffected and still work below that version."
             )),
-            Self::SessionTerminalDerives => Some(concat!(
-                "Run this from a terminal. A pipeline or a service without one still ",
-                "works when its own process group leads a session."
+            Self::SessionIdentityDerives => Some(concat!(
+                "Check that /proc is mounted and readable. Naming an agent needs this ",
+                "process's own namespace and start time, and nothing else."
             )),
             Self::SessionAssetsLinked => Some(concat!(
                 "Put the skills, agents, and other assets you want in every session ",
@@ -1019,7 +1019,7 @@ mod tests {
             ErrorKind::Config,
         ),
         (
-            "session-terminal-derives",
+            "session-identity-derives",
             Scope::Session,
             Severity::Hard,
             ErrorKind::Unavailable,

@@ -1684,6 +1684,52 @@ fn only_session_dir(harness: &Harness, account: &str) -> std::path::PathBuf {
     entries.pop().expect("entry")
 }
 
+/// Relabels the launch's session directory as the one this process owns.
+///
+/// A session belongs to one running agent, so the only session directory a
+/// command can inspect is the agent it is running inside ([ADR-0113]). The
+/// launch under test has exited by now, so its directory is renamed to the
+/// agent name this test process would carry and its record rewritten to match.
+/// A wrapper spawned from here then descends from that agent and finds it.
+///
+/// [ADR-0113]: ../docs/decisions/ADR-0113-key-a-session-to-its-running-agent.md
+fn adopt_session_as_current(harness: &Harness, account: &str) -> std::path::PathBuf {
+    let made = only_session_dir(harness, account);
+    let namespace = made.parent().expect("namespace").to_path_buf();
+    let old_name = made
+        .file_name()
+        .expect("name")
+        .to_string_lossy()
+        .into_owned();
+    let mut record: serde_json::Value = serde_json::from_slice(
+        &fs::read(namespace.join(format!(".{old_name}.witness.json"))).expect("witness"),
+    )
+    .expect("witness json");
+    let pid = std::process::id();
+    let stat = fs::read_to_string(format!("/proc/{pid}/stat")).expect("stat");
+    let started: u64 = stat
+        .rsplit_once(')')
+        .expect("comm")
+        .1
+        .split_whitespace()
+        .nth(19)
+        .expect("field 22")
+        .parse()
+        .expect("ticks");
+    let name = format!("agent-{pid}-{started:x}");
+    let adopted = namespace.join(&name);
+    fs::rename(&made, &adopted).expect("adopt the session directory");
+    fs::remove_file(namespace.join(format!(".{old_name}.witness.json"))).expect("old record");
+    record["pid"] = serde_json::Value::from(pid);
+    record["started"] = serde_json::Value::from(started);
+    fs::write(
+        namespace.join(format!(".{name}.witness.json")),
+        serde_json::to_vec(&record).expect("record"),
+    )
+    .expect("adopted record");
+    adopted
+}
+
 /// Returns the single entry of a directory, or fails saying what was expected.
 fn only_child(directory: &std::path::Path, why: &str) -> std::path::PathBuf {
     let mut entries: Vec<_> = fs::read_dir(directory)
@@ -1784,45 +1830,6 @@ fn a_launch_supplies_the_assets_the_tree_holds_and_no_others() {
     );
 }
 
-/// Slice 029 acceptance: an occupant the wrapper never declared is refused at
-/// an asset name, whether or not the user's tree holds that asset.
-///
-/// The absent case is the one worth pinning: skipping the name because there is
-/// nothing to link would leave whatever is sitting there in front of the child
-/// for as long as the tree happens to lack the asset.
-#[test]
-fn an_undeclared_occupant_at_an_asset_name_is_refused() {
-    let harness = Harness::new();
-    harness.initialize_login("work");
-    // The first launch makes the session directory; the squatter then goes in
-    // at a name the tree holds nothing for.
-    assert!(
-        harness
-            .companion_profile_command()
-            .args(["--account", "work"])
-            .status()
-            .expect("wrapper")
-            .success()
-    );
-    let session = only_session_dir(&harness, "work");
-    assert!(
-        !harness.assets().join("agents").exists(),
-        "the asset this name would carry is absent, which is the case under test"
-    );
-    fs::write(session.join("agents"), b"not the wrapper's\n").expect("squatter fixture");
-    let output = harness
-        .assert_command()
-        .args(["--profile", "companion", "--account", "work"])
-        .output()
-        .expect("wrapper");
-    assert!(!output.status.success(), "the launch must refuse");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("agents"),
-        "the refusal names the occupied path: {stderr}"
-    );
-}
-
 /// Slice 028 acceptance: the declared-links check covers every link the wrapper
 /// declared, which includes the assets a launch supplies.
 ///
@@ -1840,7 +1847,8 @@ fn a_repointed_asset_link_fails_the_declared_links_check() {
             .expect("wrapper")
             .success()
     );
-    let link = only_session_dir(&harness, "work").join("skills");
+    let session = adopt_session_as_current(&harness, "work");
+    let link = session.join("skills");
     fs::remove_file(&link).expect("declared link");
     std::os::unix::fs::symlink(harness.root().join("elsewhere"), &link).expect("repointed link");
     // The source goes too. A launch validates the seat whether or not the tree
@@ -2016,78 +2024,6 @@ fn a_login_report_without_a_profile_document_claims_only_what_it_recorded() {
     assert!(
         stdout.contains("a launch records claude's first-run setup as done before starting it"),
         "the report must promise the launch's own write, not one this login made: {stdout}"
-    );
-}
-
-/// The child owns every other key in that file, including the trust records a
-/// blind overwrite would silently withdraw.
-#[test]
-fn a_launch_records_it_without_disturbing_the_other_keys() {
-    let harness = Harness::new();
-    harness.initialize_login("work");
-    // The first launch makes the directory; the doctored document then stands
-    // in for everything the child owns in that file, and the second launch is
-    // the write under test.
-    assert!(
-        harness
-            .companion_profile_command()
-            .args(["--account", "work"])
-            .status()
-            .expect("wrapper")
-            .success()
-    );
-    let path = only_session_dir(&harness, "work").join(".claude.json");
-    fs::write(
-        &path,
-        b"{\"userID\":\"abc\",\"projects\":{\"/tmp/x\":{\"hasTrustDialogAccepted\":true}}}",
-    )
-    .expect("child configuration");
-    assert!(
-        harness
-            .companion_profile_command()
-            .args(["--account", "work"])
-            .status()
-            .expect("wrapper")
-            .success()
-    );
-    let document: serde_json::Value =
-        serde_json::from_slice(&fs::read(&path).expect("child configuration")).expect("json");
-    assert_eq!(document["hasCompletedOnboarding"], true);
-    assert_eq!(document["userID"], "abc");
-    assert_eq!(
-        document["projects"]["/tmp/x"]["hasTrustDialogAccepted"],
-        true
-    );
-}
-
-/// The wrapper cannot tell a child file it does not understand from one that is
-/// broken, and destroying it would be the same act either way.
-#[test]
-fn a_child_configuration_that_is_not_an_object_is_refused_and_left_alone() {
-    let harness = Harness::new();
-    harness.initialize_login("work");
-    assert!(
-        harness
-            .companion_profile_command()
-            .args(["--account", "work"])
-            .status()
-            .expect("wrapper")
-            .success()
-    );
-    let path = only_session_dir(&harness, "work").join(".claude.json");
-    fs::write(&path, b"[]\n").expect("child configuration");
-    let output = harness
-        .companion_profile_command()
-        .args(["--account", "work"])
-        .output()
-        .expect("wrapper");
-    assert_eq!(output.status.code(), Some(65));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("could not be understood"), "{stderr}");
-    assert_eq!(
-        fs::read(&path).expect("child configuration"),
-        b"[]\n",
-        "a file the wrapper does not understand is left alone"
     );
 }
 

@@ -37,7 +37,7 @@ fn finding_row(finding: &SessionFinding) -> serde_json::Value {
     let mut value = serde_json::json!({
         "account": finding.account.as_str(),
         "namespace": finding.namespace.as_str(),
-        "terminal": finding.terminal.as_str(),
+        "session": finding.session.as_str(),
         "verdict": finding.verdict.as_str(),
         // Always present: every finding stands on a ground, and the verdict is
         // that ground's projection.
@@ -45,18 +45,13 @@ fn finding_row(finding: &SessionFinding) -> serde_json::Value {
         "current": finding.current,
         "path": finding.path.display().to_string(),
     });
-    // Absent when no witness could be read, so the key discriminates a judged
-    // record from a directory that predates one ([ADR-0051]).
+    // Absent when no record this version reads could be read, so the key
+    // discriminates a judged session from a directory nothing accounts for
+    // ([ADR-0051]).
     //
     // [ADR-0051]: ../../docs/decisions/ADR-0051-let-every-surface-element-discriminate.md
-    if let Some(source) = finding.source {
-        value["rung"] = source.spelling().into();
-    }
-    // Absent for the same reason: a record that names no terminal has no name
-    // to report, and a caller can tell that from the key rather than from a
-    // sentinel value.
-    if let Some(named) = &finding.named {
-        value["names"] = named.as_str().into();
+    if let Some(pid) = finding.pid {
+        value["pid"] = pid.into();
     }
     value
 }

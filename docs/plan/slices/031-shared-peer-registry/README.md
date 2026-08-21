@@ -52,7 +52,6 @@ Two sessions of one machine, in different terminals, projects, or accounts, appe
 
 - When two runs share one boot and one mount namespace, their session directories shall link one peer registry. -> session_storage::two_terminals_of_one_scope_link_one_registry
 - When the boot or the mount namespace differs, the derived scopes shall differ. -> domain::peers::tests::a_different_boot_or_namespace_scopes_apart
-- When a real directory occupies the linked name, a launch shall adopt its entries and replace it with the link. -> session_storage::an_existing_registry_directory_is_adopted
 - Where no scope can be derived, the launch shall proceed with an unshared registry rather than refuse.
 
 ## Rabbit holes
@@ -68,4 +67,4 @@ Two sessions of one machine list each other, existing terminals adopt their old 
 
 ## Revisions
 
-None.
+2026-08-21: the adoption acceptance line was removed, superseded by [036](../036-agent-keyed-sessions/README.md). Adoption existed for a session directory a launch inherited; a launch now creates its own, so the linked name is never occupied when the link is made. Tracked with the other unreachable guards by [Q-014](../../open-questions.md#q-014--which-launch-path-guards-survive-a-directory-that-is-always-fresh).

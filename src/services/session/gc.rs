@@ -1,23 +1,23 @@
-//! Judging and collecting per-terminal session directories.
+//! Judging and collecting per-agent session directories.
 //!
-//! This module gathers what the kernel says about each recorded witness and
-//! hands the pure judgment to `domain::witness`. The session tree is the
-//! wrapper's own, so a directory is kept only while this run can prove its
-//! terminal is still there, and everything else is garbage ([ADR-0112]).
+//! This module gathers what the kernel says about each recorded agent and hands
+//! the pure judgment to `domain::witness`. A session is one running agent, and
+//! the tree is the wrapper's own, so a directory is kept only while its agent
+//! is still running and everything else is garbage ([ADR-0112], [ADR-0113]).
 //!
 //! [ADR-0112]: ../../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
+//! [ADR-0113]: ../../../docs/decisions/ADR-0113-key-a-session-to-its-running-agent.md
 
 use std::path::{Path, PathBuf};
 
 use crate::{
-    adapters::{filesystem::SystemFileSystem, host, terminal::Terminal as _},
+    adapters::{filesystem::SystemFileSystem, host},
     context::AppContext,
     domain::{
         identifier::Identifier,
         namespace::Kind,
         paths::XdgPaths,
-        terminal::Source,
-        witness::{self, Ground, LeaderObservation, Marker, Observed, Recorded, Verdict},
+        witness::{self, Ground, Marker, Observed, Process, Verdict},
     },
     error::{AppError, Diagnostic, ErrorKind},
     services::storage::guard,
@@ -28,27 +28,23 @@ use crate::{
 pub(crate) struct SessionFinding {
     /// The account the session belongs to.
     pub(crate) account: Identifier,
-    /// The namespace directory the terminal name is unique inside.
+    /// The namespace directory the agent's process identifier is unique inside.
     pub(crate) namespace: Identifier,
-    /// The terminal directory name.
-    pub(crate) terminal: Identifier,
+    /// The session directory name.
+    pub(crate) session: Identifier,
     /// The liveness verdict, which is the ground's projection.
     pub(crate) verdict: Verdict,
     /// Why the verdict was reached, which is what a report explains.
     pub(crate) ground: Ground,
-    /// The recorded rung, absent when no witness could be read.
-    pub(crate) source: Option<Source>,
-    /// The terminal the record names, when it names one a reader would know:
-    /// the device path, or the leader's process id. Absent for a record that
-    /// names no terminal, the alias included.
-    pub(crate) named: Option<String>,
-    /// Whether this is the session the run doing the reporting belongs to.
+    /// The process the record names, absent when no record could be read.
+    pub(crate) pid: Option<u32>,
+    /// Whether the reader is running inside this session's agent.
     pub(crate) current: bool,
     /// The session directory.
     pub(crate) path: PathBuf,
 }
 
-/// What one `clean` removed.
+/// What one collection removed.
 #[derive(Clone, Debug)]
 pub(crate) struct Collection {
     /// The sessions removed, in survey order.
@@ -59,50 +55,57 @@ pub(crate) struct Collection {
 
 /// What this run observed once, shared across every judgment.
 struct Observatory {
-    mount: Option<Identifier>,
-    pid: Option<Identifier>,
+    namespace: Option<Identifier>,
     boot: Option<String>,
+    /// This process's ancestry, which is how a row is marked as the reader's
+    /// own: a command is never an agent, so the only session it is "in" is an
+    /// agent it descends from.
+    lineage: Vec<(u32, u64)>,
 }
 
 impl Observatory {
     fn capture() -> Self {
         Self {
-            mount: host::namespace(Kind::Mount).map(|space| space.id().clone()),
-            pid: host::namespace(Kind::Pid).map(|space| space.id().clone()),
+            namespace: host::namespace(Kind::Pid).map(|space| space.id().clone()),
             boot: host::boot_id(),
+            lineage: host::lineage(),
         }
     }
 
     /// Gathers the per-marker facts the pure judgment needs.
+    ///
+    /// A process that has exited is `Absent` even while the kernel still lists
+    /// it, which it does until something reaps it. The agent ended when it
+    /// exited, so a session waiting on a parent that never calls `wait` is over
+    /// too; reading the run state is what tells that apart from a running
+    /// agent, because `kill(pid, 0)` answers for both alike ([ADR-0113]).
     fn observe(&self, marker: &Marker) -> Observed {
-        let namespace = match marker.witness().namespace_kind() {
-            Kind::Mount => self.mount.clone(),
-            Kind::Pid => self.pid.clone(),
-        };
-        let device_present = match marker.witness() {
-            Recorded::Tty { device } => SystemFileSystem::look(Path::new(device))
-                .ok()
-                .map(|found| found.is_some()),
-            Recorded::SessionLeader { .. } => None,
-        };
-        let leader = match marker.witness() {
-            Recorded::SessionLeader { sid, .. } => {
-                if SystemFileSystem::process_is_live(*sid) {
-                    host::process_started(*sid).map_or(LeaderObservation::Unreadable, |started| {
-                        LeaderObservation::Running { started }
-                    })
-                } else {
-                    LeaderObservation::Absent
-                }
+        let process = if SystemFileSystem::process_is_live(marker.pid()) {
+            match host::process_stat(marker.pid()) {
+                Some(stat) if stat.exited() => Process::Absent,
+                Some(stat) => Process::Running {
+                    started: stat.started(),
+                },
+                None => Process::Unreadable,
             }
-            Recorded::Tty { .. } => LeaderObservation::Absent,
+        } else {
+            Process::Absent
         };
         Observed {
-            namespace,
+            namespace: self.namespace.clone(),
             boot: self.boot.clone(),
-            device_present,
-            leader,
+            process,
         }
+    }
+
+    /// Reports whether the reader descends from the recorded process.
+    ///
+    /// Only the ancestry: the record still has to be one this run can place,
+    /// which is the judgment's business and the caller's to pair with this.
+    fn descends_from(&self, marker: &Marker) -> bool {
+        self.lineage
+            .iter()
+            .any(|(pid, started)| *pid == marker.pid() && *started == marker.started())
     }
 }
 
@@ -122,9 +125,9 @@ fn judge_directory(
     observatory: &Observatory,
     account: &Identifier,
     namespace: &Identifier,
-    terminal: &Identifier,
+    session: &Identifier,
 ) -> (Ground, Option<Marker>) {
-    let marker = read_marker(&paths.session_witness(account, namespace, terminal))
+    let marker = read_marker(&paths.session_witness(account, namespace, session))
         .filter(|it| it.namespace() == namespace);
     let ground = marker.as_ref().map_or(Ground::Unrecorded, |it| {
         witness::judge(it, &observatory.observe(it))
@@ -134,42 +137,47 @@ fn judge_directory(
 
 /// Surveys every session directory of every account, judging each one.
 ///
-/// Findings are ordered by account, then namespace, then terminal, so two
+/// Findings are ordered by account, then namespace, then session, so two
 /// surveys of one unchanged tree report identically.
 pub(crate) fn survey(context: &AppContext) -> Result<Vec<SessionFinding>, AppError> {
     let observatory = Observatory::capture();
-    // Which row is the reader's own pane. A run that cannot name its terminal
-    // marks none, which costs the report a note and nothing else.
-    let here = context
-        .adapters()
-        .terminal()
-        .identity()
-        .ok()
-        .flatten()
-        .map(|terminal| (terminal.namespace().id().clone(), terminal.id().clone()));
     let paths = context.paths();
     let mut findings = Vec::new();
     for account in identifier_directories(&paths.accounts())? {
-        for namespace in identifier_directories(&paths.account_sessions(&account))? {
-            for terminal in identifier_directories(&paths.account_namespace(&account, &namespace))?
-            {
-                let (ground, marker) =
-                    judge_directory(paths, &observatory, &account, &namespace, &terminal);
-                let current = here
-                    .as_ref()
-                    .is_some_and(|(space, pane)| space == &namespace && pane == &terminal);
-                findings.push(SessionFinding {
-                    path: paths.account_session(&account, &namespace, &terminal),
-                    account: account.clone(),
-                    namespace: namespace.clone(),
-                    terminal,
-                    verdict: ground.verdict(),
-                    ground,
-                    source: marker.as_ref().map(|it| it.witness().source()),
-                    named: marker.as_ref().and_then(|it| named(it.witness())),
-                    current,
-                });
-            }
+        findings.extend(survey_account(paths, &observatory, &account)?);
+    }
+    Ok(findings)
+}
+
+/// Surveys one account's session directories.
+fn survey_account(
+    paths: &XdgPaths,
+    observatory: &Observatory,
+    account: &Identifier,
+) -> Result<Vec<SessionFinding>, AppError> {
+    let mut findings = Vec::new();
+    for namespace in identifier_directories(&paths.account_sessions(account))? {
+        for session in identifier_directories(&paths.account_namespace(account, &namespace))? {
+            let (ground, marker) =
+                judge_directory(paths, observatory, account, &namespace, &session);
+            findings.push(SessionFinding {
+                path: paths.account_session(account, &namespace, &session),
+                account: account.clone(),
+                namespace: namespace.clone(),
+                session,
+                verdict: ground.verdict(),
+                ground,
+                pid: marker.as_ref().map(Marker::pid),
+                // The ancestry is read in this run's namespace and under this
+                // boot, so a record naming neither cannot be the agent this
+                // reader is inside however its pair compares. `Running` is the
+                // ground that establishes both, which is why the mark is taken
+                // against the judgment rather than beside it ([ADR-0113]).
+                current: matches!(ground, Ground::Running)
+                    && marker
+                        .as_ref()
+                        .is_some_and(|it| observatory.descends_from(it)),
+            });
         }
     }
     Ok(findings)
@@ -207,19 +215,18 @@ pub(crate) fn collect(
         {
             debug_assert!(finding.verdict.collectable());
             let witness_path =
-                paths.session_witness(&finding.account, &finding.namespace, &finding.terminal);
-            // The confirmation prompt sat between the survey and this lock,
-            // and a slot can be reborn in that window — a reopened tty, a
-            // relaunched leader, a launch that recorded the witness this run
-            // could not read. Only a judgment re-taken inside the critical
-            // section is current enough to act on, so anything that has become
-            // provably live is left standing ([ADR-0112]).
+                paths.session_witness(&finding.account, &finding.namespace, &finding.session);
+            // The confirmation prompt sat between the survey and this lock, and
+            // a directory can become accountable in that window — a launch that
+            // recorded the witness this run could not read. Only a judgment
+            // re-taken inside the critical section is current enough to act on,
+            // so anything now provably live is left standing ([ADR-0112]).
             let (ground, _) = judge_directory(
                 paths,
                 &observatory,
                 &finding.account,
                 &finding.namespace,
-                &finding.terminal,
+                &finding.session,
             );
             if !ground.verdict().collectable() {
                 continue;
@@ -257,9 +264,34 @@ pub(crate) fn collect(
     })
 }
 
+/// Removes one account's provably dead sessions, at launch.
+///
+/// A session is one agent run, so a directory is created every time the wrapper
+/// launches and abandoned the moment that agent exits. Without this the tree
+/// would grow by one directory per launch forever, and the explicit verb would
+/// be the only thing holding it back — a maintenance chore the design would be
+/// imposing rather than a choice a user makes ([ADR-0113]).
+///
+/// Only `Dead` is swept, never `Unknown`. A launch is not the place to act on
+/// what could not be decided: the reader is not watching, and an undecidable
+/// directory is exactly the one a person should see named before it goes.
+///
+/// [ADR-0113]: ../../../docs/decisions/ADR-0113-key-a-session-to-its-running-agent.md
+pub(crate) fn sweep(context: &AppContext, account: &Identifier) -> Result<usize, AppError> {
+    let observatory = Observatory::capture();
+    let dead: Vec<SessionFinding> = survey_account(context.paths(), &observatory, account)?
+        .into_iter()
+        .filter(|finding| matches!(finding.verdict, Verdict::Dead))
+        .collect();
+    if dead.is_empty() {
+        return Ok(0);
+    }
+    Ok(collect(context, &dead)?.removed.len())
+}
+
 /// Removes a namespace directory once nothing meaningful is left inside.
 ///
-/// An orphan witness record — one whose terminal directory is gone, which a
+/// An orphan witness record — one whose session directory is gone, which a
 /// crash between the two removals above can leave — does not keep the
 /// directory alive: it witnesses nothing. Anything else does, so the directory
 /// stays. Returns whether the directory was removed.
@@ -274,8 +306,8 @@ fn prune_namespace(namespace: &Path) -> Result<bool, AppError> {
         let orphan = name
             .strip_prefix('.')
             .and_then(|rest| rest.strip_suffix(".witness.json"))
-            .is_some_and(|terminal| {
-                matches!(SystemFileSystem::look(&namespace.join(terminal)), Ok(None))
+            .is_some_and(|session| {
+                matches!(SystemFileSystem::look(&namespace.join(session)), Ok(None))
             });
         if orphan {
             orphans.push(namespace.join(name));
@@ -300,8 +332,8 @@ fn prune_namespace(namespace: &Path) -> Result<bool, AppError> {
 /// Lists a directory's identifier-named, non-symlink subdirectories, sorted.
 ///
 /// An absent parent is an empty answer, because an account with no sessions
-/// tree simply has no sessions. A name outside the identifier grammar is not
-/// the wrapper's writing and is left unread.
+/// simply has no sessions. A name outside the identifier grammar is not the
+/// wrapper's writing and is left unread.
 fn identifier_directories(parent: &Path) -> Result<Vec<Identifier>, AppError> {
     if matches!(SystemFileSystem::look(parent), Ok(None)) {
         return Ok(Vec::new());
@@ -338,26 +370,6 @@ fn read_marker(path: &Path) -> Option<Marker> {
     std::fs::read(path)
         .ok()
         .and_then(|bytes| Marker::from_bytes(&bytes))
-}
-
-/// Names the terminal a record witnesses, in the words its reader would use.
-///
-/// The device path for a pane and the leader's process id for a run that had
-/// none. The start time is left out: it is what tells one process from a later
-/// one wearing its id, which is a judgment input rather than a name anybody
-/// would recognise.
-///
-/// A record naming the alias every process shares names no terminal, so it
-/// gets no name. That is read from the record itself rather than from the
-/// verdict's ground, because a namespace this run cannot decide — foreign, or
-/// unplaced — never reaches the alias ground and would otherwise report a
-/// device standing for every pane at once.
-fn named(witness: &Recorded) -> Option<String> {
-    match witness {
-        Recorded::Tty { device } if device == witness::ALIAS => None,
-        Recorded::Tty { device } => Some(device.clone()),
-        Recorded::SessionLeader { sid, .. } => Some(format!("process group {sid}")),
-    }
 }
 
 fn removal_error(path: &Path, error: &dyn std::fmt::Display) -> AppError {

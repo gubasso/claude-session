@@ -52,7 +52,6 @@ A launch records the inputs that named its terminal, and `session clean` removes
 
 ## Acceptance
 
-- When a launch materialises a session directory, the wrapper shall record the witness beside it, and a second launch of the same terminal shall leave an unchanged record unwritten. -> sessions_gc::a_launch_records_the_witness_and_rewrites_it_only_on_change
 - When `session list` runs, every session directory shall carry a verdict and the ground that verdict is the projection of. -> sessions_gc::every_verdict_reports_the_ground_it_stands_on
 - When `session clean` removes a session directory, it shall remove the namespace directory holding it only once nothing but orphan records is left inside. -> sessions_gc::an_emptied_namespace_directory_is_pruned
 - When `session clean` has no terminal and no `--yes`, it shall refuse before any side effect, and a declined prompt shall exit `0`. -> sessions_gc::a_declined_prompt_removes_nothing_and_exits_zero
@@ -69,5 +68,7 @@ A launch records the inputs that named its terminal, and `session clean` removes
 A launch records its witness, `session list` tells the three states apart, `session clean` removes exactly the dead after a prompt, every owner page tells the new lifetime story, and `just hooks` is green.
 
 ## Revisions
+
+2026-08-21: the acceptance line about an unchanged record left unwritten was removed, superseded by [036](../036-agent-keyed-sessions/README.md): a session directory belongs to one agent run, so there is no relaunch into it and nothing to leave unwritten.
 
 2026-08-21: the two acceptance lines asserting three verdicts, and collection of the dead alone, were superseded by [035](../035-total-session-accounting/README.md) and replaced by two this slice's own work still holds. What was learned is that a third verdict nothing could collect was not a boundary but an accumulation: the directory it was invented for could never be claimed by any later launch either, so keeping it left the tree with entries no verb could ever reach.

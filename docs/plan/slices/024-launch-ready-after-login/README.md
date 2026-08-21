@@ -60,8 +60,6 @@ After one successful `account login`, a bare launch under that account reaches t
 ## Acceptance
 
 - When an authenticated account launches, the wrapper shall leave the child configuration the child reads recording that its first-run onboarding is complete. -> accounts::a_launch_records_the_first_run_setup_as_done
-- When that record is written, every key the child wrote beside it shall survive unchanged. -> accounts::a_launch_records_it_without_disturbing_the_other_keys
-- When that child configuration is present and is not an object, the wrapper shall refuse as `DataFormat` and shall leave the file alone. -> accounts::a_child_configuration_that_is_not_an_object_is_refused_and_left_alone
 - When a launch creates a session directory, the child shall meet its prompt rather than its first-run setup, and the wrapper shall warn about neither. -> accounts::a_launch_into_a_fresh_session_answers_onboarding_rather_than_warning
 - When `doctor` runs against a selected account whose session directory does not exist yet, the readiness check shall pass rather than report a defect the next launch repairs. -> doctor::an_unreadable_child_configuration_is_a_defect_with_its_next_action
 - When `doctor` runs with no account selected, the readiness check shall be skipped rather than reported as a defect. -> doctor::doctor_skips_inapplicable_session_checks_with_reasons
@@ -83,3 +81,5 @@ One `account login` produces an account a bare launch reaches the prompt with, a
 
 - 2026-08-14: [ADR-0105](../../../decisions/ADR-0105-seed-a-session-at-launch.md) moved the write from the login to the launch, because [028](../028-per-terminal-session-isolation/README.md) put the file the child reads in a per-terminal directory that does not exist at login. The guarantee is unchanged and the first three acceptance lines name the launch that now carries it; what a login can no longer do is answer for a terminal that has not appeared yet.
 - 2026-08-13: the login report says this in the human form only. The machine document would have carried a field that is `true` on every login the report is reached from, because the login refuses rather than reports when the record was not written, and [ADR-0051](../../../decisions/ADR-0051-let-every-surface-element-discriminate.md) refuses a surface element that discriminates nothing.
+
+2026-08-21: the two acceptance lines about a child configuration that already exists were removed, superseded by [036](../036-agent-keyed-sessions/README.md). What was learned is that both described a directory the wrapper reused between launches; a session directory now belongs to one agent run and is created empty, so there is no earlier file to preserve or refuse. The branches that would handle one are kept as defence and tracked by [Q-014](../../open-questions.md#q-014--which-launch-path-guards-survive-a-directory-that-is-always-fresh).

@@ -51,10 +51,10 @@ Composed settings are unaffected: they are keyed by profile and input digest wit
 
 Mode is chosen by `account login` and resolved deterministically on every later run. Ambient state never changes the stored mode.
 
-| Mode    | Wrapper-provided child environment                                                                                                         | Authentication owner                                                    |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `login` | `CLAUDE_CONFIG_DIR=<this terminal's session directory, under its namespace>`, `CLAUDE_SECURESTORAGE_CONFIG_DIR=<account config directory>` | Child reads and refreshes its saved login, from one file per account    |
-| `token` | The same pair, plus `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>`                                                                            | Wrapper stores or retrieves the long-lived token; the child consumes it |
+| Mode    | Wrapper-provided child environment                                                                                                      | Authentication owner                                                    |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `login` | `CLAUDE_CONFIG_DIR=<this agent's session directory, under its namespace>`, `CLAUDE_SECURESTORAGE_CONFIG_DIR=<account config directory>` | Child reads and refreshes its saved login, from one file per account    |
+| `token` | The same pair, plus `CLAUDE_CODE_OAUTH_TOKEN=<retrieved token>`                                                                         | Wrapper stores or retrieves the long-lived token; the child consumes it |
 
 In token mode, `CLAUDE_CODE_OAUTH_TOKEN` outranks a saved login that may also exist in `config/`. The wrapper reports that shadowing. It removes neither credential over it, which is a separate question from [the retirement a mode switch performs](#switching-modes): that one runs because the switch made an artifact unreachable, and shadowing leaves both reachable by whoever points the child at them.
 
@@ -76,7 +76,7 @@ There are three ways in and two stored modes. [Native login](#native-login-mode)
 
 ### What a login leaves ready
 
-A login commits two things, in this order: the authentication and [the bound profile](#the-bound-profile). The child's own first-run answers are not among them, because the file that holds them does not exist yet: it lives in [this terminal's session directory](./xdg-storage.md#artifact-table), which no login can name and which the first launch creates ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)).
+A login commits two things, in this order: the authentication and [the bound profile](#the-bound-profile). The child's own first-run answers are not among them, because the file that holds them does not exist yet: it lives in [this agent's session directory](./xdg-storage.md#artifact-table), which no login can name and which only a launch creates ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)).
 
 ### What a launch seeds
 

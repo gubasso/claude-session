@@ -1,6 +1,7 @@
 //! Pure runtime values; this module performs no input/output.
 
 pub(crate) mod account;
+pub(crate) mod agent;
 pub(crate) mod argv;
 pub(crate) mod checks;
 pub(crate) mod child;
@@ -17,5 +18,4 @@ pub(crate) mod pointer;
 pub(crate) mod profile;
 pub(crate) mod secret;
 pub(crate) mod strategy;
-pub(crate) mod terminal;
 pub(crate) mod witness;

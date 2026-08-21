@@ -24,7 +24,7 @@ A session directory is kept only while this run can prove its terminal is still 
 
 ## Out of scope
 
-- What a session is keyed by. The tty rung is what makes `orphaned` and `unknown` reachable at all, and replacing it is [Q-013](../../open-questions.md#q-013--is-a-session-a-terminal-or-a-running-agent)'s to settle.
+- What a session is keyed by. The tty rung is what makes `orphaned` and `unknown` reachable at all, and replacing it is [036](../036-agent-keyed-sessions/README.md)'s to settle.
 - The peer registry, whose foreign-boot scopes may be another kernel's live boots.
 - Any age heuristic; liveness here is a fact, not an estimate.
 - Automatic collection at launch or on a schedule; the verb stays explicit.
@@ -46,16 +46,14 @@ A session directory is kept only while this run can prove its terminal is still 
 
 ## Acceptance
 
-- When `session list` runs, every session directory shall carry exactly one of `live`, `dead`, `orphaned`, or `unknown`, and only one whose terminal this run can still see shall be `live`. -> sessions_gc::session_list_tells_the_four_states_apart
 - When `session clean` runs, it shall remove every session directory this run cannot prove is live, and shall leave every one it can. -> sessions_gc::session_clean_removes_everything_not_proven_live
-- Where a record names the alias every process shares, `session list` shall report it as `orphaned` and say whose state it holds, and `session clean` shall remove it with its record. -> sessions_gc::a_recorded_alias_is_orphaned_and_collected
 - If a witness is reachable only through a symbolic link, then the wrapper shall neither read it nor let it keep the directory it sits beside. -> sessions_gc::a_symlinked_witness_speaks_for_nothing_and_saves_nothing
 - When the run cannot name the namespace its own session directories are scoped by, `session clean` shall refuse before any side effect.
 - When the work lands, no current document shall state that an undecidable session directory is kept.
 
 ## Rabbit holes
 
-- Rekeying a session off the terminal while fixing what to do with the directories; escape: the policy is decidable under either key, so it lands first and [Q-013](../../open-questions.md#q-013--is-a-session-a-terminal-or-a-running-agent) carries the key.
+- Rekeying a session off the terminal while fixing what to do with the directories; escape: the policy is decidable under either key, so it lands first and [036](../036-agent-keyed-sessions/README.md) carries the key.
 - Collapsing the four verdicts into `live` and `collectable` once one predicate owns the policy; escape: the words differ in what a reader loses by collecting, which is the sentence the prompt owes them.
 - Growing `clean` filters — per account, per verdict, per age — to soften the policy; escape: the collectable set is the whole surface, and a run that can prove nothing refuses rather than filtering.
 
@@ -65,4 +63,4 @@ A session directory is kept only while this run can prove its terminal is still 
 
 ## Revisions
 
-None.
+2026-08-21: the two acceptance lines naming the `orphaned` verdict were removed, superseded by [036](../036-agent-keyed-sessions/README.md). The verdict named the residue of a terminal-keyed launch; keying a session to its agent retires the ground it stood on, so the condition no longer exists to be reported. The collection policy this slice decided is unchanged and still governs.

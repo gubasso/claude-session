@@ -219,22 +219,18 @@ pub(crate) fn run(
         if let Some(account) = context.session().account() {
             paths.push((account.directory.clone(), None));
             paths.push((account.config.clone(), None));
-            // A terminal that cannot be derived is reported by its own check
-            // below; here it simply means this run has no session directory to
-            // look at, which is not a storage defect.
-            if let Ok(terminal) = crate::services::session::terminal(context) {
-                let space = terminal.namespace().id();
+            // The session directory this run is inside, when there is one. A
+            // launch's own directory does not exist until the launch makes it,
+            // so the only session there is to inspect is the agent this command
+            // is running under ([ADR-0113]).
+            if let Ok(agent) = crate::services::session::agent(context) {
+                let space = agent.namespace().id();
                 paths.push((context.paths().account_namespace(&account.id, space), None));
+            }
+            if let Some(session) = crate::services::session::current(context, &account.id) {
+                paths.push((session.clone(), None));
                 paths.push((
-                    context
-                        .paths()
-                        .account_session(&account.id, space, terminal.id()),
-                    None,
-                ));
-                paths.push((
-                    context
-                        .paths()
-                        .session_projects_link(&account.id, space, terminal.id()),
+                    session.join("projects"),
                     Some(context.paths().account_projects(&account.id)),
                 ));
                 // The shared peer registry and its link, probed only when this
@@ -248,10 +244,7 @@ pub(crate) fn run(
                     let registry = context
                         .paths()
                         .peer_registry(scope.boot(), scope.namespace());
-                    let link =
-                        context
-                            .paths()
-                            .session_registry_link(&account.id, space, terminal.id());
+                    let link = session.join("sessions");
                     // A real directory at the name is the pre-adoption state
                     // the next launch converts, not a defect worth reporting;
                     // the probe judges the name once it is absent or linked.
@@ -273,9 +266,6 @@ pub(crate) fn run(
                 // tree makes the next launch refuse. A seat that does not exist
                 // produces no defect, because the walk stops at the first
                 // component that is not there.
-                let session = context
-                    .paths()
-                    .account_session(&account.id, space, terminal.id());
                 let tree = context.paths().assets();
                 for name in crate::services::assets::declared() {
                     paths.push((session.join(name), Some(tree.join(name))));
@@ -351,7 +341,7 @@ pub(crate) fn run(
         results.push(crate::services::account::plan_declared_result(context));
         // Last, because it was appended to the catalog last and the pushed
         // order has to match it.
-        results.push(terminal_result(context));
+        results.push(identity_result(context));
         results.push(assets_result(context));
     }
 
@@ -452,25 +442,24 @@ fn floor_hint(check: Check) -> String {
         .unwrap_or_default()
 }
 
-/// Reports which rung of the ladder named this run's terminal.
+/// Reports the agent a launch from this run would name.
 ///
 /// A refusal is the check failing rather than the run failing: `doctor` exists
 /// to say what a launch would meet, and a launch is where the refusal belongs.
-fn terminal_result(context: &AppContext) -> CheckResult {
-    match crate::services::session::terminal(context) {
-        Ok(terminal) => CheckResult::pass(
-            Check::SessionTerminalDerives,
+fn identity_result(context: &AppContext) -> CheckResult {
+    match crate::services::session::agent(context) {
+        Ok(agent) => CheckResult::pass(
+            Check::SessionIdentityDerives,
             format!(
-                "this run is \"{}\" in {} \"{}\", named from {} and discriminated by {}",
-                terminal.id().as_str(),
-                terminal.namespace().kind().as_str(),
-                terminal.namespace().id().as_str(),
-                terminal.source().as_str(),
-                terminal.namespace().discriminated_by().as_str()
+                "a launch from this run would be \"{}\" in {} \"{}\", discriminated by {}",
+                agent.id().as_str(),
+                agent.namespace().kind().as_str(),
+                agent.namespace().id().as_str(),
+                agent.namespace().discriminated_by().as_str()
             ),
         ),
         Err(error) => CheckResult::defect(
-            Check::SessionTerminalDerives,
+            Check::SessionIdentityDerives,
             error.diagnostic().why.clone(),
             error.diagnostic().hint.clone(),
         ),

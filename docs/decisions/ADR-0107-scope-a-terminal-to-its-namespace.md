@@ -31,4 +31,6 @@ Refusing on a shared tree was rejected: the wrapper cannot see who else mounts i
 
 Implemented
 
-Amends [ADR-0102](./ADR-0102-key-child-state-by-terminal.md): the derivation gains an axis and the path gains a component, while keying only the child state directory is unchanged. Enacted in [the namespace](../../src/domain/namespace.rs), [the ladder](../../src/domain/terminal.rs), and [the terminal adapter](../../src/adapters/terminal.rs). Shaped by [030](../plan/slices/030-namespace-scoped-terminal-identity/README.md).
+Amends [ADR-0102](./ADR-0102-key-child-state-by-terminal.md): the path gains a component. Enacted in [the namespace](../../src/domain/namespace.rs) and [agent naming](../../src/domain/agent.rs). Shaped by [030](../plan/slices/030-namespace-scoped-terminal-identity/README.md).
+
+Amended by [ADR-0113](./ADR-0113-key-a-session-to-its-running-agent.md): the scoped name is a process identifier.

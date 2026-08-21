@@ -47,7 +47,7 @@ Two runs that share the state tree but not their kernel receive different sessio
 
 - When two machine identifiers name one namespace inode, the derived components shall differ. -> domain::namespace::tests::two_machines_never_share_a_component
 - Where the machine identifier is unreadable or empty, the boot identifier shall discriminate instead, and where neither yields a value, the rung shall name nothing rather than fall back to a shared name. -> domain::namespace::tests::an_empty_discriminator_names_nothing
-- When a terminal is reported, the report shall name the discriminator beside the namespace. -> doctor::the_terminal_report_names_the_discriminator
+- When this run's session identity is reported, the report shall name the discriminator beside the namespace. -> doctor::the_identity_report_names_the_discriminator
 - When the work lands, no document shall describe the namespace component without its discriminator.
 
 ## Rabbit holes

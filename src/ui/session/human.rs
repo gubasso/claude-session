@@ -1,15 +1,16 @@
 //! The session reports a person reads.
 //!
 //! Every fact here is also in the `--json` document beside it, which is where
-//! a script was always meant to look ([ADR-0093]). What this side adds is the
-//! sentence that says what a verdict means and what to type next.
+//! a script was always meant to look ([ADR-0093]).
 //!
-//! A row is one bracketed verdict, the terminal it is about, and one sentence
-//! of why — because a reader asking `session list` is asking whether their own
-//! panes are accounted for, and a verdict with no ground behind it cannot
-//! answer that.
+//! A list is read by scanning, not by reading sentences, so this renders one
+//! aligned row per session and nothing else: the verdict, whose account it is,
+//! the directory that holds it, and the short reason behind the verdict. The
+//! long form of any reason lives in [sessions]; a report that explained itself
+//! on every row would bury the rows it exists to show.
 //!
 //! [ADR-0093]: ../../../docs/decisions/ADR-0093-write-every-non-machine-surface-for-a-person.md
+//! [sessions]: ../../../docs/reference/sessions.md
 
 #![allow(
     clippy::format_push_string,
@@ -22,66 +23,22 @@ use crate::{
         witness::{Ground, Verdict},
     },
     services::session::gc::SessionFinding,
-    ui::prose::{BODY_INDENT, INDENT, Palette, paragraph, plural, wrap},
+    ui::prose::{INDENT, Palette, paragraph, plural, wrap},
 };
 
-/// A paragraph and the command it points at, the command on its own line.
+/// The short reason a row carries, in the column beside it.
 ///
-/// [`wrap`] refuses to break a path because a path split across two lines
-/// cannot be copied back into a shell; a command is several words, so the wrap
-/// cannot protect it and the layout has to.
-fn next_command(text: &str, command: &str) -> String {
-    format!("{}\n{}", paragraph(text), wrap(command, INDENT, INDENT))
-}
-
-/// The one-sentence explanation of every ground a judgment can stand on.
-///
-/// It opens with the consequence — kept, collectable, or refused — because
-/// that is the half a reader acts on, and the reason follows it. Only a
-/// terminal this run can see keeps its directory; every other ground says why
-/// the run could not account for it, which is what the reader is deciding on
-/// when the prompt asks.
+/// A phrase rather than a sentence: it sits in a column, and what a reader
+/// does about it is the same for every collectable row.
 const fn because(ground: Ground) -> &'static str {
     match ground {
-        Ground::DevicePresent => {
-            "Kept: that terminal is still open, whether or not claude is running in it."
-        }
-        Ground::DeviceAbsent => {
-            "Collectable: that terminal is gone, so nothing will write here again."
-        }
-        Ground::DeviceUnobservable => concat!(
-            "Collectable: this run could not check whether that terminal still ",
-            "exists, so it cannot account for this directory."
-        ),
-        Ground::LeaderRunning => "Kept: the process group it belongs to is still running.",
-        Ground::LeaderGone => "Collectable: the process group it belonged to has exited.",
-        Ground::LeaderForeignBoot => {
-            "Collectable: it belongs to a boot that has ended, and no process outlives its kernel."
-        }
-        Ground::LeaderUnreadable => concat!(
-            "Collectable: this run could not read enough about that process group ",
-            "to account for this directory."
-        ),
-        Ground::Unrecorded => concat!(
-            "Collectable: it carries no record of the terminal it belongs to, so ",
-            "nothing here can say what it is for."
-        ),
-        // The one ground that stops the verb rather than feeding it: a run
-        // that cannot place itself would find every directory unaccounted for
-        // and take the whole tree.
-        Ground::Unplaced => concat!(
-            "Refused: this run cannot tell which namespace it is in, so it can ",
-            "judge nothing here and session clean will not act."
-        ),
-        Ground::Foreign => concat!(
-            "Collectable: it belongs to another machine or container sharing this ",
-            "storage, so nothing this run can see accounts for it."
-        ),
-        Ground::Alias => concat!(
-            "Collectable: no terminal ever owned it. An earlier version gave every ",
-            "pane of one namespace this single directory, so what is inside belongs ",
-            "to all of them, and no name this version issues can claim it again."
-        ),
+        Ground::Running => "running",
+        Ground::Gone => "agent exited",
+        Ground::ForeignBoot => "from an earlier boot",
+        Ground::Unrecorded => "no record of what it was",
+        Ground::Foreign => "another machine's",
+        Ground::Unreadable => "start time unreadable",
+        Ground::Unplaced => "cannot be judged here",
     }
 }
 
@@ -99,45 +56,13 @@ const fn shade(verdict: Verdict) -> CheckStatus {
     }
 }
 
-/// Names the subject of one row: the terminal, and whose session it is.
-///
-/// A finding that names no terminal — no record at all, or one naming the
-/// alias every process shares — says the account and stops, because printing
-/// a name that stands for no pane is what made the old report unreadable in
-/// the first place. Which findings those are is the survey's judgment, so
-/// both sides of the report suppress the same ones.
-fn subject(finding: &SessionFinding) -> String {
-    let account = format!("account {}", finding.account.as_str());
-    let mut text = match &finding.named {
-        Some(named) => format!("{named}, {account}"),
-        None => account,
-    };
-    if finding.current {
-        text.push_str(" — this terminal");
+/// Pads `text` to `width`, or returns it whole when it is already wider.
+fn column(text: &str, width: usize) -> String {
+    let mut out = text.to_owned();
+    for _ in text.chars().count()..width {
+        out.push(' ');
     }
-    text
-}
-
-/// Renders one finding as its verdict row and the sentence under it.
-fn row(palette: Palette, finding: &SessionFinding) -> String {
-    // Laid out with the plain token and coloured afterwards, the discipline
-    // every renderer here follows: wrapping on an escaped token would let
-    // colour move a line break.
-    let token = format!("[{}]", finding.verdict.as_str());
-    let pad = " ".repeat(BODY_INDENT.saturating_sub(2 + token.chars().count()));
-    let prefix = format!("  {token}{pad}");
-    let body = " ".repeat(BODY_INDENT);
-    let mut text = wrap(&subject(finding), &prefix, &body);
-    text.push_str(&wrap(because(finding.ground), &body, &body));
-    // The directory is named on every row the reader might act on, and on a
-    // line of its own so it can be copied back into a shell. A live session is
-    // identified by its own device and needs nothing; a collectable one may
-    // name no terminal at all, in which case the path is the only thing
-    // telling one row from another.
-    if finding.verdict.collectable() {
-        text.push_str(&wrap(&finding.path.display().to_string(), &body, &body));
-    }
-    palette.recolour_token(text, &token, shade(finding.verdict))
+    out
 }
 
 /// Renders every session directory and its verdict.
@@ -147,56 +72,78 @@ pub(super) fn list(palette: Palette, findings: &[SessionFinding]) -> String {
             "{}\n\n{}",
             palette.heading("Sessions"),
             paragraph(concat!(
-                "No session directories are stored on this machine yet. ",
-                "A launch creates one per terminal."
+                "No sessions. Launching claude creates one, and it lasts as long ",
+                "as that claude does."
             ))
         );
     }
+    let widths = (
+        findings
+            .iter()
+            .map(|it| it.verdict.as_str().chars().count() + 2)
+            .max()
+            .unwrap_or_default(),
+        findings
+            .iter()
+            .map(|it| it.account.as_str().chars().count())
+            .max()
+            .unwrap_or_default(),
+        findings
+            .iter()
+            .map(|it| it.session.as_str().chars().count())
+            .max()
+            .unwrap_or_default(),
+    );
     let mut out = format!("{}\n\n", palette.heading("Sessions"));
-    out.push_str(&paragraph(concat!(
-        "Every terminal that launches claude gets a state directory of its own, ",
-        "and that directory outlives the child that made it. Here is each one, ",
-        "and whether the terminal it belongs to still exists."
-    )));
-    out.push('\n');
     for finding in findings {
-        out.push_str(&row(palette, finding));
+        let token = format!("[{}]", finding.verdict.as_str());
+        let mut reason = because(finding.ground).to_owned();
+        if finding.current {
+            reason.push_str(", this session");
+        }
+        let row = format!(
+            "{INDENT}{}  {}  {}  {reason}",
+            column(&token, widths.0),
+            column(finding.account.as_str(), widths.1),
+            column(finding.session.as_str(), widths.2),
+        );
+        out.push_str(&palette.recolour_token(
+            format!("{}\n", row.trim_end()),
+            &token,
+            shade(finding.verdict),
+        ));
     }
     out.push('\n');
-    // A tree this run cannot place is reported and left alone: `clean` refuses
-    // on it rather than mistaking its own blindness for an empty tree, so the
-    // summary must not offer the verb.
+    out.push_str(&summary(findings));
+    out
+}
+
+/// The one line under the rows: what the verb would take, and the verb.
+///
+/// Short enough not to wrap, because a command broken across two lines cannot
+/// be copied back into a shell.
+fn summary(findings: &[SessionFinding]) -> String {
     if findings
         .iter()
         .any(|finding| finding.ground == Ground::Unplaced)
     {
-        out.push_str(&paragraph(concat!(
-            "This run cannot tell which namespace it is in, so it can prove nothing ",
-            "about the sessions above. Collection refuses here rather than emptying ",
-            "a tree it cannot see."
-        )));
-        return out;
+        return paragraph(concat!(
+            "This run cannot name its own namespace or boot, so it can prove nothing ",
+            "above. Collection refuses rather than emptying a tree it cannot see."
+        ));
     }
     let collectable = findings
         .iter()
         .filter(|finding| finding.verdict.collectable())
         .count();
-    if collectable > 0 {
-        out.push_str(&next_command(
-            &format!(
-                "{collectable} {} collectable. Remove {} with:",
-                plural(collectable, "session is", "sessions are"),
-                plural(collectable, "it", "them"),
-            ),
-            "claude-session-rs session clean",
-        ));
-    } else {
-        out.push_str(&paragraph(concat!(
-            "Nothing here is collectable: every session above belongs to a terminal ",
-            "this run can still see."
-        )));
+    if collectable == 0 {
+        return paragraph("Nothing to collect: every session above is still running.");
     }
-    out
+    paragraph(&format!(
+        "{collectable} of {} collectable. Remove {}: claude-session-rs session clean",
+        findings.len(),
+        plural(collectable, "it with", "them with"),
+    ))
 }
 
 /// The groups a prompt separates, each with the clause that says what it is.
@@ -204,20 +151,10 @@ pub(super) fn list(palette: Palette, findings: &[SessionFinding]) -> String {
 /// One entry per collectable verdict, so a verdict cannot be added without
 /// stating what a reader would be losing by collecting it.
 const GROUPS: &[(Verdict, &str)] = &[
-    (Verdict::Dead, "belongs to a terminal that has closed"),
-    (
-        Verdict::Orphaned,
-        concat!(
-            "was never owned by any one terminal: an earlier version gave every pane ",
-            "of one namespace a single shared directory, and no launch can claim it again"
-        ),
-    ),
+    (Verdict::Dead, "whose agent has exited"),
     (
         Verdict::Unknown,
-        concat!(
-            "cannot be accounted for by this run: no readable record of the terminal ",
-            "it belongs to, or a namespace this kernel cannot see"
-        ),
+        "this run cannot account for: no readable record, or a namespace this kernel cannot see",
     ),
 ];
 
@@ -248,9 +185,8 @@ pub(super) fn prompt(collectable: &[SessionFinding]) -> String {
     }
     out.push_str(&wrap(
         concat!(
-            "Removing them deletes the child state and history stored there. Your ",
-            "login, your projects tree, and every session belonging to a terminal ",
-            "this run can still see stay."
+            "Removing them deletes the child state and history stored there. Your login, ",
+            "your projects tree, and every running session stay."
         ),
         "",
         "",
@@ -259,7 +195,7 @@ pub(super) fn prompt(collectable: &[SessionFinding]) -> String {
     out
 }
 
-/// Renders what one `clean` removed, or that nothing was.
+/// Renders what one collection removed, or that nothing was.
 pub(super) fn collection(
     palette: Palette,
     removed: &[SessionFinding],
@@ -267,22 +203,16 @@ pub(super) fn collection(
     declined: bool,
 ) -> String {
     if declined {
-        return paragraph("Nothing was removed. Every session is exactly as it was.");
+        return paragraph("Nothing was removed.");
     }
     if removed.is_empty() {
-        return next_command(
-            concat!(
-                "Nothing to collect. Every session directory here belongs to a terminal ",
-                "this run can still see. See what each one is judged as, and why, with:"
-            ),
-            "claude-session-rs session list",
-        );
+        return paragraph("Nothing to collect: every session is still running.");
     }
-    let mut rows = String::new();
+    let mut out = format!("{}\n\n", palette.heading("Collected"));
     for finding in removed {
-        rows.push_str(&wrap(&finding.path.display().to_string(), "  ", "      "));
+        out.push_str(&wrap(&finding.path.display().to_string(), INDENT, "      "));
     }
-    let mut out = format!("{}\n\n{rows}\n", palette.heading("Collected"));
+    out.push('\n');
     let mut summary = format!(
         "Removed {} session {}",
         removed.len(),
@@ -290,14 +220,11 @@ pub(super) fn collection(
     );
     if pruned_namespaces > 0 {
         summary.push_str(&format!(
-            ", and {pruned_namespaces} emptied namespace {}",
+            " and {pruned_namespaces} emptied namespace {}",
             plural(pruned_namespaces, "directory", "directories")
         ));
     }
-    summary.push_str(concat!(
-        ". Your login, your projects tree, and every session belonging to a terminal ",
-        "this run can still see are untouched."
-    ));
+    summary.push_str(". Running sessions, your login, and your projects are untouched.");
     out.push_str(&paragraph(&summary));
     out
 }

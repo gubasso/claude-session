@@ -1,24 +1,22 @@
-//! Controlling-terminal boundary: availability, consent, secret entry, naming.
+//! Controlling-terminal boundary: availability, consent, and secret entry.
 //!
-//! The first three address `/dev/tty` rather than standard input, which is what
-//! makes a confirmation survive `something | claude-session-rs account remove
-//! work` and makes a pasted token unreadable from a redirected stream. Nothing
+//! All three address `/dev/tty` rather than standard input, which is what makes
+//! a confirmation survive `something | claude-session-rs account remove work`
+//! and makes a pasted token unreadable from a redirected stream. Nothing
 //! consults `isatty(0)`; opening `/dev/tty` read-write is the predicate.
 //!
-//! Naming is the exception, and deliberately so: `/dev/tty` is the alias every
-//! process shares, so it answers whether a terminal is there and never which
-//! one. That question is `adapters::host::controlling_terminal`'s.
+//! `/dev/tty` is the alias every process shares, so it answers whether a
+//! terminal is there and never which one. Nothing here needs the second
+//! question: a session is a running agent rather than a pane ([ADR-0113]).
+//!
+//! [ADR-0113]: ../../docs/decisions/ADR-0113-key-a-session-to-its-running-agent.md
 
 use std::{
     fs::{File, OpenOptions},
     io::{self, Read as _, Write as _},
 };
 
-use crate::domain::{
-    namespace::Kind,
-    secret::{Secret, SecretError},
-    terminal::Terminal as TerminalIdentity,
-};
+use crate::domain::secret::{Secret, SecretError};
 
 pub(crate) trait Terminal {
     /// Reports whether a controlling terminal can be opened.
@@ -29,44 +27,10 @@ pub(crate) trait Terminal {
     fn ask(&self, prompt: &str) -> io::Result<Option<String>>;
     /// Writes a prompt and reads one line with terminal echo disabled.
     fn read_secret(&self, prompt: &str) -> io::Result<Result<Secret, SecretError>>;
-    /// Names the terminal this run's child state directory belongs to.
-    ///
-    /// `Ok(None)` is the refusal rung: neither a controlling terminal nor a
-    /// session leader named anything usable, and the caller must fail rather
-    /// than invent a directory ([ADR-0102]).
-    ///
-    /// A rung whose namespace cannot be read names nothing and the ladder falls
-    /// past it, so an unreadable `/proc` costs a rung rather than adding a
-    /// failure of its own ([ADR-0107]).
-    ///
-    /// [ADR-0102]: ../../docs/decisions/ADR-0102-key-child-state-by-terminal.md
-    /// [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
-    fn identity(&self) -> io::Result<Option<TerminalIdentity>>;
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct SystemTerminal;
-
-// The leader's start-time read lives in `adapters::host` as `process_started`,
-// shared with the liveness judgment that re-asks the naming question
-// ([ADR-0112]).
-//
-// [ADR-0112]: ../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
-use crate::adapters::host::process_started as leader_started;
-
-// The namespace read lives in `adapters::host`, shared with the peer-scope
-// derivation. `None` when `/proc` does not answer, which makes the rung asking
-// unavailable ([ADR-0107]).
-//
-// [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
-use crate::adapters::host::namespace;
-
-// The pane read lives in `adapters::host` beside the other `procfs` identity
-// reads, because naming the terminal a run belongs to is the same question in
-// a different scope ([ADR-0102]).
-//
-// [ADR-0102]: ../../docs/decisions/ADR-0102-key-child-state-by-terminal.md
-use crate::adapters::host::controlling_terminal;
 
 /// `ENXIO` and `EBADF`, the two ways an absent controlling terminal reports.
 const NO_TERMINAL: [i32; 2] = [6, 25];
@@ -91,38 +55,6 @@ impl Terminal for SystemTerminal {
         write_prompt(&tty, prompt)?;
         let line = read_line(&tty)?;
         Ok(line.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
-    }
-
-    fn identity(&self) -> io::Result<Option<TerminalIdentity>> {
-        // The pane's own pseudo-terminal first, read from this process's
-        // controlling-terminal number rather than from a stream or from the
-        // alias: `isatty(0)` answers for whatever standard input was pointed
-        // at, and `/dev/tty` resolves back to itself, so neither names a pane
-        // ([ADR-0062], [ADR-0102]). The mount namespace leads the chain because
-        // it carries the devpts instance that issued the device name, so an
-        // unreadable one costs this rung and nothing below it.
-        if let Some(space) = namespace(Kind::Mount)
-            && let Some(device) = controlling_terminal()
-            && let Some(terminal) = TerminalIdentity::from_tty(space, &device)
-        {
-            return Ok(Some(terminal));
-        }
-        // The process namespace issued both the session id and the process ids
-        // `/proc` reports it against, so it is this rung's namespace.
-        let Some(space) = namespace(Kind::Pid) else {
-            return Ok(None);
-        };
-        let Ok(sid) = rustix::process::getsid(None) else {
-            return Ok(None);
-        };
-        let raw = sid.as_raw_nonzero().get().unsigned_abs();
-        // Without the leader's start time a recycled process id would inherit
-        // an earlier session's directory, so a leader whose start time cannot
-        // be read is no answer at all.
-        let Some(started) = leader_started(raw) else {
-            return Ok(None);
-        };
-        Ok(TerminalIdentity::from_session_leader(space, raw, started))
     }
 
     fn read_secret(&self, prompt: &str) -> io::Result<Result<Secret, SecretError>> {

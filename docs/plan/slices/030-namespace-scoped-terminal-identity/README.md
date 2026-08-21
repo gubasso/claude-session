@@ -49,9 +49,9 @@ Two runs that share the state tree but not their namespaces receive different se
 
 ## Acceptance
 
-- When two runs differ only by the namespace that named them, each shall receive its own session directory. -> domain::terminal::tests::one_device_in_two_namespaces_names_two_terminals
+- When two runs differ only by the namespace that named them, each shall receive its own session directory. -> domain::agent::tests::one_process_identifier_in_two_namespaces_names_two_agents
 - Where a namespace names nothing, the rung reading it shall name nothing rather than fall back to a shared name. -> domain::namespace::tests::an_empty_link_names_nothing
-- When a terminal is reported, the report shall name the namespace beside the terminal and the rung it came from. -> doctor::the_terminal_report_names_the_namespace
+- When this run's session identity is reported, the report shall name the namespace beside it. -> doctor::the_identity_report_names_the_namespace
 - When the work lands, no document shall describe a session directory without its namespace component.
 
 ## Rabbit holes
@@ -67,4 +67,4 @@ A session directory sits under the namespace that named its terminal, two namesp
 
 ## Revisions
 
-None.
+2026-08-21: the namespace axis outlived the name it scoped. [036](../036-agent-keyed-sessions/README.md) keys a session to its agent, so the acceptance above is now carried by the process identifier rather than the device name, and the mount namespace stopped being one of the two kinds a session could be scoped by.

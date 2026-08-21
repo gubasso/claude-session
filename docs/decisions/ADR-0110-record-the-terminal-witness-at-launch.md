@@ -29,3 +29,5 @@ Inversion was rejected because the mapping is non-injective by design and a fing
 Implemented
 
 Enacted in [the session service](../../src/services/session.rs). Judged by [ADR-0111](./ADR-0111-collect-only-the-provably-dead-session.md). Shaped by [033](../plan/slices/033-dead-session-collection/README.md).
+
+Amended by [ADR-0113](./ADR-0113-key-a-session-to-its-running-agent.md): the witness records the agent process, and version `1` is no longer read.

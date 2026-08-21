@@ -104,8 +104,8 @@ pub(crate) fn run(
             ),
         )
     })?;
-    let terminal = crate::services::session::terminal(context)?;
-    let session = crate::services::session::materialise(context, &selected.id, &terminal)?;
+    let agent = crate::services::session::agent(context)?;
+    let session = crate::services::session::materialise(context, &selected.id, &agent)?;
     crate::services::assets::supply(context, &session)?;
     let trust = context
         .config()

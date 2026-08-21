@@ -1,50 +1,56 @@
 # Sessions
 
-The session lifecycle surface: the witness a launch records, the four liveness verdicts, and the `session` verb that reports and collects. Why the scopes exist is in [session isolation](../explanation/session-isolation.md); exact paths, modes, and writers are in [XDG storage](./xdg-storage.md); the decisions are [ADR-0110](../decisions/ADR-0110-record-the-terminal-witness-at-launch.md) and [ADR-0112](../decisions/ADR-0112-keep-only-the-session-proven-live.md).
+The session lifecycle surface: what a session is, the record a launch writes, the three liveness verdicts, and the `session` verb that reports and collects. Why the scopes exist is in [session isolation](../explanation/session-isolation.md); exact paths, modes, and writers are in [XDG storage](./xdg-storage.md); the decisions are [ADR-0112](../decisions/ADR-0112-keep-only-the-session-proven-live.md) and [ADR-0113](../decisions/ADR-0113-key-a-session-to-its-running-agent.md).
 
-## The witness record
+## What a session is
 
-A session directory's name is a deliberately lossy mapping of its terminal, so the name alone cannot answer whether that terminal still exists. Every launch therefore records the naming inputs — the witness — beside the directory it names, at the path [XDG storage](./xdg-storage.md#artifact-table) lists, mode `0600`, atomically, and only when the recorded bytes would change.
+One running coding agent, and nothing else the wrapper or the child is asked to do. A launch that starts an agent gets a session directory; the directory belongs to that agent alone and lasts exactly as long as it runs.
 
-One JSON document, version `1`:
+The wrapper execs the child ([ADR-0084](../decisions/ADR-0084-exec-the-child-instead-of-supervising-it.md)), so the process that becomes the agent is the wrapper's own. Its identifier and start time are read before the exec and survive it unchanged, which is what lets a directory named before the exec answer for the agent after it. The name is `agent-<pid>-<started>`, the start time in hexadecimal, under the namespace directory that scopes the process identifier.
 
-| Field            | Value                                                                      |
-| ---------------- | -------------------------------------------------------------------------- |
-| `version`        | `1`; any other version is judged unknown rather than parsed                |
-| `rung`           | `tty` or `session-leader`, the rung that named the terminal                |
-| `device`         | tty rung: the pane's own device path, confirmed against the device node    |
-| `sid`, `started` | session-leader rung: the leader's process id and start time in clock ticks |
-| `namespace`      | the namespace component the name is unique inside                          |
-| `boot`           | the kernel's boot identifier at recording time; absent when unreadable     |
+The start time is part of the name rather than a field beside it: a process identifier is reused within one boot, and without the start time a later agent would walk into an earlier one's directory.
 
-The tty rung reads the pane from `tty_nr`, field 7 of `/proc/self/stat`: the controlling terminal's device number, which no stream redirection changes. The number is mapped onto the path the device is published at — `/dev/pts/<index>` under the eight majors devpts registers, `/dev/tty<n>` for a virtual console — and the candidate is then confirmed by reading that node's own device number back. A candidate that does not confirm names nothing, so the rung falls through to the session leader rather than keying one pane's state to another's directory. Opening `/dev/tty` and asking its name back is deliberately not how this works: that node is the alias every process shares, so it names no pane and exists whether or not a terminal does.
+A launch removes that account's session directories whose agent has exited before creating its own. Only the provably dead: a launch is not the place to act on what could not be decided, and an undecidable directory is exactly the one a person should see named before it goes.
 
-A launch that cannot record its witness — an unwritable parent, a device path outside UTF-8 — warns and launches anyway: recording is additive, and the cost is that the session is judged unknown, which is collectable, until a launch that can record one.
+## The record
+
+A directory's name spells its agent, but a name is not evidence — a directory can be moved, and a start time counts ticks from a boot the name never states. Every launch therefore records the naming inputs beside the directory it names, at the path [XDG storage](./xdg-storage.md#artifact-table) lists, mode `0600`, atomically.
+
+One JSON document, version `2`:
+
+| Field       | Value                                                           |
+| ----------- | --------------------------------------------------------------- |
+| `version`   | `2`; any other version is not read                              |
+| `pid`       | the process the agent runs as                                   |
+| `started`   | that process's start time, in clock ticks since `boot`          |
+| `namespace` | the namespace component the process identifier is unique inside |
+| `boot`      | the kernel boot the start time counts from                      |
+
+`boot` is not optional. A start time that cannot say which boot it counts from cannot be judged at all, so a launch that cannot read one records nothing rather than writing a record no run can use.
+
+Version `1` keyed a session to a terminal. It is not read and not translated: it witnesses a question this version no longer asks, so the directory it named is unaccounted for and the collection policy removes it ([ADR-0113](../decisions/ADR-0113-key-a-session-to-its-running-agent.md)).
+
+A launch that cannot record its witness warns and launches anyway: recording is additive, and the cost is that the session is unaccounted for, and therefore collectable, rather than an exec this run refuses.
 
 ## Verdicts
 
-Liveness re-asks the naming question against the record. The session tree is the wrapper's own, so a directory in it is either a session this run can account for or it is garbage: `live` keeps a directory and every other verdict is collectable ([ADR-0112](../decisions/ADR-0112-keep-only-the-session-proven-live.md)).
+Liveness asks one question of the record: is that agent still running. The tree is the wrapper's own, so `live` keeps a directory and every other verdict is collectable ([ADR-0112](../decisions/ADR-0112-keep-only-the-session-proven-live.md)).
 
-| Record                                                                                      | Verdict    |
-| ------------------------------------------------------------------------------------------- | ---------- |
-| Missing, unreadable, another version, or filed under a namespace directory it does not name | `unknown`  |
-| Namespace component is not this run's, or this run cannot derive one                        | `unknown`  |
-| tty rung, in scope, recording `/dev/tty`, which names no pane                               | `orphaned` |
-| tty rung, in scope, device path exists                                                      | `live`     |
-| tty rung, in scope, device path absent                                                      | `dead`     |
-| tty rung, in scope, whether the device path exists could not be observed                    | `unknown`  |
-| session-leader rung, in scope, recorded boot is not this one                                | `dead`     |
-| session-leader rung, in scope, same boot, process id live with the recorded start time      | `live`     |
-| session-leader rung, in scope, same boot, process absent or started at another time         | `dead`     |
-| session-leader rung, in scope, either boot or the start time unreadable                     | `unknown`  |
+| Record                                                                            | Verdict   |
+| --------------------------------------------------------------------------------- | --------- |
+| Missing, unreadable, another version, or filed under a namespace it does not name | `unknown` |
+| Namespace component is not this run's                                             | `unknown` |
+| In scope, recorded boot is not this one                                           | `dead`    |
+| In scope, same boot, process running with the recorded start time                 | `live`    |
+| In scope, same boot, process absent or started at another time                    | `dead`    |
+| In scope, same boot, the process's start time could not be read                   | `unknown` |
+| This run can name neither its namespace nor its boot                              | `unknown` |
 
-A verdict is the projection of the ground it stands on, and both are reported: `unrecorded`, `unplaced`, `foreign`, `alias`, `device-present`, `device-absent`, `device-unobservable`, `leader-running`, `leader-gone`, `leader-foreign-boot`, `leader-unreadable`, in the row order of the table above. The ground is what the human report turns into a sentence and what the `--json` document names, so neither has to re-derive why a directory was kept or what collecting it costs.
+A verdict is the projection of the ground it stands on, and both are reported: `unrecorded`, `unplaced`, `foreign`, `foreign-boot`, `running`, `gone`, `unreadable`, in the row order of the table above. The ground is what the human report turns into a phrase and what the `--json` document names.
 
-Four words for one policy, because they differ in what a reader loses rather than in what the verb does. `dead` belonged to a terminal that has closed. `orphaned` was never owned by one terminal at all: it is the residue of a version that asked the alias for its own name, so it gave every pane of one namespace a single directory, and no terminal number this version maps can ever land on that name again — nothing will claim it, which is exactly why nothing should keep it. `unknown` could not be accounted for: no readable record, a namespace this kernel cannot see, or an observation that failed. None of the three is a gap the wrapper waits out, because a directory nothing accounts for and nothing will ever claim is not an open question but an accumulation.
+A boot that has ended answers the question without looking at any process, because none outlives its kernel. A reissued process identifier is as gone as an absent one, and the start time is what tells the two apart.
 
-The tty rung ignores boot deliberately: a reopened `/dev/pts/0` after reboot is the same slot, and slot reuse is intended, so the slot's history survives the reboot. A directory that predates its witness self-heals rather than being collected, provided a launch reaches it first.
-
-One state stops the verb instead of feeding it. A run that cannot name the namespace its own directories are scoped by has placed no record at all, so every row would read `unplaced` and the collector would empty the tree on the strength of its own blindness. `session clean` refuses there, `Unavailable`, before any side effect; `session list` reports the rows and says so instead of offering the verb.
+One state stops the verb instead of feeding it. A run that can name neither the namespace its directories are scoped by nor its own boot has placed no record, so every row would read `unplaced` and the collector would empty the tree on the strength of its own blindness. `session clean` refuses there, `Unavailable`, before any side effect; `session list` reports the rows and says so instead of offering the verb.
 
 ## Commands
 
@@ -55,16 +61,18 @@ One state stops the verb instead of feeding it. A run that cannot name the names
 
 Bare `session` is malformed, like bare `account` ([ADR-0052](../decisions/ADR-0052-require-an-explicit-subcommand.md)). Requested help composes nothing, because the child owns no verb of this name.
 
-`session list` orders findings by account, namespace, then terminal, so two surveys of one unchanged tree report identically. The `--json` document is `{"sessions": [...]}` where each row carries `account`, `namespace`, `terminal`, `verdict`, `ground`, `current`, `path`, plus `rung` only when a witness was read, and `names` only when that witness names a terminal — so a legacy record naming `/dev/tty` carries a `rung` and no `names`, because the alias names no pane. `current` marks every session directory this run's own terminal owns, which is more than one row when that terminal has launched under more than one account, and is `false` for every row when the run cannot name its own terminal.
+`session list` orders findings by account, namespace, then session, so two surveys of one unchanged tree report identically. The `--json` document is `{"sessions": [...]}` where each row carries `account`, `namespace`, `session`, `verdict`, `ground`, `current`, `path`, plus `pid` only when a record this version reads was read.
 
-The human report is one row per session: the verdict as a bracketed word, the terminal and account it is about, and one sentence giving the ground and whether the session is kept, collectable, or the state that refuses the verb. A collectable row names its directory as well, on a line of its own, because a row whose record names no terminal has nothing else telling it apart. The report says in words that a session directory outlives the child that made it, so a `live` row is not read as an agent still running in that pane.
+`current` marks the agent the reading command is running inside. A command is never an agent and never has a session directory of its own, so the only session it can be in is one it descends from; the ancestry says which, and the process identifier and start time together are what confirm it. Every row is `false` when the command is not running under an agent, which is the ordinary case from a shell.
 
-`session clean` confirms on the controlling terminal, never on standard input, and the preview is part of the question: the prompt lists every directory it would delete before asking, grouped by verdict, because the three groups cost a reader three different things. One question covers them all, and `--yes` skips it. Declining removes nothing and exits `0`, an outcome rather than an error. With no controlling terminal and no `--yes` it refuses `Unavailable` before any side effect, as it does when the run cannot place itself. The `--json` document is `{"removed": [...], "pruned_namespaces": n}`, with `"declined": true` added when the prompt was refused.
+The human report is one aligned row per session — the verdict as a bracketed word, the account, the directory name, and the short reason — with nothing between the rows and the summary line under them. A list is read by scanning, so the long form of any reason lives on this page rather than in the report ([presentation](./presentation.md)).
 
-Removal runs per account under that account's [write lock](./xdg-storage.md#lock-scopes), so it never interleaves with an `account remove` destroying the same scope. Each directory is re-validated by the guard before deletion — never through a symbolic link — and its witness is removed after it, so a crash between the two leaves an orphan record rather than an undecidable directory. A namespace directory is removed only once nothing but orphan records is left inside it, and an orphan record is swept with it. Nothing collects automatically: no launch, no schedule, only this verb.
+`session clean` confirms on the controlling terminal, never on standard input, and the preview is part of the question: the prompt lists every directory it would delete before asking, grouped by verdict, because the two groups cost a reader different things. One question covers them all, and `--yes` skips it. Declining removes nothing and exits `0`, an outcome rather than an error. With no controlling terminal and no `--yes` it refuses `Unavailable` before any side effect, as it does when the run cannot place itself. The `--json` document is `{"removed": [...], "pruned_namespaces": n}`, with `"declined": true` added when the prompt was refused.
+
+Removal runs per account under that account's [write lock](./xdg-storage.md#lock-scopes), so it never interleaves with an `account remove` destroying the same scope. Each directory is re-validated by the guard before deletion — never through a symbolic link — and its witness is removed after it, so a crash between the two leaves an orphan record rather than a directory nothing accounts for. A namespace directory is removed only once nothing but orphan records is left inside it, and an orphan record is swept with it. The verb is the only thing that collects an undecidable directory; a launch collects the provably dead of its own account and nothing else.
 
 ## What clean never touches
 
-Every session whose terminal this run can still see, the account's `config/` tree and credential, composed settings entries — whose growth [XDG storage](./xdg-storage.md#composed-settings-entries) already judged too slow to earn a policy — and the peer registry, whose foreign-boot scopes may be another kernel's live boots.
+Every session whose agent is running, the account's `config/` tree and credential, composed settings entries — whose growth [XDG storage](./xdg-storage.md#composed-settings-entries) already judged too slow to earn a policy — and the peer registry, whose foreign-boot scopes may be another kernel's live boots.
 
 One cost is named rather than designed around. On a state tree shared with another kernel — a container's bind mount, a virtual machine's filesystem share — that side's session directories are `unknown` here and therefore collectable here, including ones live on that side. The tree is the wrapper's to account for, and a directory this run cannot account for is garbage by the same rule wherever it came from ([ADR-0112](../decisions/ADR-0112-keep-only-the-session-proven-live.md)).

@@ -131,14 +131,14 @@ The composed document reaches the child as an additional native settings layer, 
 
 ## Sessions
 
-Each terminal gets its own child state directory, so two panes never interleave their prompt history or their child configuration, while the account's login and projects tree stay shared. A launch records which terminal a directory belongs to, and that record is what makes cleanup honest later:
+Every running claude gets its own child state directory, so two agents never interleave their prompt history or their child configuration, while the account's login and projects tree stay shared. A launch records which process the directory belongs to, and that record is what makes cleanup honest later:
 
 ```bash
-claude-session-rs session list   # every session directory, and whether its terminal is still there
+claude-session-rs session list   # every session directory, and whether its agent is still running
 claude-session-rs session clean  # remove the provably dead ones; prompts unless --yes
 ```
 
-Only the provably dead are removed — a session whose terminal still exists stays, and one this machine cannot decide about, such as a container's on a shared tree, is kept rather than guessed at. The verdicts and their reasoning live in [sessions](./docs/reference/sessions.md).
+A launch removes the account's sessions whose agent has exited; `session clean` removes everything it cannot prove is still running, including what it cannot decide about at all. The verdicts and their reasoning live in [sessions](./docs/reference/sessions.md).
 
 ## Design contract
 

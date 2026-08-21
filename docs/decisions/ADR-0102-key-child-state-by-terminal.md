@@ -29,10 +29,6 @@ The derivation is the ladder [ADR-0062](./ADR-0062-derive-the-group-from-the-con
 
 ## Status
 
-Implemented
+Superseded
 
-Supersedes [ADR-0065](./ADR-0065-retire-the-terminal-group.md). Enacted in [the ladder](../../src/domain/terminal.rs) and [the session service](../../src/services/session.rs). Shaped by [028](../plan/slices/028-per-terminal-session-isolation/README.md).
-
-Amended by [ADR-0107](./ADR-0107-scope-a-terminal-to-its-namespace.md): a terminal name is unique only inside its issuing namespace, so the path gains a component above it.
-
-Amended by [ADR-0111](./ADR-0111-collect-only-the-provably-dead-session.md) and [ADR-0112](./ADR-0112-keep-only-the-session-proven-live.md): `session clean` collects every directory not proven live.
+Superseded by [ADR-0113](./ADR-0113-key-a-session-to-its-running-agent.md), which keys a session to the agent running in it rather than the pane it was started from. Supersedes [ADR-0065](./ADR-0065-retire-the-terminal-group.md). Shaped by [028](../plan/slices/028-per-terminal-session-isolation/README.md).

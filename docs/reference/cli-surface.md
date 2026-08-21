@@ -99,7 +99,7 @@ Verbs are top-level rather than nested under a namespace verb. Nesting would add
 | `account`    | Manage accounts: login, bind, list, status, remove                        | [accounts](./accounts.md)                    |
 | `config`     | Resolve, validate, and report the wrapper's configuration; no subcommands | [configuration](./configuration.md#commands) |
 | `profile`    | List the available settings profiles; no subcommands                      | [configuration](./configuration.md#commands) |
-| `session`    | Report and collect per-terminal session directories: list, clean          | [sessions](./sessions.md)                    |
+| `session`    | Report and collect per-agent session directories: list, clean             | [sessions](./sessions.md)                    |
 | `doctor`     | Diagnose every subsystem, then run the child's own `doctor`               | [doctor](./doctor.md)                        |
 | `completion` | Emit shell completions for the wrapper's grammar                          | [Help](#help)                                |
 | `man`        | Emit man pages generated from the wrapper's grammar                       | [Help](#help)                                |

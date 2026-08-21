@@ -14,9 +14,30 @@ fn write_nul(path: PathBuf, values: impl IntoIterator<Item = OsString>) {
     }
 }
 
+/// Spells this process's own identifier and start time, read the way the
+/// wrapper reads them: field 22 of `/proc/self/stat`, counted from the last
+/// `)` because the executable name may contain one.
+fn agent_identity() -> String {
+    let text = fs::read_to_string("/proc/self/stat").expect("stat");
+    let started = text
+        .rsplit_once(')')
+        .expect("comm")
+        .1
+        .split_whitespace()
+        .nth(19)
+        .expect("field 22");
+    format!("{} {started}\n", std::process::id())
+}
+
 fn main() {
     let record = PathBuf::from(std::env::var_os("CS_TEST_RECORD_DIR").expect("record dir"));
     fs::create_dir_all(&record).expect("record directory");
+    // The wrapper execs this binary, so this process is the agent the launch
+    // named, and its identifier and start time survived that exec unchanged.
+    // Recording them from inside the child is what lets a test prove the
+    // witness names the process the wrapper became rather than any other
+    // process whose pair the wrapper could have written consistently.
+    fs::write(record.join("agent"), agent_identity()).expect("agent identity");
     write_nul(record.join("argv"), std::env::args_os());
     write_nul(
         record.join("environ"),

@@ -1,15 +1,18 @@
 //! Host identity reads: which kernel boot and namespaces this run is in.
 //!
 //! Everything here is a `procfs` read answering "where is this process
-//! running", as distinct from `adapters::terminal`, which answers "which pane".
-//! Each read returns `None` when `/proc` does not answer, because every caller
-//! treats an unreadable identity as an unavailable rung rather than a failure
-//! ([ADR-0107], [ADR-0108]).
+//! running", as distinct from `adapters::terminal`, which answers "is there a
+//! person at a terminal to ask". Each read returns `None` when `/proc` does not
+//! answer, because every caller treats an unreadable identity as an unavailable
+//! fact rather than a failure ([ADR-0108], [ADR-0113]).
 //!
-//! [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
 //! [ADR-0108]: ../../docs/decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md
+//! [ADR-0113]: ../../docs/decisions/ADR-0113-key-a-session-to-its-running-agent.md
 
-use crate::domain::namespace::{Discriminator, Kind, Namespace};
+use crate::domain::{
+    agent::Agent,
+    namespace::{Discriminator, Kind, Namespace},
+};
 
 /// Reads one of this process's namespace links, discriminated by this kernel.
 ///
@@ -64,60 +67,112 @@ fn machine_id() -> Option<String> {
     Some(trimmed.to_owned())
 }
 
-/// Reads a process's start time from `procfs`, in clock ticks.
+/// What `/proc/<pid>/stat` says about one process, as far as liveness needs it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Stat {
+    exited: bool,
+    started: u64,
+}
+
+impl Stat {
+    /// Reports whether the kernel has stopped running this process and is only
+    /// still listing it because nothing has reaped it.
+    pub(crate) const fn exited(self) -> bool {
+        self.exited
+    }
+
+    /// Returns the process's start time, in clock ticks since this kernel
+    /// booted.
+    pub(crate) const fn started(self) -> u64 {
+        self.started
+    }
+}
+
+/// Reads one process's run state and start time from `procfs`, in one read.
 ///
-/// Field 22 of `/proc/<pid>/stat`, counted from the last `)` because the
-/// second field is the executable name and may itself contain both spaces and
-/// parentheses. Linux-only, which [ADR-0046] already is. Shared by the
-/// session-leader rung's naming and the liveness judgment that re-asks it
-/// ([ADR-0112]); `None` covers an absent process and an unreadable `/proc`
-/// alike, so a caller that needs the difference tests liveness first.
+/// One read rather than two, because the pair has to describe one process: an
+/// identifier reaped between separate reads is reissued by the same kernel, and
+/// the answer would then join one process's state to another's start time.
+///
+/// The run state is field 3 and the start time is field 22, both counted from
+/// the last `)` because the second field is the executable name and may itself
+/// contain spaces and parentheses. `Z`, `X`, and `x` are the states of a
+/// process that has already terminated: it is still listed, and answers
+/// `kill(pid, 0)` exactly as a running process does, so the state is the only
+/// thing that tells the two apart. Linux-only, which [ADR-0046] already is.
+/// `None` covers an absent process and an unreadable `/proc` alike, so a caller
+/// that needs the difference tests liveness first.
 ///
 /// [ADR-0046]: ../../docs/decisions/ADR-0046-support-linux-and-a-single-child-baseline.md
-/// [ADR-0112]: ../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
-pub(crate) fn process_started(pid: u32) -> Option<u64> {
+pub(crate) fn process_stat(pid: u32) -> Option<Stat> {
     let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let tail = text.rsplit_once(')')?.1;
-    tail.split_whitespace().nth(19)?.parse().ok()
+    let mut fields = tail.split_whitespace();
+    let exited = matches!(fields.next()?, "Z" | "X" | "x");
+    let started = fields.nth(18)?.parse().ok()?;
+    Some(Stat { exited, started })
 }
 
-/// Names this run's controlling terminal, confirmed against the device itself.
+/// Reads a process's start time from `procfs`, in clock ticks.
 ///
-/// Three steps, and the third is what the other two are for. Field 7 of
-/// `/proc/self/stat` — `tty_nr` — states which pane this process belongs to,
-/// and states it whatever has happened to standard input, output, and error;
-/// `domain::terminal::device_path` maps that number onto the path the device
-/// is published at; and the candidate is then confirmed by reading the node's
-/// own device number back. A candidate that does not confirm names nothing,
-/// so a mapping this kernel disagrees with costs the rung asking rather than
-/// keying one pane's state to another pane's directory.
-///
-/// Asking `/dev/tty` for its name instead is the thing this exists not to do:
-/// that node is the alias every process shares, it resolves back to itself,
-/// and it exists whether or not any terminal does — one directory for every
-/// pane, and a liveness question that could only ever answer yes. Opening the
-/// alias remains the right predicate for whether a terminal is *there*, which
-/// is `adapters::terminal`'s separate question.
-pub(crate) fn controlling_terminal() -> Option<std::ffi::OsString> {
-    use std::os::unix::fs::MetadataExt as _;
-
-    let number = terminal_number()?;
-    let candidate = crate::domain::terminal::device_path(number)?;
-    let facts = std::fs::metadata(&candidate).ok()?;
-    crate::domain::terminal::is_device(number, facts.rdev()).then(|| candidate.into())
+/// The naming half of [`process_stat`], for the callers that ask about a
+/// process they already know is running — this run itself, and its ancestors.
+pub(crate) fn process_started(pid: u32) -> Option<u64> {
+    process_stat(pid).map(Stat::started)
 }
 
-/// Reads this process's controlling-terminal number, or `None` for no terminal.
+/// Names the agent this run is about to become.
 ///
-/// Field 7 of `/proc/self/stat`, counted from the last `)` for the reason
-/// [`process_started`] documents. The kernel writes `0` for a process with no
-/// controlling terminal, which is an answer rather than a failure and reaches
-/// the caller the same way an unreadable `/proc` does.
-fn terminal_number() -> Option<u32> {
-    let text = std::fs::read_to_string("/proc/self/stat").ok()?;
+/// The wrapper execs the child, so the process that will be the agent is this
+/// one: its identifier and start time survive the exec unchanged, which is
+/// what lets a directory named before the exec answer for the agent after it
+/// ([ADR-0113]). The process namespace scopes the identifier, because that is
+/// what issued it and what `/proc` reports it against.
+///
+/// [ADR-0113]: ../../docs/decisions/ADR-0113-key-a-session-to-its-running-agent.md
+pub(crate) fn agent() -> Option<Agent> {
+    let space = namespace(Kind::Pid)?;
+    let pid = std::process::id();
+    Agent::new(space, pid, process_started(pid)?)
+}
+
+/// Walks this process's ancestry, newest first, as identifier and start time.
+///
+/// What it is for is marking the reader's own row: a run of `session list` is
+/// not an agent and never has a directory of its own, so the only honest
+/// reading of "this session" is the agent this command is running inside. An
+/// ancestor is exactly that, and the start time comes along because a matched
+/// identifier alone would let a reissued one claim the mark.
+///
+/// The walk stops at the first unreadable parent and at the namespace's root,
+/// so a truncated answer costs the mark and nothing else. `ppid` is field 4 of
+/// `/proc/<pid>/stat`, counted from the last `)` for the reason
+/// [`process_started`] documents.
+pub(crate) fn lineage() -> Vec<(u32, u64)> {
+    // The initial namespace tops out at `1`, and a bounded walk is what stops
+    // a `/proc` that answers inconsistently from spinning here.
+    const CEILING: usize = 64;
+
+    let mut found = Vec::new();
+    let mut pid = std::process::id();
+    for _ in 0..CEILING {
+        let Some(started) = process_started(pid) else {
+            break;
+        };
+        found.push((pid, started));
+        match parent(pid) {
+            Some(next) if next != 0 && next != pid => pid = next,
+            _ => break,
+        }
+    }
+    found
+}
+
+/// Reads one process's parent identifier from `procfs`.
+fn parent(pid: u32) -> Option<u32> {
+    let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let tail = text.rsplit_once(')')?.1;
-    let number: u32 = tail.split_whitespace().nth(4)?.parse().ok()?;
-    (number != 0).then_some(number)
+    tail.split_whitespace().nth(1)?.parse().ok()
 }
 
 /// Reads the kernel's boot identifier, trimmed.

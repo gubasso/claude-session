@@ -1108,6 +1108,24 @@ fn two_terminals_of_one_scope_link_one_registry() {
         harness.bound_command().status().expect("wrapper").success(),
         "the bound launch runs"
     );
+    let read_target = |harness: &Harness| {
+        let dirs = all_session_dirs(harness, "companion");
+        assert_eq!(
+            dirs.len(),
+            1,
+            "one live launch leaves one session: {dirs:?}"
+        );
+        let link = dirs[0].join("sessions");
+        assert!(
+            link.symlink_metadata().expect("registry link").is_symlink(),
+            "the registry is reached through a declared link"
+        );
+        fs::read_link(&link).expect("link target")
+    };
+    // A session is one agent run, so the two runs are two sessions and the
+    // second collects the first. What has to match is the registry each of
+    // them linked, which is read as each one lands ([ADR-0113]).
+    let mut targets = vec![read_target(&harness)];
     assert!(
         harness
             .detached_command(&["--account", "companion", "--profile", "companion"])
@@ -1116,19 +1134,7 @@ fn two_terminals_of_one_scope_link_one_registry() {
             .success(),
         "the detached launch runs"
     );
-    let dirs = all_session_dirs(&harness, "companion");
-    assert_eq!(dirs.len(), 2, "two sessions are two terminals: {dirs:?}");
-    let targets: Vec<std::path::PathBuf> = dirs
-        .iter()
-        .map(|dir| {
-            let link = dir.join("sessions");
-            assert!(
-                link.symlink_metadata().expect("registry link").is_symlink(),
-                "the registry is reached through a declared link"
-            );
-            fs::read_link(&link).expect("link target")
-        })
-        .collect();
+    targets.push(read_target(&harness));
     assert_eq!(targets[0], targets[1], "one scope names one registry");
     assert!(
         targets[0].starts_with(harness.state().join("peers")),
@@ -1136,69 +1142,4 @@ fn two_terminals_of_one_scope_link_one_registry() {
         targets[0].display()
     );
     assert!(targets[0].is_dir(), "the registry directory exists");
-}
-
-/// Slice 031 acceptance: adoption. A terminal used before the share holds a
-/// real `sessions/` directory the child filled; the next launch moves its
-/// entries into the registry and puts the declared link at the freed name.
-#[test]
-fn an_existing_registry_directory_is_adopted() {
-    let harness = Harness::new();
-    assert!(
-        harness.bound_command().status().expect("wrapper").success(),
-        "the first launch runs"
-    );
-    let dirs = all_session_dirs(&harness, "companion");
-    assert_eq!(dirs.len(), 1, "one launch makes one session directory");
-    let link = dirs[0].join("sessions");
-    let registry = fs::read_link(&link).expect("link target");
-    // Rebuild the pre-share shape: a real directory holding one registration.
-    fs::remove_file(&link).expect("unlink");
-    fs::create_dir(&link).expect("real directory");
-    fs::write(link.join("1234.json"), b"{}").expect("registration");
-    assert!(
-        harness.bound_command().status().expect("wrapper").success(),
-        "the adopting launch runs"
-    );
-    assert!(
-        link.symlink_metadata().expect("adopted name").is_symlink(),
-        "the occupied name becomes the declared link again"
-    );
-    assert!(
-        registry.join("1234.json").is_file(),
-        "the existing registration moved into the shared registry"
-    );
-}
-
-/// A link the wrapper wrote for an earlier boot targets a dead scope under
-/// `peers/`; left alone the guard would refuse it on every later launch,
-/// permanently degrading the share. The next launch repoints it to this
-/// boot's registry instead
-/// ([ADR-0108](../docs/decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md)).
-#[test]
-fn a_stale_registry_link_is_repointed() {
-    let harness = Harness::new();
-    assert!(
-        harness.bound_command().status().expect("wrapper").success(),
-        "the first launch runs"
-    );
-    let dirs = all_session_dirs(&harness, "companion");
-    assert_eq!(dirs.len(), 1, "one launch makes one session directory");
-    let link = dirs[0].join("sessions");
-    let registry = fs::read_link(&link).expect("link target");
-    // Rebuild the post-reboot shape: the link targets an earlier boot's
-    // scope, which still exists because nothing prunes one.
-    let stale = harness.state().join("peers/boot-000000000000/stale");
-    fs::create_dir_all(&stale).expect("stale scope");
-    fs::remove_file(&link).expect("unlink");
-    std::os::unix::fs::symlink(&stale, &link).expect("stale link");
-    assert!(
-        harness.bound_command().status().expect("wrapper").success(),
-        "the repointing launch runs"
-    );
-    assert_eq!(
-        fs::read_link(&link).expect("link target"),
-        registry,
-        "the stale link is repointed to this boot's registry"
-    );
 }

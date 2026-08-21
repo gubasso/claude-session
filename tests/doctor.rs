@@ -25,7 +25,7 @@ const IDS: [&str; 22] = [
     "settings-profile-valid",
     "account-launch-ready",
     "account-plan-declared",
-    "session-terminal-derives",
+    "session-identity-derives",
     "session-assets-linked",
 ];
 
@@ -193,6 +193,23 @@ fn one_row_stands_for_a_run_of_checks_and_names_each_id() {
 /// and no escape byte may reach a redirected stream or the machine document.
 #[test]
 fn colour_decorates_the_report_without_changing_it() {
+    /// Replaces the agent name a report carries with a fixed stand-in.
+    fn anonymised(text: &str) -> String {
+        let mut out = String::new();
+        let mut rest = text;
+        while let Some(start) = rest.find("agent-") {
+            out.push_str(&rest[..start]);
+            out.push_str("agent-N");
+            let tail = &rest[start..];
+            let end = tail
+                .find('"')
+                .unwrap_or_else(|| tail.find(char::is_whitespace).unwrap_or(tail.len()));
+            rest = &tail[end..];
+        }
+        out.push_str(rest);
+        out
+    }
+
     let harness = Harness::new();
     let plain = healthy(&harness).arg("doctor").output().expect("doctor");
     let coloured = healthy(&harness)
@@ -218,7 +235,10 @@ fn colour_decorates_the_report_without_changing_it() {
         out.push_str(rest);
         out
     };
-    assert_eq!(stripped, plain_text);
+    // The identity row names this run's own agent, and the two runs are two
+    // processes, so that one name is expected to differ. Everything else must
+    // not ([ADR-0113]).
+    assert_eq!(anonymised(&stripped), anonymised(&plain_text));
 
     let json = healthy(&harness)
         .env("FORCE_COLOR", "1")
@@ -402,11 +422,11 @@ fn plan_row(harness: &Harness, account: &str) -> serde_json::Value {
         .clone()
 }
 
-/// Slice 030 acceptance: a terminal name answers "which pane" only inside the
-/// namespace that issued it, so a report naming one without the other invites
-/// the reader to compare two names that are not comparable.
+/// Slice 030 acceptance: a process identifier answers "which agent" only
+/// inside the namespace that issued it, so a report naming one without the
+/// other invites the reader to compare two names that are not comparable.
 #[test]
-fn the_terminal_report_names_the_namespace() {
+fn the_identity_report_names_the_namespace() {
     let harness = Harness::new();
     harness.initialize_login("work");
     let output = healthy(&harness)
@@ -418,14 +438,14 @@ fn the_terminal_report_names_the_namespace() {
         .as_array()
         .expect("checks")
         .iter()
-        .find(|row| row["id"] == "session-terminal-derives")
+        .find(|row| row["id"] == "session-identity-derives")
         .expect("the check is in the report")
         .clone();
     let detail = row["message"].as_str().unwrap_or_default().to_owned();
-    // Whichever rung named this run, the namespace it was named in is the
-    // component above it and the report carries both.
+    // The namespace an agent is named in is the component above it, and the
+    // report carries both.
     assert!(
-        detail.contains("mnt-") || detail.contains("pid-"),
+        detail.contains("pid-"),
         "the report names no namespace: {detail}"
     );
     assert!(
@@ -437,7 +457,7 @@ fn the_terminal_report_names_the_namespace() {
 /// Slice 032 acceptance: the namespace component is discriminated per kernel,
 /// and a reader comparing two reports needs to know which identity did it.
 #[test]
-fn the_terminal_report_names_the_discriminator() {
+fn the_identity_report_names_the_discriminator() {
     let harness = Harness::new();
     harness.initialize_login("work");
     let output = healthy(&harness)
@@ -449,7 +469,7 @@ fn the_terminal_report_names_the_discriminator() {
         .as_array()
         .expect("checks")
         .iter()
-        .find(|row| row["id"] == "session-terminal-derives")
+        .find(|row| row["id"] == "session-identity-derives")
         .expect("the check is in the report")
         .clone();
     let detail = row["message"].as_str().unwrap_or_default().to_owned();

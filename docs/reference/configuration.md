@@ -62,12 +62,12 @@ The command protocol and configuration schema remain deferred under [ADR-0029](.
 
 Four keys. All optional; the default of each is unset, except the trust seed, whose unset value is enabled.
 
-| Key               | Type          | Unset means                          | Environment                         | Layers                     | Meaning                                                                                                                                     |
-| ----------------- | ------------- | ------------------------------------ | ----------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `child_bin`       | absolute path | search `PATH`                        | `CLAUDE_SESSION_RS_CHILD_BIN`       | user, environment          | The child to run ([process runtime](./process-runtime.md#child-resolution))                                                                 |
-| `default_account` | identifier    | fall through to the last-used marker | `CLAUDE_SESSION_RS_DEFAULT_ACCOUNT` | user, environment          | The account when `--account` is absent ([accounts](./accounts.md#selection))                                                                |
-| `default_profile` | identifier    | report no profile; refuse a launch   | `CLAUDE_SESSION_RS_DEFAULT_PROFILE` | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile))                                      |
-| `auto_trust_cwd`  | boolean       | enabled                              | `CLAUDE_SESSION_RS_AUTO_TRUST_CWD`  | user, environment          | Record the launch directory as trusted in this terminal's session directory ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)) |
+| Key               | Type          | Unset means                          | Environment                         | Layers                     | Meaning                                                                                                                                  |
+| ----------------- | ------------- | ------------------------------------ | ----------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `child_bin`       | absolute path | search `PATH`                        | `CLAUDE_SESSION_RS_CHILD_BIN`       | user, environment          | The child to run ([process runtime](./process-runtime.md#child-resolution))                                                              |
+| `default_account` | identifier    | fall through to the last-used marker | `CLAUDE_SESSION_RS_DEFAULT_ACCOUNT` | user, environment          | The account when `--account` is absent ([accounts](./accounts.md#selection))                                                             |
+| `default_profile` | identifier    | report no profile; refuse a launch   | `CLAUDE_SESSION_RS_DEFAULT_PROFILE` | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile))                                   |
+| `auto_trust_cwd`  | boolean       | enabled                              | `CLAUDE_SESSION_RS_AUTO_TRUST_CWD`  | user, environment          | Record the launch directory as trusted in this agent's session directory ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)) |
 
 Identifiers follow [the identifier rules](./xdg-storage.md#identifiers); an absolute path is validated where it is used.
 
