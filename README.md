@@ -134,7 +134,7 @@ The composed document reaches the child as an additional native settings layer, 
 Each terminal gets its own child state directory, so two panes never interleave their prompt history or their child configuration, while the account's login and projects tree stay shared. A launch records which terminal a directory belongs to, and that record is what makes cleanup honest later:
 
 ```bash
-claude-session-rs session list   # every session directory: live, dead, or unknown
+claude-session-rs session list   # every session directory, and whether its terminal is still there
 claude-session-rs session clean  # remove the provably dead ones; prompts unless --yes
 ```
 

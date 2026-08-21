@@ -4,7 +4,7 @@ use crate::{
     adapters::terminal::Terminal as _,
     commands::dispatch::{DispatchOutcome, OutputMode},
     context::AppContext,
-    domain::witness::Verdict,
+    domain::witness::Ground,
     error::{AppError, Diagnostic, ErrorKind},
     services::session::gc::{self, SessionFinding},
 };
@@ -24,29 +24,49 @@ pub(crate) fn list(context: &AppContext) -> Result<DispatchOutcome, AppError> {
     Ok(DispatchOutcome::Complete(0))
 }
 
-/// Removes every provably dead session directory, after confirming.
+/// Removes every session directory this run cannot prove is live, after
+/// confirming.
 ///
 /// Declining is not a failure: the verb stops before any side effect and exits
 /// `0`, because nothing was removed is an outcome rather than an error
-/// ([ADR-0111]).
+/// ([ADR-0112]).
 ///
-/// [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+/// [ADR-0112]: ../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 pub(crate) fn clean(context: &AppContext, consented: bool) -> Result<DispatchOutcome, AppError> {
     let findings = gc::survey(context)?;
-    let dead: Vec<SessionFinding> = findings
+    // A run that cannot name its own namespace has placed no record at all, so
+    // every directory would read as unaccounted for and the verb would take
+    // the whole tree. Blindness is not evidence, and this is the one state
+    // where refusing beats collecting ([ADR-0112]).
+    if findings
+        .iter()
+        .any(|finding| finding.ground == Ground::Unplaced)
+    {
+        return Err(AppError::new(
+            ErrorKind::Unavailable,
+            Diagnostic::new(
+                "session clean cannot judge this tree",
+                "the namespace of this run",
+                "this run cannot name the namespace its own session directories are scoped by"
+                    .to_owned(),
+                "see what each session is judged as with: claude-session-rs session list",
+            ),
+        ));
+    }
+    let collectable: Vec<SessionFinding> = findings
         .into_iter()
-        .filter(|finding| matches!(finding.verdict, Verdict::Dead))
+        .filter(|finding| finding.verdict.collectable())
         .collect();
     let json = context.output_mode() == OutputMode::Json;
-    if dead.is_empty() {
+    if collectable.is_empty() {
         crate::ui::session::collection(context.writer(), json, context.color(), &[], 0, false)?;
         return Ok(DispatchOutcome::Complete(0));
     }
-    if !consented && !confirm(context, &dead)? {
+    if !consented && !confirm(context, &collectable)? {
         crate::ui::session::collection(context.writer(), json, context.color(), &[], 0, true)?;
         return Ok(DispatchOutcome::Complete(0));
     }
-    let collection = gc::collect(context, &dead)?;
+    let collection = gc::collect(context, &collectable)?;
     crate::ui::session::collection(
         context.writer(),
         json,
@@ -62,10 +82,9 @@ pub(crate) fn clean(context: &AppContext, consented: bool) -> Result<DispatchOut
 ///
 /// Standard input is deliberately not consulted: the prompt has to survive
 /// `something | claude-session-rs session clean`, and it has to be invisible
-/// to `--json` consumers reading standard output. The preview is part of the
-/// question, so what it costs is stated before it is answered.
-fn confirm(context: &AppContext, dead: &[SessionFinding]) -> Result<bool, AppError> {
-    use std::fmt::Write as _;
+/// to `--json` consumers reading standard output. The question's wording is
+/// the renderer's, so this decides only whether it can be asked at all.
+fn confirm(context: &AppContext, collectable: &[SessionFinding]) -> Result<bool, AppError> {
     let unavailable = |why: String| {
         AppError::new(
             ErrorKind::Unavailable,
@@ -86,30 +105,10 @@ fn confirm(context: &AppContext, dead: &[SessionFinding]) -> Result<bool, AppErr
         }
         Err(error) => return Err(unavailable(error.to_string())),
     }
-    let mut prompt = format!(
-        "{} {} {} to a terminal that is gone.\n",
-        dead.len(),
-        crate::ui::prose::plural(dead.len(), "session directory", "session directories"),
-        crate::ui::prose::plural(dead.len(), "belongs", "belong"),
-    );
-    // Writing into a `String` cannot fail.
-    let _ = writeln!(
-        prompt,
-        "Removing {} deletes the child state and history stored for {}:",
-        crate::ui::prose::plural(dead.len(), "it", "them"),
-        crate::ui::prose::plural(dead.len(), "that terminal", "those terminals"),
-    );
-    for finding in dead {
-        // Writing into a `String` cannot fail.
-        let _ = writeln!(prompt, "  {}", finding.path.display());
-    }
-    prompt
-        .push_str("Your login, your projects tree, and every live or undecidable session stay.\n");
-    prompt.push_str("Remove them? [y/N] ");
     let answer = context
         .adapters()
         .terminal()
-        .ask(&prompt)
+        .ask(&crate::ui::session::prompt(collectable))
         .map_err(|error| unavailable(error.to_string()))?;
     Ok(crate::domain::consent::decide(answer.as_deref()).granted())
 }

@@ -22,59 +22,80 @@ use crate::{
         witness::{Ground, Verdict},
     },
     services::session::gc::SessionFinding,
-    ui::prose::{BODY_INDENT, Palette, paragraph, plural, wrap},
+    ui::prose::{BODY_INDENT, INDENT, Palette, paragraph, plural, wrap},
 };
+
+/// A paragraph and the command it points at, the command on its own line.
+///
+/// [`wrap`] refuses to break a path because a path split across two lines
+/// cannot be copied back into a shell; a command is several words, so the wrap
+/// cannot protect it and the layout has to.
+fn next_command(text: &str, command: &str) -> String {
+    format!("{}\n{}", paragraph(text), wrap(command, INDENT, INDENT))
+}
 
 /// The one-sentence explanation of every ground a judgment can stand on.
 ///
-/// It opens with the consequence — kept or collectable — because that is the
-/// half a reader acts on, and the reason follows it.
+/// It opens with the consequence — kept, collectable, or refused — because
+/// that is the half a reader acts on, and the reason follows it. Only a
+/// terminal this run can see keeps its directory; every other ground says why
+/// the run could not account for it, which is what the reader is deciding on
+/// when the prompt asks.
 const fn because(ground: Ground) -> &'static str {
     match ground {
-        Ground::DevicePresent => "Kept: that terminal is still open.",
+        Ground::DevicePresent => {
+            "Kept: that terminal is still open, whether or not claude is running in it."
+        }
         Ground::DeviceAbsent => {
             "Collectable: that terminal is gone, so nothing will write here again."
         }
-        Ground::DeviceUnobservable => {
-            "Kept: this run could not check whether that terminal still exists."
-        }
+        Ground::DeviceUnobservable => concat!(
+            "Collectable: this run could not check whether that terminal still ",
+            "exists, so it cannot account for this directory."
+        ),
         Ground::LeaderRunning => "Kept: the process group it belongs to is still running.",
         Ground::LeaderGone => "Collectable: the process group it belonged to has exited.",
         Ground::LeaderForeignBoot => {
             "Collectable: it belongs to a boot that has ended, and no process outlives its kernel."
         }
-        Ground::LeaderUnreadable => {
-            "Kept: this run could not read enough about that process group to decide."
-        }
-        Ground::Unrecorded => concat!(
-            "Kept: it carries no record of the terminal it belongs to, so nothing ",
-            "about it can be proven. Its next launch writes one."
+        Ground::LeaderUnreadable => concat!(
+            "Collectable: this run could not read enough about that process group ",
+            "to account for this directory."
         ),
-        Ground::Unplaced => {
-            "Kept: this run cannot tell which namespace it is in, so it can decide nothing here."
-        }
+        Ground::Unrecorded => concat!(
+            "Collectable: it carries no record of the terminal it belongs to, so ",
+            "nothing here can say what it is for."
+        ),
+        // The one ground that stops the verb rather than feeding it: a run
+        // that cannot place itself would find every directory unaccounted for
+        // and take the whole tree.
+        Ground::Unplaced => concat!(
+            "Refused: this run cannot tell which namespace it is in, so it can ",
+            "judge nothing here and session clean will not act."
+        ),
         Ground::Foreign => concat!(
-            "Kept: it belongs to another machine or container sharing this storage, ",
-            "and only that side can judge it."
+            "Collectable: it belongs to another machine or container sharing this ",
+            "storage, so nothing this run can see accounts for it."
         ),
         Ground::Alias => concat!(
-            "Kept: an earlier version could not tell terminals apart and gave every ",
-            "one of them this single directory, so nothing about it can be proven. ",
-            "What is inside belongs to all of them."
+            "Collectable: no terminal ever owned it. An earlier version gave every ",
+            "pane of one namespace this single directory, so what is inside belongs ",
+            "to all of them, and no name this version issues can claim it again."
         ),
     }
 }
 
 /// Maps a verdict onto the status colour its row borrows.
 ///
-/// Live passes, dead is the row with something to do about it, and undecidable
-/// is dimmed like a skip. The words stay the verdicts' own; only the colour is
-/// shared, and stripping it changes nothing.
+/// Live passes and everything else is a row with something to do about it, so
+/// the colour tracks collectability rather than the particular word. The words
+/// stay the verdicts' own; only the colour is shared, and stripping it changes
+/// nothing.
 const fn shade(verdict: Verdict) -> CheckStatus {
-    match verdict {
-        Verdict::Live => CheckStatus::Pass,
-        Verdict::Dead => CheckStatus::Warn,
-        Verdict::Unknown => CheckStatus::Skipped,
+    if verdict.collectable() {
+        CheckStatus::Warn
+    } else {
+        CheckStatus::Pass
     }
 }
 
@@ -108,12 +129,12 @@ fn row(palette: Palette, finding: &SessionFinding) -> String {
     let body = " ".repeat(BODY_INDENT);
     let mut text = wrap(&subject(finding), &prefix, &body);
     text.push_str(&wrap(because(finding.ground), &body, &body));
-    // The directory is named only where the reader is the one who would act on
-    // it, and on a line of its own so it can be copied back into a shell. A
-    // live session needs nothing, and a dead one is `clean`'s to remove and is
-    // listed again at its prompt; an undecidable one is nobody's but the
-    // reader's, so they are told where it is.
-    if finding.verdict == Verdict::Unknown {
+    // The directory is named on every row the reader might act on, and on a
+    // line of its own so it can be copied back into a shell. A live session is
+    // identified by its own device and needs nothing; a collectable one may
+    // name no terminal at all, in which case the path is the only thing
+    // telling one row from another.
+    if finding.verdict.collectable() {
         text.push_str(&wrap(&finding.path.display().to_string(), &body, &body));
     }
     palette.recolour_token(text, &token, shade(finding.verdict))
@@ -133,31 +154,108 @@ pub(super) fn list(palette: Palette, findings: &[SessionFinding]) -> String {
     }
     let mut out = format!("{}\n\n", palette.heading("Sessions"));
     out.push_str(&paragraph(concat!(
-        "Every terminal that launches claude gets a state directory of its own. ",
-        "Here is each one, and whether the terminal it belongs to still exists."
+        "Every terminal that launches claude gets a state directory of its own, ",
+        "and that directory outlives the child that made it. Here is each one, ",
+        "and whether the terminal it belongs to still exists."
     )));
     out.push('\n');
     for finding in findings {
         out.push_str(&row(palette, finding));
     }
     out.push('\n');
-    let dead = findings
+    // A tree this run cannot place is reported and left alone: `clean` refuses
+    // on it rather than mistaking its own blindness for an empty tree, so the
+    // summary must not offer the verb.
+    if findings
         .iter()
-        .filter(|finding| finding.verdict == Verdict::Dead)
+        .any(|finding| finding.ground == Ground::Unplaced)
+    {
+        out.push_str(&paragraph(concat!(
+            "This run cannot tell which namespace it is in, so it can prove nothing ",
+            "about the sessions above. Collection refuses here rather than emptying ",
+            "a tree it cannot see."
+        )));
+        return out;
+    }
+    let collectable = findings
+        .iter()
+        .filter(|finding| finding.verdict.collectable())
         .count();
-    out.push_str(&paragraph(&if dead > 0 {
-        format!(
-            "{dead} {} collectable. Remove {} with: claude-session-rs session clean",
-            plural(dead, "session is", "sessions are"),
-            plural(dead, "it", "them"),
-        )
+    if collectable > 0 {
+        out.push_str(&next_command(
+            &format!(
+                "{collectable} {} collectable. Remove {} with:",
+                plural(collectable, "session is", "sessions are"),
+                plural(collectable, "it", "them"),
+            ),
+            "claude-session-rs session clean",
+        ));
     } else {
+        out.push_str(&paragraph(concat!(
+            "Nothing here is collectable: every session above belongs to a terminal ",
+            "this run can still see."
+        )));
+    }
+    out
+}
+
+/// The groups a prompt separates, each with the clause that says what it is.
+///
+/// One entry per collectable verdict, so a verdict cannot be added without
+/// stating what a reader would be losing by collecting it.
+const GROUPS: &[(Verdict, &str)] = &[
+    (Verdict::Dead, "belongs to a terminal that has closed"),
+    (
+        Verdict::Orphaned,
         concat!(
-            "Nothing here is collectable: every session above is either live or ",
-            "undecidable, and only a terminal proven gone is ever removed."
-        )
-        .to_owned()
-    }));
+            "was never owned by any one terminal: an earlier version gave every pane ",
+            "of one namespace a single shared directory, and no launch can claim it again"
+        ),
+    ),
+    (
+        Verdict::Unknown,
+        concat!(
+            "cannot be accounted for by this run: no readable record of the terminal ",
+            "it belongs to, or a namespace this kernel cannot see"
+        ),
+    ),
+];
+
+/// The one question `session clean` asks, and what answering it costs.
+///
+/// Grouped rather than listed flat, because the groups lose different things
+/// and a reader answers one question about all of them. The preview is part of
+/// the question, so every path the verb would delete is named before it asks.
+pub(super) fn prompt(collectable: &[SessionFinding]) -> String {
+    let total = collectable.len();
+    let mut out = format!(
+        "{total} session {} collectable.\n\n",
+        plural(total, "directory is", "directories are")
+    );
+    for (verdict, clause) in GROUPS {
+        let group: Vec<&SessionFinding> = collectable
+            .iter()
+            .filter(|finding| finding.verdict == *verdict)
+            .collect();
+        if group.is_empty() {
+            continue;
+        }
+        out.push_str(&wrap(&format!("{} {clause}:", group.len()), "", ""));
+        for finding in group {
+            out.push_str(&wrap(&finding.path.display().to_string(), "  ", "      "));
+        }
+        out.push('\n');
+    }
+    out.push_str(&wrap(
+        concat!(
+            "Removing them deletes the child state and history stored there. Your ",
+            "login, your projects tree, and every session belonging to a terminal ",
+            "this run can still see stay."
+        ),
+        "",
+        "",
+    ));
+    out.push_str("Remove them? [y/N] ");
     out
 }
 
@@ -172,11 +270,13 @@ pub(super) fn collection(
         return paragraph("Nothing was removed. Every session is exactly as it was.");
     }
     if removed.is_empty() {
-        return paragraph(concat!(
-            "Nothing to collect. A session directory is removed only once the terminal it ",
-            "belongs to is proven gone, and none here is. See what each one is judged as, ",
-            "and why, with: claude-session-rs session list"
-        ));
+        return next_command(
+            concat!(
+                "Nothing to collect. Every session directory here belongs to a terminal ",
+                "this run can still see. See what each one is judged as, and why, with:"
+            ),
+            "claude-session-rs session list",
+        );
     }
     let mut rows = String::new();
     for finding in removed {
@@ -184,7 +284,7 @@ pub(super) fn collection(
     }
     let mut out = format!("{}\n\n{rows}\n", palette.heading("Collected"));
     let mut summary = format!(
-        "Removed {} dead session {}",
+        "Removed {} session {}",
         removed.len(),
         plural(removed.len(), "directory", "directories")
     );
@@ -194,9 +294,10 @@ pub(super) fn collection(
             plural(pruned_namespaces, "directory", "directories")
         ));
     }
-    summary.push_str(
-        ". Your login, your projects tree, and every live or undecidable session are untouched.",
-    );
+    summary.push_str(concat!(
+        ". Your login, your projects tree, and every session belonging to a terminal ",
+        "this run can still see are untouched."
+    ));
     out.push_str(&paragraph(&summary));
     out
 }

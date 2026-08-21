@@ -68,7 +68,7 @@ Colour is emitted as four-bit SGR by the one renderer. Eight-bit and true-colour
 
 ## Tables, progress, and prompts
 
-The wrapper renders none of the three today. The one prompt each of `account remove` and `account login --token` raises reaches [the controlling terminal](./cli-surface.md#the-predicate) rather than either standard stream, and states what answering costs before it asks. A progress indicator is forbidden during a passthrough for the reason a banner is: standard output belongs to the child, and standard error already carries the child's own diagnostics. Rule 3 rules out a spinner everywhere else, since it works by moving the cursor.
+The wrapper renders none of the three today. The one prompt each of `account remove`, `account login --token`, and `session clean` raises reaches [the controlling terminal](./cli-surface.md#the-predicate) rather than either standard stream, and states what answering costs before it asks. A progress indicator is forbidden during a passthrough for the reason a banner is: standard output belongs to the child, and standard error already carries the child's own diagnostics. Rule 3 rules out a spinner everywhere else, since it works by moving the cursor.
 
 A table or an interactive prompt arrives through the verb that needs it, which names the surface on its own page and admits any crate through [the dependency procedure](./dependencies.md#adding-a-dependency). Neither is a renderer's decision.
 

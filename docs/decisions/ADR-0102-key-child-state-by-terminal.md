@@ -35,4 +35,4 @@ Supersedes [ADR-0065](./ADR-0065-retire-the-terminal-group.md). Enacted in [the 
 
 Amended by [ADR-0107](./ADR-0107-scope-a-terminal-to-its-namespace.md): a terminal name is unique only inside its issuing namespace, so the path gains a component above it.
 
-Amended by [ADR-0111](./ADR-0111-collect-only-the-provably-dead-session.md): the dead are now collected by `session clean`.
+Amended by [ADR-0111](./ADR-0111-collect-only-the-provably-dead-session.md) and [ADR-0112](./ADR-0112-keep-only-the-session-proven-live.md): `session clean` collects every directory not proven live.

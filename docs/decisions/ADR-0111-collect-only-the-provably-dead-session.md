@@ -26,6 +26,6 @@ Two verdicts were rejected because they let a host confidently delete a running 
 
 ## Status
 
-Implemented
+Superseded
 
-Amends [ADR-0102](./ADR-0102-key-child-state-by-terminal.md). Enacted in [the session service](../../src/services/session.rs) and [the session verb](../../src/commands/session.rs). Shaped by [033](../plan/slices/033-dead-session-collection/README.md).
+Superseded by [ADR-0112](./ADR-0112-keep-only-the-session-proven-live.md). Amends [ADR-0102](./ADR-0102-key-child-state-by-terminal.md). Shaped by [033](../plan/slices/033-dead-session-collection/README.md).

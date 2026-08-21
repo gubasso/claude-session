@@ -53,8 +53,8 @@ A launch records the inputs that named its terminal, and `session clean` removes
 ## Acceptance
 
 - When a launch materialises a session directory, the wrapper shall record the witness beside it, and a second launch of the same terminal shall leave an unchanged record unwritten. -> sessions_gc::a_launch_records_the_witness_and_rewrites_it_only_on_change
-- When `session list` runs, every session directory shall carry exactly one of `live`, `dead`, or `unknown`, and one without a readable record shall be `unknown`. -> sessions_gc::session_list_tells_the_three_states_apart
-- When `session clean` runs, it shall remove every dead session directory and nothing live or unknown, and a namespace directory only once it is empty. -> sessions_gc::session_clean_removes_exactly_the_dead
+- When `session list` runs, every session directory shall carry a verdict and the ground that verdict is the projection of. -> sessions_gc::every_verdict_reports_the_ground_it_stands_on
+- When `session clean` removes a session directory, it shall remove the namespace directory holding it only once nothing but orphan records is left inside. -> sessions_gc::an_emptied_namespace_directory_is_pruned
 - When `session clean` has no terminal and no `--yes`, it shall refuse before any side effect, and a declined prompt shall exit `0`. -> sessions_gc::a_declined_prompt_removes_nothing_and_exits_zero
 - When the work lands, no current document shall state that nothing prunes a session directory.
 
@@ -70,4 +70,4 @@ A launch records its witness, `session list` tells the three states apart, `sess
 
 ## Revisions
 
-None.
+2026-08-21: the two acceptance lines asserting three verdicts, and collection of the dead alone, were superseded by [035](../035-total-session-accounting/README.md) and replaced by two this slice's own work still holds. What was learned is that a third verdict nothing could collect was not a boundary but an accumulation: the directory it was invented for could never be claimed by any later launch either, so keeping it left the tree with entries no verb could ever reach.

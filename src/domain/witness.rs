@@ -4,13 +4,13 @@
 //! recover from it which device or session leader it stood for. This module
 //! owns the record a launch writes so a later run can re-ask the naming
 //! question — the witness — and the pure judgment over it ([ADR-0110],
-//! [ADR-0111]). It performs no syscall: gathering the observations is the
+//! [ADR-0112]). It performs no syscall: gathering the observations is the
 //! session service's, and deciding the record's path is `domain::paths`. The
 //! judgment answers with the ground it stands on, and the verdict is that
 //! ground's projection, so a report can say why without re-deriving it.
 //!
 //! [ADR-0110]: ../../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
-//! [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+//! [ADR-0112]: ../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 
 use crate::domain::{
     identifier::Identifier,
@@ -21,8 +21,8 @@ use crate::domain::{
 /// The record version this module writes, and the only one it reads.
 ///
 /// A marker carrying any other version is judged unknown rather than parsed
-/// optimistically: a future field could change what liveness means, and
-/// unknown is never collected.
+/// optimistically: a future field could change what liveness means, and a
+/// record this module cannot read is not one it may claim to have judged.
 const VERSION: u32 = 1;
 
 /// One witness as the marker file records it.
@@ -147,7 +147,10 @@ pub(crate) struct Observed {
 ///
 /// Every process shares it, and it exists whether or not any terminal does.
 /// A record carrying it was written by a version that asked the alias for its
-/// own name and got the alias back, so it witnesses nothing ([ADR-0110]).
+/// own name and got the alias back, so it witnesses nothing ([ADR-0110]). No
+/// terminal number maps to this spelling, so no launch can ever claim such a
+/// directory again — which is what makes it garbage rather than an open
+/// question.
 ///
 /// [ADR-0110]: ../../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
 pub(crate) const ALIAS: &str = "/dev/tty";
@@ -189,10 +192,10 @@ impl Ground {
         match self {
             Self::DevicePresent | Self::LeaderRunning => Verdict::Live,
             Self::DeviceAbsent | Self::LeaderGone | Self::LeaderForeignBoot => Verdict::Dead,
+            Self::Alias => Verdict::Orphaned,
             Self::Unrecorded
             | Self::Unplaced
             | Self::Foreign
-            | Self::Alias
             | Self::DeviceUnobservable
             | Self::LeaderUnreadable => Verdict::Unknown,
         }
@@ -217,15 +220,24 @@ impl Ground {
 }
 
 /// One session directory's liveness.
+///
+/// The session tree is the wrapper's own, so the only question worth asking of
+/// a directory in it is whether this run can prove it is still in use. Exactly
+/// one verdict says it can, and the rest are garbage; they stay separate words
+/// because they differ in what a reader loses by collecting, which is the
+/// sentence a report owes them ([ADR-0112]).
+///
+/// [ADR-0112]: ../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Verdict {
-    /// The recorded terminal still exists; never collected.
+    /// The recorded terminal still exists; the one verdict that is kept.
     Live,
-    /// The recorded terminal is provably gone; the only collectable verdict.
+    /// The recorded terminal existed and is provably gone.
     Dead,
-    /// Out of scope or undecidable; never collected ([ADR-0111]).
-    ///
-    /// [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+    /// No terminal ever owned it, and none can ever claim it.
+    Orphaned,
+    /// This run cannot decide, which is a gap in a tree the wrapper owns
+    /// rather than a reason to keep carrying it.
     Unknown,
 }
 
@@ -235,28 +247,41 @@ impl Verdict {
         match self {
             Self::Live => "live",
             Self::Dead => "dead",
+            Self::Orphaned => "orphaned",
             Self::Unknown => "unknown",
         }
+    }
+
+    /// Reports whether `session clean` removes a directory judged this way.
+    ///
+    /// The single owner of the policy, so the survey, the collector, the
+    /// prompt, and both renderers cannot disagree about what the verb takes.
+    pub(crate) const fn collectable(self) -> bool {
+        !matches!(self, Self::Live)
     }
 }
 
 /// Judges one marker against what this run observed, and says on what ground.
 ///
-/// A marker whose namespace component is not this run's is undecidable: the
-/// name it witnesses was issued somewhere this kernel cannot look, so absence
-/// of its device or process proves nothing ([ADR-0111]). Inside scope the tty
-/// rung is live while its device exists — boot is ignored deliberately,
-/// because a reopened slot after reboot is the same slot — and the leader rung
-/// is live while its process id and start time match under the recorded boot,
-/// dead under a foreign boot, and undecidable when either boot is unreadable.
+/// This answers one question — can this run prove the directory is still in
+/// use — so every ground but the two live ones is a way of failing to prove it
+/// ([ADR-0112]). Inside scope the tty rung is live while its device exists —
+/// boot is ignored deliberately, because a reopened slot after reboot is the
+/// same slot — and the leader rung is live while its process id and start time
+/// match under the recorded boot, dead under a foreign boot, and undecidable
+/// when either boot is unreadable.
+///
+/// A marker whose namespace component is not this run's stays its own ground:
+/// the name it witnesses was issued somewhere this kernel cannot look, so the
+/// report can say that rather than implying a terminal was checked and missed.
 ///
 /// One device is judged before it is looked for. A record naming [`ALIAS`]
-/// witnesses no pane, so it can be neither live nor dead: it is the residue of
-/// a launch that could not tell terminals apart and gave every one of them the
-/// same directory. Unknown keeps it, which is the honest outcome for a
-/// directory whose contents belonged to all of them.
+/// witnesses no pane, so it is neither live nor dead but orphaned: it is the
+/// residue of a launch that could not tell terminals apart and gave every one
+/// of them the same directory, and no name this version issues can ever land
+/// on it again.
 ///
-/// [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+/// [ADR-0112]: ../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 pub(crate) fn judge(marker: &Marker, observed: &Observed) -> Ground {
     let Some(current) = &observed.namespace else {
         return Ground::Unplaced;
@@ -404,9 +429,9 @@ mod tests {
     }
 
     /// The tty rung ignores boot deliberately: a reopened slot after reboot is
-    /// the same slot ([ADR-0111]).
+    /// the same slot ([ADR-0112]).
     ///
-    /// [ADR-0111]: ../../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+    /// [ADR-0112]: ../../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
     #[test]
     fn the_tty_rung_survives_a_reboot() {
         let marker = tty_marker();
@@ -523,8 +548,10 @@ mod tests {
     }
 
     /// The residue of the defect that named every pane after the alias every
-    /// process shares: the record witnesses no terminal, so it is kept rather
-    /// than judged either way.
+    /// process shares. The record witnesses no terminal and no name this
+    /// version issues can land on its directory again, so it is orphaned
+    /// rather than merely undecidable — and the device it names exists, which
+    /// is exactly why the alias is judged before it is looked for.
     #[test]
     fn a_recorded_alias_witnesses_no_pane() {
         let marker = Marker {
@@ -533,7 +560,40 @@ mod tests {
             },
             ..tty_marker()
         };
-        judged(&marker, &observed(&marker), Ground::Alias, Verdict::Unknown);
+        let facts = Observed {
+            device_present: Some(true),
+            ..observed(&marker)
+        };
+        judged(&marker, &facts, Ground::Alias, Verdict::Orphaned);
+    }
+
+    /// The whole collection policy in one assertion: a directory is kept only
+    /// while this run can prove its terminal is still there, and every other
+    /// verdict is garbage ([ADR-0112]).
+    ///
+    /// [ADR-0112]: ../../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
+    #[test]
+    fn every_verdict_but_live_is_collectable() {
+        assert!(!Verdict::Live.collectable());
+        for verdict in [Verdict::Dead, Verdict::Orphaned, Verdict::Unknown] {
+            assert!(verdict.collectable(), "{verdict:?}");
+        }
+    }
+
+    /// Every verdict spells itself, and no two spell the same, so a document
+    /// naming one cannot leave a reader guessing which it meant.
+    #[test]
+    fn every_verdict_carries_its_own_spelling() {
+        let verdicts = [
+            Verdict::Live,
+            Verdict::Dead,
+            Verdict::Orphaned,
+            Verdict::Unknown,
+        ];
+        let mut spellings: Vec<&str> = verdicts.iter().map(|it| it.as_str()).collect();
+        spellings.sort_unstable();
+        spellings.dedup();
+        assert_eq!(spellings.len(), verdicts.len());
     }
 
     /// Every ground spells itself, and no two spell the same, which is what

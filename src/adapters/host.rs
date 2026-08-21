@@ -70,11 +70,11 @@ fn machine_id() -> Option<String> {
 /// second field is the executable name and may itself contain both spaces and
 /// parentheses. Linux-only, which [ADR-0046] already is. Shared by the
 /// session-leader rung's naming and the liveness judgment that re-asks it
-/// ([ADR-0111]); `None` covers an absent process and an unreadable `/proc`
+/// ([ADR-0112]); `None` covers an absent process and an unreadable `/proc`
 /// alike, so a caller that needs the difference tests liveness first.
 ///
 /// [ADR-0046]: ../../docs/decisions/ADR-0046-support-linux-and-a-single-child-baseline.md
-/// [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+/// [ADR-0112]: ../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 pub(crate) fn process_started(pid: u32) -> Option<u64> {
     let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let tail = text.rsplit_once(')')?.1;

@@ -1,10 +1,11 @@
 //! Judging and collecting per-terminal session directories.
 //!
 //! This module gathers what the kernel says about each recorded witness and
-//! hands the pure judgment to `domain::witness`. Only a dead verdict is ever
-//! collectable, and an undecidable one is kept ([ADR-0111]).
+//! hands the pure judgment to `domain::witness`. The session tree is the
+//! wrapper's own, so a directory is kept only while this run can prove its
+//! terminal is still there, and everything else is garbage ([ADR-0112]).
 //!
-//! [ADR-0111]: ../../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+//! [ADR-0112]: ../../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 
 use std::path::{Path, PathBuf};
 
@@ -14,6 +15,7 @@ use crate::{
     domain::{
         identifier::Identifier,
         namespace::Kind,
+        paths::XdgPaths,
         terminal::Source,
         witness::{self, Ground, LeaderObservation, Marker, Observed, Recorded, Verdict},
     },
@@ -49,7 +51,7 @@ pub(crate) struct SessionFinding {
 /// What one `clean` removed.
 #[derive(Clone, Debug)]
 pub(crate) struct Collection {
-    /// The dead sessions removed, in survey order.
+    /// The sessions removed, in survey order.
     pub(crate) removed: Vec<SessionFinding>,
     /// The namespace directories removed because nothing was left inside.
     pub(crate) pruned_namespaces: usize,
@@ -104,6 +106,32 @@ impl Observatory {
     }
 }
 
+/// Judges one session directory, with or without a readable record.
+///
+/// The single owner of "what is this directory", so the survey and the
+/// re-judgment inside the removal lock cannot reach different answers from the
+/// same bytes. A directory carrying no readable record is `Unrecorded` rather
+/// than skipped: it is still a directory in a tree the wrapper owns, and the
+/// collector has to be able to act on it.
+///
+/// A record filed under a namespace directory it does not name witnesses
+/// nothing about that directory, so it is treated as no record at all rather
+/// than judged.
+fn judge_directory(
+    paths: &XdgPaths,
+    observatory: &Observatory,
+    account: &Identifier,
+    namespace: &Identifier,
+    terminal: &Identifier,
+) -> (Ground, Option<Marker>) {
+    let marker = read_marker(&paths.session_witness(account, namespace, terminal))
+        .filter(|it| it.namespace() == namespace);
+    let ground = marker.as_ref().map_or(Ground::Unrecorded, |it| {
+        witness::judge(it, &observatory.observe(it))
+    });
+    (ground, marker)
+}
+
 /// Surveys every session directory of every account, judging each one.
 ///
 /// Findings are ordered by account, then namespace, then terminal, so two
@@ -125,14 +153,8 @@ pub(crate) fn survey(context: &AppContext) -> Result<Vec<SessionFinding>, AppErr
         for namespace in identifier_directories(&paths.account_sessions(&account))? {
             for terminal in identifier_directories(&paths.account_namespace(&account, &namespace))?
             {
-                // A record filed under a namespace directory it does not name
-                // witnesses nothing about that directory, so it is treated as
-                // no record at all rather than judged.
-                let marker = read_marker(&paths.session_witness(&account, &namespace, &terminal))
-                    .filter(|it| it.namespace() == &namespace);
-                let ground = marker.as_ref().map_or(Ground::Unrecorded, |it| {
-                    witness::judge(it, &observatory.observe(it))
-                });
+                let (ground, marker) =
+                    judge_directory(paths, &observatory, &account, &namespace, &terminal);
                 let current = here
                     .as_ref()
                     .is_some_and(|(space, pane)| space == &namespace && pane == &terminal);
@@ -153,47 +175,53 @@ pub(crate) fn survey(context: &AppContext) -> Result<Vec<SessionFinding>, AppErr
     Ok(findings)
 }
 
-/// Removes every dead finding, then prunes what the removals emptied.
+/// Removes every collectable finding, then prunes what the removals emptied.
 ///
 /// Per account, under that account's write lock, so a removal never interleaves
 /// with an `account remove` destroying the same scope. Each directory is
 /// re-validated by the guard before deletion — a removal that followed a
 /// symbolic link would delete something the user never named — and its witness
 /// goes after it, so a crash between the two leaves an orphan record rather
-/// than an undecidable directory. A namespace directory is removed only once
-/// nothing but orphan witness records is left inside it ([ADR-0111]).
+/// than a directory nothing accounts for. A namespace directory is removed only
+/// once nothing but orphan witness records is left inside it ([ADR-0112]).
 ///
-/// [ADR-0111]: ../../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+/// [ADR-0112]: ../../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 pub(crate) fn collect(
     context: &AppContext,
-    dead: &[SessionFinding],
+    collectable: &[SessionFinding],
 ) -> Result<Collection, AppError> {
     let paths = context.paths();
     let state = paths.state();
     let observatory = Observatory::capture();
     let mut removed = Vec::new();
     let mut pruned_namespaces = 0;
-    let mut accounts: Vec<&Identifier> = dead.iter().map(|finding| &finding.account).collect();
+    let mut accounts: Vec<&Identifier> =
+        collectable.iter().map(|finding| &finding.account).collect();
     accounts.dedup();
     for account in accounts {
         let _lock = crate::services::account::hold(context, account)?;
         let mut namespaces: Vec<&Identifier> = Vec::new();
-        for finding in dead.iter().filter(|finding| &finding.account == account) {
-            debug_assert!(matches!(finding.verdict, Verdict::Dead));
+        for finding in collectable
+            .iter()
+            .filter(|finding| &finding.account == account)
+        {
+            debug_assert!(finding.verdict.collectable());
             let witness_path =
                 paths.session_witness(&finding.account, &finding.namespace, &finding.terminal);
             // The confirmation prompt sat between the survey and this lock,
             // and a slot can be reborn in that window — a reopened tty, a
-            // relaunched leader. Only a verdict re-judged inside the critical
-            // section is current enough to act on, so anything no longer
-            // provably dead is left standing ([ADR-0111]).
-            let still_dead = read_marker(&witness_path)
-                .filter(|marker| marker.namespace() == &finding.namespace)
-                .is_some_and(|marker| {
-                    witness::judge(&marker, &observatory.observe(&marker)).verdict()
-                        == Verdict::Dead
-                });
-            if !still_dead {
+            // relaunched leader, a launch that recorded the witness this run
+            // could not read. Only a judgment re-taken inside the critical
+            // section is current enough to act on, so anything that has become
+            // provably live is left standing ([ADR-0112]).
+            let (ground, _) = judge_directory(
+                paths,
+                &observatory,
+                &finding.account,
+                &finding.namespace,
+                &finding.terminal,
+            );
+            if !ground.verdict().collectable() {
                 continue;
             }
             guard::validate(state, &finding.path, guard::Expected::Directory)?;
@@ -220,7 +248,7 @@ pub(crate) fn collect(
         status = "ok",
         removed = removed.len(),
         pruned_namespaces,
-        "collected {} dead session directories",
+        "collected {} session directories",
         removed.len()
     );
     Ok(Collection {

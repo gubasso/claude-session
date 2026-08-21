@@ -1,12 +1,12 @@
-//! Witness recording, session liveness verdicts, and dead-session collection.
+//! Witness recording, session liveness verdicts, and session collection.
 //!
-//! Slice 033 acceptance lives here: a launch records the witness beside its
-//! session directory, `session list` tells the three states apart, and
-//! `session clean` removes exactly the provably dead after a confirmation
-//! ([ADR-0110], [ADR-0111]).
+//! A launch records the witness beside its session directory, `session list`
+//! tells the four states apart, and `session clean` removes every directory
+//! this run cannot prove is live, after a confirmation ([ADR-0110],
+//! [ADR-0112]).
 //!
 //! [ADR-0110]: ../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
-//! [ADR-0111]: ../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+//! [ADR-0112]: ../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 
 #![allow(clippy::expect_used, clippy::pedantic, clippy::nursery)]
 
@@ -89,6 +89,50 @@ fn plant_dead_session(namespace: &Path, real_witness: &serde_json::Value, name: 
     directory
 }
 
+/// Plants a session directory whose recorded device still exists.
+///
+/// `/dev/null` is not a terminal, and does not need to be: the tty rung asks
+/// only whether the device it recorded is still published, so a node that is
+/// always there is exactly the fixture for a slot that is still open.
+fn plant_live_session(namespace: &Path, real_witness: &serde_json::Value, name: &str) -> PathBuf {
+    let directory = namespace.join(name);
+    fs::create_dir(&directory).expect("live session directory");
+    fs::write(
+        namespace.join(format!(".{name}.witness.json")),
+        serde_json::to_vec(&serde_json::json!({
+            "version": 1,
+            "rung": "tty",
+            "device": "/dev/null",
+            "namespace": real_witness["namespace"].as_str().expect("namespace field"),
+        }))
+        .expect("live witness"),
+    )
+    .expect("live witness file");
+    directory
+}
+
+/// Plants the residue of the defect that named every pane after the alias.
+///
+/// The record witnesses no terminal, and no name this version issues can land
+/// on its directory again, so it is orphaned wherever the suite runs — the one
+/// fixture that needs neither a live device nor a live process to be exact.
+fn plant_alias_session(namespace: &Path, real_witness: &serde_json::Value, name: &str) -> PathBuf {
+    let directory = namespace.join(name);
+    fs::create_dir(&directory).expect("alias session directory");
+    fs::write(
+        namespace.join(format!(".{name}.witness.json")),
+        serde_json::to_vec(&serde_json::json!({
+            "version": 1,
+            "rung": "tty",
+            "device": "/dev/tty",
+            "namespace": real_witness["namespace"].as_str().expect("namespace field"),
+        }))
+        .expect("alias witness"),
+    )
+    .expect("alias witness file");
+    directory
+}
+
 /// Reads a `session` subcommand's JSON document from a fresh invocation.
 fn session_json(harness: &Harness, arguments: &[&str]) -> serde_json::Value {
     let output = harness
@@ -143,25 +187,34 @@ fn a_launch_records_the_witness_and_rewrites_it_only_on_change() {
     );
 }
 
-/// Slice 033 acceptance: every session directory carries exactly one verdict,
-/// and one without a readable record is unknown.
+/// Slice 035 acceptance: every session directory carries exactly one verdict,
+/// and only the one whose terminal this run can still see is `live`.
 #[test]
-fn session_list_tells_the_three_states_apart() {
+fn session_list_tells_the_four_states_apart() {
     let harness = Harness::new();
+    let _ = harness.bound_command();
+    // Every fixture below is a tty-rung record, so the launch has to be one
+    // too: the rung decides which namespace the record is scoped by, and a
+    // record filed against the wrong one is foreign rather than judged.
     assert!(
-        harness.bound_command().status().expect("wrapper").success(),
-        "the launch runs"
+        harness
+            .terminal_command("--account companion --profile companion")
+            .status()
+            .expect("wrapper under a pseudo-terminal")
+            .success(),
+        "the launch runs under a pty"
     );
     let namespace = only_namespace_dir(&harness, "companion");
-    let session = only_session_dir(&namespace);
-    let real: serde_json::Value =
-        serde_json::from_slice(&fs::read(witness_path(&session)).expect("witness"))
-            .expect("witness json");
+    let real: serde_json::Value = serde_json::from_slice(
+        &fs::read(witness_path(&only_session_dir(&namespace))).expect("witness"),
+    )
+    .expect("witness json");
+    plant_live_session(&namespace, &real, "liveslot");
     plant_dead_session(&namespace, &real, "deadslot");
     fs::create_dir(namespace.join("unknownslot")).expect("markerless directory");
+    plant_alias_session(&namespace, &real, "tty");
     let document = session_json(&harness, &["session", "list", "--json"]);
     let sessions = document["sessions"].as_array().expect("rows");
-    assert_eq!(sessions.len(), 3, "{document}");
     let verdict = |terminal: &str| {
         sessions
             .iter()
@@ -169,13 +222,10 @@ fn session_list_tells_the_three_states_apart() {
             .unwrap_or_else(|| panic!("no row for {terminal}: {document}"))["verdict"]
             .clone()
     };
-    assert_eq!(
-        verdict(&session.file_name().expect("name").to_string_lossy()),
-        "live",
-        "the launch's own terminal still exists"
-    );
+    assert_eq!(verdict("liveslot"), "live");
     assert_eq!(verdict("deadslot"), "dead");
     assert_eq!(verdict("unknownslot"), "unknown");
+    assert_eq!(verdict("tty"), "orphaned");
     let human = harness
         .assert_command()
         .args(["session", "list"])
@@ -183,16 +233,23 @@ fn session_list_tells_the_three_states_apart() {
         .expect("human list");
     let text = String::from_utf8_lossy(&human.stdout).into_owned();
     assert!(text.contains("Sessions"), "{text}");
+    for token in ["[live]", "[dead]", "[unknown]", "[orphaned]"] {
+        assert!(text.contains(token), "{token} is missing: {text}");
+    }
     assert!(
         text.contains("session clean"),
-        "a dead finding names the collector: {text}"
+        "a collectable finding names the collector: {text}"
     );
 }
 
-/// Slice 033 acceptance: `session clean` removes every dead session directory
-/// and nothing live or unknown.
+/// Slice 035 acceptance: `session clean` removes every session directory this
+/// run cannot prove is live, and nothing else. The tree is the wrapper's own,
+/// so there is no middle ground between a session it can account for and
+/// garbage ([ADR-0112]).
+///
+/// [ADR-0112]: ../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 #[test]
-fn session_clean_removes_exactly_the_dead() {
+fn session_clean_removes_everything_not_proven_live() {
     let harness = Harness::new();
     assert!(
         harness.bound_command().status().expect("wrapper").success(),
@@ -206,22 +263,35 @@ fn session_clean_removes_exactly_the_dead() {
     let dead = plant_dead_session(&namespace, &real, "deadslot");
     let unknown = namespace.join("unknownslot");
     fs::create_dir(&unknown).expect("markerless directory");
+    let orphan = plant_alias_session(&namespace, &real, "tty");
     let document = session_json(&harness, &["session", "clean", "--yes", "--json"]);
     let removed = document["removed"].as_array().expect("removed rows");
-    assert_eq!(removed.len(), 1, "{document}");
-    assert_eq!(removed[0]["terminal"], "deadslot");
+    let mut taken: Vec<&str> = removed
+        .iter()
+        .map(|row| row["terminal"].as_str().expect("terminal"))
+        .collect();
+    taken.sort_unstable();
+    assert_eq!(taken, ["deadslot", "tty", "unknownslot"], "{document}");
     assert_eq!(document["pruned_namespaces"], 0, "{document}");
     assert!(!dead.exists(), "the dead directory is gone");
     assert!(
         !namespace.join(".deadslot.witness.json").exists(),
         "its witness went with it"
     );
+    assert!(
+        !unknown.exists(),
+        "a directory carrying no record is garbage, not a question left open"
+    );
+    assert!(
+        !orphan.exists(),
+        "a directory no terminal ever owned is garbage"
+    );
+    assert!(
+        !namespace.join(".tty.witness.json").exists(),
+        "the orphan's witness went with it"
+    );
     assert!(live.exists(), "the live session stays");
     assert!(witness_path(&live).exists(), "and keeps its witness");
-    assert!(
-        unknown.exists(),
-        "the unknown session is kept, never guessed"
-    );
 }
 
 /// Slice 033 acceptance: a namespace directory is removed only once it is
@@ -307,6 +377,10 @@ fn a_declined_prompt_removes_nothing_and_exits_zero() {
     )
     .expect("witness json");
     let dead = plant_dead_session(&namespace, &real, "deadslot");
+    // A second directory in another state, so the preview has to group: the
+    // two lose different things, and one question covers both.
+    let unknown = namespace.join("unknownslot");
+    fs::create_dir(&unknown).expect("markerless directory");
     let mut child = harness
         .terminal_command("session clean")
         .stdin(std::process::Stdio::piped())
@@ -330,10 +404,23 @@ fn a_declined_prompt_removes_nothing_and_exits_zero() {
         "the preview is part of the question: {text}"
     );
     assert!(
-        text.contains("deadslot"),
-        "the prompt names the path: {text}"
+        text.contains("2 session directories are collectable"),
+        "the question opens with what it covers: {text}"
     );
+    for path in ["deadslot", "unknownslot"] {
+        assert!(text.contains(path), "the prompt names {path}: {text}");
+    }
+    for clause in [
+        "belongs to a terminal that has closed",
+        "cannot be accounted for by this run",
+    ] {
+        assert!(
+            text.contains(clause),
+            "the preview groups by what collecting costs: {clause} missing from {text}"
+        );
+    }
     assert!(dead.exists(), "nothing was removed");
+    assert!(unknown.exists(), "nothing was removed either");
 }
 
 /// The sentinel still forces the spelling to the child: claiming the verb must
@@ -361,13 +448,16 @@ fn the_sentinel_still_forwards_the_session_spelling_to_the_child() {
     );
 }
 
-/// A witness reached through a symbolic link is no record at all: the session
-/// is judged unknown and never collected, whatever the link's target says
-/// ([ADR-0061]).
+/// A witness reached through a symbolic link is no record at all, whatever
+/// the link's target says ([ADR-0061]). The directory is therefore one the
+/// run cannot account for, and an unaccounted directory in a tree the wrapper
+/// owns is garbage — so the link buys nothing: it neither speaks for the
+/// directory nor saves it ([ADR-0112]).
 ///
 /// [ADR-0061]: ../docs/decisions/ADR-0061-protect-storage-from-accidental-local-drift.md
+/// [ADR-0112]: ../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 #[test]
-fn a_symlinked_witness_is_unknown_and_never_collected() {
+fn a_symlinked_witness_speaks_for_nothing_and_saves_nothing() {
     let harness = Harness::new();
     assert!(
         harness.bound_command().status().expect("wrapper").success(),
@@ -397,11 +487,26 @@ fn a_symlinked_witness_is_unknown_and_never_collected() {
         .unwrap_or_else(|| panic!("no row for linkedslot: {document}"))
         .clone();
     assert_eq!(row["verdict"], "unknown", "{document}");
+    assert_eq!(
+        row["ground"], "unrecorded",
+        "the link is not read, so the directory carries no record: {document}"
+    );
     let document = session_json(&harness, &["session", "clean", "--yes", "--json"]);
     let removed = document["removed"].as_array().expect("removed rows");
-    assert_eq!(removed.len(), 1, "{document}");
-    assert_eq!(removed[0]["terminal"], "deadslot", "{document}");
-    assert!(linked.exists(), "the linked slot is kept, never guessed");
+    let mut taken: Vec<&str> = removed
+        .iter()
+        .map(|row| row["terminal"].as_str().expect("terminal"))
+        .collect();
+    taken.sort_unstable();
+    assert_eq!(taken, ["deadslot", "linkedslot"], "{document}");
+    assert!(!linked.exists(), "an unaccounted directory is garbage");
+    assert!(
+        namespace
+            .join(".deadslot.witness.json")
+            .symlink_metadata()
+            .is_err(),
+        "the real record went with the directory it named"
+    );
 }
 
 /// A slot reborn while the confirmation waits is left standing: only a
@@ -534,10 +639,14 @@ fn a_launch_under_a_pty_names_the_pane_it_runs_in() {
 }
 
 /// A record written before the fix names the alias, so it witnesses no pane:
-/// it is kept as unknown and never collected, because what is inside belonged
-/// to every terminal at once ([ADR-0111]).
+/// it names no pane, and no terminal number this version maps can ever land on
+/// its directory again. That makes it orphaned rather than undecidable, and an
+/// orphan is garbage: the verb takes it, after saying whose state it was
+/// ([ADR-0112]).
+///
+/// [ADR-0112]: ../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 #[test]
-fn a_recorded_alias_is_unknown_and_never_collected() {
+fn a_recorded_alias_is_orphaned_and_collected() {
     let harness = Harness::new();
     let _ = harness.bound_command();
     assert!(
@@ -549,20 +658,11 @@ fn a_recorded_alias_is_unknown_and_never_collected() {
         "the launch runs under a pty"
     );
     let namespace = only_namespace_dir(&harness, "companion");
-    let scope = namespace.file_name().expect("name").to_string_lossy();
-    let alias = namespace.join("tty");
-    fs::create_dir(&alias).expect("alias session directory");
-    fs::write(
-        namespace.join(".tty.witness.json"),
-        serde_json::to_vec(&serde_json::json!({
-            "version": 1,
-            "rung": "tty",
-            "device": "/dev/tty",
-            "namespace": scope,
-        }))
-        .expect("alias witness"),
+    let real: serde_json::Value = serde_json::from_slice(
+        &fs::read(witness_path(&only_session_dir(&namespace))).expect("witness"),
     )
-    .expect("alias witness file");
+    .expect("witness json");
+    let alias = plant_alias_session(&namespace, &real, "tty");
     let document = session_json(&harness, &["session", "list", "--json"]);
     let row = document["sessions"]
         .as_array()
@@ -571,24 +671,38 @@ fn a_recorded_alias_is_unknown_and_never_collected() {
         .find(|row| row["terminal"] == "tty")
         .unwrap_or_else(|| panic!("no row for the alias: {document}"))
         .clone();
-    assert_eq!(row["verdict"], "unknown", "{document}");
+    assert_eq!(row["verdict"], "orphaned", "{document}");
     assert_eq!(row["ground"], "alias", "{document}");
     // The record names no terminal, so it reports none: the key's absence is
     // what tells a caller that, rather than a device standing for every pane.
     assert!(row.get("names").is_none(), "{document}");
-    // The pane the launch ran in closed with the allocator, so its own slot may
-    // be collected here; the alias record is the one that must survive, and it
-    // must survive because nothing about it can be proven.
+    // The human row says whose state it was before the prompt asks for it, so
+    // the reader is told what collecting costs rather than a bare verdict.
+    let human = harness
+        .assert_command()
+        .args(["session", "list"])
+        .output()
+        .expect("human list");
+    let text = String::from_utf8_lossy(&human.stdout).into_owned();
+    assert!(text.contains("[orphaned]"), "{text}");
+    assert!(
+        text.contains("no terminal ever owned it"),
+        "the row says what the directory is: {text}"
+    );
     let collected = session_json(&harness, &["session", "clean", "--yes", "--json"]);
     assert!(
-        !collected["removed"]
+        collected["removed"]
             .as_array()
             .expect("removed")
             .iter()
             .any(|row| row["terminal"] == "tty"),
         "{collected}"
     );
-    assert!(alias.exists(), "the alias directory is kept");
+    assert!(!alias.exists(), "the orphaned directory is collected");
+    assert!(
+        !namespace.join(".tty.witness.json").exists(),
+        "its witness went with it"
+    );
 }
 
 /// Every row says why, in both forms: the machine document carries the ground

@@ -49,9 +49,9 @@ pub(crate) struct SystemTerminal;
 
 // The leader's start-time read lives in `adapters::host` as `process_started`,
 // shared with the liveness judgment that re-asks the naming question
-// ([ADR-0111]).
+// ([ADR-0112]).
 //
-// [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
+// [ADR-0112]: ../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 use crate::adapters::host::process_started as leader_started;
 
 // The namespace read lives in `adapters::host`, shared with the peer-scope

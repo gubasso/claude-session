@@ -96,7 +96,7 @@ The child-owned credential is validated only as a path when presence matters. Th
 
 ## Cleanup
 
-Nothing is collected automatically: the only unbidden deletion is an orphaned atomic temporary, and composed settings entries stay immutable and permanent. What a user can ask for is `session clean`, which judges every session directory against its recorded witness — live, dead, or unknown — and removes only the provably dead, after confirming; unknown is kept, because on a shared tree another kernel's sessions are visible without being decidable ([ADR-0111](../decisions/ADR-0111-collect-only-the-provably-dead-session.md)). Exact verdicts and the verb's grammar are in [sessions](../reference/sessions.md). Explicit account removal still deletes the whole account tree — and leaves composed settings alone, because they are not account state.
+Nothing is collected automatically: the only unbidden deletion is an orphaned atomic temporary, and composed settings entries stay immutable and permanent. What a user can ask for is `session clean`, which judges every session directory against its recorded witness and removes every one this run cannot prove is live, after confirming. The tree is the wrapper's own, so a directory in it is a session it can account for or it is garbage, with no third state left to accumulate ([ADR-0112](../decisions/ADR-0112-keep-only-the-session-proven-live.md)). Exact verdicts and the verb's grammar are in [sessions](../reference/sessions.md). Explicit account removal still deletes the whole account tree — and leaves composed settings alone, because they are not account state.
 
 ## Further reading
 

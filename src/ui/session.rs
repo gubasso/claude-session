@@ -80,6 +80,17 @@ pub(crate) fn list(
     writer.stdout(&bytes).map_err(|error| output_error(&error))
 }
 
+/// Renders the one question `session clean` asks before it removes anything.
+///
+/// Never a document: the prompt reaches the controlling terminal rather than
+/// either standard stream, so a `--json` consumer reading standard output
+/// never sees it ([presentation]).
+///
+/// [presentation]: ../../docs/reference/presentation.md
+pub(crate) fn prompt(collectable: &[SessionFinding]) -> String {
+    human::prompt(collectable)
+}
+
 /// Renders what one `clean` removed, or that nothing was.
 ///
 /// `declined` distinguishes a refusal at the prompt from a tree with nothing
