@@ -87,14 +87,24 @@ fn confirm(context: &AppContext, dead: &[SessionFinding]) -> Result<bool, AppErr
         Err(error) => return Err(unavailable(error.to_string())),
     }
     let mut prompt = format!(
-        "This deletes {} dead session {}, including the child state and history inside:\n",
+        "{} {} {} to a terminal that is gone.\n",
         dead.len(),
-        crate::ui::prose::plural(dead.len(), "directory", "directories")
+        crate::ui::prose::plural(dead.len(), "session directory", "session directories"),
+        crate::ui::prose::plural(dead.len(), "belongs", "belong"),
+    );
+    // Writing into a `String` cannot fail.
+    let _ = writeln!(
+        prompt,
+        "Removing {} deletes the child state and history stored for {}:",
+        crate::ui::prose::plural(dead.len(), "it", "them"),
+        crate::ui::prose::plural(dead.len(), "that terminal", "those terminals"),
     );
     for finding in dead {
         // Writing into a `String` cannot fail.
         let _ = writeln!(prompt, "  {}", finding.path.display());
     }
+    prompt
+        .push_str("Your login, your projects tree, and every live or undecidable session stay.\n");
     prompt.push_str("Remove them? [y/N] ");
     let answer = context
         .adapters()

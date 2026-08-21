@@ -491,3 +491,264 @@ fn an_unchanged_widened_witness_is_restored_on_relaunch() {
         "the bytes are untouched"
     );
 }
+
+/// The defect this fixes: naming a terminal by opening `/dev/tty` and asking
+/// its name back yields the alias every process shares, so every pane of one
+/// namespace was given a single directory named `tty`, and that directory
+/// could never be judged gone. A launch inside a real pseudo-terminal must
+/// name the pane it is in ([ADR-0102], [ADR-0110]).
+#[test]
+fn a_launch_under_a_pty_names_the_pane_it_runs_in() {
+    let harness = Harness::new();
+    // Constructing it is what initializes the companion account and profile;
+    // the launch itself has to happen under the allocator below.
+    let _ = harness.bound_command();
+    let status = harness
+        .terminal_command("--account companion --profile companion")
+        .status()
+        .expect("wrapper under a pseudo-terminal");
+    assert!(status.success(), "the launch runs under a pty");
+    let namespace = only_namespace_dir(&harness, "companion");
+    let session = only_session_dir(&namespace);
+    let witness: serde_json::Value =
+        serde_json::from_slice(&fs::read(witness_path(&session)).expect("witness"))
+            .expect("witness json");
+    assert_eq!(witness["rung"], "tty", "{witness}");
+    let device = witness["device"].as_str().expect("a recorded device");
+    assert_ne!(
+        device, "/dev/tty",
+        "the alias names no pane and must never be recorded"
+    );
+    let index = device
+        .strip_prefix("/dev/pts/")
+        .unwrap_or_else(|| panic!("the pane's own device, not {device}"));
+    assert!(
+        index.chars().all(|character| character.is_ascii_digit()),
+        "{device}"
+    );
+    assert_eq!(
+        session.file_name().expect("name").to_string_lossy(),
+        format!("pts-{index}"),
+        "the directory is named after the pane"
+    );
+}
+
+/// A record written before the fix names the alias, so it witnesses no pane:
+/// it is kept as unknown and never collected, because what is inside belonged
+/// to every terminal at once ([ADR-0111]).
+#[test]
+fn a_recorded_alias_is_unknown_and_never_collected() {
+    let harness = Harness::new();
+    let _ = harness.bound_command();
+    assert!(
+        harness
+            .terminal_command("--account companion --profile companion")
+            .status()
+            .expect("wrapper under a pseudo-terminal")
+            .success(),
+        "the launch runs under a pty"
+    );
+    let namespace = only_namespace_dir(&harness, "companion");
+    let scope = namespace.file_name().expect("name").to_string_lossy();
+    let alias = namespace.join("tty");
+    fs::create_dir(&alias).expect("alias session directory");
+    fs::write(
+        namespace.join(".tty.witness.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "version": 1,
+            "rung": "tty",
+            "device": "/dev/tty",
+            "namespace": scope,
+        }))
+        .expect("alias witness"),
+    )
+    .expect("alias witness file");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    let row = document["sessions"]
+        .as_array()
+        .expect("rows")
+        .iter()
+        .find(|row| row["terminal"] == "tty")
+        .unwrap_or_else(|| panic!("no row for the alias: {document}"))
+        .clone();
+    assert_eq!(row["verdict"], "unknown", "{document}");
+    assert_eq!(row["ground"], "alias", "{document}");
+    // The record names no terminal, so it reports none: the key's absence is
+    // what tells a caller that, rather than a device standing for every pane.
+    assert!(row.get("names").is_none(), "{document}");
+    // The pane the launch ran in closed with the allocator, so its own slot may
+    // be collected here; the alias record is the one that must survive, and it
+    // must survive because nothing about it can be proven.
+    let collected = session_json(&harness, &["session", "clean", "--yes", "--json"]);
+    assert!(
+        !collected["removed"]
+            .as_array()
+            .expect("removed")
+            .iter()
+            .any(|row| row["terminal"] == "tty"),
+        "{collected}"
+    );
+    assert!(alias.exists(), "the alias directory is kept");
+}
+
+/// Every row says why, in both forms: the machine document carries the ground
+/// and the human report carries the sentence it stands for.
+#[test]
+fn every_verdict_reports_the_ground_it_stands_on() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the launch runs"
+    );
+    let namespace = only_namespace_dir(&harness, "companion");
+    let session = only_session_dir(&namespace);
+    let real: serde_json::Value =
+        serde_json::from_slice(&fs::read(witness_path(&session)).expect("witness"))
+            .expect("witness json");
+    plant_dead_session(&namespace, &real, "deadslot");
+    fs::create_dir(namespace.join("unknownslot")).expect("markerless directory");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    let sessions = document["sessions"].as_array().expect("rows");
+    let ground = |terminal: &str| {
+        sessions
+            .iter()
+            .find(|row| row["terminal"] == terminal)
+            .unwrap_or_else(|| panic!("no row for {terminal}: {document}"))["ground"]
+            .as_str()
+            .unwrap_or_else(|| panic!("no ground for {terminal}: {document}"))
+            .to_owned()
+    };
+    assert_eq!(ground("unknownslot"), "unrecorded", "{document}");
+    let live = ground(&session.file_name().expect("name").to_string_lossy());
+    assert!(
+        ["device-present", "leader-running"].contains(&live.as_str()),
+        "the launch's own rung grounds its liveness: {live}"
+    );
+    let dead = ground("deadslot");
+    assert!(
+        ["device-absent", "leader-foreign-boot"].contains(&dead.as_str()),
+        "the planted fixture is dead by construction: {dead}"
+    );
+    let human = harness
+        .assert_command()
+        .args(["session", "list"])
+        .output()
+        .expect("human list");
+    let text = String::from_utf8_lossy(&human.stdout).into_owned();
+    assert!(text.contains("[dead]"), "the verdict leads the row: {text}");
+    assert!(
+        text.contains("Collectable:"),
+        "the row says why it is collectable: {text}"
+    );
+    assert!(
+        text.contains("carries no record of the terminal"),
+        "an unrecorded session says so in words: {text}"
+    );
+    assert!(
+        text.contains("session clean"),
+        "a dead finding names the collector: {text}"
+    );
+}
+
+/// The `current` column is terminal-scoped rather than session-scoped: it
+/// marks every session directory this run's own terminal owns, which is more
+/// than one row once that terminal has launched under more than one account.
+/// Every leg runs inside one pane, because a fresh pane per leg would be a
+/// different terminal and prove nothing.
+#[test]
+fn every_session_directory_of_this_terminal_is_current() {
+    let harness = Harness::new();
+    harness.initialize_companion_profile();
+    harness.initialize_token("companion", b"companion-token", b"companion-token");
+    harness.initialize_token("second", b"second-token", b"second-token");
+    // The listing redirects to a file so the pane's echo is not mixed into the
+    // document, and the human leg is read back the same way.
+    let status = harness
+        .terminal_sequence(&[
+            "--account companion --profile companion",
+            "--account second --profile companion",
+            "session list --json > sessions.json",
+            "session list > sessions.txt",
+        ])
+        .status()
+        .expect("wrapper under a pseudo-terminal");
+    assert!(status.success(), "every leg runs under one pty");
+    let document: serde_json::Value =
+        serde_json::from_slice(&fs::read(harness.root().join("sessions.json")).expect("document"))
+            .expect("session document");
+    let sessions = document["sessions"].as_array().expect("rows");
+    let current: Vec<&serde_json::Value> = sessions
+        .iter()
+        .filter(|row| row["current"] == serde_json::Value::Bool(true))
+        .collect();
+    assert_eq!(
+        current.len(),
+        2,
+        "one pane under two accounts is two current rows: {document}"
+    );
+    let mut accounts: Vec<&str> = current
+        .iter()
+        .map(|row| row["account"].as_str().expect("account"))
+        .collect();
+    accounts.sort_unstable();
+    assert_eq!(accounts, ["companion", "second"], "{document}");
+    // The two rows are one terminal, which is what makes them both current.
+    let terminals: std::collections::BTreeSet<&str> = current
+        .iter()
+        .map(|row| row["terminal"].as_str().expect("terminal"))
+        .collect();
+    assert_eq!(terminals.len(), 1, "one pane, one terminal: {document}");
+    let human = fs::read_to_string(harness.root().join("sessions.txt")).expect("human report");
+    assert_eq!(
+        human.matches("— this terminal").count(),
+        2,
+        "the human report marks the same rows: {human}"
+    );
+}
+
+/// Another terminal's directory inside this run's own namespace is not
+/// current: the comparison is on the terminal, so sharing a namespace with the
+/// reporting run is not enough. The run's own row is asserted current in the
+/// same breath, because a comparison that marked nothing would satisfy the
+/// negative half on its own.
+#[test]
+fn a_session_of_another_terminal_is_not_current() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the launch runs"
+    );
+    let namespace = only_namespace_dir(&harness, "companion");
+    let session = only_session_dir(&namespace);
+    let real: serde_json::Value =
+        serde_json::from_slice(&fs::read(witness_path(&session)).expect("witness"))
+            .expect("witness json");
+    plant_dead_session(&namespace, &real, "otherslot");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    let row = document["sessions"]
+        .as_array()
+        .expect("rows")
+        .iter()
+        .find(|row| row["terminal"] == "otherslot")
+        .unwrap_or_else(|| panic!("no row for the planted slot: {document}"));
+    assert_eq!(row["current"], false, "{document}");
+    // The other half: the run's own directory is current, which is what makes
+    // the negative above a discrimination rather than a blanket false.
+    let own = session
+        .file_name()
+        .expect("name")
+        .to_string_lossy()
+        .into_owned();
+    let mine = document["sessions"]
+        .as_array()
+        .expect("rows")
+        .iter()
+        .find(|row| row["terminal"] == own)
+        .unwrap_or_else(|| panic!("no row for this run's own session: {document}"));
+    assert_eq!(mine["current"], true, "{document}");
+    // Every row carries the key, so a caller reads it rather than inferring it
+    // from an absence.
+    for row in document["sessions"].as_array().expect("rows") {
+        assert!(row["current"].is_boolean(), "{document}");
+    }
+}

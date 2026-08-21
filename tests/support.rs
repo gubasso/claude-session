@@ -157,6 +157,22 @@ impl Harness {
     }
     /// Runs the wrapper under the devShell's util-linux PTY allocator.
     pub(crate) fn terminal_command(&self, arguments: &str) -> Command {
+        self.terminal_sequence(&[arguments])
+    }
+    /// Runs several wrapper invocations inside one allocated terminal.
+    ///
+    /// One `script` invocation is one pane, so a case about which pane a run
+    /// belongs to needs every leg on the same one rather than a fresh terminal
+    /// each. The legs are shell words in the order given, so a leg may redirect
+    /// its own output to a file and be read back without the pane's echo mixed
+    /// into it, and each carries the deadline a single-leg run carries.
+    ///
+    /// The legs are joined with `&&` rather than `;`: a sequential list reports
+    /// only its last command's status, so a failing launch followed by a
+    /// succeeding listing would report success and a caller asserting on the
+    /// allocator's status would be asserting nothing. The first failing leg
+    /// stops the sequence and is what the caller sees.
+    pub(crate) fn terminal_sequence(&self, legs: &[&str]) -> Command {
         let mut command = Command::new(devshell_binary("script"));
         command.env_clear();
         for (name, suffix) in [
@@ -171,18 +187,26 @@ impl Harness {
             command.env(name, path);
         }
         fs::create_dir_all(self.record_dir()).expect("record directory");
+        let deadline = TERMINAL_DEADLINE.join(" ");
+        let timeout = devshell_binary("timeout");
+        let script = legs
+            .iter()
+            .map(|leg| {
+                format!(
+                    "{} {deadline} {} {leg}",
+                    timeout.display(),
+                    env!("CARGO_BIN_EXE_claude-session-rs"),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" && ");
         command
             .env("CLAUDE_SESSION_RS_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
             .arg("-q")
             .arg("-e")
             .arg("-c")
-            .arg(format!(
-                "{} {} {} {arguments}",
-                devshell_binary("timeout").display(),
-                TERMINAL_DEADLINE.join(" "),
-                env!("CARGO_BIN_EXE_claude-session-rs"),
-            ))
+            .arg(script)
             .arg("/dev/null")
             .current_dir(self.root.path());
         command

@@ -9,13 +9,13 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    adapters::{filesystem::SystemFileSystem, host},
+    adapters::{filesystem::SystemFileSystem, host, terminal::Terminal as _},
     context::AppContext,
     domain::{
         identifier::Identifier,
         namespace::Kind,
         terminal::Source,
-        witness::{self, LeaderObservation, Marker, Observed, Recorded, Verdict},
+        witness::{self, Ground, LeaderObservation, Marker, Observed, Recorded, Verdict},
     },
     error::{AppError, Diagnostic, ErrorKind},
     services::storage::guard,
@@ -30,10 +30,18 @@ pub(crate) struct SessionFinding {
     pub(crate) namespace: Identifier,
     /// The terminal directory name.
     pub(crate) terminal: Identifier,
-    /// The liveness verdict.
+    /// The liveness verdict, which is the ground's projection.
     pub(crate) verdict: Verdict,
+    /// Why the verdict was reached, which is what a report explains.
+    pub(crate) ground: Ground,
     /// The recorded rung, absent when no witness could be read.
     pub(crate) source: Option<Source>,
+    /// The terminal the record names, when it names one a reader would know:
+    /// the device path, or the leader's process id. Absent for a record that
+    /// names no terminal, the alias included.
+    pub(crate) named: Option<String>,
+    /// Whether this is the session the run doing the reporting belongs to.
+    pub(crate) current: bool,
     /// The session directory.
     pub(crate) path: PathBuf,
 }
@@ -102,6 +110,15 @@ impl Observatory {
 /// surveys of one unchanged tree report identically.
 pub(crate) fn survey(context: &AppContext) -> Result<Vec<SessionFinding>, AppError> {
     let observatory = Observatory::capture();
+    // Which row is the reader's own pane. A run that cannot name its terminal
+    // marks none, which costs the report a note and nothing else.
+    let here = context
+        .adapters()
+        .terminal()
+        .identity()
+        .ok()
+        .flatten()
+        .map(|terminal| (terminal.namespace().id().clone(), terminal.id().clone()));
     let paths = context.paths();
     let mut findings = Vec::new();
     for account in identifier_directories(&paths.accounts())? {
@@ -113,19 +130,22 @@ pub(crate) fn survey(context: &AppContext) -> Result<Vec<SessionFinding>, AppErr
                 // no record at all rather than judged.
                 let marker = read_marker(&paths.session_witness(&account, &namespace, &terminal))
                     .filter(|it| it.namespace() == &namespace);
-                let (verdict, source) = marker.as_ref().map_or((Verdict::Unknown, None), |it| {
-                    (
-                        witness::judge(it, &observatory.observe(it)),
-                        Some(it.witness().source()),
-                    )
+                let ground = marker.as_ref().map_or(Ground::Unrecorded, |it| {
+                    witness::judge(it, &observatory.observe(it))
                 });
+                let current = here
+                    .as_ref()
+                    .is_some_and(|(space, pane)| space == &namespace && pane == &terminal);
                 findings.push(SessionFinding {
                     path: paths.account_session(&account, &namespace, &terminal),
                     account: account.clone(),
                     namespace: namespace.clone(),
                     terminal,
-                    verdict,
-                    source,
+                    verdict: ground.verdict(),
+                    ground,
+                    source: marker.as_ref().map(|it| it.witness().source()),
+                    named: marker.as_ref().and_then(|it| named(it.witness())),
+                    current,
                 });
             }
         }
@@ -170,10 +190,8 @@ pub(crate) fn collect(
             let still_dead = read_marker(&witness_path)
                 .filter(|marker| marker.namespace() == &finding.namespace)
                 .is_some_and(|marker| {
-                    matches!(
-                        witness::judge(&marker, &observatory.observe(&marker)),
-                        Verdict::Dead
-                    )
+                    witness::judge(&marker, &observatory.observe(&marker)).verdict()
+                        == Verdict::Dead
                 });
             if !still_dead {
                 continue;
@@ -292,6 +310,26 @@ fn read_marker(path: &Path) -> Option<Marker> {
     std::fs::read(path)
         .ok()
         .and_then(|bytes| Marker::from_bytes(&bytes))
+}
+
+/// Names the terminal a record witnesses, in the words its reader would use.
+///
+/// The device path for a pane and the leader's process id for a run that had
+/// none. The start time is left out: it is what tells one process from a later
+/// one wearing its id, which is a judgment input rather than a name anybody
+/// would recognise.
+///
+/// A record naming the alias every process shares names no terminal, so it
+/// gets no name. That is read from the record itself rather than from the
+/// verdict's ground, because a namespace this run cannot decide — foreign, or
+/// unplaced — never reaches the alias ground and would otherwise report a
+/// device standing for every pane at once.
+fn named(witness: &Recorded) -> Option<String> {
+    match witness {
+        Recorded::Tty { device } if device == witness::ALIAS => None,
+        Recorded::Tty { device } => Some(device.clone()),
+        Recorded::SessionLeader { sid, .. } => Some(format!("process group {sid}")),
+    }
 }
 
 fn removal_error(path: &Path, error: &dyn std::fmt::Display) -> AppError {

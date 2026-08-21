@@ -1,14 +1,17 @@
-//! Controlling-terminal boundary: availability, consent, and secret entry.
+//! Controlling-terminal boundary: availability, consent, secret entry, naming.
 //!
-//! Every method here addresses `/dev/tty` rather than standard input, which is
-//! what makes a confirmation survive `something | claude-session-rs account
-//! remove work` and makes a pasted token unreadable from a redirected stream.
-//! Nothing consults `isatty(0)`; opening `/dev/tty` read-write is the predicate.
+//! The first three address `/dev/tty` rather than standard input, which is what
+//! makes a confirmation survive `something | claude-session-rs account remove
+//! work` and makes a pasted token unreadable from a redirected stream. Nothing
+//! consults `isatty(0)`; opening `/dev/tty` read-write is the predicate.
+//!
+//! Naming is the exception, and deliberately so: `/dev/tty` is the alias every
+//! process shares, so it answers whether a terminal is there and never which
+//! one. That question is `adapters::host::controlling_terminal`'s.
 
 use std::{
     fs::{File, OpenOptions},
     io::{self, Read as _, Write as _},
-    os::unix::ffi::OsStrExt as _,
 };
 
 use crate::domain::{
@@ -58,6 +61,13 @@ use crate::adapters::host::process_started as leader_started;
 // [ADR-0107]: ../../docs/decisions/ADR-0107-scope-a-terminal-to-its-namespace.md
 use crate::adapters::host::namespace;
 
+// The pane read lives in `adapters::host` beside the other `procfs` identity
+// reads, because naming the terminal a run belongs to is the same question in
+// a different scope ([ADR-0102]).
+//
+// [ADR-0102]: ../../docs/decisions/ADR-0102-key-child-state-by-terminal.md
+use crate::adapters::host::controlling_terminal;
+
 /// `ENXIO` and `EBADF`, the two ways an absent controlling terminal reports.
 const NO_TERMINAL: [i32; 2] = [6, 25];
 
@@ -84,16 +94,16 @@ impl Terminal for SystemTerminal {
     }
 
     fn identity(&self) -> io::Result<Option<TerminalIdentity>> {
-        // The pane's own pseudo-terminal first, opened rather than inferred
-        // from `isatty(0)`, matching every other predicate in this module. The
-        // mount namespace leads the chain because it carries the devpts
-        // instance that issued the device name, so an unreadable one costs this
-        // rung and nothing below it.
+        // The pane's own pseudo-terminal first, read from this process's
+        // controlling-terminal number rather than from a stream or from the
+        // alias: `isatty(0)` answers for whatever standard input was pointed
+        // at, and `/dev/tty` resolves back to itself, so neither names a pane
+        // ([ADR-0062], [ADR-0102]). The mount namespace leads the chain because
+        // it carries the devpts instance that issued the device name, so an
+        // unreadable one costs this rung and nothing below it.
         if let Some(space) = namespace(Kind::Mount)
-            && let Ok(tty) = open_tty()
-            && let Ok(name) = rustix::termios::ttyname(&tty, Vec::new())
-            && let Some(terminal) =
-                TerminalIdentity::from_tty(space, std::ffi::OsStr::from_bytes(name.as_bytes()))
+            && let Some(device) = controlling_terminal()
+            && let Some(terminal) = TerminalIdentity::from_tty(space, &device)
         {
             return Ok(Some(terminal));
         }

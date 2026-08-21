@@ -190,6 +190,64 @@ fn reversible(device: &[u8], mapped: &str, candidate: &str) -> bool {
     in_domain && candidate.len() == mapped.len()
 }
 
+/// Names the device a controlling-terminal number stands for, or gives up.
+///
+/// The number is `tty_nr`, field 7 of `/proc/<pid>/stat`, and it is the only
+/// statement of which pane a process belongs to that survives every stream
+/// being redirected. Zero is the kernel's spelling of no controlling terminal.
+///
+/// The mapping is deliberately narrow. A pseudo-terminal is `/dev/pts/<index>`
+/// under the eight majors devpts registers, and a virtual console is
+/// `/dev/tty<minor>`; those are the two this project has a real case for, and
+/// they are the two the reversible branch of [`sanitize`] preserves. Anything
+/// else names nothing here rather than being guessed at, and the rung asking
+/// falls through to the session leader — a name that is wrong is worse than a
+/// rung that is unavailable, because it would key one pane's state to another.
+///
+/// The path this returns is a candidate until [`is_device`] confirms it.
+pub(crate) fn device_path(tty_nr: u32) -> Option<String> {
+    let (major, minor) = procfs_device(tty_nr);
+    match major {
+        // devpts registers eight consecutive majors of 256 minors each, so the
+        // pane's index runs on past the first major rather than restarting.
+        136..=143 => Some(format!("/dev/pts/{}", (major - 136) * 256 + minor)),
+        // Above 63 the same major carries serial lines, whose names this does
+        // not claim to know.
+        4 if minor < 64 => Some(format!("/dev/tty{minor}")),
+        _ => None,
+    }
+}
+
+/// Reports whether a device node is the one a terminal number names.
+///
+/// The two numbers are encoded differently — `procfs` writes the kernel's
+/// packing and `stat` reports the C library's — so they are compared as the
+/// decoded major and minor pair rather than as numbers. This is what makes
+/// [`device_path`]'s answer a fact instead of a guess: a candidate that is not
+/// the device the number named is refused, whatever the mapping believed.
+pub(crate) fn is_device(tty_nr: u32, rdev: u64) -> bool {
+    tty_nr != 0 && procfs_device(tty_nr) == library_device(rdev)
+}
+
+/// Decodes the kernel's device packing: 12 bits of major, 20 of minor, split.
+const fn procfs_device(tty_nr: u32) -> (u32, u32) {
+    (
+        (tty_nr >> 8) & 0xfff,
+        (tty_nr & 0xff) | ((tty_nr >> 12) & 0xfff_ff00),
+    )
+}
+
+/// Decodes the C library's 64-bit device packing, whose fields sit elsewhere.
+const fn library_device(rdev: u64) -> (u32, u32) {
+    let major = ((rdev >> 8) & 0xfff) | ((rdev >> 32) & !0xfff);
+    let minor = (rdev & 0xff) | ((rdev >> 12) & !0xff);
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "both fields are masked to the widths a device number carries"
+    )]
+    (major as u32, minor as u32)
+}
+
 /// Fingerprints a device path, so two that map alike still name two directories.
 ///
 /// Sixty-four bits, which is a fingerprint rather than a proof: two devices on
@@ -235,6 +293,60 @@ mod tests {
 
     fn leader(sid: u32, started: u64) -> Option<Terminal> {
         Terminal::from_session_leader(space(Kind::Pid, "pid:[4026531836]"), sid, started)
+    }
+
+    /// The C library's packing of a device, for the comparison tests.
+    const fn library_rdev(major: u64, minor: u64) -> u64 {
+        ((major & 0xfff) << 8) | ((major & !0xfff) << 32) | (minor & 0xff) | ((minor & !0xff) << 12)
+    }
+
+    /// Both values are measured: `34817` is `/dev/pts/1` on the machine this
+    /// was written on, and `34843` is `/dev/pts/27`.
+    #[test]
+    fn a_terminal_number_names_the_pane_it_stands_for() {
+        assert_eq!(device_path(34817).as_deref(), Some("/dev/pts/1"));
+        assert_eq!(device_path(34843).as_deref(), Some("/dev/pts/27"));
+        // The second devpts major continues the index rather than restarting.
+        assert_eq!(device_path((137 << 8) | 3).as_deref(), Some("/dev/pts/259"));
+        assert_eq!(device_path((4 << 8) | 1).as_deref(), Some("/dev/tty1"));
+    }
+
+    /// The regression guard for the defect this mapping replaced: naming a
+    /// terminal by opening `/dev/tty` and asking its name back yields the
+    /// alias every process shares, which named one directory for every pane
+    /// and could never be judged gone. No number reaches that path here.
+    #[test]
+    fn no_terminal_number_names_the_alias_every_process_shares() {
+        // Zero is the kernel's spelling of no controlling terminal.
+        assert_eq!(device_path(0), None);
+        // Major 5, minor 0 is `/dev/tty` itself, which names no pane.
+        assert_eq!(device_path(5 << 8), None);
+        // A serial line above the console range is not a name this claims.
+        assert_eq!(device_path((4 << 8) | 64), None);
+        for number in [0, 5 << 8, (4 << 8) | 64, 34817] {
+            assert_ne!(device_path(number).as_deref(), Some("/dev/tty"));
+        }
+    }
+
+    #[test]
+    fn a_named_pane_carries_its_own_path_component() {
+        let device = device_path(34817).expect("a pts number names a device");
+        let terminal = tty(&device).expect("the named device names a terminal");
+        assert_eq!(terminal.id().as_str(), "pts-1");
+    }
+
+    /// The two encodings differ, so the comparison is on the decoded pair.
+    #[test]
+    fn a_candidate_device_is_confirmed_by_its_own_number() {
+        assert!(is_device(34817, library_rdev(136, 1)));
+        assert!(!is_device(34817, library_rdev(136, 2)));
+        assert!(!is_device(34817, library_rdev(4, 1)));
+        // A large minor exercises the split fields of both packings.
+        assert!(is_device(
+            (136 << 8) | (1 << 20) | 7,
+            library_rdev(136, 263)
+        ));
+        assert!(!is_device(0, library_rdev(0, 0)));
     }
 
     #[test]

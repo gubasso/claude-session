@@ -5,7 +5,9 @@
 //! owns the record a launch writes so a later run can re-ask the naming
 //! question — the witness — and the pure judgment over it ([ADR-0110],
 //! [ADR-0111]). It performs no syscall: gathering the observations is the
-//! session service's, and deciding the record's path is `domain::paths`.
+//! session service's, and deciding the record's path is `domain::paths`. The
+//! judgment answers with the ground it stands on, and the verdict is that
+//! ground's projection, so a report can say why without re-deriving it.
 //!
 //! [ADR-0110]: ../../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
 //! [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
@@ -141,6 +143,79 @@ pub(crate) struct Observed {
     pub(crate) leader: LeaderObservation,
 }
 
+/// The device path that names no pane.
+///
+/// Every process shares it, and it exists whether or not any terminal does.
+/// A record carrying it was written by a version that asked the alias for its
+/// own name and got the alias back, so it witnesses nothing ([ADR-0110]).
+///
+/// [ADR-0110]: ../../docs/decisions/ADR-0110-record-the-terminal-witness-at-launch.md
+pub(crate) const ALIAS: &str = "/dev/tty";
+
+/// Why one session directory got the verdict it did.
+///
+/// The ground is the fact and [`Verdict`] is its projection, which is what
+/// keeps a report able to say why without a renderer re-deriving it, and stops
+/// a new ground from being added without stating what it means.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Ground {
+    /// No record could be read for this directory.
+    Unrecorded,
+    /// This run cannot name the namespace the record is scoped by.
+    Unplaced,
+    /// The record's namespace is not this run's.
+    Foreign,
+    /// The record names the alias every process shares, so it names no pane.
+    Alias,
+    /// The recorded device exists.
+    DevicePresent,
+    /// The recorded device is gone.
+    DeviceAbsent,
+    /// Whether the recorded device exists could not be observed.
+    DeviceUnobservable,
+    /// The recorded leader is running, started when the record says.
+    LeaderRunning,
+    /// The recorded leader is absent, or its id now names another process.
+    LeaderGone,
+    /// The record belongs to a boot that has ended.
+    LeaderForeignBoot,
+    /// The recorded leader, or the boot to read it against, is unresolvable.
+    LeaderUnreadable,
+}
+
+impl Ground {
+    /// Projects this ground onto the verdict it establishes.
+    pub(crate) const fn verdict(self) -> Verdict {
+        match self {
+            Self::DevicePresent | Self::LeaderRunning => Verdict::Live,
+            Self::DeviceAbsent | Self::LeaderGone | Self::LeaderForeignBoot => Verdict::Dead,
+            Self::Unrecorded
+            | Self::Unplaced
+            | Self::Foreign
+            | Self::Alias
+            | Self::DeviceUnobservable
+            | Self::LeaderUnreadable => Verdict::Unknown,
+        }
+    }
+
+    /// Returns the machine spelling a document uses for this ground.
+    pub(crate) const fn spelling(self) -> &'static str {
+        match self {
+            Self::Unrecorded => "unrecorded",
+            Self::Unplaced => "unplaced",
+            Self::Foreign => "foreign",
+            Self::Alias => "alias",
+            Self::DevicePresent => "device-present",
+            Self::DeviceAbsent => "device-absent",
+            Self::DeviceUnobservable => "device-unobservable",
+            Self::LeaderRunning => "leader-running",
+            Self::LeaderGone => "leader-gone",
+            Self::LeaderForeignBoot => "leader-foreign-boot",
+            Self::LeaderUnreadable => "leader-unreadable",
+        }
+    }
+}
+
 /// One session directory's liveness.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Verdict {
@@ -165,7 +240,7 @@ impl Verdict {
     }
 }
 
-/// Judges one marker against what this run observed.
+/// Judges one marker against what this run observed, and says on what ground.
 ///
 /// A marker whose namespace component is not this run's is undecidable: the
 /// name it witnesses was issued somewhere this kernel cannot look, so absence
@@ -175,30 +250,39 @@ impl Verdict {
 /// is live while its process id and start time match under the recorded boot,
 /// dead under a foreign boot, and undecidable when either boot is unreadable.
 ///
+/// One device is judged before it is looked for. A record naming [`ALIAS`]
+/// witnesses no pane, so it can be neither live nor dead: it is the residue of
+/// a launch that could not tell terminals apart and gave every one of them the
+/// same directory. Unknown keeps it, which is the honest outcome for a
+/// directory whose contents belonged to all of them.
+///
 /// [ADR-0111]: ../../docs/decisions/ADR-0111-collect-only-the-provably-dead-session.md
-pub(crate) fn judge(marker: &Marker, observed: &Observed) -> Verdict {
+pub(crate) fn judge(marker: &Marker, observed: &Observed) -> Ground {
     let Some(current) = &observed.namespace else {
-        return Verdict::Unknown;
+        return Ground::Unplaced;
     };
     if current != &marker.namespace {
-        return Verdict::Unknown;
+        return Ground::Foreign;
     }
     match &marker.witness {
+        Recorded::Tty { device } if device == ALIAS => Ground::Alias,
         Recorded::Tty { .. } => match observed.device_present {
-            Some(true) => Verdict::Live,
-            Some(false) => Verdict::Dead,
-            None => Verdict::Unknown,
+            Some(true) => Ground::DevicePresent,
+            Some(false) => Ground::DeviceAbsent,
+            None => Ground::DeviceUnobservable,
         },
         Recorded::SessionLeader { started, .. } => match (&marker.boot, &observed.boot) {
-            (Some(recorded), Some(current)) if recorded != current => Verdict::Dead,
+            (Some(recorded), Some(current)) if recorded != current => Ground::LeaderForeignBoot,
             (Some(_), Some(_)) => match observed.leader {
-                LeaderObservation::Running { started: now } if now == *started => Verdict::Live,
+                LeaderObservation::Running { started: now } if now == *started => {
+                    Ground::LeaderRunning
+                }
                 // A recycled id is as gone as an absent one: the start time is
                 // what tells this process from the one the record witnessed.
-                LeaderObservation::Absent | LeaderObservation::Running { .. } => Verdict::Dead,
-                LeaderObservation::Unreadable => Verdict::Unknown,
+                LeaderObservation::Absent | LeaderObservation::Running { .. } => Ground::LeaderGone,
+                LeaderObservation::Unreadable => Ground::LeaderUnreadable,
             },
-            _ => Verdict::Unknown,
+            _ => Ground::LeaderUnreadable,
         },
     }
 }
@@ -276,10 +360,22 @@ mod tests {
         assert_eq!(Marker::from_terminal(&terminal, None), None);
     }
 
+    /// Asserts the ground a judgment stands on and the verdict it projects.
+    #[track_caller]
+    fn judged(marker: &Marker, facts: &Observed, ground: Ground, verdict: Verdict) {
+        assert_eq!(judge(marker, facts), ground);
+        assert_eq!(ground.verdict(), verdict);
+    }
+
     #[test]
     fn a_present_device_in_scope_is_live() {
         let marker = tty_marker();
-        assert_eq!(judge(&marker, &observed(&marker)), Verdict::Live);
+        judged(
+            &marker,
+            &observed(&marker),
+            Ground::DevicePresent,
+            Verdict::Live,
+        );
     }
 
     #[test]
@@ -289,7 +385,7 @@ mod tests {
             device_present: Some(false),
             ..observed(&marker)
         };
-        assert_eq!(judge(&marker, &facts), Verdict::Dead);
+        judged(&marker, &facts, Ground::DeviceAbsent, Verdict::Dead);
     }
 
     #[test]
@@ -299,7 +395,12 @@ mod tests {
             device_present: None,
             ..observed(&marker)
         };
-        assert_eq!(judge(&marker, &facts), Verdict::Unknown);
+        judged(
+            &marker,
+            &facts,
+            Ground::DeviceUnobservable,
+            Verdict::Unknown,
+        );
     }
 
     /// The tty rung ignores boot deliberately: a reopened slot after reboot is
@@ -313,7 +414,7 @@ mod tests {
             boot: Some("another-boot".to_owned()),
             ..observed(&marker)
         };
-        assert_eq!(judge(&marker, &facts), Verdict::Live);
+        judged(&marker, &facts, Ground::DevicePresent, Verdict::Live);
     }
 
     #[test]
@@ -323,7 +424,7 @@ mod tests {
                 namespace: Some("mnt-000000000000000000000000".parse().expect("identifier")),
                 ..observed(&marker)
             };
-            assert_eq!(judge(&marker, &facts), Verdict::Unknown);
+            judged(&marker, &facts, Ground::Foreign, Verdict::Unknown);
         }
     }
 
@@ -334,14 +435,19 @@ mod tests {
                 namespace: None,
                 ..observed(&marker)
             };
-            assert_eq!(judge(&marker, &facts), Verdict::Unknown);
+            judged(&marker, &facts, Ground::Unplaced, Verdict::Unknown);
         }
     }
 
     #[test]
     fn a_matching_leader_in_scope_is_live() {
         let marker = leader_marker();
-        assert_eq!(judge(&marker, &observed(&marker)), Verdict::Live);
+        judged(
+            &marker,
+            &observed(&marker),
+            Ground::LeaderRunning,
+            Verdict::Live,
+        );
     }
 
     #[test]
@@ -351,7 +457,7 @@ mod tests {
             leader: LeaderObservation::Absent,
             ..observed(&marker)
         };
-        assert_eq!(judge(&marker, &facts), Verdict::Dead);
+        judged(&marker, &facts, Ground::LeaderGone, Verdict::Dead);
     }
 
     /// The start time is what stops a recycled process id from keeping an
@@ -363,7 +469,7 @@ mod tests {
             leader: LeaderObservation::Running { started: 1 },
             ..observed(&marker)
         };
-        assert_eq!(judge(&marker, &facts), Verdict::Dead);
+        judged(&marker, &facts, Ground::LeaderGone, Verdict::Dead);
     }
 
     /// No process survives its kernel, so a foreign boot needs no process
@@ -376,7 +482,7 @@ mod tests {
             leader: LeaderObservation::Running { started: 987_654 },
             ..observed(&marker)
         };
-        assert_eq!(judge(&marker, &facts), Verdict::Dead);
+        judged(&marker, &facts, Ground::LeaderForeignBoot, Verdict::Dead);
     }
 
     /// Either boot missing, or a start time that cannot be read, leaves the
@@ -388,16 +494,68 @@ mod tests {
             leader: LeaderObservation::Unreadable,
             ..observed(&marker)
         };
-        assert_eq!(judge(&marker, &unreadable), Verdict::Unknown);
+        judged(
+            &marker,
+            &unreadable,
+            Ground::LeaderUnreadable,
+            Verdict::Unknown,
+        );
         let bootless = Observed {
             boot: None,
             ..observed(&marker)
         };
-        assert_eq!(judge(&marker, &bootless), Verdict::Unknown);
+        judged(
+            &marker,
+            &bootless,
+            Ground::LeaderUnreadable,
+            Verdict::Unknown,
+        );
         let unrecorded = Marker {
             boot: None,
             ..leader_marker()
         };
-        assert_eq!(judge(&unrecorded, &observed(&unrecorded)), Verdict::Unknown);
+        judged(
+            &unrecorded,
+            &observed(&unrecorded),
+            Ground::LeaderUnreadable,
+            Verdict::Unknown,
+        );
+    }
+
+    /// The residue of the defect that named every pane after the alias every
+    /// process shares: the record witnesses no terminal, so it is kept rather
+    /// than judged either way.
+    #[test]
+    fn a_recorded_alias_witnesses_no_pane() {
+        let marker = Marker {
+            witness: Recorded::Tty {
+                device: ALIAS.to_owned(),
+            },
+            ..tty_marker()
+        };
+        judged(&marker, &observed(&marker), Ground::Alias, Verdict::Unknown);
+    }
+
+    /// Every ground spells itself, and no two spell the same, which is what
+    /// lets a document name one without a reader guessing which it meant.
+    #[test]
+    fn every_ground_carries_its_own_spelling() {
+        let grounds = [
+            Ground::Unrecorded,
+            Ground::Unplaced,
+            Ground::Foreign,
+            Ground::Alias,
+            Ground::DevicePresent,
+            Ground::DeviceAbsent,
+            Ground::DeviceUnobservable,
+            Ground::LeaderRunning,
+            Ground::LeaderGone,
+            Ground::LeaderForeignBoot,
+            Ground::LeaderUnreadable,
+        ];
+        let mut spellings: Vec<&str> = grounds.iter().map(|it| it.spelling()).collect();
+        spellings.sort_unstable();
+        spellings.dedup();
+        assert_eq!(spellings.len(), grounds.len());
     }
 }

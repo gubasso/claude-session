@@ -24,6 +24,8 @@ The first two are split by giving each terminal its own directory ([ADR-0102](..
 
 Splitting at directory granularity instead would take `projects/` with it, and durable per-project memory lives under that. A wrapper of this same shape was observed doing exactly that: one machine accumulated fifty-two memory directories, two of them for a single repository, neither able to read the other. So the tree stays at the account and each session directory reaches it through a declared link ([ADR-0103](../decisions/ADR-0103-permit-a-declared-link.md)).
 
+Which pane a run belongs to is read from its controlling terminal's device number rather than from a stream or from `/dev/tty`: a redirected stream answers for whatever it was pointed at, and `/dev/tty` is the alias every process shares, so it names no pane and cannot be judged gone. [Sessions](../reference/sessions.md#the-witness-record) has the exact read.
+
 The terminal keys the child's state directory and nothing else. It does not key composed settings, which is the error the next section describes.
 
 ## Why the terminal is not enough on its own

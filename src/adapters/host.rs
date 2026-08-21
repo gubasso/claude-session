@@ -81,6 +81,45 @@ pub(crate) fn process_started(pid: u32) -> Option<u64> {
     tail.split_whitespace().nth(19)?.parse().ok()
 }
 
+/// Names this run's controlling terminal, confirmed against the device itself.
+///
+/// Three steps, and the third is what the other two are for. Field 7 of
+/// `/proc/self/stat` — `tty_nr` — states which pane this process belongs to,
+/// and states it whatever has happened to standard input, output, and error;
+/// `domain::terminal::device_path` maps that number onto the path the device
+/// is published at; and the candidate is then confirmed by reading the node's
+/// own device number back. A candidate that does not confirm names nothing,
+/// so a mapping this kernel disagrees with costs the rung asking rather than
+/// keying one pane's state to another pane's directory.
+///
+/// Asking `/dev/tty` for its name instead is the thing this exists not to do:
+/// that node is the alias every process shares, it resolves back to itself,
+/// and it exists whether or not any terminal does — one directory for every
+/// pane, and a liveness question that could only ever answer yes. Opening the
+/// alias remains the right predicate for whether a terminal is *there*, which
+/// is `adapters::terminal`'s separate question.
+pub(crate) fn controlling_terminal() -> Option<std::ffi::OsString> {
+    use std::os::unix::fs::MetadataExt as _;
+
+    let number = terminal_number()?;
+    let candidate = crate::domain::terminal::device_path(number)?;
+    let facts = std::fs::metadata(&candidate).ok()?;
+    crate::domain::terminal::is_device(number, facts.rdev()).then(|| candidate.into())
+}
+
+/// Reads this process's controlling-terminal number, or `None` for no terminal.
+///
+/// Field 7 of `/proc/self/stat`, counted from the last `)` for the reason
+/// [`process_started`] documents. The kernel writes `0` for a process with no
+/// controlling terminal, which is an answer rather than a failure and reaches
+/// the caller the same way an unreadable `/proc` does.
+fn terminal_number() -> Option<u32> {
+    let text = std::fs::read_to_string("/proc/self/stat").ok()?;
+    let tail = text.rsplit_once(')')?.1;
+    let number: u32 = tail.split_whitespace().nth(4)?.parse().ok()?;
+    (number != 0).then_some(number)
+}
+
 /// Reads the kernel's boot identifier, trimmed.
 ///
 /// A fresh random UUID per kernel boot, which makes it the one identity two

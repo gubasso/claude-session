@@ -87,11 +87,22 @@ impl Palette {
     /// would let colour move a line break, and rule 1 says stripping colour
     /// changes nothing.
     pub(crate) fn recolour(self, text: String, status: CheckStatus) -> String {
+        self.recolour_token(text, &format!("[{}]", status.as_str()), status)
+    }
+    /// Colours a token that spells something other than the status word.
+    ///
+    /// The verdicts of a session report are statuses in the shape sense — one
+    /// bracketed word per row — while spelling their own vocabulary, so they
+    /// borrow the colour without borrowing the word ([ADR-0082]).
+    ///
+    /// [ADR-0082]: ../../docs/decisions/ADR-0082-colour-a-closed-set-of-named-surfaces.md
+    pub(crate) fn recolour_token(self, text: String, token: &str, status: CheckStatus) -> String {
         if !self.0 {
             return text;
         }
-        let token = format!("[{}]", status.as_str());
-        text.replacen(&token, &self.status(status), 1)
+        let coloured = self.status(status);
+        let plain = format!("[{}]", status.as_str());
+        text.replacen(token, &coloured.replacen(&plain, token, 1), 1)
     }
     pub(crate) fn heading(self, text: &str) -> String {
         if self.0 {
