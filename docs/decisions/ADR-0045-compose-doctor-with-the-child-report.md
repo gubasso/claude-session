@@ -12,7 +12,7 @@ The wrapper claims `doctor` ([the CLI surface](../reference/cli-surface.md#wrapp
 
 ## Decision Outcome
 
-Chosen option: compose — the two reports answer different questions, and a user running `claude-session-rs doctor` wants both.
+Chosen option: compose — the two reports answer different questions, and a user running `claude-session doctor` wants both.
 
 `claude-session doctor` emits its own report first, then spawns `claude doctor` and passes that output through unmodified under its own heading. The child's report is never parsed, summarized, or reformatted; its exit status is its own level, zero healthy and anything else carried across ([ADR-0085](./ADR-0085-carry-the-child-report-level-into-the-verdict.md)). Under `--json` the child's report is one opaque string field beside its status, so [ADR-0032](./ADR-0032-give-each-verb-its-own-json-document.md)'s schema never depends on the child's formatting.
 

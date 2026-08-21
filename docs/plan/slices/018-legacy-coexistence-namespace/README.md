@@ -49,9 +49,7 @@ No name the wrapper reads or writes collides with a name the predecessor claims.
 ## Acceptance
 
 - When the wrapper resolves a path under any XDG base, the namespace directory shall carry the installed binary name. -> domain::paths::tests::every_managed_path_matches_the_artifact_table
-- When the wrapper builds the child environment, it shall scrub only the prefix it sets, so a variable the predecessor set reaches the child unchanged. -> passthrough::the_scrub_leaves_the_predecessor_prefix_intact
 - When the wrapper emits help, a man page, or a completion script, the command name shall be the installed binary name. -> cli_artifacts::generated_artifacts_name_the_installed_binary
-- Where a document or generated example names a path or variable the wrapper reads or writes, it shall name the new spelling and no other.
 
 ## Rabbit holes
 
@@ -65,4 +63,4 @@ No path, filename, or environment variable the wrapper reads or writes carries a
 
 ## Revisions
 
-None.
+2026-08-21: the acceptance line asserting a scrub narrowed to this wrapper's own prefix, and the one requiring documents to name the coexistence spelling, were superseded by [019](../019-original-namespace-restoration/README.md) and removed with the test that proved the first. What was learned is that the narrowed prefix was the whole coexistence in miniature: it could only be correct while a second program owned the shorter one, so it had no meaning left the moment that program was gone.

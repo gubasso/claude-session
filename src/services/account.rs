@@ -170,7 +170,7 @@ fn selected_credentials(
     let Some(selected) = context.account_selection().account() else {
         return CheckResult::skipped(
             credentials,
-            "no account is selected. Choose one with: claude-session-rs --account <name>",
+            "no account is selected. Choose one with: claude-session --account <name>",
         );
     };
     match accounts.iter().find(|account| &account.name == selected) {
@@ -222,7 +222,7 @@ fn selected_credentials(
             if credential_link {
                 hint.push_str(concat!(
                     " Anything holding that link may have read this account's credential. ",
-                    "Treat it as exposed: run claude-session-rs account login "
+                    "Treat it as exposed: run claude-session account login "
                 ));
                 hint.push_str(selected.as_str());
                 hint.push_str(" for a fresh one, and revoke the old one at the provider.");
@@ -288,21 +288,21 @@ pub(crate) fn doctor_results(context: &AppContext) -> [CheckResult; 3] {
                 registry,
                 concat!(
                     "there are no accounts yet. Create one with: ",
-                    "claude-session-rs account login <name>"
+                    "claude-session account login <name>"
                 ),
             ),
             CheckResult::skipped(
                 credentials,
                 concat!(
                     "there are no accounts yet. Create one with: ",
-                    "claude-session-rs account login <name>"
+                    "claude-session account login <name>"
                 ),
             ),
             CheckResult::skipped(
                 bound,
                 concat!(
                     "there are no accounts yet. Create one with: ",
-                    "claude-session-rs account login <name>"
+                    "claude-session account login <name>"
                 ),
             ),
         ],
@@ -328,7 +328,7 @@ fn selected_binding(context: &AppContext, bound: Check) -> CheckResult {
             bound,
             concat!(
                 "no account is selected, so no binding applies. Select one with: ",
-                "claude-session-rs --account <name>"
+                "claude-session --account <name>"
             ),
         );
     };
@@ -400,7 +400,7 @@ pub(crate) fn launch_ready_result(context: &AppContext) -> CheckResult {
             check,
             concat!(
                 "no account is selected, so no first run applies. Select one with: ",
-                "claude-session-rs --account <name>"
+                "claude-session --account <name>"
             ),
         );
     };
@@ -449,7 +449,7 @@ pub(crate) fn plan_declared_result(context: &AppContext) -> CheckResult {
             check,
             concat!(
                 "no account is selected, so no plan applies. Select one with: ",
-                "claude-session-rs --account <name>"
+                "claude-session --account <name>"
             ),
         );
     };
@@ -591,7 +591,7 @@ fn read_metadata(root: &Path, path: &Path) -> Result<AuthModeMetadata, AppError>
                 "authentication metadata is malformed",
                 path.display().to_string(),
                 error.to_string(),
-                "run claude-session-rs account login for this account",
+                "run claude-session account login for this account",
             ),
         )
     })
@@ -849,7 +849,7 @@ fn lost_race(account: &Identifier) -> AppError {
                 " one was finishing. Nothing was written and nothing was removed"
             ),
             concat!(
-                "run claude-session-rs account status to see which authentication the ",
+                "run claude-session account status to see which authentication the ",
                 "account now has, and log in again only if it is not the one you wanted"
             ),
         ),
@@ -1027,7 +1027,7 @@ fn retirement_failure(account: &Identifier, path: &Path, kind: ErrorKind, cause:
                 account.as_str()
             ),
             concat!(
-                "remove the file above once you can, or run claude-session-rs account ",
+                "remove the file above once you can, or run claude-session account ",
                 "remove to clear the whole account"
             ),
         ),
@@ -1156,7 +1156,7 @@ fn auth_message(where_: &str, why: &str) -> AppError {
             "selected account authentication is unusable",
             where_,
             why,
-            "run claude-session-rs account login for this account",
+            "run claude-session account login for this account",
         ),
     )
 }

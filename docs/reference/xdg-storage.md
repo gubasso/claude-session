@@ -13,7 +13,7 @@ Every artifact and mechanism on this page is implemented: base resolution, the p
 | Data   | `XDG_DATA_HOME`   | `$HOME/.local/share`        | Durable program-written data portable between machines.                              |
 | Cache  | `XDG_CACHE_HOME`  | `$HOME/.cache`              | Anything safe to delete at any moment.                                               |
 
-Every path is namespaced under `claude-session-rs` inside its base.
+Every path is namespaced under `claude-session` inside its base.
 
 A relative XDG value is invalid and treated as unset, with a debug diagnostic. The specification requires it: "All paths set in these environment variables must be absolute. If an implementation encounters a relative path in any of these variables it should consider the path invalid and ignore it." Resolving one against the working directory would put a user's durable state in a different tree on every invocation, which is the same reason a relative `child_bin` is rejected ([process runtime](./process-runtime.md#child-resolution)). An empty value is the unset case, per the same specification's per-variable defaults.
 
@@ -30,7 +30,7 @@ Every artifact has one writer.
 | Artifact                 | Base   | Path within base                                     | Writer                                               | Mode                           | Lifetime                                            |
 | ------------------------ | ------ | ---------------------------------------------------- | ---------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
 | Wrapper configuration    | Config | `config.toml`                                        | User                                                 | `0644`                         | Until changed                                       |
-| Project configuration    | none   | `.claude-session-rs.toml` at a repository root       | User                                                 | `0644`                         | Until changed                                       |
+| Project configuration    | none   | `.claude-session.toml` at a repository root          | User                                                 | `0644`                         | Until changed                                       |
 | Settings pieces          | Config | `settings/<piece>.json`                              | User                                                 | `0644`                         | Until changed                                       |
 | Profiles                 | Config | `profiles/<profile>.yaml`                            | User                                                 | `0644`                         | Until changed                                       |
 | Account directory        | State  | `accounts/<account>/`                                | Account subsystem                                    | `0700`                         | Until account removal                               |
@@ -51,7 +51,7 @@ Every artifact has one writer.
 | Composition provenance   | State  | `composed/profile-<name>-<digest>.compose.json`      | Composition subsystem                                | `0600`                         | Permanent                                           |
 | Last-used account marker | State  | `state/last-account`                                 | Account subsystem                                    | `0600`                         | Until selection changes                             |
 | Write lock               | State  | `accounts/.<account>.lock`                           | Whichever subsystem owns the scope                   | `0600`                         | Permanent; never deleted                            |
-| Log file                 | State  | `claude-session-rs.log`                              | Logging subsystem                                    | `0600`                         | Rotated                                             |
+| Log file                 | State  | `claude-session.log`                                 | Logging subsystem                                    | `0600`                         | Rotated                                             |
 
 The project configuration file is the one artifact with no XDG base: it lives in the user's repository because that is what makes it per-repository, and it is listed here so the table stays the whole inventory. [Configuration](./configuration.md#project-file-discovery) owns how it is found and what it may set.
 

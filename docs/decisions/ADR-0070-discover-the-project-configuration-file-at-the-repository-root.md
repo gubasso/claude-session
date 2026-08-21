@@ -30,5 +30,3 @@ Unifying every ancestor was rejected because it makes a home-directory file a si
 Accepted
 
 Constrained by [ADR-0071](./ADR-0071-restrict-the-project-layer-to-the-profile-key.md), which decides what this file is permitted to set.
-
-Amended by [ADR-0092](./ADR-0092-namespace-apart-from-the-predecessor.md), which moves the filename.

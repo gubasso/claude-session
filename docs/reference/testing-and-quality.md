@@ -106,7 +106,7 @@ Each of these locks down a contract that is otherwise decorative:
 | `PATH` search rules       | A zero-length entry is skipped; a permission-rejected candidate decides 126                               | [Process runtime](./process-runtime.md)       |
 | Exec-failure classes      | A child removed after the pre-flight check exits 127, not `OsError`                                       | [Process runtime](./process-runtime.md)       |
 | Flush before the exec     | The boundary flushes the log sink before it replaces the image, asserted in order rather than by timing   | [Process runtime](./process-runtime.md)       |
-| Environment isolation     | The stub sees the injected config directory and exactly one `CLAUDE_SESSION_RS_*` key, the marker         | [Process runtime](./process-runtime.md)       |
+| Environment isolation     | The stub sees the injected config directory and exactly one `CLAUDE_SESSION_*` key, the marker            | [Process runtime](./process-runtime.md)       |
 | Environment fidelity      | A non-UTF-8 ambient variable reaches the stub unchanged, and no wrapper input does                        | [Process runtime](./process-runtime.md)       |
 | Profile isolation         | Two profiles launched from one terminal and one account get different entry paths and bytes               | [XDG storage](./xdg-storage.md)               |
 | Entry key determinism     | Changing a piece's content, resolved path, order, or the strategy table names a different entry           | [XDG storage](./xdg-storage.md)               |
@@ -189,7 +189,7 @@ The five flag-recognition tests are one obligation split by what each rejects, a
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Denylist membership    | A snapshot of the sorted claimed-spelling set, derived from the parser rather than hand-written.                                                |
 | Spelling matrix        | Table-driven over every claimed flag by `--x=v`, `--x v`, `--x -y`, `-X`, `-XY`, an uppercase spelling, and a unique prefix.                    |
-| Leading-position scope | The stub receives `--verbose` from `claude-session-rs -p x --verbose`.                                                                          |
+| Leading-position scope | The stub receives `--verbose` from `claude-session -p x --verbose`.                                                                             |
 | Malformed wrapper flag | `--config` bare exits `Usage`; `--configg` forwards verbatim and the run exits with the stub's status.                                          |
 | Collision audit        | The claimed flag and verb sets are intersected with a checked-in, version-labelled inventory fixture and compared with the documented overlaps. |
 

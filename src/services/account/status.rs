@@ -225,7 +225,7 @@ pub(crate) fn require_existing(context: &AppContext, account: &Identifier) -> Re
                 "no such account",
                 directory.display().to_string(),
                 format!("no account named {} exists locally", account.as_str()),
-                "run claude-session-rs account list to see the accounts that do",
+                "run claude-session account list to see the accounts that do",
             ),
         ))
     }

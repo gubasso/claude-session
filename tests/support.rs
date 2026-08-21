@@ -43,14 +43,14 @@ impl Harness {
         // A machine somebody has set up holds at least one asset, and that is
         // the fixture's baseline: an empty tree is the warning the assets check
         // exists to raise, and it belongs to the test that asks for it.
-        let assets = root.path().join("data/claude-session-rs/assets/skills");
+        let assets = root.path().join("data/claude-session/assets/skills");
         fs::create_dir_all(&assets).expect("asset fixture");
         Self { root, child }
     }
 
     /// The user's machine-local asset tree inside this fixture's XDG data base.
     pub(crate) fn assets(&self) -> PathBuf {
-        self.root.path().join("data/claude-session-rs/assets")
+        self.root.path().join("data/claude-session/assets")
     }
 
     pub(crate) fn root(&self) -> &Path {
@@ -63,7 +63,7 @@ impl Harness {
         self.root.path().join("record")
     }
     pub(crate) fn command(&self) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_claude-session-rs"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_claude-session"));
         command.env_clear();
         for (name, suffix) in [
             ("HOME", "home"),
@@ -78,7 +78,7 @@ impl Harness {
         }
         fs::create_dir_all(self.record_dir()).expect("record directory");
         command
-            .env("CLAUDE_SESSION_RS_CHILD_BIN", &self.child)
+            .env("CLAUDE_SESSION_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
             .current_dir(self.root.path());
         command
@@ -145,12 +145,12 @@ impl Harness {
         }
         fs::create_dir_all(self.record_dir()).expect("record directory");
         command
-            .env("CLAUDE_SESSION_RS_CHILD_BIN", &self.child)
+            .env("CLAUDE_SESSION_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
             .arg("--wait")
             .arg(devshell_binary("timeout"))
             .args(TERMINAL_DEADLINE)
-            .arg(env!("CARGO_BIN_EXE_claude-session-rs"))
+            .arg(env!("CARGO_BIN_EXE_claude-session"))
             .args(arguments)
             .current_dir(self.root.path());
         command
@@ -195,13 +195,13 @@ impl Harness {
                 format!(
                     "{} {deadline} {} {leg}",
                     timeout.display(),
-                    env!("CARGO_BIN_EXE_claude-session-rs"),
+                    env!("CARGO_BIN_EXE_claude-session"),
                 )
             })
             .collect::<Vec<_>>()
             .join(" && ");
         command
-            .env("CLAUDE_SESSION_RS_CHILD_BIN", &self.child)
+            .env("CLAUDE_SESSION_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
             .arg("-q")
             .arg("-e")
@@ -214,11 +214,11 @@ impl Harness {
 
     /// The wrapper-managed state namespace inside this fixture's XDG state base.
     pub(crate) fn state(&self) -> PathBuf {
-        self.root.path().join("state/claude-session-rs")
+        self.root.path().join("state/claude-session")
     }
     /// The wrapper's config namespace inside this fixture's XDG config base.
     pub(crate) fn config_base(&self) -> PathBuf {
-        self.root.path().join("config/claude-session-rs")
+        self.root.path().join("config/claude-session")
     }
     /// Writes a settings piece the user would have authored.
     pub(crate) fn write_piece(&self, name: &str, json: &str) {

@@ -547,7 +547,7 @@ impl Warning {
                 "this account declared no subscription plan, so claude cannot tell",
                 " which one the stored token belongs to; it will describe the session",
                 " as an API one and pick the model it defaults to without a plan. Run",
-                " claude-session-rs account login for this account with --token and",
+                " claude-session account login for this account with --token and",
                 " --plan to declare it"
             )
             .to_owned(),

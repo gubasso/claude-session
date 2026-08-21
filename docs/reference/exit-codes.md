@@ -103,7 +103,7 @@ There is no post-flight, so nothing can change a status after the launch. See [p
 Every wrapper-originated diagnostic opens with a fixed, greppable prefix carrying the program name and the `err.kind`:
 
 ```text
-claude-session-rs: error[ChildNotExecutable]: <what>
+claude-session: error[ChildNotExecutable]: <what>
 ```
 
 This prefix is the discriminator the [passthrough rule](#child-status-passthrough) above depends on. "The wrapper writes an `err.kind` and the child never does" is only checkable if the kind has a stable rendered form — otherwise a caller facing exit `64` cannot tell a wrapper usage error from a child that happens to exit `64`, which is the exact ambiguity the two regimes create. The bracketed-kind form follows `rustc`'s `error[E0308]:`, and the program-name prefix is the long-standing Unix convention that makes a diagnostic attributable when several programs share a pipeline's standard error.

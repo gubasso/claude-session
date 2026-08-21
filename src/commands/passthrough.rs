@@ -170,7 +170,7 @@ fn validate_binding(context: &AppContext) -> Result<(), AppError> {
     // path that exists in the checkout does not exist for an installed
     // binary ([ADR-0091]).
     let profiles = context.paths().profiles();
-    let login = "run claude-session-rs account login <name>";
+    let login = "run claude-session account login <name>";
     let author = format!("write a profile at {}/<name>.yaml", profiles.display());
     let (why, hint) = match missing {
         MissingBinding::Account => (
@@ -180,7 +180,7 @@ fn validate_binding(context: &AppContext) -> Result<(), AppError> {
         MissingBinding::Profile => (
             "a child launch requires a resolved profile",
             format!(
-                "{author}, then bind it with claude-session-rs account bind \
+                "{author}, then bind it with claude-session account bind \
                 <account> --profile <name>, or select it with --profile or \
                 default_profile"
             ),

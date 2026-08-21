@@ -30,4 +30,4 @@ Implemented
 
 Enacted by [`src/services/child.rs`](../../src/services/child.rs).
 
-Amended by [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md), naming its obligation, and [ADR-0092](./ADR-0092-namespace-apart-from-the-predecessor.md), moving the prefix.
+Amended by [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md), naming its obligation.

@@ -6,7 +6,6 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 019 original-namespace-restoration — shaped — 1 implementation session — after 018 and 029; waits on the predecessor's deprecation, which is the entry condition rather than the work
 - 034 account-usage-reporting — shaped — 2 implementation sessions — after 019 and 025; the provider-fact carry needs its own record before code
 
 ## closed
@@ -29,6 +28,7 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 016 ambient-credential-scope — done — 1 implementation session — after 015; settled the ambient carry by amending ADR-0089 rather than opening a record beside it
 - 017 mandatory-session-binding — done — 2 implementation sessions — after 016; makes a bound account and profile the precondition for an exec
 - 018 legacy-coexistence-namespace — done — 2 implementation sessions — after 017; frees every name the shell predecessor claims so both installs can sit on one machine
+- 019 original-namespace-restoration — done — 1 implementation session — after 018 and 029; landed in one session, and the two acceptance lines 018 wrote about the predecessor turned out to be the only thing the rename could not simply reverse
 - 020 human-first-diagnostics — done — 2 implementation sessions — after 018; landed in one session, and fixed the version reading the report was lying about
 - 021 requested-help-completion — done — 1 implementation session — after 005; makes requested help a result at the two spellings that rung left open
 - 022 account-profile-binding — done — 2 implementation sessions — after 017; landed in one session, and retired three hints naming verbs that never existed

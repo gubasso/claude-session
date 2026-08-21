@@ -1,7 +1,7 @@
 //! Controlling-terminal boundary: availability, consent, and secret entry.
 //!
 //! All three address `/dev/tty` rather than standard input, which is what makes
-//! a confirmation survive `something | claude-session-rs account remove work`
+//! a confirmation survive `something | claude-session account remove work`
 //! and makes a pasted token unreadable from a redirected stream. Nothing
 //! consults `isatty(0)`; opening `/dev/tty` read-write is the predicate.
 //!

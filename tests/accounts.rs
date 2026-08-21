@@ -586,10 +586,7 @@ fn unselected_passthrough_never_runs_the_version_probe() {
     }
     assert!(stderr.contains("What to do:"), "{stderr}");
     assert!(stderr.contains("This concerns"), "{stderr}");
-    assert!(
-        stderr.contains("claude-session-rs account login"),
-        "{stderr}"
-    );
+    assert!(stderr.contains("claude-session account login"), "{stderr}");
     assert!(output.stdout.is_empty());
     assert!(!harness.record_dir().join("invocations").exists());
     assert!(!harness.state().join("state/last-account").exists());
@@ -637,7 +634,7 @@ fn requested_account_help_is_a_result_and_malformed_account_grammar_is_not() {
         text.starts_with("Manage durable child-owned accounts"),
         "{text}"
     );
-    assert!(text.contains("Usage: claude-session-rs account"));
+    assert!(text.contains("Usage: claude-session account"));
     assert!(text.contains("login"));
     assert!(text.contains("list"));
 
@@ -663,7 +660,7 @@ fn requested_account_help_is_a_result_and_malformed_account_grammar_is_not() {
         assert!(output.status.success());
         let text = String::from_utf8(output.stdout).expect("text");
         assert!(text.starts_with(headline), "{text}");
-        assert!(text.contains(&format!("Usage: claude-session-rs account {subcommand}")));
+        assert!(text.contains(&format!("Usage: claude-session account {subcommand}")));
     }
 
     // Nothing about the malformed cases changed: they stay diagnostics, and
@@ -672,7 +669,7 @@ fn requested_account_help_is_a_result_and_malformed_account_grammar_is_not() {
     for (arguments, expected) in [
         (
             vec!["account"],
-            vec!["Usage: claude-session-rs account", "login", "list"],
+            vec!["Usage: claude-session account", "login", "list"],
         ),
         // An unrecognized subcommand carries a nearest match instead, because
         // the parser's subcommand set is closed and wholly wrapper-owned.
@@ -1526,7 +1523,7 @@ fn the_binding_outranks_user_configuration_and_yields_to_the_project_layer() {
     };
     assert_eq!(profile(&harness), "bound");
     fs::write(
-        harness.root().join(".claude-session-rs.toml"),
+        harness.root().join(".claude-session.toml"),
         "default_profile = \"tree\"\n",
     )
     .expect("project config");
@@ -1609,7 +1606,7 @@ fn an_unbound_account_states_its_consequence_and_the_command_that_fixes_it() {
         "{text}"
     );
     assert!(
-        flowed.contains("claude-session-rs account bind work --profile <name>"),
+        flowed.contains("claude-session account bind work --profile <name>"),
         "{text}"
     );
     assert!(text.contains("[warn]"), "{text}");
@@ -1939,7 +1936,7 @@ fn a_disabled_trust_gate_records_no_workspace() {
         let mut command = harness.companion_profile_command();
         command.args(["--account", "work"]);
         if layer == "environment" {
-            command.env("CLAUDE_SESSION_RS_AUTO_TRUST_CWD", "false");
+            command.env("CLAUDE_SESSION_AUTO_TRUST_CWD", "false");
         }
         assert!(command.status().expect("wrapper").success());
         let path = only_session_dir(&harness, "work").join(".claude.json");

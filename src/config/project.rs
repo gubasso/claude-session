@@ -14,7 +14,7 @@ pub(crate) fn discover(start: &Path) -> Option<PathBuf> {
     let mut current = Some(start);
     while let Some(directory) = current {
         if candidate.is_none() {
-            let file = directory.join(".claude-session-rs.toml");
+            let file = directory.join(".claude-session.toml");
             if file.is_file() {
                 candidate = Some(file);
             }

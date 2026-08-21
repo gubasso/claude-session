@@ -141,7 +141,7 @@ fn require_profile(context: &AppContext, profile: &Identifier) -> Result<(), App
             "no such profile",
             context.paths().profile_file(profile).display().to_string(),
             format!("no profile named {} exists locally", profile.as_str()),
-            "run claude-session-rs profile to see the profiles that do",
+            "run claude-session profile to see the profiles that do",
         ),
     ))
 }

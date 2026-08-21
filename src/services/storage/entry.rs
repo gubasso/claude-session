@@ -204,7 +204,7 @@ pub(crate) fn validity_result(
             check,
             concat!(
                 "no profile is selected. Bind one to the account with: ",
-                "claude-session-rs account bind <account> --profile <name>"
+                "claude-session account bind <account> --profile <name>"
             ),
         );
     };

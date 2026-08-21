@@ -594,7 +594,7 @@ fn every_verdict_reports_the_ground_it_stands_on() {
         assert!(text.contains(phrase), "{phrase} is missing: {text}");
     }
     assert!(
-        text.contains("claude-session-rs session clean"),
+        text.contains("claude-session session clean"),
         "the collector is named whole, never wrapped: {text}"
     );
 }

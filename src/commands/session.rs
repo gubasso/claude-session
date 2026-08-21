@@ -49,7 +49,7 @@ pub(crate) fn clean(context: &AppContext, consented: bool) -> Result<DispatchOut
                 "the namespace of this run",
                 "this run cannot name the namespace its own session directories are scoped by"
                     .to_owned(),
-                "see what each session is judged as with: claude-session-rs session list",
+                "see what each session is judged as with: claude-session session list",
             ),
         ));
     }
@@ -81,7 +81,7 @@ pub(crate) fn clean(context: &AppContext, consented: bool) -> Result<DispatchOut
 /// Asks the one confirmation question, on the controlling terminal.
 ///
 /// Standard input is deliberately not consulted: the prompt has to survive
-/// `something | claude-session-rs session clean`, and it has to be invisible
+/// `something | claude-session session clean`, and it has to be invisible
 /// to `--json` consumers reading standard output. The question's wording is
 /// the renderer's, so this decides only whether it can be asked at all.
 fn confirm(context: &AppContext, collectable: &[SessionFinding]) -> Result<bool, AppError> {

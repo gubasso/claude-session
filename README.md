@@ -9,16 +9,16 @@ A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 Anything the wrapper does not own reaches `claude` unchanged — same arguments, same standard streams, same exit status. There is one process by the time the child runs, so signals and terminal behaviour are the child's too.
 
 ```bash
-claude-session-rs                       # exactly `claude`
-claude-session-rs -p "hello" --verbose  # forwarded verbatim
-claude-session-rs -- --version          # `--` forces every later argument to the child
+claude-session                       # exactly `claude`
+claude-session -p "hello" --verbose  # forwarded verbatim
+claude-session -- --version          # `--` forces every later argument to the child
 ```
 
 Two of the wrapper's surfaces compose their own output with the child's:
 
 ```bash
-claude-session-rs version   # the wrapper's version, then the resolved child's
-claude-session-rs help      # the wrapper's help, then `claude --help`
+claude-session version   # the wrapper's version, then the resolved child's
+claude-session help      # the wrapper's help, then `claude --help`
 ```
 
 ## Authentication
@@ -30,17 +30,17 @@ An account is one isolated `claude` configuration directory, and every launch is
 `account login <name>` hands the browser flow to `claude` itself. The wrapper resolves the account directory, points the child's own configuration there, and runs the child's `auth login` inside it. It does not implement the flow and does not read its result.
 
 ```console
-$ claude-session-rs account login work
+$ claude-session account login work
 Opening browser to sign in…
 If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true&client_id=...
 Paste code here if prompted > Login successful.
 account: work
 mode: login
-path: /home/you/.local/state/claude-session-rs/accounts/work
+path: /home/you/.local/state/claude-session/accounts/work
 recorded_at: 2026-08-13T14:25:01Z
 ```
 
-Everything through `Login successful.` is the child talking to you. The labelled lines under it are the wrapper's report, and that split is the design: the child owns how a credential is obtained, the wrapper owns where it lands. The same login is reachable without the verb, as `claude-session-rs --account work -- auth login`.
+Everything through `Login successful.` is the child talking to you. The labelled lines under it are the wrapper's report, and that split is the design: the child owns how a credential is obtained, the wrapper owns where it lands. The same login is reachable without the verb, as `claude-session --account work -- auth login`.
 
 ### Long-lived token
 
@@ -49,7 +49,7 @@ Everything through `Login successful.` is the child talking to you. The labelled
 Interactively, the wrapper runs the child's `setup-token` with inherited streams and then asks for the result back:
 
 ```console
-$ claude-session-rs account login work --token
+$ claude-session account login work --token
  ✓ Long-lived authentication token created successfully!
 
  Your OAuth token (valid for 1 year):
@@ -61,7 +61,7 @@ $ claude-session-rs account login work --token
 Paste the token, then press Enter (it is not echoed):
 account: work
 mode: token
-path: /home/you/.local/state/claude-session-rs/accounts/work
+path: /home/you/.local/state/claude-session/accounts/work
 recorded_at: 2026-08-13T14:28:09Z
 fingerprint: 76721470
 estimated_expiry: 2027-08-13T14:28:09Z
@@ -76,8 +76,8 @@ Two fields are token mode only. `fingerprint` is `sha256[..8]` of the token, whi
 `--stdin` reads the token from standard input, as one line, without prompting. It skips `setup-token` entirely and needs no controlling terminal, which is what makes it the automation path: interactive entry requires one and exits `Unavailable` (69) where there is none.
 
 ```bash
-pass show anthropic/ci-token | claude-session-rs account login ci --token --stdin
-claude-session-rs account login ci --token --stdin < token.txt
+pass show anthropic/ci-token | claude-session account login ci --token --stdin
+claude-session account login ci --token --stdin < token.txt
 ```
 
 Standard input is the only door. A positional argument would land in shell history, an environment variable could not be told apart from an inherited ambient credential, and a file flag would duplicate what redirection already does.
@@ -87,10 +87,10 @@ Standard input is the only door. A positional argument would land in shell histo
 `account login` is idempotent. The first success creates the account, a later success replaces its mode, and a failed first login removes the incomplete account. So running `--token` against an account that logged in natively switches it to token mode: the saved login stays on disk, the injected token shadows it on every launch, and `account status` reports both.
 
 ```bash
-claude-session-rs account list                  # every account, its mode, and which is selected
-claude-session-rs account status work           # mode, health, provenance, and what shadows what
-claude-session-rs --account work --profile dev  # launch bound to that account
-claude-session-rs account remove work           # local state only; prompts unless --yes
+claude-session account list                  # every account, its mode, and which is selected
+claude-session account status work           # mode, health, provenance, and what shadows what
+claude-session --account work --profile dev  # launch bound to that account
+claude-session account remove work           # local state only; prompts unless --yes
 ```
 
 Removal is local. It cannot revoke a token upstream, and the report says so.
@@ -100,21 +100,21 @@ Removal is local. It cannot revoke a token upstream, and the report says so.
 Profiles compose user-authored settings pieces into one child settings document, selected per launch:
 
 ```bash
-mkdir -p ~/.config/claude-session-rs/settings ~/.config/claude-session-rs/profiles
-echo '{"model":"sonnet"}' > ~/.config/claude-session-rs/settings/base.json
-printf 'layers:\n  - base\n' > ~/.config/claude-session-rs/profiles/dev.yaml
+mkdir -p ~/.config/claude-session/settings ~/.config/claude-session/profiles
+echo '{"model":"sonnet"}' > ~/.config/claude-session/settings/base.json
+printf 'layers:\n  - base\n' > ~/.config/claude-session/profiles/dev.yaml
 
-claude-session-rs profile               # the profiles `--profile` can select
-claude-session-rs --profile dev         # launch with the composed settings
-claude-session-rs --profile dev config  # what resolved, from where, and into what
+claude-session profile               # the profiles `--profile` can select
+claude-session --profile dev         # launch with the composed settings
+claude-session --profile dev config  # what resolved, from where, and into what
 ```
 
 Composition is ordered and explainable. Later pieces win, and a key that needs appending rather than replacing says so:
 
 ```bash
 echo '{"permissions":{"allow":["Bash(git status:*)"]}}' \
-  > ~/.config/claude-session-rs/settings/git.json
-cat > ~/.config/claude-session-rs/profiles/dev.yaml <<'YAML'
+  > ~/.config/claude-session/settings/git.json
+cat > ~/.config/claude-session/profiles/dev.yaml <<'YAML'
 layers:
   - base
   - git
@@ -134,8 +134,8 @@ The composed document reaches the child as an additional native settings layer, 
 Every running claude gets its own child state directory, so two agents never interleave their prompt history or their child configuration, while the account's login and projects tree stay shared. A launch records which process the directory belongs to, and that record is what makes cleanup honest later:
 
 ```bash
-claude-session-rs session list   # every session directory, and whether its agent is still running
-claude-session-rs session clean  # remove the provably dead ones; prompts unless --yes
+claude-session session list   # every session directory, and whether its agent is still running
+claude-session session clean  # remove the provably dead ones; prompts unless --yes
 ```
 
 A launch removes the account's sessions whose agent has exited; `session clean` removes everything it cannot prove is still running, including what it cannot decide about at all. The verdicts and their reasoning live in [sessions](./docs/reference/sessions.md).

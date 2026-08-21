@@ -5,7 +5,7 @@
 //! `domain::paths`, and not for writing bytes, which is `super::atomic`.
 //!
 //! The policy boundary is exact: a wrapper-managed component begins at the
-//! `claude-session-rs` namespace directory inside an XDG base. `$HOME`,
+//! `claude-session` namespace directory inside an XDG base. `$HOME`,
 //! `.config`, and `.local/state` are the operating system's or the user's, and
 //! are never read, never checked, and never corrected.
 

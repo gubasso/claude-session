@@ -28,6 +28,6 @@ The rename is temporary and its end is scheduled work, not an intention: [019](.
 
 ## Status
 
-Implemented
+Superseded
 
-Enacted by [`src/domain/paths.rs`](../../src/domain/paths.rs) and [`src/services/child.rs`](../../src/services/child.rs). Amends [ADR-0057](./ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md) and [ADR-0070](./ADR-0070-discover-the-project-configuration-file-at-the-repository-root.md), which each name a literal this moves.
+Superseded by [ADR-0115](./ADR-0115-return-to-the-project-namespace.md), which returns every literal this record moved once the predecessor was retired. The amendments this record made to [ADR-0057](./ADR-0057-build-the-child-environment-by-prefix-scrub-and-marker.md) and [ADR-0070](./ADR-0070-discover-the-project-configuration-file-at-the-repository-root.md) ended with it, so both name their original literals again.

@@ -18,7 +18,7 @@ pub(crate) fn render(error: &AppError, color: bool) -> String {
     let diagnostic = error.diagnostic();
     let token = format!("error[{}]", error.kind().spelling());
     let mut out = format!(
-        "claude-session-rs: {}: {}\n\n",
+        "claude-session: {}: {}\n\n",
         if color {
             format!("\u{1b}[31m{token}\u{1b}[0m")
         } else {
@@ -90,7 +90,7 @@ mod tests {
                 "child launch is not bound to a complete session",
                 "this run",
                 "a child launch requires a resolved account and profile",
-                "run claude-session-rs account login <name>",
+                "run claude-session account login <name>",
             ),
         )
     }

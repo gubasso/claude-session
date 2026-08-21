@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "Example settings PIECE for claude-session-rs.",
+    "Example settings PIECE for claude-session.",
     "",
     "A piece is a PARTIAL settings document in the child's own JSON format. It is",
     "never a whole settings file: a piece that sets one key contains only that key.",
@@ -8,7 +8,7 @@
     "",
     "Copy this to a name of your choosing under the pieces directory and edit it there:",
     "    cp docs/reference/examples/piece.example.json \\",
-    "       \"${XDG_CONFIG_HOME:-$HOME/.config}/claude-session-rs/settings/base.json\"",
+    "       \"${XDG_CONFIG_HOME:-$HOME/.config}/claude-session/settings/base.json\"",
     "",
     "The wrapper never writes your configuration. It reads pieces and composes them",
     "into a write-once entry in the composed-settings store under the XDG state base,",

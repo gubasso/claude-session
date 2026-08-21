@@ -20,7 +20,7 @@ Later layers override earlier ones:
 
 1. Built-in defaults — compiled in. Every key has one, so a missing configuration file is never an error. Every key is optional, so every default is unset.
 2. User configuration file — under the config base directory.
-3. Project configuration file — `.claude-session-rs.toml`, discovered by [walking up from the working directory](#project-file-discovery), for per-repository overrides. It may set [`default_profile`](#keys) and nothing else.
+3. Project configuration file — `.claude-session.toml`, discovered by [walking up from the working directory](#project-file-discovery), for per-repository overrides. It may set [`default_profile`](#keys) and nothing else.
 4. Environment variables — see below.
 5. Command-line flags — highest. The user typed it just now.
 
@@ -30,7 +30,7 @@ A missing file at any layer is not an error. An unreadable or malformed file is 
 
 #### Project file discovery
 
-The search starts at the working directory and walks upward. The first `.claude-session-rs.toml` found wins — files are not unified across directories. The walk stops at the enclosing repository root, the directory holding a `.git` entry, which is a file for worktrees and submodules and a directory otherwise. Git itself is never invoked. Outside a repository there is no project layer at all.
+The search starts at the working directory and walks upward. The first `.claude-session.toml` found wins — files are not unified across directories. The walk stops at the enclosing repository root, the directory holding a `.git` entry, which is a file for worktrees and submodules and a directory otherwise. Git itself is never invoked. Outside a repository there is no project layer at all.
 
 The stop rule follows the layer's purpose: these are per-repository overrides, so the repository is the boundary. It needs no marker key, no ceiling variable, and no merge-many rule ([ADR-0070](../decisions/ADR-0070-discover-the-project-configuration-file-at-the-repository-root.md)). Nested repositories stop at the inner one.
 
@@ -38,13 +38,13 @@ The stop rule follows the layer's purpose: these are per-repository overrides, s
 
 | Property     | Rule                                                                          |
 | ------------ | ----------------------------------------------------------------------------- |
-| Prefix       | `CLAUDE_SESSION_RS_`                                                          |
+| Prefix       | `CLAUDE_SESSION_`                                                             |
 | Case         | Upper-case in the environment, lower-case snake in the file                   |
 | Empty values | Treated as set-to-empty, not as unset. Unsetting means removing the variable. |
 
-Every key is flat, so an underscore is always part of a key name and never a level separator: `CLAUDE_SESSION_RS_CHILD_BIN` sets `child_bin`, not a nested `child.bin`. The per-key spellings are in [the key table](#keys). A separator convention is specified when a nested key first exists, and not before ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
+Every key is flat, so an underscore is always part of a key name and never a level separator: `CLAUDE_SESSION_CHILD_BIN` sets `child_bin`, not a nested `child.bin`. The per-key spellings are in [the key table](#keys). A separator convention is specified when a nested key first exists, and not before ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
-Internal variables — the recursion marker, and any other `CLAUDE_SESSION_RS_*` key the wrapper sets for its own purposes — are not configuration keys. What reaches the child is [process runtime](./process-runtime.md#child-environment)'s to say.
+Internal variables — the recursion marker, and any other `CLAUDE_SESSION_*` key the wrapper sets for its own purposes — are not configuration keys. What reaches the child is [process runtime](./process-runtime.md#child-environment)'s to say.
 
 The wrapper also reads variables outside the prefix, and none of them is configuration: `NO_COLOR`, `FORCE_COLOR`, and `TERM` are read by [the colour ladder](./presentation.md#colour), `RUST_LOG` by [verbosity](./logging-and-output.md#verbosity), and the XDG bases by [XDG storage](./xdg-storage.md). They are listed here because this is where a reader asks what the environment does, and owned there because that is where they act. None has a file spelling, a layer, or a row above — a key is a permanent contract this project defines, and these are conventions it honours.
 
@@ -62,12 +62,12 @@ The command protocol and configuration schema remain deferred under [ADR-0029](.
 
 Four keys. All optional; the default of each is unset, except the trust seed, whose unset value is enabled.
 
-| Key               | Type          | Unset means                          | Environment                         | Layers                     | Meaning                                                                                                                                  |
-| ----------------- | ------------- | ------------------------------------ | ----------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `child_bin`       | absolute path | search `PATH`                        | `CLAUDE_SESSION_RS_CHILD_BIN`       | user, environment          | The child to run ([process runtime](./process-runtime.md#child-resolution))                                                              |
-| `default_account` | identifier    | fall through to the last-used marker | `CLAUDE_SESSION_RS_DEFAULT_ACCOUNT` | user, environment          | The account when `--account` is absent ([accounts](./accounts.md#selection))                                                             |
-| `default_profile` | identifier    | report no profile; refuse a launch   | `CLAUDE_SESSION_RS_DEFAULT_PROFILE` | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile))                                   |
-| `auto_trust_cwd`  | boolean       | enabled                              | `CLAUDE_SESSION_RS_AUTO_TRUST_CWD`  | user, environment          | Record the launch directory as trusted in this agent's session directory ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)) |
+| Key               | Type          | Unset means                          | Environment                      | Layers                     | Meaning                                                                                                                                  |
+| ----------------- | ------------- | ------------------------------------ | -------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `child_bin`       | absolute path | search `PATH`                        | `CLAUDE_SESSION_CHILD_BIN`       | user, environment          | The child to run ([process runtime](./process-runtime.md#child-resolution))                                                              |
+| `default_account` | identifier    | fall through to the last-used marker | `CLAUDE_SESSION_DEFAULT_ACCOUNT` | user, environment          | The account when `--account` is absent ([accounts](./accounts.md#selection))                                                             |
+| `default_profile` | identifier    | report no profile; refuse a launch   | `CLAUDE_SESSION_DEFAULT_PROFILE` | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile))                                   |
+| `auto_trust_cwd`  | boolean       | enabled                              | `CLAUDE_SESSION_AUTO_TRUST_CWD`  | user, environment          | Record the launch directory as trusted in this agent's session directory ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)) |
 
 Identifiers follow [the identifier rules](./xdg-storage.md#identifiers); an absolute path is validated where it is used.
 
@@ -84,7 +84,7 @@ No other key earns a row. Verbosity is invocation-scoped, colour is `NO_COLOR` (
 - The resolved value is immutable. It is built once and passed by shared reference. Nothing mutates configuration mid-run.
 - Every key has a documented default, a type, and a one-line meaning. That description lives on the field itself, in the type, and is the source the artifacts below are rendered from — never a parallel doc that can rot.
 
-`claude-session-rs config` prints the resolved value, including which files were consulted and which existed; see [Commands](#commands).
+`claude-session config` prints the resolved value, including which files were consulted and which existed; see [Commands](#commands).
 
 ### Generated examples and schema
 
@@ -239,11 +239,11 @@ Each `keys` entry names the `piece` that supplied the winning value. Where more 
 ```json
 {
   "profile": "work",
-  "profile_path": "/home/u/.config/claude-session-rs/profiles/work.yaml",
+  "profile_path": "/home/u/.config/claude-session/profiles/work.yaml",
   "digest": "8f2a91c3d40b…",
   "pieces": [
-    { "name": "base", "path": "/home/u/.config/claude-session-rs/settings/base.json" },
-    { "name": "work-permissions", "path": "/home/u/.config/claude-session-rs/settings/work-permissions.json" }
+    { "name": "base", "path": "/home/u/.config/claude-session/settings/base.json" },
+    { "name": "work-permissions", "path": "/home/u/.config/claude-session/settings/work-permissions.json" }
   ],
   "keys": {
     "/model": { "piece": "base" },

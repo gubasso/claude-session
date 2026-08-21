@@ -7,7 +7,7 @@ It is a one-time step per machine. The wrapper writes no user configuration ([AD
 ## Where the tree lives
 
 ```text
-${XDG_DATA_HOME:-$HOME/.local/share}/claude-session-rs/assets/
+${XDG_DATA_HOME:-$HOME/.local/share}/claude-session/assets/
 ```
 
 The Data base rather than State, because this is content you author and could carry to another machine. [XDG storage](../reference/xdg-storage.md#artifact-table) owns the placement.
@@ -38,7 +38,7 @@ The child's plugin tree is deliberately not on this list ([ADR-0106](../decision
 Create the tree and put your assets in it:
 
 ```bash
-assets="${XDG_DATA_HOME:-$HOME/.local/share}/claude-session-rs/assets"
+assets="${XDG_DATA_HOME:-$HOME/.local/share}/claude-session/assets"
 mkdir -p "$assets"
 ```
 
@@ -55,7 +55,7 @@ If you keep them in a repository you already version, move the repository there 
 ## Checking it
 
 ```bash
-claude-session-rs doctor
+claude-session doctor
 ```
 
 The `session-assets-linked` check names what a launch would supply. An empty tree is a warning rather than a failure: it costs you every asset you wrote, but it never stops a launch.
@@ -63,7 +63,7 @@ The `session-assets-linked` check names what a launch would supply. An empty tre
 After a launch, the assets appear inside the session directory as links:
 
 ```bash
-ls -la "${XDG_STATE_HOME:-$HOME/.local/state}"/claude-session-rs/accounts/*/sessions/*/*/
+ls -la "${XDG_STATE_HOME:-$HOME/.local/state}"/claude-session/accounts/*/sessions/*/*/
 ```
 
 ## Hooks and scripts

@@ -349,11 +349,11 @@ impl AccountCheck {
                 run this again."
             }
             Self::CredentialsUsable => {
-                "Run claude-session-rs account login {account} to recreate this account's \
+                "Run claude-session account login {account} to recreate this account's \
                 stored authentication and its local metadata."
             }
             Self::ProfileBound => {
-                "Run claude-session-rs account bind {account} --profile <name> to name the \
+                "Run claude-session account bind {account} --profile <name> to name the \
                 profile this account runs with."
             }
             Self::LaunchReady => {
@@ -361,7 +361,7 @@ impl AccountCheck {
                 rebuilds everything it kept there except its own trust records."
             }
             Self::PlanDeclared => {
-                "Run claude-session-rs account login {account} --token --plan <plan> to \
+                "Run claude-session account login {account} --token --plan <plan> to \
                 declare which subscription this account's token belongs to. The login \
                 asks for it when --plan is omitted."
             }

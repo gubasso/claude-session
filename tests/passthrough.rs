@@ -76,7 +76,7 @@ fn a_non_utf8_state_home_reaches_the_child_byte_exact() {
     let state = os(raw.clone());
     std::fs::create_dir_all(Path::new(&state)).expect("non-UTF-8 state base");
     harness.initialize_token_in(
-        &Path::new(&state).join("claude-session-rs"),
+        &Path::new(&state).join("claude-session"),
         "companion",
         b"companion-token",
         b"companion-token",
@@ -92,7 +92,7 @@ fn a_non_utf8_state_home_reaches_the_child_byte_exact() {
     );
     let argv = read_nul(&harness.record_dir().join("argv"));
     let mut expected = raw;
-    expected.extend_from_slice(b"/claude-session-rs/composed/profile-work-");
+    expected.extend_from_slice(b"/claude-session/composed/profile-work-");
     assert_eq!(argv[1], b"--settings");
     assert!(
         argv[2].starts_with(&expected),
@@ -105,7 +105,7 @@ fn a_non_utf8_state_home_reaches_the_child_byte_exact() {
 /// This terminal's own session directory is the child's configuration
 /// directory, the account's directory is its credential store, and those are
 /// the only keys besides the marker that the wrapper adds. A second
-/// `CLAUDE_SESSION_RS_*` key would mean wrapper state reached a program that
+/// `CLAUDE_SESSION_*` key would mean wrapper state reached a program that
 /// has no business reading it.
 #[test]
 fn a_selected_account_injects_its_config_directory_and_the_marker_alone() {
@@ -139,9 +139,9 @@ fn a_selected_account_injects_its_config_directory_and_the_marker_alone() {
     );
     let internal: Vec<_> = environ
         .iter()
-        .filter(|item| item.starts_with(b"CLAUDE_SESSION_RS_"))
+        .filter(|item| item.starts_with(b"CLAUDE_SESSION_"))
         .collect();
-    assert_eq!(internal, [b"CLAUDE_SESSION_RS_REENTRY"], "{internal:?}");
+    assert_eq!(internal, [b"CLAUDE_SESSION_REENTRY"], "{internal:?}");
 }
 
 #[test]
@@ -283,7 +283,7 @@ fn child_environment_is_scrubbed_and_preserved() {
         harness
             .bound_command()
             .env("KEEP_RAW", os(vec![0x66, 0x80]))
-            .env("CLAUDE_SESSION_RS_SECRET", "gone")
+            .env("CLAUDE_SESSION_SECRET", "gone")
             .status()
             .expect("wrapper")
             .success()
@@ -293,34 +293,10 @@ fn child_environment_is_scrubbed_and_preserved() {
         env.windows(2)
             .any(|pair| pair == [b"KEEP_RAW".to_vec(), vec![0x66, 0x80]])
     );
-    assert!(!env.iter().any(|item| item == b"CLAUDE_SESSION_RS_SECRET"));
+    assert!(!env.iter().any(|item| item == b"CLAUDE_SESSION_SECRET"));
     assert!(
         env.windows(2)
-            .any(|pair| pair == [b"CLAUDE_SESSION_RS_REENTRY".to_vec(), b"1".to_vec()])
-    );
-}
-
-/// The shell predecessor configures itself through `CLAUDE_SESSION_*` and is
-/// installable alongside this wrapper, so the scrub stops at this wrapper's own
-/// prefix: sweeping the shorter one would delete another program's
-/// configuration on the way to the child
-/// ([ADR-0092](../docs/decisions/ADR-0092-namespace-apart-from-the-predecessor.md)).
-#[test]
-fn the_scrub_leaves_the_predecessor_prefix_intact() {
-    let harness = Harness::new();
-    assert!(
-        harness
-            .bound_command()
-            .env("CLAUDE_SESSION_PROFILE", "legacy")
-            .status()
-            .expect("wrapper")
-            .success()
-    );
-    let env = read_nul(&harness.record_dir().join("environ"));
-    assert!(
-        env.windows(2)
-            .any(|pair| pair == [b"CLAUDE_SESSION_PROFILE".to_vec(), b"legacy".to_vec()]),
-        "{env:?}"
+            .any(|pair| pair == [b"CLAUDE_SESSION_REENTRY".to_vec(), b"1".to_vec()])
     );
 }
 
@@ -352,7 +328,7 @@ fn a_signalled_run_still_leaves_a_complete_log() {
     let log = std::fs::read_to_string(
         harness
             .root()
-            .join("state/claude-session-rs/claude-session-rs.log"),
+            .join("state/claude-session/claude-session.log"),
     )
     .expect("UTF-8 structured log");
     assert!(

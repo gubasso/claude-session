@@ -24,7 +24,7 @@
 # checkable, and is enforced at review only.
 #
 # Discovery scans for `ANTHROPIC_`, `CLAUDE_CODE_`, and `CLAUDE_CONFIG_`. The
-# wrapper's own `CLAUDE_SESSION_RS_` prefix is not a child fact and is not scanned.
+# wrapper's own `CLAUDE_SESSION_` prefix is not a child fact and is not scanned.
 # Those prefixes describe environment variables. A child-owned name of any other
 # shape — a key inside the child's own configuration file, for instance — is
 # reached only by being listed in the test's own literal set, which is why adding

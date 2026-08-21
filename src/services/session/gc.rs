@@ -452,7 +452,7 @@ fn removal_error(path: &Path, error: &dyn std::fmt::Display) -> AppError {
             "a session directory operation failed",
             path.display().to_string(),
             error.to_string(),
-            "inspect the path, then run claude-session-rs session list again",
+            "inspect the path, then run claude-session session list again",
         ),
     )
 }

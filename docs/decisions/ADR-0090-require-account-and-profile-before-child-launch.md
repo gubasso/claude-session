@@ -21,7 +21,7 @@ No last-used profile marker is added. `default_profile` already expresses durabl
 ## Consequences
 
 - Good: every launched child has an accountable credential and settings identity.
-- Good: bare `claude-session-rs` still launches when configuration resolves both selections.
+- Good: bare `claude-session` still launches when configuration resolves both selections.
 - Bad: a previously valid unbound passthrough now requires setup or selection.
 
 ## Status

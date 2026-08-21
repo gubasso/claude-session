@@ -52,11 +52,11 @@ The wrapper shares the directory and stops. It never reads, parses, or ages a re
 
 Container and virtual-machine setups that bind the wrapper's trees select the sharing they get from the scopes above; the wrapper needs no configuration for it. What crosses, and how:
 
-| Tree                          | Mode       | Why                                                                    |
-| ----------------------------- | ---------- | ---------------------------------------------------------------------- |
-| Config (`claude-session-rs/`) | read-only  | User-authored; the wrapper never writes it                             |
-| State (`claude-session-rs/`)  | read-write | Accounts, sessions, composed settings, and the peer registry live here |
-| Data (`claude-session-rs/`)   | read-only  | The asset tree; supplied to sessions, never written                    |
+| Tree                       | Mode       | Why                                                                    |
+| -------------------------- | ---------- | ---------------------------------------------------------------------- |
+| Config (`claude-session/`) | read-only  | User-authored; the wrapper never writes it                             |
+| State (`claude-session/`)  | read-write | Accounts, sessions, composed settings, and the peer registry live here |
+| Data (`claude-session/`)   | read-only  | The asset tree; supplied to sessions, never written                    |
 
 Mount whole directories rather than single files: a file mount conveys an inode, and the wrapper and child both replace files by rename, which a file mount makes invisible until remount. Mount the state tree whole rather than narrowing it to `accounts/`: the peer registry sits beside it, and a narrowed mount silently costs the environment its session awareness.
 

@@ -93,7 +93,7 @@ fn profile(profile: Option<&ProfileReport>) -> String {
     let Some(profile) = profile else {
         return paragraph(
             "No profile is resolved, so a launch refuses before claude starts. Bind \
-            one to the account with: claude-session-rs account bind <account> \
+            one to the account with: claude-session account bind <account> \
             --profile <name>",
         );
     };

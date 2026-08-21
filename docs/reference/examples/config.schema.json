@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "claude-session-rs configuration",
+  "title": "claude-session configuration",
   "type": "object",
   "additionalProperties": false,
   "properties": {

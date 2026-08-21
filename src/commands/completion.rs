@@ -19,7 +19,7 @@ pub(crate) fn run(context: &AppContext, shell: Shell) -> Result<DispatchOutcome,
     let mut command = Cli::command();
     command.build();
     let mut bytes = Vec::new();
-    clap_complete::generate(shell, &mut command, "claude-session-rs", &mut bytes);
+    clap_complete::generate(shell, &mut command, "claude-session", &mut bytes);
     context
         .writer()
         .stdout(&bytes)

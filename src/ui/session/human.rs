@@ -151,7 +151,7 @@ fn summary(findings: &[SessionFinding]) -> String {
         return paragraph("Nothing to collect: every session above is still running.");
     }
     paragraph(&format!(
-        "{collectable} of {} collectable. Remove {}: claude-session-rs session clean",
+        "{collectable} of {} collectable. Remove {}: claude-session session clean",
         findings.len(),
         plural(collectable, "it with", "them with"),
     ))

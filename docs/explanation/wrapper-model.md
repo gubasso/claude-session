@@ -15,7 +15,7 @@ This is the first of the project's three standing contracts, and it is why `AGEN
 A wrapper invocation has three regions, and confusing them is the classic wrapper bug:
 
 ```text
-claude-session-rs [WRAPPER FLAGS] <verb> [--] [CHILD ARGS...]
+claude-session [WRAPPER FLAGS] <verb> [--] [CHILD ARGS...]
 ```
 
 Wrapper flags come first and are a closed, documented set. They are long-form, distinctively named, and small enough to list on one screen. Anything not on that list is not a wrapper flag, no matter how much it looks like one.
@@ -43,7 +43,7 @@ A collision the wrapper cannot resolve by shadowing is resolved by renaming, as 
 Arguments are forwarded verbatim, preserving order and bytes. Concretely:
 
 - Arguments are carried as OS strings end to end, never round-tripped through UTF-8. On Unix an argument is a byte string, and a filename that is not valid UTF-8 is still a perfectly legal argument.
-- An empty argument is a real argument. A shell that ran `claude-session-rs foo "" bar` passed three arguments, and the child must receive three. Filtering empties is a silent semantic change to the user's command line.
+- An empty argument is a real argument. A shell that ran `claude-session foo "" bar` passed three arguments, and the child must receive three. Filtering empties is a silent semantic change to the user's command line.
 - No reordering, no deduplication, no case normalization, no quote stripping, no re-quoting.
 
 There is no argv normalization step in this program. If a future change appears to need one, it is a change to the passthrough contract and needs a decision record before it needs code.
@@ -96,7 +96,7 @@ The child keeps only the last `--settings` it is given, so a user who passes one
 
 Account selection and profile selection are separate axes, explained in [session isolation](./session-isolation.md).
 
-The child's environment is otherwise inherited, with the wrapper's own `CLAUDE_SESSION_RS_*` variables scrubbed out and the recursion marker then set back. A child should never be able to observe the wrapper's internal state by reading its environment, both because it is none of the child's business and because a nested invocation would inherit stale values — and the marker is the deliberate exception, because a nested invocation seeing it is exactly how the guard fires.
+The child's environment is otherwise inherited, with the wrapper's own `CLAUDE_SESSION_*` variables scrubbed out and the recursion marker then set back. A child should never be able to observe the wrapper's internal state by reading its environment, both because it is none of the child's business and because a nested invocation would inherit stale values — and the marker is the deliberate exception, because a nested invocation seeing it is exactly how the guard fires.
 
 ## The proxy seam
 

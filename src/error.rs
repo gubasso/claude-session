@@ -233,7 +233,7 @@ impl From<DomainError> for AppError {
                         "invalid command line",
                         "wrapper arguments",
                         message,
-                        "run claude-session-rs --help",
+                        "run claude-session --help",
                     ),
                 )
             }

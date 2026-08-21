@@ -206,7 +206,7 @@ pub(crate) fn install(
         report_unavailable(&error);
         return empty();
     }
-    let log_path = paths.state().join("claude-session-rs.log");
+    let log_path = paths.state().join("claude-session.log");
     rotate(&log_path);
     let mut file = match SystemFileSystem::open_private_log(&log_path) {
         Ok(file) => file,
@@ -287,10 +287,10 @@ fn mirror(color: bool, level: Level, message: &str) -> String {
     } else {
         word.clone()
     };
-    let prefix = format!("claude-session-rs: {word}: ");
+    let prefix = format!("claude-session: {word}: ");
     let text = crate::ui::prose::wrap(message, &prefix, "  ");
     if color {
-        text.replacen(&prefix, &format!("claude-session-rs: {decorated}: "), 1)
+        text.replacen(&prefix, &format!("claude-session: {decorated}: "), 1)
     } else {
         text
     }

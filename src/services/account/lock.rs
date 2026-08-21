@@ -30,7 +30,7 @@ use crate::{
 /// that neither touches a filesystem nor waits for a real deadline. A test-only
 /// environment override was the alternative and was rejected: it would be an
 /// undocumented key that the configuration table, the strict unknown-key
-/// rejection, and the `CLAUDE_SESSION_RS_` scrub would each have to acknowledge,
+/// rejection, and the `CLAUDE_SESSION_` scrub would each have to acknowledge,
 /// where a parameter costs nothing and is visible in the signature.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Deadline {
@@ -200,7 +200,7 @@ fn busy(path: &Path, budget: Duration) -> AppError {
                 budget.as_millis()
             ),
             concat!(
-                "wait for the other `claude-session-rs account login` or ",
+                "wait for the other `claude-session account login` or ",
                 "`account remove` to finish, then retry"
             ),
         ),

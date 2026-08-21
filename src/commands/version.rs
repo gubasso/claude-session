@@ -92,7 +92,7 @@ pub(crate) fn run(context: &AppContext) -> Result<DispatchOutcome, AppError> {
             .map_err(|error| output_error(&error))?;
     } else {
         let mut text = crate::ui::prose::paragraph(&format!(
-            "This is claude-session-rs {}.",
+            "This is claude-session {}.",
             env!("CARGO_PKG_VERSION")
         ));
         text.push_str(&crate::ui::prose::paragraph(&match &resolved {

@@ -294,7 +294,7 @@ pub(crate) fn read_stored(context: &AppContext, account: &Identifier) -> Result<
                 "the stored token could not be read",
                 path.display().to_string(),
                 error.to_string(),
-                "run claude-session-rs account login --token to store a working token",
+                "run claude-session account login --token to store a working token",
             ),
         )
     })?;

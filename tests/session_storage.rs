@@ -602,7 +602,7 @@ fn a_fresh_tree_missing_both_bindings_is_refused_without_scaffolding() {
     );
     let profiles = harness.config_base().join("profiles");
     for recovery in [
-        "claude-session-rs account login".to_owned(),
+        "claude-session account login".to_owned(),
         format!("{}/<name>.yaml", profiles.display()),
     ] {
         assert!(stderr.contains(&recovery), "missing {recovery}:\n{stderr}");

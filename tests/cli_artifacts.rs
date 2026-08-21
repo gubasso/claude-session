@@ -12,17 +12,30 @@ use support::Harness;
 
 /// The full shell set `clap_complete` supports, which `cli-surface.md#help`
 /// makes the generator's fact rather than this project's, paired with how each
-/// generator spells a declared long option.
+/// generator spells a declared long option and how each registers the command.
 ///
-/// The spelling differs per shell — `fish` emits `-l account` where the others
-/// emit `--account` — so a single expected token would either miss `fish` or
-/// weaken to something that does not prove the flag reached the script at all.
-const SHELLS: [(&str, &str); 5] = [
-    ("bash", "--account"),
-    ("elvish", "--account"),
-    ("fish", "-l account"),
-    ("powershell", "--account"),
-    ("zsh", "--account"),
+/// The option spelling differs per shell — `fish` emits `-l account` where the
+/// others emit `--account` — so a single expected token would either miss
+/// `fish` or weaken to something that does not prove the flag reached the
+/// script at all.
+///
+/// The registration token is the whole command name plus the character that
+/// terminates it, so a longer name cannot satisfy it by prefix. Matching the
+/// name alone would be satisfied by any script registering a suffixed spelling
+/// of it, which is the one failure these assertions exist to catch. `bash` is
+/// mangled rather than terminated because `clap_complete` builds its function
+/// names by replacing each `-` with `__`, so that generator never emits the
+/// plain form at all.
+const SHELLS: [(&str, &str, &str); 5] = [
+    ("bash", "--account", "-F _claude__session -o"),
+    ("elvish", "--account", "arg-completer[claude-session] ="),
+    ("fish", "-l account", "complete -c claude-session -n"),
+    (
+        "powershell",
+        "--account",
+        "-CommandName 'claude-session' -ScriptBlock",
+    ),
+    ("zsh", "--account", "#compdef claude-session\n"),
 ];
 
 /// Verbs whose parser nodes the artifacts must describe.
@@ -85,11 +98,11 @@ fn man_page(harness: &Harness) -> String {
 #[test]
 fn completions_cover_every_documented_shell() {
     let harness = Harness::new();
-    for (shell, option) in SHELLS {
+    for (shell, option, registration) in SHELLS {
         let script = completion(&harness, shell);
         assert!(!script.trim().is_empty(), "{shell} script was empty");
         assert!(
-            script.contains("claude-session-rs") || script.contains("claude__session__rs"),
+            script.contains(registration),
             "{shell} script never names the binary"
         );
         assert!(
@@ -119,8 +132,8 @@ fn completions_cover_every_documented_shell() {
     assert_eq!(output.status.code(), Some(64));
     assert!(output.stdout.is_empty());
     let diagnostic = String::from_utf8(output.stderr).expect("utf-8 diagnostic");
-    assert!(diagnostic.contains("Usage: claude-session-rs completion"));
-    for (shell, _) in SHELLS {
+    assert!(diagnostic.contains("Usage: claude-session completion"));
+    for (shell, _, _) in SHELLS {
         assert!(diagnostic.contains(shell), "the diagnostic hides {shell}");
     }
 }
@@ -136,7 +149,7 @@ fn completions_cover_every_documented_shell() {
 #[test]
 fn artifacts_carry_the_account_grammar_and_no_unimplemented_verb() {
     let harness = Harness::new();
-    for (shell, account_flag) in SHELLS {
+    for (shell, account_flag, _) in SHELLS {
         let script = completion(&harness, shell);
         // The namespace's whole implemented subcommand set. Both generators
         // read one parser tree, so a spelling missing here means the tree lost
@@ -175,7 +188,7 @@ fn artifacts_carry_the_account_grammar_and_no_unimplemented_verb() {
     let page = unescape_roff(&man_page(&harness));
     for verb in IMPLEMENTED_VERBS {
         assert!(
-            page.contains(&format!("claude-session-rs-{verb}")),
+            page.contains(&format!("claude-session-{verb}")),
             "the page omits the {verb} verb"
         );
     }
@@ -186,23 +199,27 @@ fn artifacts_carry_the_account_grammar_and_no_unimplemented_verb() {
 /// Acceptance: both installed artifacts carry the installed binary name.
 ///
 /// A completion script registers against a command name and a man page is
-/// filed under one, so these two land in shared directories where the shell
-/// predecessor's own artifacts already sit. Naming the binary is what keeps
-/// them from colliding, and what stops the page describing a command the user
-/// cannot type
-/// ([ADR-0092](../docs/decisions/ADR-0092-namespace-apart-from-the-predecessor.md)).
+/// filed under one. Nothing but this test spans both, so it is where the two
+/// are held to one name — the name the user actually types. A page filed under
+/// a name no binary answers to describes a command that cannot be run, and a
+/// script registered against one completes nothing.
+///
+/// Both spellings are asserted whole rather than by prefix: `.TH claude-session
+/// 1` and the per-shell registration token in `SHELLS` each carry the character
+/// that ends the name, so a suffixed command name fails here instead of passing
+/// on a shared prefix.
 #[test]
 fn generated_artifacts_name_the_installed_binary() {
     let harness = Harness::new();
     assert!(
-        man_page(&harness).contains(".TH claude-session-rs 1"),
+        man_page(&harness).contains(".TH claude-session 1"),
         "the page is filed under another command"
     );
-    for (shell, _) in SHELLS {
+    for (shell, _, registration) in SHELLS {
         let script = completion(&harness, shell);
         assert!(
-            !script.contains("claude-session ") && !script.contains("'claude-session'"),
-            "the {shell} script registers the predecessor's spelling"
+            script.contains(registration),
+            "the {shell} script registers another command name"
         );
     }
 }
@@ -217,7 +234,7 @@ fn generated_artifacts_name_the_installed_binary() {
 fn man_derives_the_root_page_from_the_parser_tree() {
     let harness = Harness::new();
     let page = man_page(&harness);
-    assert!(page.contains(".TH claude-session-rs 1"), "no roff title");
+    assert!(page.contains(".TH claude-session 1"), "no roff title");
     assert!(page.contains(".SH NAME"), "no NAME section");
 
     let readable = unescape_roff(&page);

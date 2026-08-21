@@ -166,18 +166,18 @@ fn apply_environment(
 ) -> Result<(), ConfigError> {
     for (key, value) in environment {
         match key.to_str() {
-            Some("CLAUDE_SESSION_RS_CHILD_BIN") => resolved
+            Some("CLAUDE_SESSION_CHILD_BIN") => resolved
                 .child_bin_mut()
                 .set(PathBuf::from(value), Source::Environment),
-            Some("CLAUDE_SESSION_RS_DEFAULT_ACCOUNT") => resolved.account_mut().set(
+            Some("CLAUDE_SESSION_DEFAULT_ACCOUNT") => resolved.account_mut().set(
                 environment_identifier("default_account", value)?,
                 Source::Environment,
             ),
-            Some("CLAUDE_SESSION_RS_DEFAULT_PROFILE") => resolved.profile_mut().set(
+            Some("CLAUDE_SESSION_DEFAULT_PROFILE") => resolved.profile_mut().set(
                 environment_identifier("default_profile", value)?,
                 Source::Environment,
             ),
-            Some("CLAUDE_SESSION_RS_AUTO_TRUST_CWD") => resolved.auto_trust_cwd_mut().set(
+            Some("CLAUDE_SESSION_AUTO_TRUST_CWD") => resolved.auto_trust_cwd_mut().set(
                 environment_flag("auto_trust_cwd", value)?,
                 Source::Environment,
             ),
@@ -235,9 +235,9 @@ fn environment_identifier(key: &'static str, value: &OsStr) -> Result<Identifier
 /// the thing the user would unset rather than at the file spelling.
 const fn environment_spelling(key: &str) -> &'static str {
     match key.as_bytes() {
-        b"default_account" => "CLAUDE_SESSION_RS_DEFAULT_ACCOUNT",
-        b"auto_trust_cwd" => "CLAUDE_SESSION_RS_AUTO_TRUST_CWD",
-        _ => "CLAUDE_SESSION_RS_DEFAULT_PROFILE",
+        b"default_account" => "CLAUDE_SESSION_DEFAULT_ACCOUNT",
+        b"auto_trust_cwd" => "CLAUDE_SESSION_AUTO_TRUST_CWD",
+        _ => "CLAUDE_SESSION_DEFAULT_PROFILE",
     }
 }
 

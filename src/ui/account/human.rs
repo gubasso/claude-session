@@ -53,7 +53,7 @@ const fn chose_account(source: SelectionSource) -> &'static str {
     match source {
         SelectionSource::Flag => "because you named it with --account",
         SelectionSource::Environment => {
-            "because CLAUDE_SESSION_RS_DEFAULT_ACCOUNT names it in your environment"
+            "because CLAUDE_SESSION_DEFAULT_ACCOUNT names it in your environment"
         }
         SelectionSource::UserConfig => {
             "because default_account names it in your configuration file"
@@ -68,7 +68,7 @@ const fn chose_profile(source: Source) -> &'static str {
     match source {
         Source::Cli => "because you named it with --profile",
         Source::Environment => {
-            "because CLAUDE_SESSION_RS_DEFAULT_PROFILE names it in your environment"
+            "because CLAUDE_SESSION_DEFAULT_PROFILE names it in your environment"
         }
         Source::Project => "because the project configuration file in this tree names it",
         Source::Account => "because it is the profile this account is bound to",
@@ -122,7 +122,7 @@ pub(super) fn list(
             palette.heading("Accounts"),
             paragraph(concat!(
                 "No accounts are stored on this machine yet. Every launch needs one, ",
-                "so create the first with: claude-session-rs account login <name> ",
+                "so create the first with: claude-session account login <name> ",
                 "--profile <name>"
             ))
         );
@@ -144,7 +144,7 @@ pub(super) fn list(
             }
             None => text.push_str(&format!(
                 ". It is bound to no profile, so a launch under it refuses. \
-                Bind one with: claude-session-rs account bind {} --profile <name>",
+                Bind one with: claude-session account bind {} --profile <name>",
                 account.name.as_str()
             )),
         }
@@ -201,7 +201,7 @@ pub(super) fn status(palette: Palette, status: &AccountStatus) -> String {
             crate::domain::account::ProbeStatus::Failed => (
                 CheckStatus::Fail,
                 "claude refused this account's stored token, so a launch under it \
-                will fail. Replace it with: claude-session-rs account login "
+                will fail. Replace it with: claude-session account login "
                     .to_owned()
                     + status.account.as_str()
                     + " --token",
@@ -226,7 +226,7 @@ pub(super) fn status(palette: Palette, status: &AccountStatus) -> String {
     } else {
         format!(
             "This is not the account a launch would use. Select it for one run \
-            with: claude-session-rs --account {} ",
+            with: claude-session --account {} ",
             status.account.as_str()
         )
     };
@@ -276,7 +276,7 @@ fn profile(status: &AccountStatus) -> String {
     let Some(profile) = status.profile.as_ref() else {
         return format!(
             "It is bound to no profile, so a launch under it refuses before claude \
-            starts. Bind one with: claude-session-rs account bind {} --profile <name>",
+            starts. Bind one with: claude-session account bind {} --profile <name>",
             status.account.as_str()
         );
     };
@@ -284,7 +284,7 @@ fn profile(status: &AccountStatus) -> String {
         return format!(
             "It is bound to the \"{}\" profile, which has no document, so a launch \
             under it refuses. Write that profile, or bind another with: \
-            claude-session-rs account bind {} --profile <name>",
+            claude-session account bind {} --profile <name>",
             profile.as_str(),
             status.account.as_str()
         );
@@ -370,7 +370,7 @@ pub(super) fn login(
         format!(
             "It is bound to the \"{}\" profile, {}, but that profile has no document \
             yet. Write it before the next launch, or bind another with: \
-            claude-session-rs account bind {account} --profile <name>",
+            claude-session account bind {account} --profile <name>",
             binding.profile.as_str(),
             chose_profile(binding.source)
         )
@@ -419,7 +419,7 @@ pub(super) fn login(
                     &format!(
                         "It declares no subscription plan, so claude will describe the \
                         session as an API one and pick the model it defaults to without \
-                        one. Declare it with: claude-session-rs account login {account} \
+                        one. Declare it with: claude-session account login {account} \
                         --token --plan <plan>"
                     ),
                 )

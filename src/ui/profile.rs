@@ -36,7 +36,7 @@ const fn chose(source: Source) -> &'static str {
     match source {
         Source::Cli => "because you named it with --profile",
         Source::Environment => {
-            "because CLAUDE_SESSION_RS_DEFAULT_PROFILE names it in your environment"
+            "because CLAUDE_SESSION_DEFAULT_PROFILE names it in your environment"
         }
         Source::Project => "because the project configuration file in this tree names it",
         Source::Account => "because it is the profile the selected account is bound to",
@@ -51,7 +51,7 @@ fn text(palette: Palette, source: Source, profiles: &[ProfileFinding]) -> Vec<u8
         out.push_str(&paragraph(concat!(
             "No profiles are written yet. Every launch needs one, so write the",
             " first as a YAML document under the profiles directory, then bind",
-            " an account to it with: claude-session-rs account bind <account>",
+            " an account to it with: claude-session account bind <account>",
             " --profile <name>"
         )));
         return out.into_bytes();
@@ -72,7 +72,7 @@ fn text(palette: Palette, source: Source, profiles: &[ProfileFinding]) -> Vec<u8
                 || {
                     concat!(
                         "None of them is selected, so a launch refuses until one",
-                        " is. Bind one to the account with: claude-session-rs",
+                        " is. Bind one to the account with: claude-session",
                         " account bind <account> --profile <name>"
                     )
                     .to_owned()

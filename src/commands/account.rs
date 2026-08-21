@@ -97,7 +97,7 @@ pub(crate) fn remove(
 /// Asks the one confirmation question, on the controlling terminal.
 ///
 /// Standard input is deliberately not consulted: the prompt has to survive
-/// `something | claude-session-rs account remove work`, and it has to be
+/// `something | claude-session account remove work`, and it has to be
 /// invisible to `--json` consumers reading standard output.
 fn confirm(context: &AppContext, account: &Identifier) -> Result<bool, AppError> {
     let unavailable = |why: String| {
@@ -440,7 +440,7 @@ fn commit_binding(
             account.as_str()
         );
         diagnostic.hint = format!(
-            "run claude-session-rs account bind {} --profile {}",
+            "run claude-session account bind {} --profile {}",
             account.as_str(),
             name.as_str()
         );
@@ -534,7 +534,7 @@ fn native_login(
                 "native child login failed",
                 "claude auth login",
                 why,
-                "retry claude-session-rs account login from an interactive terminal",
+                "retry claude-session account login from an interactive terminal",
             );
             diagnostic.child_exit = child_exit;
             Err(AppError::new(ErrorKind::Auth, diagnostic))
