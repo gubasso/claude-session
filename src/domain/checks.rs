@@ -60,6 +60,8 @@ pub(crate) enum Check {
     SessionIdentityDerives,
     /// The user's own child assets a launch would supply.
     SessionAssetsLinked,
+    /// The user's own child plugins a launch would supply.
+    SessionPluginSeed,
 }
 
 /// The implemented public catalog, in its append-only order.
@@ -86,6 +88,7 @@ pub(crate) const CATALOG: &[Check] = &[
     Check::Account(AccountCheck::PlanDeclared),
     Check::SessionIdentityDerives,
     Check::SessionAssetsLinked,
+    Check::SessionPluginSeed,
 ];
 
 impl Check {
@@ -100,6 +103,7 @@ impl Check {
             Self::ChildVersionFloor => "child-version-floor",
             Self::SessionIdentityDerives => "session-identity-derives",
             Self::SessionAssetsLinked => "session-assets-linked",
+            Self::SessionPluginSeed => "session-plugin-seed",
             Self::Storage(value) => value.id(),
             Self::Entry(value) => value.id(),
             Self::Account(value) => value.id(),
@@ -122,6 +126,7 @@ impl Check {
             Self::ChildVersionFloor => "The claude version",
             Self::SessionIdentityDerives => "The agent this session belongs to",
             Self::SessionAssetsLinked => "Your own skills, agents, and rules",
+            Self::SessionPluginSeed => "Your own claude plugins",
             Self::Storage(value) => value.title(),
             Self::Entry(value) => value.title(),
             Self::Account(value) => value.title(),
@@ -169,6 +174,10 @@ impl Check {
                 "An isolated configuration directory reaches none of the skills, agents, or \
                 rules you wrote, so claude starts without them."
             }
+            Self::SessionPluginSeed => {
+                "A session directory that never existed registers no plugins of its own, so \
+                claude starts without the language servers and other plugins you declared."
+            }
             Self::Storage(value) => value.consequence(),
             Self::Entry(value) => value.consequence(),
             Self::Account(value) => value.consequence(),
@@ -200,7 +209,8 @@ impl Check {
             | Self::Entry(_)
             | Self::Account(_)
             | Self::SessionIdentityDerives
-            | Self::SessionAssetsLinked => Scope::Session,
+            | Self::SessionAssetsLinked
+            | Self::SessionPluginSeed => Scope::Session,
         }
     }
     /// Returns the published severity.
@@ -209,6 +219,7 @@ impl Check {
             Self::RuntimeDirPresent
             | Self::ChildVersionFloor
             | Self::SessionAssetsLinked
+            | Self::SessionPluginSeed
             | Self::Account(_) => Severity::Soft,
             _ => Severity::Hard,
         }
@@ -219,7 +230,9 @@ impl Check {
             Self::BaseDirsResolve | Self::RuntimeDirPresent | Self::ChildVersionFloor => {
                 ErrorKind::Unavailable
             }
-            Self::WrapperConfigParses | Self::SessionAssetsLinked => ErrorKind::Config,
+            Self::WrapperConfigParses | Self::SessionAssetsLinked | Self::SessionPluginSeed => {
+                ErrorKind::Config
+            }
             Self::ChildBinaryResolves => ErrorKind::ChildNotFound,
             Self::ChildIsExecutable => ErrorKind::ChildNotExecutable,
             Self::SessionIdentityDerives => ErrorKind::Unavailable,
@@ -262,6 +275,11 @@ impl Check {
             Self::SessionAssetsLinked => Some(concat!(
                 "Put the skills, agents, and other assets you want in every session ",
                 "under {path}. Moving an existing collection there is enough."
+            )),
+            Self::SessionPluginSeed => Some(concat!(
+                "Build a plugin tree with claude's own plugin commands, then copy its ",
+                "plugins directory to {path}. The wrapper reads that tree and never ",
+                "writes it."
             )),
             Self::Storage(value) => Some(value.remediation()),
             Self::Entry(value) => Some(value.remediation()),
@@ -1030,12 +1048,18 @@ mod tests {
             Severity::Soft,
             ErrorKind::Config,
         ),
+        (
+            "session-plugin-seed",
+            Scope::Session,
+            Severity::Soft,
+            ErrorKind::Config,
+        ),
     ];
 
     #[test]
     fn complete_catalog_metadata_and_order_are_pinned() {
         assert_eq!(CATALOG.len(), FULL_CATALOG.len());
-        assert_eq!(CATALOG.len(), 22);
+        assert_eq!(CATALOG.len(), 23);
         for (check, (id, scope, severity, kind)) in CATALOG.iter().zip(FULL_CATALOG) {
             assert_eq!(
                 (check.id(), check.scope(), check.severity(), check.kind()),

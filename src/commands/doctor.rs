@@ -343,6 +343,7 @@ pub(crate) fn run(
         // order has to match it.
         results.push(identity_result(context));
         results.push(assets_result(context));
+        results.push(plugin_seed_result(context));
     }
 
     let (child, child_race) = child_report(context, runnable.as_deref())?;
@@ -515,6 +516,56 @@ fn assets_result(context: &AppContext) -> CheckResult {
             tree.display()
         ),
     )
+}
+
+/// Reports what a launch would supply from the plugin seed.
+///
+/// An absent tree is skipped rather than reported as a defect, which is where
+/// this parts company with the asset row above. Most users keep no plugins at
+/// all, so an absent seed is a feature not in use rather than something lost,
+/// and a permanent warning about it would be noise
+/// ([ADR-0117](../../docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md)).
+fn plugin_seed_result(context: &AppContext) -> CheckResult {
+    let tree = context.paths().plugin_seed();
+    let hint = || {
+        Check::SessionPluginSeed
+            .hint(&[("path", &tree.display().to_string())])
+            .unwrap_or_default()
+    };
+    match crate::services::plugins::present(context) {
+        crate::services::plugins::Survey::Absent => CheckResult::skipped(
+            Check::SessionPluginSeed,
+            format!(
+                "{} does not exist, so no plugins are supplied",
+                tree.display()
+            ),
+        ),
+        crate::services::plugins::Survey::Uninspectable(path, why) => CheckResult::defect(
+            Check::SessionPluginSeed,
+            format!("{} could not be inspected: {why}.", path.display()),
+            hint(),
+        ),
+        // A directory holding neither state file is a seed that was built
+        // wrongly rather than one the user does not have, so it is worth
+        // saying: the tree exists, and a launch would still supply nothing.
+        crate::services::plugins::Survey::Held(held) if held.is_empty() => CheckResult::defect(
+            Check::SessionPluginSeed,
+            format!(
+                "{} holds neither of the {} files claude reads its plugins from.",
+                tree.display(),
+                crate::services::plugins::declared().len()
+            ),
+            hint(),
+        ),
+        crate::services::plugins::Survey::Held(held) => CheckResult::pass(
+            Check::SessionPluginSeed,
+            format!(
+                "{} would reach every session, from {}",
+                held.join(", "),
+                tree.display()
+            ),
+        ),
+    }
 }
 
 fn child_report(

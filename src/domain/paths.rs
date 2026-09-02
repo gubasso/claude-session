@@ -84,6 +84,15 @@ impl XdgPaths {
     pub(crate) fn assets(&self) -> PathBuf {
         self.data.join("assets")
     }
+    /// Returns the user's machine-local read-only tree of child plugins.
+    ///
+    /// Beside the asset tree rather than inside it: that set is the child's
+    /// published user-scope names and this is not one of them, which is also
+    /// why `plugins` stays absent from it
+    /// ([ADR-0117](../../docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md)).
+    pub(crate) fn plugin_seed(&self) -> PathBuf {
+        self.data.join("plugin-seed")
+    }
     /// Returns the accounts collection directory.
     pub(crate) fn accounts(&self) -> PathBuf {
         self.state.join("accounts")

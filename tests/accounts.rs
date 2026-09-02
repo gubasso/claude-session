@@ -1823,8 +1823,88 @@ fn a_launch_supplies_the_assets_the_tree_holds_and_no_others() {
     }
     assert!(
         session.join("plugins").symlink_metadata().is_err(),
-        "the plugin tree is never supplied"
+        "the plugin tree is never linked, and no seed means nothing is created"
     );
+}
+
+/// Slice 038 acceptance: the seed's plugin state reaches the session directory,
+/// as a copy the child may write and never as a link into a read-only tree.
+///
+/// A state file the seed does not hold is skipped rather than materialised
+/// empty, for the reason an absent asset is: an empty file would assert
+/// something the user did not.
+#[test]
+fn a_launch_copies_the_plugin_state_the_seed_holds_and_no_more() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    let seed = harness.write_plugin_seed(&["known_marketplaces.json"]);
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let session = only_session_dir(&harness, "work");
+    let copied = session.join("plugins/known_marketplaces.json");
+    let facts = copied.symlink_metadata().expect("the state was not copied");
+    assert!(
+        facts.is_file(),
+        "the copy is a real file the child may write"
+    );
+    assert_eq!(
+        fs::read(&copied).expect("copied state"),
+        fs::read(seed.join("known_marketplaces.json")).expect("seed state"),
+        "the wrapper copies the bytes it found and changes none of them"
+    );
+    assert_eq!(facts.permissions().mode() & 0o7777, 0o600);
+    assert!(
+        session
+            .join("plugins/installed_plugins.json")
+            .symlink_metadata()
+            .is_err(),
+        "a state file the seed does not hold is not materialised empty"
+    );
+}
+
+/// Slice 038 acceptance: the seed is read and never written, so one tree can
+/// serve every session without any of them changing it for the others.
+#[test]
+fn a_launch_never_writes_into_the_plugin_seed() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    let seed = harness.write_plugin_seed(&["known_marketplaces.json", "installed_plugins.json"]);
+    let before = seed_fingerprint(&seed);
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    assert_eq!(before, seed_fingerprint(&seed), "the seed was modified");
+}
+
+/// Every path below the seed with the bytes it holds, so a write anywhere in
+/// the tree — a new file included — shows up as a difference.
+fn seed_fingerprint(seed: &std::path::Path) -> Vec<(std::path::PathBuf, Vec<u8>)> {
+    let mut found = Vec::new();
+    let mut pending = vec![seed.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory).expect("seed tree") {
+            let path = entry.expect("seed entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                let bytes = fs::read(&path).expect("seed file");
+                found.push((path, bytes));
+            }
+        }
+    }
+    found.sort();
+    found
 }
 
 /// Slice 028 acceptance: the declared-links check covers every link the wrapper
@@ -1949,6 +2029,48 @@ fn a_disabled_trust_gate_records_no_workspace() {
             document.get("projects").is_none(),
             "{layer} left a workspace record the gate refuses: {document}"
         );
+    }
+}
+
+/// Slice 038 acceptance: while the key is enabled, a launch records the child's
+/// plugin recommendation as answered in the session directory it created, and
+/// while it is unset the child keeps its own behaviour.
+///
+/// Both layers the key accepts are exercised, for the reason the trust gate's
+/// test gives: a launch that read only one would leave the other inert.
+#[test]
+fn a_launch_answers_the_plugin_recommendation_only_when_asked() {
+    for layer in ["unset", "file", "environment"] {
+        let harness = Harness::new();
+        harness.initialize_login("work");
+        if layer == "file" {
+            fs::create_dir_all(harness.config_base()).expect("config fixture");
+            fs::write(
+                harness.config_base().join("config.toml"),
+                "suppress_lsp_recommendations = true\n",
+            )
+            .expect("config fixture");
+        }
+        let mut command = harness.companion_profile_command();
+        command.args(["--account", "work"]);
+        if layer == "environment" {
+            command.env("CLAUDE_SESSION_SUPPRESS_LSP_RECOMMENDATIONS", "true");
+        }
+        assert!(command.status().expect("wrapper").success());
+        let path = only_session_dir(&harness, "work").join(".claude.json");
+        let document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).expect("child configuration")).expect("json");
+        if layer == "unset" {
+            assert!(
+                document.get("lspRecommendationDisabled").is_none(),
+                "an unset key must leave the child asking: {document}"
+            );
+        } else {
+            assert_eq!(document["lspRecommendationDisabled"], true, "{layer}");
+        }
+        // The seed the launch owns unconditionally is there either way, so a
+        // failure above is about this key rather than about the write.
+        assert_eq!(document["hasCompletedOnboarding"], true, "{layer}");
     }
 }
 

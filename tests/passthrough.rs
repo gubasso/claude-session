@@ -137,11 +137,122 @@ fn a_selected_account_injects_its_config_directory_and_the_marker_alone() {
         }),
         "the account credential store did not reach the child"
     );
+    assert!(
+        !environ
+            .iter()
+            .any(|item| item == b"CLAUDE_CODE_PLUGIN_SEED_DIR"),
+        "a launch with no seed tree names no seed to the child"
+    );
     let internal: Vec<_> = environ
         .iter()
         .filter(|item| item.starts_with(b"CLAUDE_SESSION_"))
         .collect();
     assert_eq!(internal, [b"CLAUDE_SESSION_REENTRY"], "{internal:?}");
+}
+
+/// Slice 038 acceptance: a launch names the seed tree to the child, and drops
+/// an inherited one whether or not it has a tree of its own.
+///
+/// The two halves are one test because the second is only meaningful against
+/// the first: a wrapper that never set the variable would pass the drop
+/// assertion by doing nothing at all.
+#[test]
+fn a_plugin_seed_reaches_the_child_and_displaces_an_inherited_one() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    harness.initialize_companion_profile();
+    let seed = harness.write_plugin_seed(&["known_marketplaces.json"]);
+    assert!(
+        harness
+            .command()
+            .env(
+                "CLAUDE_CODE_PLUGIN_SEED_DIR",
+                harness.root().join("inherited")
+            )
+            .args(["--account", "work", "--profile", "companion"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let environ = read_nul(&harness.record_dir().join("environ"));
+    let seen: Vec<_> = environ
+        .windows(2)
+        .filter(|pair| pair[0] == b"CLAUDE_CODE_PLUGIN_SEED_DIR")
+        .map(|pair| pair[1].clone())
+        .collect();
+    assert_eq!(
+        seen,
+        [bytes(seed.as_os_str()).to_vec()],
+        "the wrapper's own seed reaches the child, and only it"
+    );
+}
+
+/// Slice 038 acceptance: an inherited seed is dropped even when the wrapper
+/// supplies none, because it names a tree this launch did not choose.
+#[test]
+fn an_inherited_plugin_seed_is_dropped_without_one_of_our_own() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    harness.initialize_companion_profile();
+    assert!(
+        harness
+            .command()
+            .env(
+                "CLAUDE_CODE_PLUGIN_SEED_DIR",
+                harness.root().join("inherited")
+            )
+            .args(["--account", "work", "--profile", "companion"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let environ = read_nul(&harness.record_dir().join("environ"));
+    assert!(
+        !environ
+            .iter()
+            .any(|item| item == b"CLAUDE_CODE_PLUGIN_SEED_DIR"),
+        "an inherited seed must not reach a launch that supplies none"
+    );
+}
+
+/// A seed path is a path, so its bytes are the user's and not necessarily
+/// UTF-8. Round-tripping one through a `String` would corrupt it.
+#[test]
+fn a_non_utf8_plugin_seed_path_reaches_the_child_intact() {
+    use std::os::unix::ffi::OsStrExt as _;
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    harness.initialize_companion_profile();
+    // The seed lives at a name the wrapper computes, so the invalid bytes go
+    // into the XDG base above it, which is the only part a test can choose.
+    let base = harness
+        .root()
+        .join(std::ffi::OsStr::from_bytes(b"data-\xff"));
+    std::fs::create_dir_all(base.join("claude-session/plugin-seed")).expect("seed fixture");
+    std::fs::create_dir_all(base.join("claude-session/assets/skills")).expect("asset fixture");
+    std::fs::write(
+        base.join("claude-session/plugin-seed/known_marketplaces.json"),
+        b"{}\n",
+    )
+    .expect("seed fixture");
+    assert!(
+        harness
+            .command()
+            .env("XDG_DATA_HOME", &base)
+            .args(["--account", "work", "--profile", "companion"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let environ = read_nul(&harness.record_dir().join("environ"));
+    let expected = base.join("claude-session/plugin-seed");
+    assert!(
+        environ
+            .windows(2)
+            .any(|pair| pair[0] == b"CLAUDE_CODE_PLUGIN_SEED_DIR"
+                && pair[1] == bytes(expected.as_os_str())),
+        "the seed path reached the child with its bytes intact"
+    );
 }
 
 #[test]

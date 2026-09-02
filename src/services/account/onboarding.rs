@@ -1,4 +1,4 @@
-//! Whether an account can reach the child's prompt, and the one key that decides it.
+//! Whether an account can reach the child's prompt, and the answers that decide it.
 //!
 //! The child runs its first-run onboarding when `hasCompletedOnboarding` is not
 //! `true` in the `.claude.json` of the configuration directory it was pointed
@@ -7,10 +7,14 @@
 //! that wizard — in token mode, a browser sign-in it does not need and cannot
 //! complete into its stored mode.
 //!
-//! This module is for answering that one question and for writing that one
-//! answer. It is not for the rest of the file: the child owns `userID`,
-//! `machineID`, and everything else in there, and the write below preserves all
-//! of it ([ADR-0098]).
+//! Readiness turns on that key alone. The write does not: a launch seeds every
+//! answer the directory's own newness makes the child ask, which is that key,
+//! the workspace-trust pair behind `auto_trust_cwd`, and the recommendation gate
+//! behind `suppress_lsp_recommendations` ([configuration]).
+//!
+//! It is not for the rest of the file: the child owns `userID`, `machineID`, and
+//! everything else in there, and the write below preserves all of it
+//! ([ADR-0098]).
 //!
 //! The file lives in the terminal's own session directory rather than the
 //! account's, so the seed happens when a launch creates that directory rather
@@ -19,6 +23,7 @@
 //! in and only while the user leaves that enabled
 //! ([ADR-0105]).
 //!
+//! [configuration]: ../../../docs/reference/configuration.md
 //! [ADR-0098]: ../../../docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md
 //! [ADR-0105]: ../../../docs/decisions/ADR-0105-seed-a-session-at-launch.md
 
@@ -38,6 +43,14 @@ use crate::{
 /// The child's own key. Carried against the launch obligation (ADR-0089), and
 /// registered in `docs/reference/child-facts.yaml`.
 const KEY: &str = "hasCompletedOnboarding";
+
+/// The child's key retiring its language-server plugin suggestion.
+///
+/// Carried against the same launch obligation as [`KEY`], and for the same
+/// reason: a session directory that never existed asks the question again, and
+/// the answer the user already gave went with the directory that held it
+/// ([ADR-0117](../../../docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md)).
+const RECOMMENDATIONS: &str = "lspRecommendationDisabled";
 
 /// The child's per-workspace map, and the two keys a trusted entry carries.
 const PROJECTS: &str = "projects";
@@ -174,6 +187,13 @@ pub(crate) fn make_launchable(
         != Some(serde_json::Value::Bool(true));
     if let Some(directory) = trust {
         changed |= record_trust(&mut document, directory);
+    }
+    // Only when the user asked for it. Left unset the child keeps its own
+    // behaviour, and a key written once stays written, so this never has to be
+    // withdrawn from a directory the wrapper is about to discard anyway.
+    if context.config().suppress_lsp_recommendations() {
+        changed |= document.insert(RECOMMENDATIONS.to_owned(), serde_json::Value::Bool(true))
+            != Some(serde_json::Value::Bool(true));
     }
     // Nothing to say means nothing to write. Replacing the file anyway is the
     // lost-update window above, opened once per launch for no gain.

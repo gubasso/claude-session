@@ -4,7 +4,7 @@ mod support;
 
 use support::Harness;
 
-const IDS: [&str; 22] = [
+const IDS: [&str; 23] = [
     "base-dirs-resolve",
     "runtime-dir-present",
     "wrapper-config-parses",
@@ -27,6 +27,7 @@ const IDS: [&str; 22] = [
     "account-plan-declared",
     "session-identity-derives",
     "session-assets-linked",
+    "session-plugin-seed",
 ];
 
 /// The titles a person reads, in catalog order. Unlike the ids above these are
@@ -76,7 +77,7 @@ fn doctor_human_report_preserves_catalog_order_and_text_shape() {
         text.contains("  [pass]     Wrapper storage locations"),
         "{text}"
     );
-    assert!(text.contains("22 checks: "), "{text}");
+    assert!(text.contains("23 checks: "), "{text}");
     assert!(
         text.contains("Everything the wrapper needs is in place."),
         "{text}"
@@ -185,7 +186,7 @@ fn one_row_stands_for_a_run_of_checks_and_names_each_id() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        22
+        23
     );
 }
 
@@ -261,12 +262,12 @@ fn doctor_json_report_matches_the_public_catalog() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(value["schema_version"], 1);
     let checks = value["wrapper"]["checks"].as_array().expect("checks");
-    assert_eq!(checks.len(), 22);
+    assert_eq!(checks.len(), 23);
     for (row, id) in checks.iter().zip(IDS) {
         assert_eq!(row["id"], id);
     }
     // Three levels, each stating its own status and code.
-    assert_eq!(value["wrapper"]["summary"]["total"], 22);
+    assert_eq!(value["wrapper"]["summary"]["total"], 23);
     assert_eq!(value["wrapper"]["status"], "pass");
     assert_eq!(value["wrapper"]["summary"]["exit"], 0);
     assert_eq!(value["child"]["status"], "pass");
@@ -327,7 +328,7 @@ fn doctor_list_json_discovers_the_same_catalog() {
         .expect("list");
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
     let rows = value["checks"].as_array().expect("checks");
-    assert_eq!(rows.len(), 22);
+    assert_eq!(rows.len(), 23);
     for (row, id) in rows.iter().zip(IDS) {
         assert_eq!(row["id"], id);
         assert!(row.get("status").is_none());
@@ -365,7 +366,7 @@ fn doctor_skips_inapplicable_session_checks_with_reasons() {
         .iter()
         .filter(|row| row["status"] == "skipped")
         .count();
-    assert_eq!(skipped, 14);
+    assert_eq!(skipped, 15);
 }
 
 /// Slice 025 acceptance: a login-mode account answers the child's plan question
@@ -512,7 +513,7 @@ fn doctor_continues_after_a_subsystem_failure() {
             .expect("checks")
             .last()
             .expect("last")["id"],
-        "session-assets-linked"
+        "session-plugin-seed"
     );
 }
 
@@ -644,7 +645,7 @@ fn doctor_reports_bootstrap_failures_in_the_requested_mode() {
     assert_eq!(value["wrapper"]["checks"][2]["status"], "fail");
     assert_eq!(
         value["wrapper"]["checks"].as_array().expect("checks").len(),
-        22
+        23
     );
 }
 
@@ -1095,4 +1096,56 @@ fn row(value: &serde_json::Value, id: &str) -> serde_json::Value {
         .find(|row| row["id"] == id)
         .expect("the check is in the report")
         .clone()
+}
+
+/// Slice 038 acceptance: the plugin-seed row reports what a launch would supply,
+/// which is what it can read rather than what merely exists at the name.
+///
+/// The three shapes are one test because the row's contract is the relation
+/// between them: an absent tree is not a defect, a readable file is what a
+/// launch copies, and a name occupied by something a launch cannot read must
+/// not report as supplied — the launch would copy nothing and the row would
+/// have said otherwise.
+#[test]
+fn the_plugin_seed_row_reports_only_state_a_launch_could_copy() {
+    for (shape, expected) in [
+        ("absent", "skipped"),
+        ("readable", "pass"),
+        ("directory", "warn"),
+        ("unreadable", "warn"),
+    ] {
+        let harness = Harness::new();
+        let seed = harness.plugin_seed();
+        match shape {
+            "absent" => {}
+            "readable" => {
+                harness.write_plugin_seed(&["known_marketplaces.json"]);
+            }
+            // A directory sitting at a state file's name exists, and `supply`
+            // still copies nothing out of it.
+            "directory" => {
+                std::fs::create_dir_all(seed.join("known_marketplaces.json")).expect("seed");
+            }
+            _ => {
+                harness.write_plugin_seed(&["known_marketplaces.json"]);
+                let mut mode = std::fs::metadata(seed.join("known_marketplaces.json"))
+                    .expect("seed")
+                    .permissions();
+                std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o000);
+                std::fs::set_permissions(seed.join("known_marketplaces.json"), mode).expect("seed");
+            }
+        }
+        let output = healthy(&harness)
+            .args(["doctor", "--json"])
+            .output()
+            .expect("doctor");
+        let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+        let row = value["wrapper"]["checks"]
+            .as_array()
+            .expect("checks")
+            .iter()
+            .find(|row| row["id"] == "session-plugin-seed")
+            .expect("the plugin seed row");
+        assert_eq!(row["status"], expected, "{shape}: {row}");
+    }
 }

@@ -57,6 +57,7 @@ carried:
       - docs/decisions/ADR-0104-share-one-credential-store.md
       - docs/explanation/session-isolation.md
       - docs/explanation/wrapper-model.md
+      - docs/guides/supplying-child-plugins.md
       - docs/plan/slices/005-account-authentication/README.md
       - docs/reference/accounts.md
       - docs/reference/configuration.md
@@ -114,6 +115,25 @@ carried:
       - src/services/child.rs
       - tests/accounts.rs
 
+  - fact: CLAUDE_CODE_PLUGIN_CACHE_DIR
+    obligation: contested
+    why: Named in the plugin guide as the build-time variable that puts a seed at the path it will be read from, because a seed built elsewhere and moved loads none of its plugins. The wrapper neither sets nor reads it, so none of ADR-0089's obligations fits a carry that exists only to tell a person which command to run. Q-018 decides whether a guide-only carry belongs here at all.
+    sites:
+      - docs/guides/supplying-child-plugins.md
+      - docs/plan/open-questions.md
+      - docs/reference/research-tracking.yaml
+
+  - fact: CLAUDE_CODE_PLUGIN_SEED_DIR
+    obligation: launch
+    why: The wrapper sets it to the read-only plugin tree the user maintains, because a session directory the launch just created registers no plugins of its own. An inherited one is dropped, so a session reaches the tree the wrapper selected rather than the one its environment was built for.
+    sites:
+      - docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md
+      - docs/guides/supplying-child-plugins.md
+      - docs/reference/process-runtime.md
+      - docs/reference/research-tracking.yaml
+      - src/services/child.rs
+      - tests/passthrough.rs
+
   - fact: CLAUDE_SECURESTORAGE_CONFIG_DIR
     obligation: launch
     why: The wrapper sets it to the account directory holding the saved login, so the per-terminal configuration directories of one account share one credential rather than one each. Undocumented by the child, so its freshness is tracked in ./research-tracking.yaml.
@@ -124,6 +144,14 @@ carried:
       - src/services/child.rs
       - tests/accounts.rs
       - tests/passthrough.rs
+
+  - fact: lspRecommendationDisabled
+    obligation: launch
+    why: The wrapper writes it into the session directory it created, while the user asks for it, because a directory that never existed asks the child's plugin recommendation again in every session and the answer they already gave went with the directory that held it.
+    sites:
+      - docs/reference/configuration.md
+      - src/services/account/onboarding.rs
+      - tests/accounts.rs
 
   - fact: procStart
     obligation: name-the-subject
@@ -139,6 +167,7 @@ carried:
     obligation: launch
     why: The wrapper writes it for the launch directory, because a per-terminal configuration directory resets the child's workspace-trust record and the same person already answered that prompt once. Written only while auto_trust_cwd is enabled.
     sites:
+      - docs/reference/configuration.md
       - src/services/account/onboarding.rs
       - tests/accounts.rs
 
@@ -146,6 +175,7 @@ carried:
     obligation: launch
     why: Written beside the trust key, because the child asks two questions about a new workspace and answering one leaves the other prompt standing.
     sites:
+      - docs/reference/configuration.md
       - src/services/account/onboarding.rs
       - tests/accounts.rs
 
@@ -156,6 +186,7 @@ carried:
       - docs/decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md
       - docs/decisions/ADR-0105-seed-a-session-at-launch.md
       - docs/reference/accounts.md
+      - docs/reference/configuration.md
       - src/services/account/onboarding.rs
       - tests/accounts.rs
       - tests/support.rs

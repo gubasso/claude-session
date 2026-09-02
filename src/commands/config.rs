@@ -130,6 +130,14 @@ fn assemble(context: &AppContext) -> Report {
             value: Some(config.auto_trust_cwd().to_string()),
             source: config.auto_trust_cwd_source(),
         },
+        // Effective value for the same reason as the row above: this one
+        // answers a suggestion on the reader's behalf, and its unset behaviour
+        // is the half they cannot see from the file.
+        KeyReport {
+            name: "suppress_lsp_recommendations",
+            value: Some(config.suppress_lsp_recommendations().to_string()),
+            source: config.suppress_lsp_recommendations_source(),
+        },
     ];
 
     let selected = context.session().profile().cloned();

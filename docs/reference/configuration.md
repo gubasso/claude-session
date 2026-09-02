@@ -60,20 +60,21 @@ The command protocol and configuration schema remain deferred under [ADR-0029](.
 
 ### Keys
 
-Four keys. All optional; the default of each is unset, except the trust seed, whose unset value is enabled.
+Five keys. All optional; the default of each is unset, except the trust seed, whose unset value is enabled.
 
-| Key               | Type          | Unset means                          | Environment                      | Layers                     | Meaning                                                                                                                                  |
-| ----------------- | ------------- | ------------------------------------ | -------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `child_bin`       | absolute path | search `PATH`                        | `CLAUDE_SESSION_CHILD_BIN`       | user, environment          | The child to run ([process runtime](./process-runtime.md#child-resolution))                                                              |
-| `default_account` | identifier    | fall through to the last-used marker | `CLAUDE_SESSION_DEFAULT_ACCOUNT` | user, environment          | The account when `--account` is absent ([accounts](./accounts.md#selection))                                                             |
-| `default_profile` | identifier    | report no profile; refuse a launch   | `CLAUDE_SESSION_DEFAULT_PROFILE` | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile))                                   |
-| `auto_trust_cwd`  | boolean       | enabled                              | `CLAUDE_SESSION_AUTO_TRUST_CWD`  | user, environment          | Record the launch directory as trusted in this agent's session directory ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)) |
+| Key                            | Type          | Unset means                          | Environment                                   | Layers                     | Meaning                                                                                                                                                                     |
+| ------------------------------ | ------------- | ------------------------------------ | --------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `child_bin`                    | absolute path | search `PATH`                        | `CLAUDE_SESSION_CHILD_BIN`                    | user, environment          | The child to run ([process runtime](./process-runtime.md#child-resolution))                                                                                                 |
+| `default_account`              | identifier    | fall through to the last-used marker | `CLAUDE_SESSION_DEFAULT_ACCOUNT`              | user, environment          | The account when `--account` is absent ([accounts](./accounts.md#selection))                                                                                                |
+| `default_profile`              | identifier    | report no profile; refuse a launch   | `CLAUDE_SESSION_DEFAULT_PROFILE`              | user, project, environment | The profile when `--profile` is absent ([selecting the active profile](#selecting-the-active-profile))                                                                      |
+| `auto_trust_cwd`               | boolean       | enabled                              | `CLAUDE_SESSION_AUTO_TRUST_CWD`               | user, environment          | Record the launch directory as trusted in this agent's session directory ([ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md))                                    |
+| `suppress_lsp_recommendations` | boolean       | disabled                             | `CLAUDE_SESSION_SUPPRESS_LSP_RECOMMENDATIONS` | user, environment          | Record claude's language-server plugin suggestion as answered in this agent's session directory ([ADR-0117](../decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md)) |
 
 Identifiers follow [the identifier rules](./xdg-storage.md#identifiers); an absolute path is validated where it is used.
 
-The project layer may set `default_profile` only. A repository that could set `child_bin` would choose the executable that runs, one that could set `default_account` would choose the credential it runs under, and one that could set `auto_trust_cwd` would answer the question of whether to trust itself — all before the user has read a line of it. Any of the three in a project file is `Config`, not a silent ignore ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
+The project layer may set `default_profile` only. A repository that could set `child_bin` would choose the executable that runs, one that could set `default_account` would choose the credential it runs under, one that could set `auto_trust_cwd` would answer the question of whether to trust itself, and one that could set `suppress_lsp_recommendations` would answer a suggestion on the user's behalf — all before the user has read a line of it. Any of the four in a project file is `Config`, not a silent ignore ([ADR-0071](../decisions/ADR-0071-restrict-the-project-layer-to-the-profile-key.md)).
 
-The environment value is one of `true`, `false`, `1`, or `0`; anything else is `Config` rather than a guess, because a guessed value answers a trust question the user meant to answer themselves. It is the same exit as an invalid value in a file, since the environment is a configuration layer and not an argument.
+A boolean environment value is one of `true`, `false`, `1`, or `0`; anything else is `Config` rather than a guess, because a guessed value answers a question the user meant to answer themselves. It is the same exit as an invalid value in a file, since the environment is a configuration layer and not an argument.
 
 No other key earns a row. Verbosity is invocation-scoped, colour is `NO_COLOR` ([presentation](./presentation.md#colour)), and `token_helper` stays deferred by [ADR-0029](../decisions/ADR-0029-use-a-credential-helper-process-boundary.md). A key is a permanent contract, so it is added by a present need rather than by symmetry ([ADR-0051](../decisions/ADR-0051-let-every-surface-element-discriminate.md)).
 
@@ -289,7 +290,15 @@ Beyond that boundary the wrapper's only obligation is to generate the composed d
 
 Trust, project history, and other native state remain child-owned in the shared account `config/`. The wrapper neither seeds nor synchronizes them.
 
-Onboarding is the one exception, and it is one key. A successful [login](./accounts.md#logging-in) records that the child's first-run setup is done, because the wrapper created the directory whose newness makes the child ask ([ADR-0098](../decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md)). Nothing else in that file is written, and the per-workspace trust prompt still fires.
+The exceptions are the questions a directory's own newness makes the child ask, which the wrapper created that directory to raise ([ADR-0098](../decisions/ADR-0098-seed-the-one-child-key-a-launch-cannot-reach.md), [ADR-0105](../decisions/ADR-0105-seed-a-session-at-launch.md)). A launch writes them into the session's own `.claude.json`, never into the shared account `config/`:
+
+| Key                                                       | Written                       | Gate                             |
+| --------------------------------------------------------- | ----------------------------- | -------------------------------- |
+| `hasCompletedOnboarding`                                  | Always                        | None; the directory is the cause |
+| `hasTrustDialogAccepted`, `hasCompletedProjectOnboarding` | For the launch directory only | `auto_trust_cwd`                 |
+| `lspRecommendationDisabled`                               | Always, while the key is on   | `suppress_lsp_recommendations`   |
+
+Nothing else in that file is written. A launch that would change no key writes nothing at all, so a file a running child is holding is left alone.
 
 ## Commands
 

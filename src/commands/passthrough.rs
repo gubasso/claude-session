@@ -107,6 +107,17 @@ pub(crate) fn run(
     let agent = crate::services::session::agent(context)?;
     let session = crate::services::session::materialise(context, &selected.id, &agent)?;
     crate::services::assets::supply(context, &session)?;
+    // After the assets and before the onboarding seed, because it is the same
+    // kind of answer as the ones below: the child reconciles the plugins its
+    // settings declare before it registers the seed's marketplaces, so a
+    // directory that never existed loads none of them unless the state it reads
+    // first is already there ([ADR-0117]).
+    //
+    // [ADR-0117]: ../../docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md
+    let plugin_seed = crate::services::plugins::locate(context);
+    if let Some(seed) = plugin_seed.as_deref() {
+        crate::services::plugins::supply(context, &session, seed)?;
+    }
     let trust = context
         .config()
         .auto_trust_cwd()
@@ -122,6 +133,7 @@ pub(crate) fn run(
         arguments,
         account.as_ref(),
         &session,
+        plugin_seed.as_deref(),
     )?))
 }
 

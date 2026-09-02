@@ -75,3 +75,35 @@ Blocks: whether [sessions](../reference/sessions.md) should state that its ended
 Raised: the slice 036 review observed that [the judgment](../../src/domain/witness.rs) asks whether the record's namespace is this run's before it asks which boot the record names, so a namespace mismatch answers first. Where [ADR-0109](../decisions/ADR-0109-discriminate-namespaces-across-kernels.md)'s ladder fell to the boot identifier, a reboot changes the namespace component too, and the previous boot's directories are `foreign` rather than `foreign-boot` — `unknown` instead of `dead`, which the launch sweep leaves and only `session clean` removes. The order cannot simply be swapped: another kernel sharing this tree also names a different boot, and asking about the boot first would collect a directory whose agent is running on that other machine. Under ADR-0102 the cost was one stranded directory per terminal; under [ADR-0113](../decisions/ADR-0113-key-a-session-to-its-running-agent.md) it is one per launch, so what a recorded posture absorbed is now unbounded growth between explicit collections.
 
 Exit: ADR, decide whether the durable record carries enough identity to tell this machine's ended boot from another kernel's live one — which is what the namespace component alone cannot do — or whether the boot-derived rung keeps stranding and the reference page says so plainly instead of promising the sweep. Either answer also settles whether `session clean` stays the only thing that reaches these directories.
+
+## Q-016 — Why does `config` report an unreadable file as one it never looked for?
+
+Blocks: whether [configuration](../reference/configuration.md#schema) may keep claiming that an unknown key "is rejected, not ignored" and that "the rejection names the offending key, its file, and, where the distance is small, the key it was probably meant to be".
+
+Raised: slice 038 added a key and measured what an older wrapper does when it meets one it does not know. `doctor` is exact — `wrapper-config-parses` fails and names the field and every key it expected. The `config` verb is not: its Files consulted section says "No configuration file was looked for", and its Problems section is empty, for a file that was looked for, found, read, and refused. A reader who runs the verb whose job is to explain the configuration is told the opposite of what happened, and the one whose job is to check it is told the truth.
+
+The claim in the reference is therefore true of the launch path and of `doctor`, and false of the verb a person reaches for first. Nothing here is a launch defect: a refused file leaves the account unbound and the launch refuses under [ADR-0090](../decisions/ADR-0090-require-account-and-profile-before-child-launch.md).
+
+Exit: ADR, decide whether `config` grows a Problems row carrying the decode error, or whether Files consulted distinguishes "absent" from "refused" and the existing empty section is enough. Either changes a published report shape, so it needs a slice rather than an edit.
+
+## Q-017 — Why do the cargo-backed hooks fail intermittently?
+
+Blocks: whether `just hooks` can be read as a verdict, since a green run and a red one are the same inputs, and whether a red run should be retried or investigated.
+
+Raised: slice 038's review measured `scripts/check-acceptance-tests` failing once in five identical runs, each time naming a different unresolved ID — `cli_artifacts::man_derives_the_root_page_from_the_parser_tree`, then `sessions_gc::every_verdict_reports_the_ground_it_stands_on`, then `sessions_gc::a_launch_collects_the_sessions_whose_agents_exited`. None of those tests, nor the slices naming them, were touched by that work. Both halves of the comparison look deterministic in isolation: `cargo nextest list --all-features` was byte-identical across four samples at 608 lines, and the named set held at 149 every run. The failures cluster on the first run after a rebuild, but a listing captured immediately after a forced rebuild was also byte-identical, so that correlation is not yet a cause. The script already guards the failure mode nearest this one, refusing a listing whose command exited non-zero, and that guard did not fire.
+
+Widened: the same slice later saw the `cargo nextest (integration tests)` hook fail inside `just hooks` while the identical lane passed three times out of three when run on its own, immediately afterwards and against an unchanged tree. That is a second hook, sharing only the cargo build directory with the first, so the cause is more likely contention between the cargo-backed hooks in one `just hooks` run than anything in the resolver's own comparison. A rerun has cleared every occurrence so far, which is what makes this a question rather than a defect report.
+
+Exit: measurement, run `just hooks` in a loop capturing each hook's full output, and on a failing iteration keep the resolver's listing file, its named set, and the nextest output together. Until a failing run's inputs are in hand there is nothing to decide; the fix follows from whether the two hooks fail for one reason or two.
+
+## Q-018 — Does a name the wrapper only tells a person to type belong in the registry?
+
+Blocks: whether `CLAUDE_CODE_PLUGIN_CACHE_DIR` keeps its `contested` entry in [child facts](../reference/child-facts.yaml), and whether [ADR-0089](../decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md) grows a fourth obligation or rules the carry out.
+
+Raised: slice 038's review found that the plugin guide's build recipe was wrong — it moved a finished seed, which is the one thing that guide warns makes a seed load nothing. The correct route is the child's own `CLAUDE_CODE_PLUGIN_CACHE_DIR`, which builds the tree at its final path and needs no rewrite. Naming it in the guide is what makes the recipe correct, and it also makes the name a carry the discovery scan reaches, because it wears a scanned prefix.
+
+None of ADR-0089's obligations fits. The wrapper does not launch through it, no wrapper spelling collides with it, and the wrapper neither sets nor reads it, so it cannot be over-claiming an effect. What it is, is a name the wrapper must be able to say out loud in a procedure the user performs, because the wrapper writes no user configuration ([ADR-0015](../decisions/ADR-0015-retire-the-init-verb.md)) and therefore cannot build the tree it reads. The three obligations were written for names the wrapper itself uses at run time, and this one is used by a person following a document.
+
+The alternative is to drop the name and describe the variable without spelling it, which makes the recipe unusable, or to publish the fragile move-and-rewrite route instead, which the same review rejected. Neither is better than an entry with an honest label.
+
+Exit: ADR, decide whether ADR-0089 grows an obligation covering a name a guide must spell, or whether the registry's scope narrows to run-time carries and documentation is enforced at review. Either way the `contested` entry leaves with the decision.

@@ -46,3 +46,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 035 total-session-accounting — done — 1 implementation session — after 033; superseded that slice's third verdict, and the reading that found it also found a report row claiming a child was running
 - 036 agent-keyed-sessions — done — 2 implementation sessions — after 035; landed in one session, and keying by the process turned out to retire the alias ground rather than judge it
 - 037 session-report-by-name — done — 1 implementation session — after 036; landed in one session, and the join against the witness turned out to be what makes a borrowed name safe to show at all
+- 038 child-plugin-seed — done — 2 implementation sessions — after 029, which named the read-only seed as the plugin route and left it for the need that now exists; landed in one session, and the measurement that rejected the link also showed a moved seed loads nothing

@@ -2,7 +2,7 @@
 
 The probe catalog, what each check reads, the remediation it prints, and how a run collapses into one exit code.
 
-The `doctor` verb, its report, `--list`, and `--strict` are implemented over 22 checks.
+The `doctor` verb, its report, `--list`, and `--strict` are implemented over 23 checks.
 
 The catalog below has three consumers and only one of them is an output surface, which is why it lives here rather than in [logging and output](./logging-and-output.md): a reader holding a check id is asking a health question, not a formatting one. That page still owns the streams and the document rules, and [presentation](./presentation.md) owns the appearance rules this one defers to.
 
@@ -52,6 +52,7 @@ Each check has a stable kebab-case id, a scope, a severity, the `err.kind` a fai
 | `account-plan-declared`     | Session | Soft     | `Config`             | The selected token account has declared the subscription plan its token belongs to                                                                                                 | The selected account's subscription plan |
 | `session-identity-derives`  | Session | Hard     | `Unavailable`        | This process, inside the namespace that issued its identifier and discriminated by this kernel's identity, names the directory a launch from this run would put its child state in | The agent this session belongs to        |
 | `session-assets-linked`     | Session | Soft     | `Config`             | The asset tree holds at least one of the names claude reads from its configuration directory                                                                                       | Your own skills, agents, and rules       |
+| `session-plugin-seed`       | Session | Soft     | `Config`             | The plugin seed, when the user keeps one, holds the state claude reads its registered marketplaces and installed plugins from                                                      | Your own claude plugins                  |
 
 Hard means the wrapper cannot function. Soft means a feature is degraded.
 
@@ -95,6 +96,7 @@ Both columns are written for a person, per rule 7 of [presentation](./presentati
 | `account-plan-declared`     | Claude cannot tell which subscription the stored token belongs to, so it describes the session as an API one and picks the model it defaults to without a plan. | Run `claude-session account login {account} --token --plan <plan>` to declare which subscription this account's token belongs to. The login asks for it when `--plan` is omitted.                                 |
 | `session-identity-derives`  | Without an agent to name, this run cannot be given state of its own, and sharing another agent's is what the separation exists to prevent.                      | Check that `/proc` is mounted and readable. Naming an agent needs this process's own namespace and start time, and nothing else.                                                                                  |
 | `session-assets-linked`     | An isolated configuration directory reaches none of the skills, agents, or rules you wrote, so claude starts without them.                                      | Put the skills, agents, and other assets you want in every session under `{path}`. Moving an existing collection there is enough.                                                                                 |
+| `session-plugin-seed`       | A session directory that never existed registers no plugins of its own, so claude starts without the language servers and other plugins you declared.           | Build a plugin tree with claude's own plugin commands, then copy its plugins directory to `{path}`. The wrapper reads that tree and never writes it.                                                              |
 
 On a credential path — `oauth-token`, `auth-mode.json`, or the child's `.credentials.json` — a symlink means something else may have read the secret, so one clause is appended. Only `credentials-usable` appends it today, over the selected account's three credential paths; the wrapper-managed storage checks refuse a link on those paths without it. Ownership, type, and symlink defects on the child-owned credential are reported by `credentials-usable` under its published `Auth` kind, and the diagnostic names the concrete ownership cause:
 
@@ -168,10 +170,11 @@ Session — the account and profile a launch would use
              account-plan-declared
              session-identity-derives
              session-assets-linked
+             session-plugin-seed
 
 Summary
 
-  22 checks: 14 passed, 1 warning, 7 not applicable.
+  23 checks: 14 passed, 1 warning, 8 not applicable.
   Nothing is blocking a launch; one warning is worth reading.
   claude's own checkup reported no problems.
 ```
@@ -202,7 +205,7 @@ The `Summary` section states the three levels [the three levels](#the-three-leve
         "kind": "ChildNotFound"
       }
     ],
-    "summary": { "total": 22, "passed": 22, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0, "exit": 0 }
+    "summary": { "total": 23, "passed": 23, "warned": 0, "failed": 0, "skipped": 0, "hard_failures": 0, "exit": 0 }
   },
   "child": { "status": "fail", "output": "…", "exit": 1 },
   "schema_version": 1

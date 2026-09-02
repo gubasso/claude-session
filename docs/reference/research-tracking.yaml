@@ -7,6 +7,32 @@
 # inside each artifact's `revalidate` field.
 
 tracked:
+  - path: docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md
+    last_checked: 2026-09-02
+    cadence: monthly
+    why: The `CLAUDE_CODE_PLUGIN_SEED_DIR` variable, the layout it expects, and the order in which the child registers a seeded marketplace against the plugins its settings declare are all the child's, and the launch-time state copy exists only because that order puts the reconcile first. The guide's build recipe rests on a second child variable, `CLAUDE_CODE_PLUGIN_CACHE_DIR`, which is what puts a seed at its final path; without it the only route left is the move-and-rewrite one this slice rejected.
+    revalidate: >-
+      Launch into a session directory that never existed, with a seed set and a
+      plugin enabled in the composed settings, and confirm the child reports the
+      plugin's language servers as loaded on that first run. Then remove the
+      state copy and confirm it does not, which is what makes the copy load
+      bearing rather than belt and braces. Confirm the seed is unwritten after
+      both runs, and check whether the child has begun locating a seeded
+      marketplace by a path recorded inside the seed rather than by probing it.
+      Probing covers `marketplaces/` only: a plugin's cached copy is still found
+      through the absolute `installPath` in `installed_plugins.json`, so a moved
+      seed registers its marketplaces and loads none of its plugins. Confirm
+      that split still holds. Then run the guide's own build recipe: confirm
+      `CLAUDE_CODE_PLUGIN_CACHE_DIR` still creates the whole tree at the path it
+      names, still writes nothing into the configuration directory the same
+      commands would otherwise use, and still records every path under the seed.
+    dependents:
+      - docs/guides/supplying-child-plugins.md
+      - docs/reference/child-facts.yaml
+      - docs/reference/process-runtime.md
+      - src/services/child.rs
+      - src/services/plugins.rs
+
   - path: docs/decisions/ADR-0104-share-one-credential-store.md
     last_checked: 2026-08-14
     cadence: monthly

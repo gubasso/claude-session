@@ -19,6 +19,10 @@
     "auto_trust_cwd": {
       "type": "boolean",
       "description": "Record the directory a launch starts in as trusted, in that terminal's own session directory. Set false to answer claude's workspace-trust prompt yourself."
+    },
+    "suppress_lsp_recommendations": {
+      "type": "boolean",
+      "description": "Record claude's language-server plugin recommendation as answered, in that session's own directory. Set true when a plugin seed already supplies the servers you want, so the suggestion stops arriving in every new session."
     }
   }
 }

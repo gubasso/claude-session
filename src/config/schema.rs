@@ -30,6 +30,7 @@ pub(crate) struct FileConfig {
     pub(crate) default_account: Option<String>,
     pub(crate) default_profile: Option<String>,
     pub(crate) auto_trust_cwd: Option<bool>,
+    pub(crate) suppress_lsp_recommendations: Option<bool>,
 }
 
 /// One configuration key, as the generated artifacts render it.
@@ -141,6 +142,18 @@ pub const KEYS: &[ConfigKey] = &[
             "Record the directory a launch starts in as trusted, in that ",
             "terminal's own session directory. Set false to answer claude's ",
             "workspace-trust prompt yourself.",
+        ),
+        placeholder: "true",
+    },
+    ConfigKey {
+        name: "suppress_lsp_recommendations",
+        type_name: "boolean",
+        required: false,
+        description: concat!(
+            "Record claude's language-server plugin recommendation as answered, ",
+            "in that session's own directory. Set true when a plugin seed already ",
+            "supplies the servers you want, so the suggestion stops arriving in ",
+            "every new session.",
         ),
         placeholder: "true",
     },

@@ -21,7 +21,7 @@ The predecessor's tree was rejected: depending on it makes this wrapper a functi
 
 The plugin route was rejected on ergonomics: plugin skills are always namespaced, so every skill the user invokes by hand gains a prefix. Copying was rejected because two trees drift.
 
-`plugins/` is excluded: nothing needs it, and the child validates a marketplace's install location by string prefix, so a linked one reports as corrupted.
+`plugins/` is excluded: nothing needs it, and a linked one reports as corrupted.
 
 ## Consequences
 
@@ -35,3 +35,5 @@ The plugin route was rejected on ergonomics: plugin skills are always namespaced
 Implemented
 
 Rests on [ADR-0103](./ADR-0103-permit-a-declared-link.md). Enacted in [the asset service](../../src/services/assets.rs) and [the guide](../guides/supplying-child-assets.md). Shaped by [029](../plan/slices/029-machine-global-child-assets/README.md).
+
+Amended by [ADR-0117](./ADR-0117-supply-plugins-from-a-read-only-seed.md); `plugins/` is still never linked.

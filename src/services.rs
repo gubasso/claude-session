@@ -3,6 +3,7 @@
 pub(crate) mod account;
 pub(crate) mod assets;
 pub(crate) mod child;
+pub(crate) mod plugins;
 pub(crate) mod profile;
 pub(crate) mod session;
 pub(crate) mod storage;

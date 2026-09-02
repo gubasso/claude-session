@@ -127,14 +127,17 @@ fn apply_file(
     if project
         && (file.child_bin.is_some()
             || file.default_account.is_some()
-            || file.auto_trust_cwd.is_some())
+            || file.auto_trust_cwd.is_some()
+            || file.suppress_lsp_recommendations.is_some())
     {
         let key = if file.child_bin.is_some() {
             "child_bin"
         } else if file.default_account.is_some() {
             "default_account"
-        } else {
+        } else if file.auto_trust_cwd.is_some() {
             "auto_trust_cwd"
+        } else {
+            "suppress_lsp_recommendations"
         };
         return Err(ConfigError::Decode {
             path: path.to_path_buf(),
@@ -156,6 +159,11 @@ fn apply_file(
     }
     if let Some(value) = file.auto_trust_cwd {
         resolved.auto_trust_cwd_mut().set(value, source);
+    }
+    if let Some(value) = file.suppress_lsp_recommendations {
+        resolved
+            .suppress_lsp_recommendations_mut()
+            .set(value, source);
     }
     Ok(true)
 }
@@ -181,6 +189,12 @@ fn apply_environment(
                 environment_flag("auto_trust_cwd", value)?,
                 Source::Environment,
             ),
+            Some("CLAUDE_SESSION_SUPPRESS_LSP_RECOMMENDATIONS") => {
+                resolved.suppress_lsp_recommendations_mut().set(
+                    environment_flag("suppress_lsp_recommendations", value)?,
+                    Source::Environment,
+                );
+            }
             _ => {}
         }
     }
@@ -237,6 +251,7 @@ const fn environment_spelling(key: &str) -> &'static str {
     match key.as_bytes() {
         b"default_account" => "CLAUDE_SESSION_DEFAULT_ACCOUNT",
         b"auto_trust_cwd" => "CLAUDE_SESSION_AUTO_TRUST_CWD",
+        b"suppress_lsp_recommendations" => "CLAUDE_SESSION_SUPPRESS_LSP_RECOMMENDATIONS",
         _ => "CLAUDE_SESSION_DEFAULT_PROFILE",
     }
 }
@@ -272,6 +287,7 @@ mod tests {
             decoded.default_account.is_some(),
             decoded.default_profile.is_some(),
             decoded.auto_trust_cwd.is_some(),
+            decoded.suppress_lsp_recommendations.is_some(),
         ];
         assert_eq!(
             set.iter().filter(|value| **value).count(),

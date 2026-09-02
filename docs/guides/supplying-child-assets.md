@@ -31,7 +31,7 @@ The names `claude` reads from its own configuration directory, and no others:
 
 A name the tree does not hold is not supplied, and nothing is created in its place. Start with the one or two you actually have.
 
-The child's plugin tree is deliberately not on this list ([ADR-0106](../decisions/ADR-0106-supply-child-assets-from-one-tree.md)).
+The child's plugin tree is deliberately not on this list: it reaches a session by a read-only seed instead of a link, which [supplying your own claude plugins](./supplying-child-plugins.md) covers ([ADR-0106](../decisions/ADR-0106-supply-child-assets-from-one-tree.md), [ADR-0117](../decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md)).
 
 ## Setting it up
 

@@ -25,3 +25,8 @@
 # session directory. Set false to answer claude's workspace-trust prompt
 # yourself.
 # auto_trust_cwd = true
+
+# Record claude's language-server plugin recommendation as answered, in that
+# session's own directory. Set true when a plugin seed already supplies the
+# servers you want, so the suggestion stops arriving in every new session.
+# suppress_lsp_recommendations = true

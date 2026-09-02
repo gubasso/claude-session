@@ -115,11 +115,14 @@ pub(crate) fn program(context: &AppContext) -> Result<PathBuf, AppError> {
 
 /// Builds the invocation a passthrough launch replaces itself with.
 ///
-/// Two additions over [`invocation`], and only these: the composed settings pair
-/// ahead of an untouched user suffix, and the account configuration directory
-/// the child reads its own state from. Both stay OS strings, because the
-/// settings path derives from the XDG bases, whose bytes are arbitrary. The
-/// pair and its precedence belong to [ADR-0028].
+/// One argument addition over [`invocation`], and only this one: the composed
+/// settings pair ahead of an untouched user suffix. Alongside it the account
+/// configuration directory the child reads its own state from, and the seed
+/// tree it reads its plugins from when the user keeps one ([ADR-0117]). All
+/// stay OS strings, because the paths derive from the XDG bases, whose bytes
+/// are arbitrary. The pair and its precedence belong to [ADR-0028].
+///
+/// [ADR-0117]: ../../docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md
 ///
 /// The child arrives already resolved, by [`program`], because resolution is an
 /// earlier step of the sequence than the account and profile inputs this reads.
@@ -140,6 +143,7 @@ pub(crate) fn launch(
     arguments: Vec<OsString>,
     auth: Option<&crate::services::account::LaunchAccount>,
     session: &Path,
+    plugin_seed: Option<&Path>,
 ) -> Result<ChildInvocation, AppError> {
     let mode = auth.map(|auth| auth.mode);
     let mut vector = Vec::with_capacity(arguments.len() + 2);
@@ -170,6 +174,26 @@ pub(crate) fn launch(
             "CLAUDE_SECURESTORAGE_CONFIG_DIR".into(),
             account.config.as_os_str().to_owned(),
         ));
+        // Beside the configuration directory, because it describes what that
+        // directory can reach: the child locates a seeded marketplace by
+        // probing this tree rather than by trusting the paths recorded inside
+        // it, which is what lets one read-only tree serve every session
+        // ([ADR-0117]).
+        //
+        // Replaced rather than merged, for the reason the credential store is:
+        // an ambient value points at whatever tree the surrounding environment
+        // was built for, and a session that inherited it would reach plugins
+        // the wrapper did not select. Absent when the user keeps no seed, which
+        // leaves the child exactly as it behaves without this feature.
+        //
+        // [ADR-0117]: ../../docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md
+        environment.retain(|(key, _)| key != "CLAUDE_CODE_PLUGIN_SEED_DIR");
+        if let Some(seed) = plugin_seed {
+            environment.push((
+                "CLAUDE_CODE_PLUGIN_SEED_DIR".into(),
+                seed.as_os_str().to_owned(),
+            ));
+        }
         if mode == Some(AuthMode::Token) {
             let token = crate::services::account::token::read_stored(context, &account.id)?;
             environment.retain(|(key, _)| key != "CLAUDE_CODE_OAUTH_TOKEN");

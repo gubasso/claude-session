@@ -83,6 +83,7 @@ pub(crate) struct ResolvedConfig {
     default_account: Sourced<Identifier>,
     default_profile: Sourced<Identifier>,
     auto_trust_cwd: Sourced<bool>,
+    suppress_lsp_recommendations: Sourced<bool>,
 }
 
 impl ResolvedConfig {
@@ -93,7 +94,31 @@ impl ResolvedConfig {
             default_account: Sourced::unset(),
             default_profile: Sourced::unset(),
             auto_trust_cwd: Sourced::unset(),
+            suppress_lsp_recommendations: Sourced::unset(),
         }
+    }
+
+    /// Reports whether a launch retires the child's plugin recommendation.
+    ///
+    /// Defaults to disabled. The recommendation is the child's own feature and
+    /// answering it on the user's behalf is a decision they must be able to
+    /// make, which is why it is opted into rather than out of — the reverse of
+    /// [`Self::auto_trust_cwd`], because a trust prompt costs an answer per
+    /// project and this one costs a suggestion the user may want
+    /// ([ADR-0117](../../docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md)).
+    pub(crate) fn suppress_lsp_recommendations(&self) -> bool {
+        self.suppress_lsp_recommendations
+            .value()
+            .copied()
+            .unwrap_or(false)
+    }
+    /// Returns the recommendation-seed provenance.
+    pub(crate) const fn suppress_lsp_recommendations_source(&self) -> Source {
+        self.suppress_lsp_recommendations.source()
+    }
+    /// Mutably accesses the recommendation value during resolution only.
+    pub(crate) const fn suppress_lsp_recommendations_mut(&mut self) -> &mut Sourced<bool> {
+        &mut self.suppress_lsp_recommendations
     }
 
     /// Reports whether a launch records its working directory as trusted.

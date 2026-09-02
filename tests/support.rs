@@ -53,6 +53,26 @@ impl Harness {
         self.root.path().join("data/claude-session/assets")
     }
 
+    /// The user's machine-local plugin seed inside this fixture's XDG data base.
+    ///
+    /// Absent from the baseline, unlike the asset tree: most setups keep no
+    /// plugins, so the fixture's default has to be the shape that proves a
+    /// launch without one changes nothing.
+    pub(crate) fn plugin_seed(&self) -> PathBuf {
+        self.root.path().join("data/claude-session/plugin-seed")
+    }
+
+    /// Writes a plugin seed holding the named state files, each with its own
+    /// recognisable bytes so a copy can be told from an empty file.
+    pub(crate) fn write_plugin_seed(&self, names: &[&str]) -> PathBuf {
+        let seed = self.plugin_seed();
+        fs::create_dir_all(seed.join("marketplaces")).expect("seed fixture");
+        for name in names {
+            fs::write(seed.join(name), format!("{{\"seed\":\"{name}\"}}\n")).expect("seed fixture");
+        }
+        seed
+    }
+
     pub(crate) fn root(&self) -> &Path {
         self.root.path()
     }
