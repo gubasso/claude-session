@@ -21,6 +21,20 @@ rustPlatform.buildRustPackage {
   src = lib.cleanSource ../.;
   cargoLock.lockFile = ../Cargo.lock;
 
+  # The integration lane needs a controlling terminal and the recording stub
+  # (docs/reference/testing-and-quality.md), and the Nix sandbox offers
+  # neither, so `cargo test` here fails on eighteen login tests that pass
+  # everywhere the lane is actually run. This derivation's job is to prove the
+  # crate builds; the `test` job of the gated pipeline and `just hooks` own
+  # whether it works.
+  doCheck = false;
+
+  # One cheap proof that the built binary runs at all, which is what doCheck
+  # would otherwise have given for free.
+  postInstall = ''
+    $out/bin/${package.name} --version
+  '';
+
   meta = {
     # The first [[bin]] name where one is declared, else the package
     # name — the implicit src/main.rs binary. nix run resolves the
