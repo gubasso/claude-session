@@ -10,7 +10,7 @@
     # pin and the lock together, so the project supplies its own `rk` instead of
     # depending on a host install.
     release-kit = {
-      url = "github:gubasso/release-kit/v0.3.2";
+      url = "github:gubasso/release-kit/v0.3.3";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
