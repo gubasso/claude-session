@@ -158,11 +158,17 @@ Common starting points:
 - What does it mean to wrap `claude`? → [the wrapper model](./docs/explanation/wrapper-model.md)
 - How do I work on it? → [the development workflow](./docs/guides/development-workflow.md)
 
+## Install
+
+`0.1.0` is on crates.io, the version [ADR-0022](./docs/decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md) held back until the wrapper forwarded to `claude`.
+
+```bash
+cargo install claude-session
+```
+
+Running it needs `claude` on `PATH`. The wrapper resolves it, hands it the argument vector, and becomes it.
+
 ## Build from source
-
-There is no published release. [ADR-0022](./docs/decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md) holds the first crates.io version until the wrapper forwards to `claude`, which it now does; cutting `0.1.0` is a separate human decision, so a checkout is the only way to install today.
-
-Running the result needs `claude` on `PATH`. The wrapper resolves it, hands it the argument vector, and becomes it.
 
 ```bash
 # Clone the repository
