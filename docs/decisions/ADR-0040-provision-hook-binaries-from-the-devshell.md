@@ -29,4 +29,4 @@ Implemented
 
 Enacted by [`flake.nix`](../../flake.nix) and [`.pre-commit-config.yaml`](../../.pre-commit-config.yaml).
 
-Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md): `committed` is gone, because the landed release-kit block owns commit-message linting and one job takes one hook. The provisioning rule this record states is unchanged and still governs `typos` and `markdownlint-cli2`.
+Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md): `committed` is gone, its job now the landed block's. The rule here still governs `typos` and `markdownlint-cli2`.

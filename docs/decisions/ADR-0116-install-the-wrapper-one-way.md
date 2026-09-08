@@ -21,7 +21,7 @@ Keeping it unused was rejected on the discrimination test of [ADR-0051](./ADR-00
 ## Consequences
 
 - Good: one binary, one way to get it, and no unused build to keep green.
-- Bad: `nix flake check` no longer compiles anything, so it stops being an incidental build check. The compile gate is `just hooks`, which already owns it.
+- Bad: `nix flake check` no longer compiles anything. The compile gate is `just hooks`.
 - Bad: a consumer wanting `nix build` on this repository must restore the output.
 
 ## Status
@@ -30,4 +30,4 @@ Implemented
 
 Enacted by [`flake.nix`](../../flake.nix), whose devShell comment names this record, and by [`install.sh`](../../install.sh), which `just install` runs.
 
-Amended by [ADR-0119](./ADR-0119-build-the-wrapper-from-the-flake.md), which restores a package output now that the gated pipeline consumes it. The single install path recorded here is unchanged.
+Amended by [ADR-0119](./ADR-0119-build-the-wrapper-from-the-flake.md), which restores a package output the pipeline consumes. The single install path stands.

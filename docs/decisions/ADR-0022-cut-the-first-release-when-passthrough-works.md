@@ -21,7 +21,7 @@ Chosen option: publish nothing until passthrough works. The crate's description 
 - Good: every published version does what the crate description says, so nothing needs yanking.
 - Good: one rule governs what user-facing documentation may promise — nothing until `0.1.0` exists. The `guides/` zone stays at its contributor guide rather than filling with tasks no reader can verify.
 - Bad: the crate name is unreserved until then.
-- Bad: release-plz, Trusted Publishing, and the `master` promote job get their first end-to-end exercise on the real `0.1.0` rather than on a throwaway version.
+- Bad: release-plz and Trusted Publishing get their first end-to-end exercise on the real `0.1.0` rather than on a throwaway version.
 
 ## Status
 
@@ -31,4 +31,4 @@ Accepted
 
 Documentation timing now follows [ADR-0075](./ADR-0075-build-through-the-current-slice.md). The release decision recorded here is unchanged.
 
-Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md): there is no `master` promote job any more, because `master` is the trunk. The first version and the one-time manual publish are unchanged.
+Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md): no promote job remains, because `master` is the trunk.
