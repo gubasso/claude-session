@@ -17,7 +17,7 @@ The release style is `trunk`: the bot's release request carries auto-merge from 
 crates.io authentication and GitHub write identity are separate:
 
 - crates.io uses Trusted Publishing. The release job has `id-token: write`; it has no `CARGO_REGISTRY_TOKEN` and no crates.io authentication action.
-- GitHub writes use a short-lived installed-App token.
+- GitHub writes use a short-lived installed-App token, minted from two repository secrets, `RELEASE_BOT_APP_ID` and `RELEASE_BOT_APP_PRIVATE_KEY`. `rk setup step bot-secrets --target . --apply` stores them and is the only writer of either.
 
 The crates.io Trusted Publisher identity is:
 
