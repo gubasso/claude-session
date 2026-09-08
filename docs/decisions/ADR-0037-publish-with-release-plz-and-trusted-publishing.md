@@ -27,3 +27,5 @@ The first version remains the one-time manual exception required by [ADR-0022](.
 Accepted
 
 This record formalizes an unrecorded tool and authentication choice. It neither supersedes nor amends another ADR and is consistent with ADR-0022 and [ADR-0023](./ADR-0023-only-release-automation-opens-pull-requests.md).
+
+Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md): release-plz opens the release pull request against `master`, and `.github/workflows/release-plz.yml` is now release-kit-owned. The tool, the OIDC authentication, and the filename's place in the publisher identity are unchanged.

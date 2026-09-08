@@ -31,3 +31,5 @@ Declining permanently is rejected. The present coverage — `cargo audit`, `carg
 Accepted
 
 Recorded as a not-adopted row in [release workflow § Forge enforcement](../reference/release-workflow.md#forge-enforcement).
+
+Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md): the trigger now reads the `master-protection` and `release-tags` rulesets the release-kit setup installs, since `develop` no longer exists. The deferral itself is unchanged.

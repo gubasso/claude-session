@@ -27,7 +27,6 @@ exclude = [
   "/.envrc",
   "/.github",
   "/.pre-commit-config.yaml",
-  "/committed.toml",
   "/deny.toml",
   "/docs",
   "/flake.lock",

@@ -60,3 +60,21 @@ Record each significant, hard-to-reverse choice in one filled file under `docs/d
 - Add dependencies through the documented procedure and the pinned devShell; do not depend on host tooling.
 - Run `just hooks` before proposing changes. It executes both configured hook stages; `pre-commit run --all-files` alone is not the verdict. The exact gate is in [testing and quality](./docs/reference/testing-and-quality.md#the-gate).
 - Commit messages use Conventional Commits, a lowercase description, no trailing period, and at most 72 characters on every line.
+
+<!-- BEGIN release-kit -->
+
+## Releases
+
+- This repository runs the release-kit convention. `rk method invariants` states what must stay true.
+- An agent here guides and never drives. It reads this convention and tells the operator which step comes next. It takes no git or forge action unless the operator's request named that action. The bounded actions include the following. Create, switch, or delete a branch. Mint a branch at the forge from an issue. Create or remove a worktree. Commit, push, or tag. Open, update, or merge a pull request. A request to change code authorizes the file changes alone.
+- Work reaches the trunk only through a squash-merged pull request from a short-lived branch. The branch name is `<type>/<slug>`, whose type matches the squash title's type, or the forge-minted `<issue-id>-<slug>`. Nothing is committed on `master`.
+- A request that names an issue starts from the forge's own branch: `rk issue start <issue>` mints it at the forge, seats it, and links it to the issue. Never invent a name for work an issue already names.
+- This project works in worktrees: every code-changing branch lives in its linked worktree (`rk worktree add <branch>` creates or adopts it beside the checkout), the main checkout commits nothing, and `rk worktree prune` retires a merged worktree. One branch, one writer.
+- The request's title becomes the trunk's commit message, so it MUST be a scoped Conventional Commit. The body carries the context and lands with it. The body names no internal planning artifact and carries no agent attribution. The landed rk-message hook, the forge's body check, and the observed body source hold that rule.
+- Every commit follows the same scoped convention. The landed commit-msg hook requires a scope on every one, and the title check holds it to lowercase letters, digits, and `_ . / -`.
+- The scope names the area you changed, and reads as `area/subarea` where that is clearer. Prefer a scope this repository already uses, which `git log --format=%s | sed -n 's/^[a-z]*(\([^)]*\)).*/\1/p' | sort -u` lists. Coin a new scope only where no existing one names the area.
+- Never author a tag, and never hand-edit a generated artifact workflow.
+- Run `rk status` before changing anything under `.github/workflows/` or `.gitlab-ci.yml`, or any file `.release-kit/manifest.json` names.
+- The full method is `rk method --list`. The recovery paths are `rk method recovery`.
+
+<!-- END release-kit -->

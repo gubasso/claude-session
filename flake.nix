@@ -37,6 +37,12 @@
         # `nix fmt` uses the RFC 166 formatter (also on PATH for the pre-commit hook).
         formatter = pkgs.nixfmt;
 
+        # The wrapper, built from the release-kit-owned expression. The gated
+        # pipeline's `flake` job is what consumes it, so the build is proven on
+        # every request (ADR-0119). `just install` remains how the binary
+        # reaches a developer's PATH (ADR-0116).
+        packages.default = pkgs.callPackage ./nix/package.nix { };
+
         devShells.default = pkgs.mkShell {
           packages = [
             toolchain
@@ -56,12 +62,10 @@
             pkgs.nixfmt
             pkgs.statix
             pkgs.deadnix
-            # Spell check and commit-message lint. Upstream ships these as
-            # `language: python` hooks whose wheel carries a generic-glibc
-            # binary, which cannot execute here (ADR-0040), so both run as
-            # language:system off PATH.
+            # Spell check. Upstream ships it as a `language: python` hook whose
+            # wheel carries a generic-glibc binary, which cannot execute here
+            # (ADR-0040), so it runs as language:system off PATH.
             pkgs.typos
-            pkgs.committed
             # Node for the markdownlint-cli2 pre-commit hook, which is pinned to
             # `language_version: system` because pre-commit's own nodeenv
             # fallback downloads a generic-glibc node (ADR-0040). npm still
@@ -77,13 +81,13 @@
             # release convention is read from the flake rather than a host
             # install.
             release-kit.packages.${system}.default
-            # The wrapper itself is deliberately absent, and this flake builds
-            # no package that would install it either: `just install` is the one
-            # thing that puts `claude-session` on PATH
-            # (ADR-0116). Entering this shell — or having direnv enter it —
-            # therefore shadows nothing and one binary answers everywhere. Use
-            # `just run` for the working tree, which is unambiguous about what
-            # it builds.
+            # The wrapper itself is deliberately absent: `just install` is the
+            # one thing that puts `claude-session` on PATH (ADR-0116).
+            # Entering this shell — or having direnv enter it — therefore
+            # shadows nothing and one binary answers everywhere. Use `just run`
+            # for the working tree, which is unambiguous about what it builds.
+            # `packages.default` above builds the wrapper for the pipeline's
+            # proof (ADR-0119) and installs nothing here.
           ];
           # native deps for -sys crates, uncomment as needed:
           # buildInputs = [ pkgs.openssl ];

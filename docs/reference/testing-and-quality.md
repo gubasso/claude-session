@@ -229,28 +229,32 @@ Run it inside the devShell. Several hooks take their binary from the shell rathe
 
 The Backing column says whether the hook exists today. `deferred` means the row is a specification the repository does not yet enforce; it is closed by the round that builds the mechanism, never by deleting the row.
 
-| Hook                                         | Stage        | Enforces                                       | Backing                                                                   |
-| -------------------------------------------- | ------------ | ---------------------------------------------- | ------------------------------------------------------------------------- |
-| `cargo fmt`                                  | commit       | Canonical formatting                           | present                                                                   |
-| `clippy` auto-fix, then gate                 | commit       | Lint clean, warnings as errors                 | present                                                                   |
-| `cargo nextest` (`pre-commit` profile)       | commit, push | Unit tests                                     | present                                                                   |
-| `cargo nextest` (`pre-push` profile)         | push         | Integration tests                              | present                                                                   |
-| `cargo test --doc`                           | push         | Doctests, guarded on a library target existing | present                                                                   |
-| `taplo`                                      | commit       | TOML formatting                                | present                                                                   |
-| `typos`                                      | commit       | Spelling                                       | present                                                                   |
-| `ripsecrets`                                 | commit       | Fast secret scan                               | present                                                                   |
-| `gitleaks`                                   | push         | Full secret scan                               | present                                                                   |
-| `cargo audit`                                | push         | Advisories                                     | present                                                                   |
-| `cargo deny`                                 | push         | Advisories, bans, sources, licences            | partial — see [dependencies](./dependencies.md#lockfile-and-supply-chain) |
-| `cargo machete`                              | push         | Unused dependencies                            | present                                                                   |
-| `cargo xtask gen-config`                     | commit       | Generated examples match the config types      | present                                                                   |
-| `dprint`                                     | commit       | Markdown and JSON formatting                   | present                                                                   |
-| `markdownlint-cli2`                          | commit       | Markdown structure and link integrity          | present                                                                   |
-| `md-slice-readme`, `md-milestones`, `md-adr` | commit       | Fixed heading shapes, one array per shape      | present                                                                   |
-| `shellcheck`, `shfmt`                        | commit       | Shell scripts                                  | present                                                                   |
-| `nixfmt`, `statix`, `deadnix`                | commit       | Nix sources                                    | present                                                                   |
-| `no-commit-to-branch`                        | commit       | No direct commit on `master`                   | deferred — commented out in the hook config                               |
-| `committed`                                  | commit-msg   | Conventional Commits                           | present                                                                   |
+| Hook                                             | Stage        | Enforces                                       | Backing                                                                   |
+| ------------------------------------------------ | ------------ | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `cargo fmt`                                      | commit       | Canonical formatting                           | present                                                                   |
+| `clippy` auto-fix, then gate                     | commit       | Lint clean, warnings as errors                 | present                                                                   |
+| `cargo nextest` (`pre-commit` profile)           | commit, push | Unit tests                                     | present                                                                   |
+| `cargo nextest` (`pre-push` profile)             | push         | Integration tests                              | present                                                                   |
+| `cargo test --doc`                               | push         | Doctests, guarded on a library target existing | present                                                                   |
+| `taplo`                                          | commit       | TOML formatting                                | present                                                                   |
+| `typos`                                          | commit       | Spelling                                       | present                                                                   |
+| `ripsecrets`                                     | commit       | Fast secret scan                               | present                                                                   |
+| `gitleaks`                                       | push         | Full secret scan                               | present                                                                   |
+| `cargo audit`                                    | push         | Advisories                                     | present                                                                   |
+| `cargo deny`                                     | push         | Advisories, bans, sources, licences            | partial — see [dependencies](./dependencies.md#lockfile-and-supply-chain) |
+| `cargo machete`                                  | push         | Unused dependencies                            | present                                                                   |
+| `cargo xtask gen-config`                         | commit       | Generated examples match the config types      | present                                                                   |
+| `dprint`                                         | commit       | Markdown and JSON formatting                   | present                                                                   |
+| `markdownlint-cli2`                              | commit       | Markdown structure and link integrity          | present                                                                   |
+| `md-slice-readme`, `md-milestones`, `md-adr`     | commit       | Fixed heading shapes, one array per shape      | present                                                                   |
+| `shellcheck`, `shfmt`                            | commit       | Shell scripts                                  | present                                                                   |
+| `nixfmt`, `statix`, `deadnix`                    | commit       | Nix sources                                    | present                                                                   |
+| `no-commit-to-branch`                            | commit       | No direct commit on `master`                   | present — in the release-kit block                                        |
+| `rk-branch-name`, `rk-worktree-location`         | commit       | Branch naming and the worktree rule            | present — in the release-kit block                                        |
+| `conventional-pre-commit`                        | commit-msg   | Conventional Commits, scope required           | present — in the release-kit block                                        |
+| `rk-message`                                     | commit-msg   | Message content guards                         | present — in the release-kit block                                        |
+| `rk-status-check`                                | commit       | The landed release payload is undrifted        | present — in the release-kit block                                        |
+| `rk-no-push-to-trunk`, `rk-no-hand-authored-tag` | push         | The trunk and tag invariants                   | present — in the release-kit block                                        |
 
 This table lists the gates the specifications depend on, not every hook configured. The file-hygiene hooks — private-key detection, symlink and large-file checks, JSON5 and editorconfig validation — are configured and depend on no specification, so they carry no row.
 

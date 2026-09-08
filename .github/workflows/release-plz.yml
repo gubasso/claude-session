@@ -1,144 +1,107 @@
-# release-plz — release PR, source publish, tag, and inline master promotion.
+# The release automation and the crates.io trusted publisher. This filename
+# is registered at crates.io; cargo-dist's release.yml builds binaries and
+# must never be registered there.
 #
-# The filename MUST stay `release-plz.yml`: the crates.io Trusted Publisher for
-# this crate is configured against this exact workflow file. Renaming it breaks
-# publishing.
-#
-# crates.io auth is Trusted Publishing (OIDC). There is deliberately NO
-# CARGO_REGISTRY_TOKEN secret and NO rust-lang/crates-io-auth-action step —
-# release-plz mints the short-lived crates.io token itself from the job's
-# `id-token: write` permission.
-#
-# GitHub writes use short-lived installed-App tokens. This lets an App-authored
-# tag retrigger the separate cargo-dist workflow and lets promotion write the
-# protected master branch as its bypass actor.
-#
-# The FIRST publish of a new crate is manual (see docs/guides/releasing.md);
-# Trusted Publishing can only be configured against an existing crate.
-#
-# Jobs:
-#   release-plz-release — publish versions on develop and push release tags.
-#   release-plz-pr      — open/refresh the release PR.
-#   promote             — fast-forward master to the exact release tag.
-#
-# Behaviour is configured by release-plz.toml at the repo root
-# (semver_check = false — bin-only crate). Binary archives and the GitHub
-# Release belong to generated .github/workflows/release.yml.
+# Both halves run on every push to the trunk, and to a release/* line when a
+# project keeps older lines. The pull-request half maintains the one release
+# pull request against the pushed branch; the release half publishes and tags
+# only on the push that lands the bot's own bump, which release_always = false
+# recognizes by its release-plz-* head branch. The publish half runs free of
+# any concurrency group — cancelling it could skip a release — while the
+# pull-request half serializes per ref so racing pushes cannot fight over the
+# release pull request.
 name: release-plz
+
+permissions: {}
 
 on:
   push:
-    branches: [develop]
-
-permissions:
-  contents: read
-
-concurrency:
-  group: release-plz-${{ github.ref }}
-  cancel-in-progress: false
+    branches: [master, 'release/**']
 
 jobs:
+  # Merging the release pull request is the release: the bump push lands here,
+  # and this half publishes over OIDC and pushes the tag. The app token is what
+  # makes the tag trigger release.yml; a tag pushed with GITHUB_TOKEN starts no
+  # further workflow. On a release/* line the same job tags the line's patch.
   release-plz-release:
-    name: release-plz release
+    if: github.repository_owner == 'gubasso'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    outputs:
-      releases_created: ${{ steps.release-plz.outputs.releases_created }}
-      releases: ${{ steps.release-plz.outputs.releases }}
     permissions:
-      # Required by crates.io Trusted Publishing: release-plz exchanges this
-      # OIDC token for a short-lived registry token.
-      id-token: write
       contents: read
+      id-token: write
     steps:
-      - name: Mint release App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.RELEASE_PLZ_APP_ID }}
-          private-key: ${{ secrets.RELEASE_PLZ_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      # No Nix devShell here: release-plz/action brings its own pinned cargo
-      # and runs release-plz as a self-contained binary. Toolchain parity is
-      # enforced by ci.yml, which gates develop before anything reaches this job.
-      - name: Run release-plz release
-        id: release-plz
-        uses: release-plz/action@v0.5
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+      - uses: release-plz/action@2eb1d8bcb770b4c48ccfaad919734b38b51958c9 # v0.5
+        id: release
         with:
           command: release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
   release-plz-pr:
-    name: release-plz PR
+    if: github.repository_owner == 'gubasso'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [release-plz-release]
     permissions:
       contents: read
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
     steps:
-      - name: Mint release App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.RELEASE_PLZ_APP_ID }}
-          private-key: ${{ secrets.RELEASE_PLZ_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Run release-plz release-pr
-        uses: release-plz/action@v0.5
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+      - uses: release-plz/action@2eb1d8bcb770b4c48ccfaad919734b38b51958c9 # v0.5
+        id: release-pr
         with:
           command: release-pr
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-
-  promote:
-    name: promote release to master
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: release-plz-release
-    if: needs.release-plz-release.outputs.releases_created == 'true'
-    permissions:
-      contents: read
-    steps:
-      - name: Mint promotion App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.RELEASE_PLZ_APP_ID }}
-          private-key: ${{ secrets.RELEASE_PLZ_APP_PRIVATE_KEY }}
-          permission-contents: write
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-      - name: Fast-forward master to the release tag
+      # Arm the request the moment it exists: the forge merges it once every
+      # required check is green, which is the trunk style's release decision,
+      # made once at landing rather than per release; the lines style leaves
+      # every request for a human and this step steps aside. Two things keep
+      # the arm correct. The app token is one: auto-merge enabled under
+      # GITHUB_TOKEN would merge a bump whose push starts no workflow,
+      # leaving it untagged and unpublished with nothing reporting a failure.
+      # Re-arming is the other: arming an armed request is a no-op, so every
+      # refresh re-arms and the arm cannot drift out of sync.
+      - name: arm the release request
         env:
-          RELEASES: ${{ needs.release-plz-release.outputs.releases }}
-        shell: bash
+          RELEASE_STYLE: trunk
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          RELEASE_PR: ${{ steps.release-pr.outputs.pr }}
         run: |
-          set -euo pipefail
-          tag="$(jq -er '.[0].tag | select(type == "string" and length > 0 and . != "null")' <<<"$RELEASES")"
-          git fetch origin develop --tags
-          release_commit="$(git rev-parse "refs/tags/${tag}^{commit}")"
-          git merge-base --is-ancestor "$release_commit" origin/develop
-
-          if git ls-remote --exit-code --heads origin master >/dev/null 2>&1; then
-            git fetch origin master
-            git switch --force-create master origin/master
-            git merge --ff-only "$release_commit"
-          else
-            git switch --detach "$release_commit"
-            git switch --create master
+          set -eu
+          if [ "$RELEASE_STYLE" != "trunk" ]; then
+            echo "the lines style merges each release by hand; not arming."
+            exit 0
           fi
-
-          git push origin master
+          if [ "$REF" != "master" ]; then
+            echo "a line's request is never armed; its candidate is what a human validated."
+            exit 0
+          fi
+          number="$(printf '%s' "${RELEASE_PR:-}" | sed -n 's/.*"number":[[:space:]]*\([0-9]*\).*/\1/p' | head -n 1)"
+          if [ -z "$number" ]; then
+            echo "no release request to arm."
+            exit 0
+          fi
+          gh pr merge "$number" --auto --squash --delete-branch
+          echo "armed pull request #$number."

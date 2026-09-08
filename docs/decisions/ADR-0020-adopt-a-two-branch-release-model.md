@@ -26,6 +26,6 @@ Chosen option: two long-lived branches with a one-way promote. Trunk-only leaves
 
 ## Status
 
-Accepted
+Superseded
 
-Repository automation now enacts the model. Making `develop` the remote default branch, installing the GitHub App, and configuring the rulesets remain outstanding external work.
+Superseded by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md), which replaces the two-branch model with one trunk named `master`. The outstanding external work this record named — the remote default branch, the GitHub App, and the rulesets — was never done and is now owned by the release-kit setup steps.

@@ -1,0 +1,75 @@
+{
+  "schema_version": 5,
+  "rk_version": "0.3.1",
+  "payload_sha256": "e5eb83fdcbdec7ac0cedd7df3dfba604e770f50342dd626ae57b65faf50334b8",
+  "origin": "init",
+  "tech": "rust",
+  "forge": "github",
+  "landed_at": "2026-09-08T19:02:08Z",
+  "parameters": {
+    "repo": "gubasso/claude-session",
+    "workflow": "worktree",
+    "style": "trunk",
+    "nix": true
+  },
+  "files": [
+    {
+      "destination": ".github/workflows/pr-title.yml",
+      "kind": "rendered",
+      "sha256": "9a10a4d7f9ada97c0e7b871a9d7c351574ff3cb13081504cd7f453cf7a012ee4",
+      "baseline_sha256": "95565551a263edecb52c98cf91f40e0f6c9412560243481f816ba525049854c1"
+    },
+    {
+      "destination": ".github/workflows/release-plz.yml",
+      "kind": "rendered",
+      "sha256": "c6caff0323bb4489ea637178c99ac836c3c55c40ac4b4437e1345da12be272b7",
+      "baseline_sha256": "f67151adc5f1c8a215e2320edef81151435c71a837e175e7f4aeed5cf8d77ff1"
+    },
+    {
+      "destination": ".pre-commit-config.yaml",
+      "kind": "rendered",
+      "sha256": "78149baea10341037a25dd728b31ae014c9d391a1c75375076d494663783e6f1",
+      "baseline_sha256": "78149baea10341037a25dd728b31ae014c9d391a1c75375076d494663783e6f1"
+    },
+    {
+      "destination": "AGENTS.md",
+      "kind": "rendered",
+      "sha256": "2c8d67375a633a9a6028766cc51630c4c03fed7ab89290e833590c4ee8ff50e1",
+      "baseline_sha256": "2c8d67375a633a9a6028766cc51630c4c03fed7ab89290e833590c4ee8ff50e1"
+    },
+    {
+      "destination": "dist-workspace.toml",
+      "kind": "seeded",
+      "sha256": "028b96d7732600d9862f46a61675f7a17495ba03cdb863ae4e68bb35a762778b",
+      "baseline_sha256": "028b96d7732600d9862f46a61675f7a17495ba03cdb863ae4e68bb35a762778b"
+    },
+    {
+      "destination": "nix/package.nix",
+      "kind": "seeded",
+      "sha256": "bd1537cc2c4ef5e46c29d65a9149bdeaafbc448632f9fabd37aeff6deeb2a3eb",
+      "baseline_sha256": "bd1537cc2c4ef5e46c29d65a9149bdeaafbc448632f9fabd37aeff6deeb2a3eb"
+    },
+    {
+      "destination": "release-plz.toml",
+      "kind": "seeded",
+      "sha256": "0983ed155c83959d08f4446b91fb9dfcfebc80284babe49969bed4eaa0e55f1d",
+      "baseline_sha256": "0983ed155c83959d08f4446b91fb9dfcfebc80284babe49969bed4eaa0e55f1d"
+    }
+  ],
+  "pins": {
+    "attest": "4",
+    "cargo-dist": "0.32.0",
+    "checkout": "4",
+    "conventional-pre-commit": "4.4.0",
+    "create-github-app-token": "3",
+    "dist-checkout": "6",
+    "dist-download-artifact": "8",
+    "dist-upload-artifact": "7",
+    "magic-nix-cache-action": "13",
+    "nix-image": "2.35.2",
+    "nix-installer-action": "19",
+    "pre-commit-hooks": "6.0.0",
+    "release-plz": "0.3.160",
+    "rust-toolchain": "stable"
+  }
+}

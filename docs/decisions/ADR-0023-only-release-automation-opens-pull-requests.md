@@ -26,3 +26,5 @@ An upgrade is therefore an ordinary human change: run `cargo update` or edit the
 ## Status
 
 Accepted
+
+Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md). An upgrade targets `master` rather than `develop`, and the bot's release request now carries auto-merge from creation, so a green trunk ships it without a second human step. Release automation is still the only thing that opens a pull request.

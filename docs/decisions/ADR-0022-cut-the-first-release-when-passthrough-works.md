@@ -30,3 +30,5 @@ Accepted
 `Cargo.toml` holds `0.1.0` as the unreleased authoring version; the tag that mirrors it does not exist yet.
 
 Documentation timing now follows [ADR-0075](./ADR-0075-build-through-the-current-slice.md). The release decision recorded here is unchanged.
+
+Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md): there is no `master` promote job any more, because `master` is the trunk. The first version and the one-time manual publish are unchanged.

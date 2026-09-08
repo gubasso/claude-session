@@ -29,3 +29,5 @@ Keeping it unused was rejected on the discrimination test of [ADR-0051](./ADR-00
 Implemented
 
 Enacted by [`flake.nix`](../../flake.nix), whose devShell comment names this record, and by [`install.sh`](../../install.sh), which `just install` runs.
+
+Amended by [ADR-0119](./ADR-0119-build-the-wrapper-from-the-flake.md), which restores a package output now that the gated pipeline consumes it. The single install path recorded here is unchanged.
