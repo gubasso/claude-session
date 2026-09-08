@@ -6,6 +6,13 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
+    # The release-kit CLI, pinned at a release tag. `rk devshell sync` moves the
+    # pin and the lock together, so the project supplies its own `rk` instead of
+    # depending on a host install.
+    release-kit = {
+      url = "github:gubasso/release-kit/v0.3.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -13,6 +20,7 @@
       nixpkgs,
       rust-overlay,
       flake-utils,
+      release-kit,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -65,6 +73,10 @@
             # controlling terminal. Without it the tests would read those
             # binaries off the host PATH, which self-containment forbids.
             pkgs.util-linux
+            # The release-kit CLI from this project's own pinned input, so the
+            # release convention is read from the flake rather than a host
+            # install.
+            release-kit.packages.${system}.default
             # The wrapper itself is deliberately absent, and this flake builds
             # no package that would install it either: `just install` is the one
             # thing that puts `claude-session` on PATH
