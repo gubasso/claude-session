@@ -43,9 +43,19 @@ if ((${#actual[@]} == 0)); then
   exit 1
 fi
 
+# Look the IDs up in an associative array rather than piping the listing to
+# `grep -Fxq` per ID. Under `pipefail`, `grep -q` exits on its first match and
+# closes the pipe, so the `printf` feeding it takes SIGPIPE and the pipeline
+# reports 141 — a race that failed a resolvable ID at random, and a different
+# one on each run.
+declare -A listed=()
+for test_id in "${actual[@]}"; do
+  listed["$test_id"]=1
+done
+
 unresolved=()
 for test_id in "${named[@]}"; do
-  if ! printf '%s\n' "${actual[@]}" | grep -Fxq -- "$test_id"; then
+  if [[ -z ${listed["$test_id"]-} ]]; then
     unresolved+=("$test_id")
   fi
 done
