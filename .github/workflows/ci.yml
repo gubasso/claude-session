@@ -20,7 +20,7 @@ name: ci
 
 on:
   push:
-    branches: [develop]
+    branches: [master]
   pull_request:
 
 concurrency:
@@ -89,7 +89,7 @@ jobs:
         run: nix develop --command just dev="" audit deny
 
   flake:
-    name: nix flake check
+    name: nix build + flake check
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -98,5 +98,60 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v22
       - name: Nix cache
         uses: DeterminateSystems/flakehub-cache-action@v3.21.5
+      # `nix flake check` builds only the `checks` output, so on its own it
+      # would go green having never compiled nix/package.nix. The explicit
+      # build is what proves the packaging capability (ADR-0119).
+      - name: Build the package
+        run: nix build .#default
       - name: Flake check
         run: nix flake check
+
+  dist-plan:
+    name: dist (generate check + plan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      # dist-workspace.toml sets pr-run-mode = "skip", so the generated
+      # release.yml reports nothing on a request. These two proofs run here
+      # instead, in the file the required gate can reach.
+      - name: Install dist at the configured pin
+        run: |
+          set -euo pipefail
+          pin="$(grep -m1 '^cargo-dist-version' dist-workspace.toml | cut -d'"' -f2)"
+          [ -n "$pin" ] || { echo "dist-workspace.toml names no cargo-dist-version"; exit 1; }
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            "https://github.com/axodotdev/cargo-dist/releases/download/v$pin/cargo-dist-installer.sh" | sh
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          echo "DIST_PIN=$pin" >> "$GITHUB_ENV"
+      - name: dist runs at the configured pin
+        run: dist --version | grep -Fq "$DIST_PIN"
+      # The tracked check runs first: `git diff` compares the index with the
+      # working tree and shows no untracked path, so without it a request
+      # deleting the workflow would regenerate it and diff clean.
+      - name: The committed workflow is what the pin produces
+        run: |
+          set -euo pipefail
+          git ls-files --error-unmatch -- .github/workflows/release.yml > /dev/null
+          dist generate --mode ci
+          git diff --exit-code -- .github/workflows/release.yml
+      - name: The configuration produces a viable release
+        run: dist plan
+
+  # The one required check the trunk protection names. A forge resolves a
+  # job's `needs` inside one workflow file, so every job whose failure must
+  # hold a merge is listed here and nowhere else.
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    needs: [lint, test, build, supply-chain, flake, dist-plan]
+    steps:
+      - name: Every needed job succeeded
+        run: |
+          set -euo pipefail
+          results='${{ join(needs.*.result, " ") }}'
+          echo "needed results: $results"
+          for result in $results; do
+            [ "$result" = success ] || { echo "a needed job reported $result"; exit 1; }
+          done

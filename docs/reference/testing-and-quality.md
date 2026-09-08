@@ -287,13 +287,13 @@ The two clippy rules are wired at pre-commit and pre-push; the two facts are tes
 
 ## Protected branches
 
-The gate refuses a commit made directly on `master`, and takes no position on `develop`. `master` is written by the installed GitHub App alone ([release workflow](./release-workflow.md#branch-and-release-invariant)), so a local commit there has no legitimate case and the hook rejects that class with no false positives.
+The gate refuses a commit made directly on `master`, which is the only permanent branch ([release workflow](./release-workflow.md#branch-and-release-invariant)). `master` is written through squash-merged pull requests alone, so a local commit there has no legitimate case and the hook rejects that class with no false positives. `rk-worktree-location` covers the rest of the rule: the main checkout commits nothing at all, because every code-changing branch belongs in its own worktree.
 
-`develop` is deliberately excluded. Its real policy is a reviewed pull request with green continuous integration, which a client-side hook cannot approximate and would only imitate — and it has one legitimate direct-commit case, during [release bootstrap](../guides/releasing.md#bootstrap-release-automation-once). The forge ruleset is its authority. The general rule: local hooks validate content, forge rules enforce branch topology.
+`no-commit-to-branch` is live, inside the release-kit block, and carries `args: [--branch, master]`. The hook's default set is `master` and `main`; only `master` exists here, and the explicit argument keeps the hook from asserting a branch this project's model does not name.
 
-The hook is specified and not yet enabled. `no-commit-to-branch` is commented out in the hook configuration, so this rule is enforced by review until it is uncommented. Enabling it before the bootstrap is done would reject the direct commits the release guide requires, so its precondition is a published `develop` and a closed bootstrap window.
+A continuous-integration sweep commits nothing, so a job running `pre-commit` against a trunk checkout sets `SKIP=no-commit-to-branch,rk-worktree-location` in its environment.
 
-It must carry `args: [--branch, master]`. The hook's default set is `master` and `main`; only `master` is protected here, and the explicit argument keeps the hook from asserting a branch this project's model does not name.
+The general rule is unchanged: local hooks validate content, and forge rules enforce branch topology. `rk setup check --target .` is what proves the forge side, and no dated manual reading stands in for it.
 
 ## Documentation sweeps
 

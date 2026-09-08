@@ -1,33 +1,23 @@
 # Release workflow
 
-This page owns exact release and publishing values and invariants. Operator tasks live in [the release guide](../guides/releasing.md).
+This page owns the release values this project decides for itself. The convention around them belongs to release-kit ([ADR-0118](../decisions/ADR-0118-adopt-the-release-kit-trunk-convention.md)): `rk method model` states the branch and merge model, `rk method invariants` states what must stay true, and `rk guide release` carries the operator's steps. Read the owner before changing a rule.
 
 ## Branch and release invariant
 
-| Branch                     | Role                                                           | Writer                    |
-| -------------------------- | -------------------------------------------------------------- | ------------------------- |
-| `develop`                  | Integration branch, GitHub default branch, and release trigger | Reviewed pull requests    |
-| `master`                   | Exact commit of the latest published release tag               | Installed GitHub App only |
-| `feat/`, `fix/`, `chore/*` | Short-lived work based on `develop`                            | Contributors              |
+`master` is the only permanent branch and the repository default. Every change reaches it through a short-lived branch that is squash-merged and deleted, and every code-changing branch lives in its own worktree. Nothing is committed on `master` and no tag is authored by hand.
 
 ```text
-feature PR → develop → release PR → vX.Y.Z + crates.io → inline fast-forward to master
+worktree branch → pull request → squash to master → release PR → vX.Y.Z + crates.io + release assets
 ```
 
-Promotion targets the release tag, never merely the workflow trigger SHA. The promotion job resolves the tag commit, requires it to be an ancestor of `origin/develop`, and uses `git merge --ff-only`. On the first release it may create `master` directly at the tag. [ADR-0020](../decisions/ADR-0020-adopt-a-two-branch-release-model.md) owns the branch decision.
-
-## Source publication
-
-Release-plz watches GitHub's default branch, `develop`; `release-plz.toml` has no branch key. The release pull request is the human release gate.
-
-The `release-plz-release` job exposes the action outputs `releases_created` and `releases`. Its dependent inline `promote` job runs only when `releases_created == 'true'` and resolves the first release tag from the JSON `releases` output. Release-plz's default tag is `v{{ version }}`. Never create a release tag by hand.
+The release style is `trunk`: the bot's release request carries auto-merge from creation, so a green trunk ships itself. A release is held by disarming that request before its last check goes green.
 
 ## Authentication and automation actor
 
 crates.io authentication and GitHub write identity are separate:
 
 - crates.io uses Trusted Publishing. The release job has `id-token: write`; it has no `CARGO_REGISTRY_TOKEN` and no crates.io authentication action.
-- GitHub writes use a short-lived installed-App token. Repository secrets are named `RELEASE_PLZ_APP_ID` and `RELEASE_PLZ_APP_PRIVATE_KEY`.
+- GitHub writes use a short-lived installed-App token.
 
 The crates.io Trusted Publisher identity is:
 
@@ -45,19 +35,23 @@ Never register `release.yml` as the publisher. The first publish uses a disposab
 
 ## Workflow and configuration ownership
 
-| File                                | Responsibility                                                          |
-| ----------------------------------- | ----------------------------------------------------------------------- |
-| `.github/workflows/ci.yml`          | Validation on `develop` pushes and all pull requests                    |
-| `.github/workflows/release-plz.yml` | Release PR, source publish, tag creation, and inline `master` promotion |
-| `.github/workflows/release.yml`     | Cargo-dist-generated tag workflow and GitHub Release assets             |
-| `release-plz.toml`                  | Source-release policy                                                   |
-| `dist-workspace.toml`               | Binary-distribution policy                                              |
+| File                                | Responsibility                                                             | Owner        |
+| ----------------------------------- | -------------------------------------------------------------------------- | ------------ |
+| `.github/workflows/ci.yml`          | Validation on `master` pushes and all pull requests, and the required gate | this project |
+| `.github/workflows/pr-title.yml`    | The Conventional Commits check on the request title                        | release-kit  |
+| `.github/workflows/release-plz.yml` | Release request, source publish, and tag creation                          | release-kit  |
+| `.github/workflows/release.yml`     | Cargo-dist-generated tag workflow and GitHub Release assets                | cargo-dist   |
+| `release-plz.toml`                  | Source-release policy                                                      | this project |
+| `dist-workspace.toml`               | Binary-distribution policy                                                 | this project |
+| `nix/package.nix`                   | The package expression the pipeline builds                                 | this project |
+
+A release-kit-owned file is never hand-edited; `rk status --check` reports drift and the `rk-status-check` hook runs it. A file this project owns was seeded by the landing and is tuned here.
 
 `.github/workflows/release.yml` is generated and never hand-edited. Regenerate and check it with the pinned `dist`:
 
 ```bash
-dist generate
-dist generate --check
+dist generate --mode ci
+dist generate --mode ci --check
 ```
 
 ## release-plz policy
@@ -68,10 +62,11 @@ The live `[workspace]` policy is:
 changelog_update = true
 release_always = false
 publish = true
+git_release_enable = false
 semver_check = false
 ```
 
-`semver_check` is disabled only because this crate is binary-only and has no Rust public API for cargo-semver-checks to compare. Its CLI compatibility is still versioned.
+`semver_check` is disabled only because the `claude_session` library target exists for this crate's own tests and no external consumer holds that API. The CLI compatibility is still versioned. `git_release_enable` is false because cargo-dist creates the GitHub Release, being the half that has the installers to attach.
 
 ## Package metadata and contents
 
@@ -95,16 +90,18 @@ Every release produces exactly these, and nothing else:
 | The crates.io source package, with the contents `Cargo.toml`'s `exclude` allows                                                  | `release-plz`, over OIDC              |
 | The `vX.Y.Z` tag                                                                                                                 | `release-plz`, App-authored           |
 | One GitHub Release, carrying one `x86_64-unknown-linux-gnu` archive, its checksum, the shell installer, and `dist-manifest.json` | `release.yml`, retriggered by the tag |
-| The `master` fast-forward to the tag commit                                                                                      | the inline `promote` job              |
-| The changelog entry                                                                                                              | `release-plz`, on the release PR      |
+| A GitHub Artifact Attestation over every file on that release                                                                    | `release.yml`, in its host phase      |
+| The changelog entry                                                                                                              | `release-plz`, on the release request |
 
 ## Binary distribution
 
 Source publication and binary distribution are orthogonal. Cargo-dist 0.32.0 builds one artifact, `x86_64-unknown-linux-gnu`, with a shell installer — the supported platform and nothing else ([ADR-0066](../decisions/ADR-0066-ship-one-linux-artifact.md)). No other architecture, no PowerShell installer, and no Homebrew tap.
 
-The generated `release.yml` reads its build matrix from `dist plan` at run time and names no target, so changing `dist-workspace.toml` does not by itself require regenerating it. The App-authored release tag retriggers that workflow; its GitHub Release assets are consumable by cargo-binstall. [ADR-0038](../decisions/ADR-0038-distribute-binaries-with-cargo-dist.md) owns the choice of generator.
+The generated `release.yml` reads its build matrix from `dist plan` at run time and names no target, so changing the target list in `dist-workspace.toml` does not by itself require regenerating it. Changing the installer list does. The App-authored release tag retriggers that workflow; its GitHub Release assets are consumable by cargo-binstall. [ADR-0038](../decisions/ADR-0038-distribute-binaries-with-cargo-dist.md) owns the choice of generator.
 
-That retrigger constrains every tag-driven job added later: an App-authored tag push fires them, so a new job carries both a `needs:` on the release job and an `if:` on its outputs, as `promote` does. A standalone tag job runs on a tag it was never meant to see.
+`pr-run-mode` is `skip`, so this workflow reports nothing on a request. A forge resolves a job's `needs` inside one file, so the one required check lives in `ci.yml` and reaches only the jobs declared there.
+
+That retrigger constrains every tag-driven job added later: an App-authored tag push fires them, so a new job carries both a `needs:` on the release job and an `if:` on its outputs. A standalone tag job runs on a tag it was never meant to see.
 
 ## Helper scripts
 
@@ -128,24 +125,9 @@ A yank also cannot un-publish a leaked secret. If one reached the package, rotat
 
 ## Forge enforcement
 
-This is external state the repository cannot assert. Every row below is required before the first release, and nothing in the gate reads the forge. The observed column is one dated manual reading, not a live check, so a row counts as applied only when re-observed.
+This is external state the repository cannot assert, and it is no longer tracked as a dated manual reading. `rk setup check --target .` proves every row against the forge, step by step, and `rk setup --target . --apply --required-check <name>` re-asserts them. [The release guide](../guides/releasing.md) carries the order and what stays the operator's.
 
-| Required state                                                              | Operator action                                                     | Observed 2026-08-10                                                |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| GitHub default branch is `develop`                                          | Set it in repository settings                                       | Applied: `develop` exists on the remote and is the default branch  |
-| Actions have read/write permission and may create and approve pull requests | Enable both in Actions settings                                     | Not applied: workflow permissions are read, and approval is off    |
-| The GitHub App is installed and is `master`'s bypass actor                  | Register or reuse the App, install it, and add it as a bypass actor | Not applied: neither `RELEASE_PLZ_APP_*` repository secret exists  |
-| `develop` is protected: reviewed, green pull requests                       | Create the `develop` ruleset                                        | Not applied: the repository has no rulesets                        |
-| `master` is App-only with linear history                                    | Create the `master` ruleset                                         | Not applied: the repository has no rulesets, and `master` is local |
-| `v*` release tags are protected                                             | Create the tag ruleset                                              | Not applied: the repository has no rulesets                        |
-
-Five of the six rows are outstanding, so the bootstrap procedure has not run. That blocks the first release rather than the readiness this repository owns: the `0.1.0` candidate is complete on the source side, and the remaining work is the operator's, in the order below.
-
-Ordering is load-bearing: the App bypass actor exists before any ruleset does. A ruleset created first locks the App out of the branch it is the only writer of, and recovering means an administrator relaxing the rule they just made. [The bootstrap procedure](../guides/releasing.md#bootstrap-release-automation-once) performs these in that order.
-
-Rulesets are used rather than classic branch protection: they compose, they are readable by non-admins, they cover tags as well as branches, and they express a bypass actor explicitly — which is the whole mechanism `master` depends on.
-
-The bypass actor must be the installed App. Naming `github-actions[bot]` instead fails with HTTP 422 from the ruleset API, because a personal account cannot use it as a bypass actor ([ADR-0039](../decisions/ADR-0039-use-a-github-app-for-release-automation.md)).
+Rulesets are used rather than classic branch protection: they compose, they are readable by non-admins, they cover tags as well as branches, and they express a bypass actor explicitly. The bypass actor must be the installed App; naming `github-actions[bot]` instead fails with HTTP 422 from the ruleset API, because a personal account cannot use it as a bypass actor ([ADR-0039](../decisions/ADR-0039-use-a-github-app-for-release-automation.md)).
 
 Not adopted: OpenSSF Scorecard. Deferred until after the first tagged release, with the trigger and the reasoning in [ADR-0073](../decisions/ADR-0073-defer-openssf-scorecard-until-the-first-release.md).
 

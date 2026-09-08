@@ -7,18 +7,14 @@ members = ["cargo:."]
 cargo-dist-version = "0.32.0"
 # CI backends to support
 ci = "github"
-# The installers to generate for each app. A homebrew installer would need
-# a tap repository plus a HOMEBREW_TAP_TOKEN secret; shell, powershell, and
-# cargo-binstall cover every platform without that infrastructure.
-installers = ["shell", "powershell"]
-# Target platforms to build apps for (Rust target-triple syntax)
-targets = [
-  "aarch64-apple-darwin",
-  "aarch64-unknown-linux-gnu",
-  "x86_64-apple-darwin",
-  "x86_64-unknown-linux-gnu",
-  "x86_64-pc-windows-msvc",
-]
+# One installer, for the one supported platform. A published artifact and a
+# supported platform are the same claim (ADR-0066), so the PowerShell
+# installer goes with the Windows target it would have installed on.
+installers = ["shell"]
+# Target platforms to build apps for (Rust target-triple syntax). One entry,
+# because Linux is the supported surface (ADR-0046) and an artifact for any
+# other platform is a promise nothing here measures or tests (ADR-0066).
+targets = ["x86_64-unknown-linux-gnu"]
 # Which actions to run on pull requests. Skip, because the forge resolves a
 # job's needs inside one workflow file: the trunk protection requires one
 # project-owned check beside the landed pr-title check, so a plan job here
