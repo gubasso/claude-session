@@ -1527,8 +1527,20 @@ fn the_binding_outranks_user_configuration_and_yields_to_the_project_layer() {
         "default_profile = \"tree\"\n",
     )
     .expect("project config");
+    // Clear git's own environment. A git hook exports GIT_DIR and GIT_WORK_TREE
+    // to everything it runs, so under `git push` this `init` would adopt the
+    // repository's git directory instead of creating one in the fixture, and the
+    // project layer would have no tree boundary to be discovered from. In a
+    // linked worktree GIT_DIR is absolute, so it resolves from the fixture's
+    // directory and the test fails; in the main checkout it is relative, does
+    // not resolve, and the test passes. Only clearing makes the lane honest.
     std::process::Command::new("git")
         .args(["init", "-q"])
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_COMMON_DIR")
+        .env_remove("GIT_CEILING_DIRECTORIES")
         .current_dir(harness.root())
         .status()
         .expect("git init");

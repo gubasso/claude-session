@@ -148,10 +148,15 @@ jobs:
     needs: [lint, test, build, supply-chain, flake, dist-plan]
     steps:
       - name: Every needed job succeeded
+        env:
+          # A GitHub expression takes single-quoted string literals only; the
+          # double-quoted separator made the whole workflow file unparsable.
+          # The results reach the step through the environment, so no result
+          # value is interpolated into the shell.
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           set -euo pipefail
-          results='${{ join(needs.*.result, " ") }}'
-          echo "needed results: $results"
-          for result in $results; do
+          echo "needed results: $RESULTS"
+          for result in $RESULTS; do
             [ "$result" = success ] || { echo "a needed job reported $result"; exit 1; }
           done
