@@ -1,7 +1,7 @@
 {
   "schema_version": 5,
-  "rk_version": "0.3.1",
-  "payload_sha256": "e5eb83fdcbdec7ac0cedd7df3dfba604e770f50342dd626ae57b65faf50334b8",
+  "rk_version": "0.3.3",
+  "payload_sha256": "51b905d58e296f5df7bd3594e76f8a55e58b2765a5cecae25950ea907aecfc65",
   "origin": "init",
   "tech": "rust",
   "forge": "github",
@@ -16,14 +16,14 @@
     {
       "destination": ".github/workflows/pr-title.yml",
       "kind": "rendered",
-      "sha256": "9a10a4d7f9ada97c0e7b871a9d7c351574ff3cb13081504cd7f453cf7a012ee4",
-      "baseline_sha256": "95565551a263edecb52c98cf91f40e0f6c9412560243481f816ba525049854c1"
+      "sha256": "972336ac17d76fa11d785a8dfb381b3bdc7dc8af318ae9225a4855c08bc1b13c",
+      "baseline_sha256": "0205b9f369179ae855a5feb84d034860632c3187818dd4ae8a23b1fe0aa79bda"
     },
     {
       "destination": ".github/workflows/release-plz.yml",
       "kind": "rendered",
-      "sha256": "c6caff0323bb4489ea637178c99ac836c3c55c40ac4b4437e1345da12be272b7",
-      "baseline_sha256": "f67151adc5f1c8a215e2320edef81151435c71a837e175e7f4aeed5cf8d77ff1"
+      "sha256": "dae0bfc1282b30535df0a13562b0b3ea5b4ff59af63009301f5ee86a9406c968",
+      "baseline_sha256": "4fb58d8ee980491f9ce7a650829864261cd51a27d6eea0801290a96e3e148fa5"
     },
     {
       "destination": ".pre-commit-config.yaml",
@@ -40,19 +40,19 @@
     {
       "destination": "dist-workspace.toml",
       "kind": "seeded",
-      "sha256": "028b96d7732600d9862f46a61675f7a17495ba03cdb863ae4e68bb35a762778b",
+      "sha256": "bdf4b0558285d731f8ea9148d1af2f2e137b3cba396a7c6bceb0354ed4580407",
       "baseline_sha256": "028b96d7732600d9862f46a61675f7a17495ba03cdb863ae4e68bb35a762778b"
     },
     {
       "destination": "nix/package.nix",
       "kind": "seeded",
-      "sha256": "bd1537cc2c4ef5e46c29d65a9149bdeaafbc448632f9fabd37aeff6deeb2a3eb",
+      "sha256": "379922ee05a5f4c475a94f96ddc2dab5e160501288487078497c33dd4a792886",
       "baseline_sha256": "bd1537cc2c4ef5e46c29d65a9149bdeaafbc448632f9fabd37aeff6deeb2a3eb"
     },
     {
       "destination": "release-plz.toml",
       "kind": "seeded",
-      "sha256": "0983ed155c83959d08f4446b91fb9dfcfebc80284babe49969bed4eaa0e55f1d",
+      "sha256": "3a34773d3246e70bd420e3232eabae46fe6c25e0812a16f4d0b19a253a52035e",
       "baseline_sha256": "0983ed155c83959d08f4446b91fb9dfcfebc80284babe49969bed4eaa0e55f1d"
     }
   ],
