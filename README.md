@@ -218,3 +218,5 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 ## Contributing
 
 Contributions are welcome. Please open an issue to discuss substantial changes before submitting a pull request, and run the full gate first — [the development workflow](./docs/guides/development-workflow.md) has the procedure.
+
+Report a vulnerability privately instead of opening an issue. [The security policy](./SECURITY.md) has the channel.

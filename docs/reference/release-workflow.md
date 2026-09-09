@@ -131,6 +131,8 @@ Recovery is a new version. Yank is containment, not recovery. Yanking removes a 
 
 A yank also cannot un-publish a leaked secret. If one reached the package, rotate it immediately and treat the yank as irrelevant to the exposure.
 
+A vulnerability report arrives privately through the forge and leaves as a fix-forward release under this policy. [The security policy](../../SECURITY.md) owns the reporting channel and what a reporter can expect, and [ADR-0121](../decisions/ADR-0121-report-a-vulnerability-through-the-forge.md) records why that channel and no other.
+
 ## Forge enforcement
 
 This is external state the repository cannot assert, and it is no longer tracked as a dated manual reading. `rk setup check --target .` proves every row against the forge, step by step, and `rk setup --target . --apply --required-check <name>` re-asserts them. [The release guide](../guides/releasing.md) carries the order and what stays the operator's.
