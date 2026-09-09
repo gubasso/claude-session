@@ -61,6 +61,7 @@ const OBLIGATIONS: &[&str] = &[
     "no-collision",
     "scope-our-claim",
     "name-the-subject",
+    "describe-the-subject",
     "contested",
 ];
 

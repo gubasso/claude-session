@@ -13,6 +13,7 @@ use crate::{
         },
         argv,
         identifier::Identifier,
+        registration::Subject,
     },
     error::{AppError, Diagnostic},
 };
@@ -99,6 +100,7 @@ pub(crate) enum InvocationKind {
         mode: OutputMode,
     },
     SessionList {
+        name: Option<Subject>,
         mode: OutputMode,
     },
     SessionClean {
@@ -150,7 +152,7 @@ impl Invocation {
             | InvocationKind::AccountBind { mode, .. }
             | InvocationKind::Config { mode }
             | InvocationKind::Profile { mode }
-            | InvocationKind::SessionList { mode }
+            | InvocationKind::SessionList { mode, .. }
             | InvocationKind::SessionClean { mode, .. } => mode,
             _ => OutputMode::Human,
         }
@@ -415,6 +417,7 @@ fn classify_session(value: crate::cli::session::SessionArgs) -> Result<Invocatio
             ),
         )),
         Some(SessionCommand::List(value)) => Ok(InvocationKind::SessionList {
+            name: value.name,
             mode: mode(value.json),
         }),
         Some(SessionCommand::Clean(value)) => Ok(InvocationKind::SessionClean {
@@ -619,7 +622,7 @@ pub(crate) fn dispatch(
         InvocationKind::Man => super::man::run(context),
         InvocationKind::Config { .. } => super::config::run(context),
         InvocationKind::Profile { .. } => super::profile::list(context),
-        InvocationKind::SessionList { .. } => super::session::list(context),
+        InvocationKind::SessionList { name, .. } => super::session::list(context, name.as_ref()),
         InvocationKind::SessionClean { consented, .. } => super::session::clean(context, consented),
         InvocationKind::VerbHelp { verb, subcommand } => {
             super::help::verb(context, verb, subcommand)

@@ -12,6 +12,7 @@
 mod support;
 
 use std::fs;
+use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 
 use support::Harness;
@@ -153,25 +154,44 @@ fn registry(session: &Path) -> PathBuf {
 /// the session runs as, the start time that proves whose registration it is,
 /// and the name a person knows it by.
 fn register(registry: &Path, pid: u32, ticks: u64, name: &str) {
+    register_as(registry, &format!("{pid}.json"), pid, ticks, name, None);
+}
+
+fn register_as(
+    registry: &Path,
+    file: &str,
+    pid: u32,
+    ticks: u64,
+    name: &str,
+    description: Option<(&str, &str)>,
+) {
+    let mut value = serde_json::json!({
+        "pid": pid,
+        "sessionId": "0f9a1c33-6f1e-4c21-9f3f-b0a2d4e6c810",
+        "procStart": ticks.to_string(),
+        "name": name,
+        "nameSource": "derived",
+    });
+    if let Some((cwd, status)) = description {
+        value["cwd"] = cwd.into();
+        value["status"] = status.into();
+    }
     fs::write(
-        registry.join(format!("{pid}.json")),
-        serde_json::to_vec(&serde_json::json!({
-            "pid": pid,
-            "sessionId": "0f9a1c33-6f1e-4c21-9f3f-b0a2d4e6c810",
-            "procStart": ticks.to_string(),
-            "name": name,
-            "nameSource": "derived",
-        }))
-        .expect("registration"),
+        registry.join(file),
+        serde_json::to_vec(&value).expect("registration"),
     )
     .expect("registration file");
 }
 
 /// Returns the human `session list` report.
 fn session_text(harness: &Harness) -> String {
+    session_text_with(harness, &["session", "list"])
+}
+
+fn session_text_with(harness: &Harness, arguments: &[&str]) -> String {
     let output = harness
         .assert_command()
-        .args(["session", "list"])
+        .args(arguments)
         .output()
         .expect("human list");
     assert!(
@@ -180,6 +200,29 @@ fn session_text(harness: &Harness) -> String {
         String::from_utf8_lossy(&output.stderr)
     );
     String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+fn foreign_session(harness: &Harness, session_name: &str) -> (PathBuf, PathBuf, u32, u64) {
+    assert!(harness.bound_command().status().expect("wrapper").success());
+    let own_namespace = only_namespace_dir(harness, "companion");
+    let mut witness = recorded(&own_namespace);
+    let namespace = own_namespace
+        .parent()
+        .expect("sessions")
+        .join("pid-foreign");
+    fs::create_dir(&namespace).expect("foreign namespace");
+    witness["namespace"] = "pid-foreign".into();
+    let pid = std::process::id();
+    let ticks = started(pid);
+    let session = plant(&namespace, &witness, session_name, pid, ticks);
+    let own_registry = registry(&only_session_dir_named_agent(&own_namespace));
+    let foreign_registry = own_registry
+        .parent()
+        .expect("boot registry")
+        .join("mnt-foreign");
+    fs::create_dir(&foreign_registry).expect("foreign registry");
+    symlink(&foreign_registry, session.join("sessions")).expect("foreign registry link");
+    (session, foreign_registry, pid, ticks)
 }
 
 /// Returns the row of the human report carrying one subject.
@@ -533,7 +576,7 @@ fn a_symlinked_witness_speaks_for_nothing_and_saves_nothing() {
     );
     let namespace = only_namespace_dir(&harness, "companion");
     let real = recorded(&namespace);
-    plant_live(&namespace, &real, "liveslot");
+    let _live = plant_live(&namespace, &real, "liveslot");
     // A directory whose record is only a link to a live one: followed, it
     // would spell a running agent and keep the directory standing.
     let linked = namespace.join("linkedslot");
@@ -723,6 +766,7 @@ fn a_session_is_named_as_the_child_registered_it() {
     let real = recorded(&namespace);
     let registry = registry(&only_session_dir_named_agent(&namespace));
     let live = plant_live(&namespace, &real, "liveslot");
+    symlink(&registry, live.join("sessions")).expect("session registry link");
     let pid = std::process::id();
     register(&registry, pid, started(pid), "claude-session-53");
     let document = session_json(&harness, &["session", "list", "--json"]);
@@ -731,6 +775,7 @@ fn a_session_is_named_as_the_child_registered_it() {
         "claude-session-53",
         "the document carries the name and the directory both: {document}"
     );
+    assert_eq!(row(&document, "liveslot")["reachable"], true);
     let text = session_text(&harness);
     let named = text_row(&text, "claude-session-53");
     assert!(
@@ -838,7 +883,8 @@ fn the_report_lays_its_rows_out_as_one_table() {
     let namespace = only_namespace_dir(&harness, "companion");
     let real = recorded(&namespace);
     let registry = registry(&only_session_dir_named_agent(&namespace));
-    plant_live(&namespace, &real, "liveslot");
+    let live = plant_live(&namespace, &real, "liveslot");
+    symlink(&registry, live.join("sessions")).expect("session registry link");
     plant_dead(&namespace, &real, "deadslot");
     let pid = std::process::id();
     register(&registry, pid, started(pid), "claude-session-53");
@@ -880,4 +926,164 @@ fn the_report_lays_its_rows_out_as_one_table() {
         at(&unnamed, "companion"),
         "so is the account column: {text}"
     );
+}
+
+#[test]
+fn a_session_is_named_from_the_registry_its_own_link_names() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register(&registry, pid, ticks, "other-container");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    assert_eq!(row(&document, "foreignslot")["name"], "other-container");
+}
+
+#[test]
+fn a_session_of_another_scope_is_named_and_marked_unreachable() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register(&registry, pid, ticks, "other-container");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    let row = row(&document, "foreignslot");
+    assert_eq!(row["name"], "other-container");
+    assert_eq!(row["reachable"], false);
+}
+
+#[test]
+fn a_link_outside_the_peer_root_names_nothing() {
+    let harness = Harness::new();
+    assert!(harness.bound_command().status().expect("wrapper").success());
+    let namespace = only_namespace_dir(&harness, "companion");
+    let real = recorded(&namespace);
+    let session = plant_live(&namespace, &real, "liveslot");
+    symlink("/tmp/not-a-peer-registry", session.join("sessions")).expect("link");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    assert!(row(&document, "liveslot").get("name").is_none());
+}
+
+#[test]
+fn an_ambiguous_registration_names_nothing() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register_as(&registry, "one.json", pid, ticks, "one", None);
+    register_as(&registry, "two.json", pid, ticks, "two", None);
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    assert!(row(&document, "foreignslot").get("name").is_none());
+}
+
+#[test]
+fn naming_a_session_of_another_scope_does_not_change_what_clean_takes() {
+    let harness = Harness::new();
+    let (session, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register(&registry, pid, ticks, "other-container");
+    let document = session_json(&harness, &["session", "clean", "--yes", "--json"]);
+    assert!(
+        document["removed"]
+            .as_array()
+            .expect("rows")
+            .iter()
+            .any(|it| it["session"] == "foreignslot")
+    );
+    assert!(!session.exists());
+}
+
+#[test]
+fn a_real_sessions_directory_is_not_read_as_a_scope() {
+    let harness = Harness::new();
+    assert!(harness.bound_command().status().expect("wrapper").success());
+    let namespace = only_namespace_dir(&harness, "companion");
+    let real = recorded(&namespace);
+    let session = plant_live(&namespace, &real, "liveslot");
+    fs::create_dir(session.join("sessions")).expect("private registry");
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    assert_eq!(row(&document, "liveslot")["reachable"], false);
+}
+
+#[test]
+fn a_named_list_reports_only_the_rows_that_answer_to_it() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register(&registry, pid, ticks, "other-container");
+    let document = session_json(&harness, &["session", "list", "other-container", "--json"]);
+    assert_eq!(document["sessions"].as_array().expect("rows").len(), 1);
+    assert_eq!(document["sessions"][0]["session"], "foreignslot");
+}
+
+#[test]
+fn a_session_answers_to_its_directory_as_well_as_its_name() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register(&registry, pid, ticks, "other-container");
+    let document = session_json(&harness, &["session", "list", "foreignslot", "--json"]);
+    assert_eq!(document["sessions"].as_array().expect("rows").len(), 1);
+}
+
+#[test]
+fn a_name_matching_nothing_is_an_empty_report_at_exit_zero() {
+    let harness = Harness::new();
+    let document = session_json(&harness, &["session", "list", "missing", "--json"]);
+    assert!(document["sessions"].as_array().expect("rows").is_empty());
+    let text = session_text_with(&harness, &["session", "list", "missing"]);
+    assert!(text.contains("No session named missing"));
+}
+
+#[test]
+fn a_row_this_run_cannot_place_is_not_called_another_machines() {
+    let harness = Harness::new();
+    let _ = foreign_session(&harness, "foreignslot");
+    let text = session_text(&harness);
+    assert!(!text.contains("another machine's"));
+    assert!(text.contains("namespace this run cannot see"));
+}
+
+#[test]
+fn a_named_list_lays_its_rows_out_as_the_full_list_does() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register(&registry, pid, ticks, "other-container");
+    let full = text_row(&session_text(&harness), "other-container");
+    let named = text_row(
+        &session_text_with(&harness, &["session", "list", "other-container"]),
+        "other-container",
+    );
+    assert_eq!(
+        full.split_whitespace().collect::<Vec<_>>(),
+        named.split_whitespace().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn the_document_carries_the_children_directory_and_status_word() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register_as(
+        &registry,
+        "agent.json",
+        pid,
+        ticks,
+        "other-container",
+        Some(("/work/project", "busy")),
+    );
+    let row = row(
+        &session_json(&harness, &["session", "list", "--json"]),
+        "foreignslot",
+    );
+    assert_eq!(row["working_directory"], "/work/project");
+    assert_eq!(row["claude_status"], "busy");
+}
+
+#[test]
+fn a_registration_without_them_omits_them_rather_than_nulling_them() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register(&registry, pid, ticks, "other-container");
+    let row = row(
+        &session_json(&harness, &["session", "list", "--json"]),
+        "foreignslot",
+    );
+    assert!(
+        !row.as_object()
+            .expect("row")
+            .contains_key("working_directory")
+    );
+    assert!(!row.as_object().expect("row").contains_key("claude_status"));
 }

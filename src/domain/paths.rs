@@ -184,6 +184,34 @@ impl XdgPaths {
     pub(crate) fn peer_registry(&self, boot: &Identifier, namespace: &Identifier) -> PathBuf {
         self.peers().join(boot.as_str()).join(namespace.as_str())
     }
+    /// Re-anchors a registry a session's own link names under this run's peers
+    /// root.
+    ///
+    /// The target is never opened. Its last three components are read, and the
+    /// path this run then builds is one of its own ([ADR-0123]).
+    ///
+    /// [ADR-0123]: ../../docs/decisions/ADR-0123-read-a-sessions-own-peer-registry.md
+    pub(crate) fn adopted_registry(&self, target: &Path) -> Option<PathBuf> {
+        let components: Vec<_> = target.components().collect();
+        let [.., peers, boot, namespace] = components.as_slice() else {
+            return None;
+        };
+        let std::path::Component::Normal(peers) = peers else {
+            return None;
+        };
+        let std::path::Component::Normal(boot) = boot else {
+            return None;
+        };
+        let std::path::Component::Normal(namespace) = namespace else {
+            return None;
+        };
+        if *peers != OsStr::new("peers") {
+            return None;
+        }
+        let boot: Identifier = boot.to_str()?.parse().ok()?;
+        let namespace: Identifier = namespace.to_str()?.parse().ok()?;
+        Some(self.peer_registry(&boot, &namespace))
+    }
     /// Returns the witness marker recorded beside one session directory.
     ///
     /// Beside rather than inside, following the lock's precedent: the record
@@ -366,5 +394,27 @@ mod tests {
             paths.piece_file(&work),
             Path::new("/c/claude-session/settings/work.json")
         );
+    }
+
+    #[test]
+    fn a_link_into_the_peer_root_re_anchors_under_this_runs_root() {
+        let paths = fixture();
+        assert_eq!(
+            paths.adopted_registry(Path::new("/another/mount/peers/boot-one/mnt-two")),
+            Some(PathBuf::from("/s/claude-session/peers/boot-one/mnt-two"))
+        );
+    }
+
+    #[test]
+    fn a_link_that_names_no_registry_re_anchors_nothing() {
+        let paths = fixture();
+        for target in [
+            "/other/peers/boot-only",
+            "/other/peers/boot-one/mnt-two/extra",
+            "/other/peers/.bad/mnt-two",
+            "/other/registries/boot-one/mnt-two",
+        ] {
+            assert_eq!(paths.adopted_registry(Path::new(target)), None, "{target}");
+        }
     }
 }

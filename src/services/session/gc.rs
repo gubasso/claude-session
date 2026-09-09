@@ -8,7 +8,10 @@
 //! [ADR-0112]: ../../../docs/decisions/ADR-0112-keep-only-the-session-proven-live.md
 //! [ADR-0113]: ../../../docs/decisions/ADR-0113-key-a-session-to-its-running-agent.md
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     adapters::{filesystem::SystemFileSystem, host},
@@ -18,7 +21,7 @@ use crate::{
         namespace::Kind,
         paths::XdgPaths,
         peers::Scope,
-        registration::Registration,
+        registration::{Registration, Subject},
         witness::{self, Ground, Marker, Observed, Process, Verdict},
     },
     error::{AppError, Diagnostic, ErrorKind},
@@ -41,14 +44,29 @@ pub(crate) struct SessionFinding {
     /// The process the record names, absent when no record could be read.
     pub(crate) pid: Option<u32>,
     /// The name the child registered for that process, absent when no
-    /// registration this run can reach names it ([ADR-0114]).
+    /// registration in its resolved registry names it ([ADR-0114]).
     ///
     /// [ADR-0114]: ../../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
     pub(crate) name: Option<String>,
+    /// The child's working directory, when the registration carries one.
+    pub(crate) working_directory: Option<String>,
+    /// The child's own status word, carried verbatim.
+    pub(crate) claude_status: Option<String>,
+    /// Whether this session's registrations live in this run's own peer scope.
+    ///
+    /// Naming a session and reaching it stopped being one answer ([ADR-0123]).
+    pub(crate) reachable: bool,
     /// Whether the reader is running inside this session's agent.
     pub(crate) current: bool,
     /// The session directory.
     pub(crate) path: PathBuf,
+}
+
+impl SessionFinding {
+    /// Reports whether a filter naming `subject` selects this row.
+    pub(crate) fn answers_to(&self, subject: &Subject) -> bool {
+        self.session.as_str() == subject.as_str() || self.name.as_deref() == Some(subject.as_str())
+    }
 }
 
 /// What one collection removed.
@@ -68,8 +86,8 @@ struct Observatory {
     /// own: a command is never an agent, so the only session it is "in" is an
     /// agent it descends from.
     lineage: Vec<(u32, u64)>,
-    /// The names the child registered in this run's peer scope, read once.
-    registrations: Vec<Registration>,
+    /// This run's own peer registry, when its scope can be derived.
+    own_registry: Option<PathBuf>,
 }
 
 impl Observatory {
@@ -78,7 +96,7 @@ impl Observatory {
             namespace: host::namespace(Kind::Pid).map(|space| space.id().clone()),
             boot: host::boot_id(),
             lineage: host::lineage(),
-            registrations: registrations(paths),
+            own_registry: own_registry(paths),
         }
     }
 
@@ -106,20 +124,6 @@ impl Observatory {
             boot: self.boot.clone(),
             process,
         }
-    }
-
-    /// Returns the name the child registered for the process a record names.
-    ///
-    /// Both halves of the pair have to match, so a registration a live agent
-    /// wrote cannot lend its name to the exited session that ran under the
-    /// same identifier ([ADR-0114]).
-    ///
-    /// [ADR-0114]: ../../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
-    fn named(&self, marker: &Marker) -> Option<String> {
-        self.registrations
-            .iter()
-            .find(|registration| registration.names(marker.pid(), marker.started()))
-            .map(|registration| registration.name().to_owned())
     }
 
     /// Reports whether the reader descends from the recorded process.
@@ -166,9 +170,15 @@ fn judge_directory(
 pub(crate) fn survey(context: &AppContext) -> Result<Vec<SessionFinding>, AppError> {
     let paths = context.paths();
     let observatory = Observatory::capture(paths);
+    let mut registries = Registries::default();
     let mut findings = Vec::new();
     for account in identifier_directories(&paths.accounts())? {
-        findings.extend(survey_account(paths, &observatory, &account)?);
+        findings.extend(survey_account(
+            paths,
+            &observatory,
+            &mut registries,
+            &account,
+        )?);
     }
     Ok(findings)
 }
@@ -177,6 +187,7 @@ pub(crate) fn survey(context: &AppContext) -> Result<Vec<SessionFinding>, AppErr
 fn survey_account(
     paths: &XdgPaths,
     observatory: &Observatory,
+    registries: &mut Registries,
     account: &Identifier,
 ) -> Result<Vec<SessionFinding>, AppError> {
     let mut findings = Vec::new();
@@ -184,15 +195,30 @@ fn survey_account(
         for session in identifier_directories(&paths.account_namespace(account, &namespace))? {
             let (ground, marker) =
                 judge_directory(paths, observatory, account, &namespace, &session);
+            let path = paths.account_session(account, &namespace, &session);
+            let registry = session_registry(paths, &path.join("sessions"));
+            let registration = marker.as_ref().and_then(|marker| {
+                registry
+                    .as_ref()
+                    .and_then(|registry| described(registries.load(registry), marker))
+            });
             findings.push(SessionFinding {
-                path: paths.account_session(account, &namespace, &session),
+                path,
                 account: account.clone(),
                 namespace: namespace.clone(),
                 session,
                 verdict: ground.verdict(),
                 ground,
                 pid: marker.as_ref().map(Marker::pid),
-                name: marker.as_ref().and_then(|it| observatory.named(it)),
+                name: registration.map(|it| it.name().to_owned()),
+                working_directory: registration
+                    .and_then(Registration::working_directory)
+                    .map(str::to_owned),
+                claude_status: registration
+                    .and_then(Registration::child_status)
+                    .map(str::to_owned),
+                reachable: registry.is_some()
+                    && registry.as_ref() == observatory.own_registry.as_ref(),
                 // The ancestry is read in this run's namespace and under this
                 // boot, so a record naming neither cannot be the agent this
                 // reader is inside however its pair compares. `Running` is the
@@ -304,10 +330,12 @@ pub(crate) fn collect(
 /// [ADR-0113]: ../../../docs/decisions/ADR-0113-key-a-session-to-its-running-agent.md
 pub(crate) fn sweep(context: &AppContext, account: &Identifier) -> Result<usize, AppError> {
     let observatory = Observatory::capture(context.paths());
-    let dead: Vec<SessionFinding> = survey_account(context.paths(), &observatory, account)?
-        .into_iter()
-        .filter(|finding| matches!(finding.verdict, Verdict::Dead))
-        .collect();
+    let mut registries = Registries::default();
+    let dead: Vec<SessionFinding> =
+        survey_account(context.paths(), &observatory, &mut registries, account)?
+            .into_iter()
+            .filter(|finding| matches!(finding.verdict, Verdict::Dead))
+            .collect();
     if dead.is_empty() {
         return Ok(0);
     }
@@ -378,34 +406,53 @@ fn identifier_directories(parent: &Path) -> Result<Vec<Identifier>, AppError> {
     Ok(names)
 }
 
-/// Reads the child's registrations for this run's peer scope.
-///
-/// One directory read, shared across every judgment, because a survey asks the
-/// same question of every row. A scope this run cannot derive, a registry that
-/// is not there, and a record that does not parse all name nothing: the name is
-/// decoration on a report the verdicts already carry, so every failure here
-/// costs a row its name and nothing else ([ADR-0114]).
-///
-/// The scope is this run's own, which is the only registry it can reach. A
-/// session of another boot or another mount namespace keeps its directory name,
-/// which is what the reader would have seen before this existed.
-///
-/// [ADR-0114]: ../../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
-fn registrations(paths: &XdgPaths) -> Vec<Registration> {
+fn own_registry(paths: &XdgPaths) -> Option<PathBuf> {
     let scope = host::boot_id().and_then(|boot| {
         host::namespace_link(Kind::Mount).and_then(|link| Scope::derive(&boot, &link))
-    });
-    let Some(scope) = scope else {
-        return Vec::new();
-    };
-    let registry = paths.peer_registry(scope.boot(), scope.namespace());
-    let Ok(entries) = SystemFileSystem::dir_entries(&registry) else {
-        return Vec::new();
-    };
-    entries
+    })?;
+    Some(paths.peer_registry(scope.boot(), scope.namespace()))
+}
+
+/// Resolves one session's own registry from the `sessions` link a launch wrote.
+fn session_registry(paths: &XdgPaths, link: &Path) -> Option<PathBuf> {
+    let facts = SystemFileSystem::look(link).ok()??;
+    if !facts.symlink {
+        return None;
+    }
+    let target = std::fs::read_link(link).ok()?;
+    paths.adopted_registry(&target)
+}
+
+/// The registration that is provably this agent's, or none if two are.
+fn described<'a>(registrations: &'a [Registration], marker: &Marker) -> Option<&'a Registration> {
+    let mut matches = registrations
         .iter()
-        .filter_map(|entry| read_registration(&registry.join(entry)))
-        .collect()
+        .filter(|it| it.names(marker.pid(), marker.started()));
+    let registration = matches.next()?;
+    matches.next().is_none().then_some(registration)
+}
+
+/// The registries one survey read, so many sessions of one scope read that
+/// directory once.
+#[derive(Default)]
+struct Registries {
+    loaded: HashMap<PathBuf, Vec<Registration>>,
+}
+
+impl Registries {
+    fn load(&mut self, registry: &Path) -> &[Registration] {
+        self.loaded.entry(registry.to_owned()).or_insert_with(|| {
+            SystemFileSystem::dir_entries(registry).map_or_else(
+                |_| Vec::new(),
+                |entries| {
+                    entries
+                        .iter()
+                        .filter_map(|entry| read_registration(&registry.join(entry)))
+                        .collect()
+                },
+            )
+        })
+    }
 }
 
 /// Reads one registration, treating anything unreadable as no registration.

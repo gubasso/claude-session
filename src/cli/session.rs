@@ -1,5 +1,6 @@
 //! Parse shape for session lifecycle management.
 
+use crate::domain::registration::Subject;
 use clap::{ArgAction, Args, Subcommand};
 
 #[derive(Args, Debug)]
@@ -39,6 +40,8 @@ pub(crate) enum SessionCommand {
 
 #[derive(Args, Debug)]
 pub(crate) struct ListArgs {
+    /// Session to report, named as its row names it; every session when omitted.
+    pub(crate) name: Option<Subject>,
     /// Emit the report as one JSON document.
     #[arg(long)]
     pub(crate) json: bool,

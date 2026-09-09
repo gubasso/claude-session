@@ -26,6 +26,7 @@
 use crate::{
     domain::{
         checks::CheckStatus,
+        registration::Subject,
         witness::{Ground, Verdict},
     },
     services::session::gc::SessionFinding,
@@ -42,7 +43,7 @@ const fn because(ground: Ground) -> &'static str {
         Ground::Gone => "agent exited",
         Ground::ForeignBoot => "from an earlier boot",
         Ground::Unrecorded => "no record of what it was",
-        Ground::Foreign => "another machine's",
+        Ground::Foreign => "namespace this run cannot see",
         Ground::Unreadable => "start time unreadable",
         Ground::Unplaced => "cannot be judged here",
     }
@@ -94,8 +95,22 @@ fn why(finding: &SessionFinding) -> String {
 }
 
 /// Renders every session directory and its verdict.
-pub(super) fn list(palette: Palette, findings: &[SessionFinding]) -> String {
+pub(super) fn list(
+    palette: Palette,
+    findings: &[SessionFinding],
+    filter: Option<&Subject>,
+) -> String {
     if findings.is_empty() {
+        if let Some(subject) = filter {
+            return format!(
+                "{}\n\n{}",
+                palette.heading("Sessions"),
+                paragraph(&format!(
+                    "No session named {}. Run claude-session session list to see every session.",
+                    subject.as_str()
+                ))
+            );
+        }
         return format!(
             "{}\n\n{}",
             palette.heading("Sessions"),
@@ -165,7 +180,7 @@ const GROUPS: &[(Verdict, &str)] = &[
     (Verdict::Dead, "whose agent has exited"),
     (
         Verdict::Unknown,
-        "this run cannot account for: no readable record, or a namespace this kernel cannot see",
+        "this run cannot account for: no readable record, or a namespace this run cannot see",
     ),
 ];
 
