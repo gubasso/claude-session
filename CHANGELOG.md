@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.1.8](https://github.com/gubasso/claude-session/compare/v0.1.7...v0.1.8) - 2026-09-09
+
+### Other
+
+- (security) state a vulnerability reporting path ([#44](https://github.com/gubasso/claude-session/pull/44))
+
 ## [0.1.7](https://github.com/gubasso/claude-session/compare/v0.1.6...v0.1.7) - 2026-09-09
 
 ### Other
