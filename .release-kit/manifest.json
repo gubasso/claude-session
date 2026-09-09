@@ -1,7 +1,7 @@
 {
   "schema_version": 5,
-  "rk_version": "0.3.3",
-  "payload_sha256": "51b905d58e296f5df7bd3594e76f8a55e58b2765a5cecae25950ea907aecfc65",
+  "rk_version": "0.3.5",
+  "payload_sha256": "73c6eb250722787e3f43da9948340a5b407bf152fda657272fd13b5a00d4f803",
   "origin": "init",
   "tech": "rust",
   "forge": "github",
@@ -52,7 +52,7 @@
     {
       "destination": "release-plz.toml",
       "kind": "seeded",
-      "sha256": "3a34773d3246e70bd420e3232eabae46fe6c25e0812a16f4d0b19a253a52035e",
+      "sha256": "e21987a4f0bd3fba51e7c5727e662a25737090c18a0834c5b11f322e81ab9907",
       "baseline_sha256": "0983ed155c83959d08f4446b91fb9dfcfebc80284babe49969bed4eaa0e55f1d"
     }
   ],
