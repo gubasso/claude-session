@@ -25,6 +25,19 @@ git_release_enable = false
 semver_check = false
 
 [changelog]
+# The default header hard-wraps its last sentence across two lines, and the
+# `dprint fmt (markdown)` hook unwraps it. Left alone, every release rewrote
+# the header wrapped and the next `just hooks` unwrapped it again, so the
+# trunk was dirty after each release. This is the default text with that one
+# sentence on a single line.
+header = """# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+"""
 # The default body template writes the scope as `*(scope)*` and the breaking
 # marker as `[**breaking**]`. AGENTS.md forbids decorative emphasis, and the
 # `every_markdown_file_is_free_of_decorative_emphasis` contract scans every
