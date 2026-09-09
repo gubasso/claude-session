@@ -1,0 +1,37 @@
+# CodeQL analysis for the Rust surfaces named by ADR-0122.
+#
+# Results are advisory. They reach the security tab but do not join the required
+# gate in ci.yml.
+name: codeql
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    # Weekly, on Wednesday.
+    - cron: "43 4 * * 3"
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: codeql analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: rust
+          build-mode: none
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
