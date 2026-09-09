@@ -20,3 +20,4 @@
 - For contribution procedure, use the [development workflow](./guides/development-workflow.md) and [testing gate](./reference/testing-and-quality.md#the-gate).
 - For release operations, use the [release guide](./guides/releasing.md) and [release contract](./reference/release-workflow.md).
 - For externally owned facts, consult [research tracking](./reference/research-tracking.yaml) before relying on a measured child behavior.
+- For a workaround that looks unexplained, read [known issues](./reference/known-issues/), which records the upstream defect behind it.
