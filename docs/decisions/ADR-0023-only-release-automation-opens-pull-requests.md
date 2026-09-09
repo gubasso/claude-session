@@ -22,6 +22,7 @@ An upgrade is therefore an ordinary human change: run `cargo update` or edit the
 - Good: no third-party forge service holds write access to the pull-request stream.
 - Bad: pinned actions drift silently behind their tags, so their currency is a tracked perishable fact ([research-tracking](../reference/research-tracking.yaml)) rather than an automated one.
 - Bad: an advisory the gate reports arrives with no fix waiting; someone has to write it.
+- Bad: OpenSSF Scorecard reads this refusal as a Dependency-Update-Tool zero, so the number needs this record to read it.
 
 ## Status
 
