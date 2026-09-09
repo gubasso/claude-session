@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/gubasso/claude-session/compare/v0.1.3...v0.1.4) - 2026-09-09
+
+### Fixed
+
+- (release) match the changelog header to the markdown formatter ([#35](https://github.com/gubasso/claude-session/pull/35))
+
 ## [0.1.3](https://github.com/gubasso/claude-session/compare/v0.1.2...v0.1.3) - 2026-09-09
 
 ### Other
