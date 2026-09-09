@@ -970,6 +970,46 @@ fn an_ambiguous_registration_names_nothing() {
     assert!(row(&document, "foreignslot").get("name").is_none());
 }
 
+/// Two sessions claiming one agent pair name nothing, even from one file.
+///
+/// The registration the child writes is keyed by the process identifier alone,
+/// so two process namespaces sharing one mount namespace share one registry and
+/// one filename: the second write replaces the first. Only one registration is
+/// then left, so no reading of that registry can see the ambiguity. The guard
+/// has to be on the session side as well, or one row takes the other's name.
+#[test]
+fn one_registration_answering_to_two_sessions_names_neither() {
+    let harness = Harness::new();
+    let (session, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    let namespace = session.parent().expect("foreign namespace").to_owned();
+    let witness = recorded(&namespace);
+    let twin = plant(&namespace, &witness, "twinslot", pid, ticks);
+    // The second session reaches the same registry, which is what makes the two
+    // claims collide: one mount namespace, two process namespaces.
+    symlink(&registry, twin.join("sessions")).expect("twin registry link");
+    // The registration carries a description, so the test can prove the whole
+    // description goes and not only the name.
+    register_as(
+        &registry,
+        &format!("{pid}.json"),
+        pid,
+        ticks,
+        "other-container",
+        Some(("/work/project", "busy")),
+    );
+
+    let document = session_json(&harness, &["session", "list", "--json"]);
+    for session in ["foreignslot", "twinslot"] {
+        let row = row(&document, session);
+        for key in ["name", "working_directory", "claude_status"] {
+            assert!(
+                row.get(key).is_none(),
+                "{session} took the {key} of a registration a second row claims as well: {document}"
+            );
+        }
+    }
+}
+
 #[test]
 fn naming_a_session_of_another_scope_does_not_change_what_clean_takes() {
     let harness = Harness::new();
@@ -1048,6 +1088,35 @@ fn a_named_list_lays_its_rows_out_as_the_full_list_does() {
     assert_eq!(
         full.split_whitespace().collect::<Vec<_>>(),
         named.split_whitespace().collect::<Vec<_>>()
+    );
+}
+
+/// A filtered listing must not present its rows as the collector's set.
+///
+/// `session clean` surveys the whole tree and takes no filter, so a summary
+/// counted over the filtered rows understates what the verb it names would
+/// remove. Two collectable sessions and a filter selecting one is the case that
+/// makes the understatement visible.
+#[test]
+fn a_named_list_does_not_state_what_clean_would_take() {
+    let harness = Harness::new();
+    let (session, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register(&registry, pid, ticks, "other-container");
+    let namespace = session.parent().expect("foreign namespace").to_owned();
+    let witness = recorded(&namespace);
+    plant(&namespace, &witness, "secondslot", pid, ticks);
+
+    let full = session_text(&harness);
+    assert!(full.contains("collectable"), "unfiltered summary: {full}");
+
+    let named = session_text_with(&harness, &["session", "list", "other-container"]);
+    assert!(
+        !named.contains("collectable"),
+        "a filtered listing counted the collector's set: {named}"
+    );
+    assert!(
+        named.contains("claude-session session list"),
+        "a filtered listing must point at the unfiltered one: {named}"
     );
 }
 

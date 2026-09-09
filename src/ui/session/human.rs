@@ -140,7 +140,7 @@ pub(super) fn list(
         out.push_str(&palette.recolour_token(format!("{row}\n"), &token, shade(finding.verdict)));
     }
     out.push('\n');
-    out.push_str(&summary(findings));
+    out.push_str(&summary(findings, filter));
     out
 }
 
@@ -148,7 +148,19 @@ pub(super) fn list(
 ///
 /// Short enough not to wrap, because a command broken across two lines cannot
 /// be copied back into a shell.
-fn summary(findings: &[SessionFinding]) -> String {
+///
+/// A filtered listing gets a different line, because these rows are not the set
+/// the collector would act on: `session clean` surveys the whole tree and takes
+/// no filter, so counting the filtered rows and then naming that verb would
+/// understate what it removes. The filtered line points at the unfiltered
+/// listing instead, which is the only view whose count the verb answers to.
+fn summary(findings: &[SessionFinding], filter: Option<&Subject>) -> String {
+    if filter.is_some() {
+        return paragraph(concat!(
+            "One name of the whole tree. See what claude-session session clean would ",
+            "take with: claude-session session list"
+        ));
+    }
     if findings
         .iter()
         .any(|finding| finding.ground == Ground::Unplaced)

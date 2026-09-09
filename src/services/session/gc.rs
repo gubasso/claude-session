@@ -172,25 +172,33 @@ pub(crate) fn survey(context: &AppContext) -> Result<Vec<SessionFinding>, AppErr
     let observatory = Observatory::capture(paths);
     let mut registries = Registries::default();
     let mut findings = Vec::new();
+    let mut claims = Vec::new();
     for account in identifier_directories(&paths.accounts())? {
-        findings.extend(survey_account(
-            paths,
-            &observatory,
-            &mut registries,
-            &account,
-        )?);
+        let (account_findings, account_claims) =
+            survey_account(paths, &observatory, &mut registries, &account)?;
+        findings.extend(account_findings);
+        claims.extend(account_claims);
     }
+    // Every account at once, because two sessions claiming one agent pair need
+    // not share an account, and the whole tree is what a report answers about.
+    disambiguate(&mut findings, &claims);
     Ok(findings)
 }
 
-/// Surveys one account's session directories.
+/// Surveys one account's session directories, with each session's claim beside
+/// it.
+///
+/// The claims are returned rather than resolved here: a claim is only ambiguous
+/// against the other sessions of the whole tree, which one account's walk cannot
+/// see ([`disambiguate`]).
 fn survey_account(
     paths: &XdgPaths,
     observatory: &Observatory,
     registries: &mut Registries,
     account: &Identifier,
-) -> Result<Vec<SessionFinding>, AppError> {
+) -> Result<(Vec<SessionFinding>, Vec<Option<Claim>>), AppError> {
     let mut findings = Vec::new();
+    let mut claims = Vec::new();
     for namespace in identifier_directories(&paths.account_sessions(account))? {
         for session in identifier_directories(&paths.account_namespace(account, &namespace))? {
             let (ground, marker) =
@@ -202,6 +210,11 @@ fn survey_account(
                     .as_ref()
                     .and_then(|registry| described(registries.load(registry), marker))
             });
+            claims.push(marker.as_ref().zip(registry.as_ref()).map(
+                |(marker, registry)| -> Claim {
+                    (registry.clone(), marker.pid(), marker.started())
+                },
+            ));
             findings.push(SessionFinding {
                 path,
                 account: account.clone(),
@@ -231,7 +244,7 @@ fn survey_account(
             });
         }
     }
-    Ok(findings)
+    Ok((findings, claims))
 }
 
 /// Removes every collectable finding, then prunes what the removals emptied.
@@ -331,8 +344,11 @@ pub(crate) fn collect(
 pub(crate) fn sweep(context: &AppContext, account: &Identifier) -> Result<usize, AppError> {
     let observatory = Observatory::capture(context.paths());
     let mut registries = Registries::default();
+    // The claims are dropped: a sweep acts on the verdict alone, and no name
+    // reaches its decision.
     let dead: Vec<SessionFinding> =
         survey_account(context.paths(), &observatory, &mut registries, account)?
+            .0
             .into_iter()
             .filter(|finding| matches!(finding.verdict, Verdict::Dead))
             .collect();
@@ -430,6 +446,45 @@ fn described<'a>(registrations: &'a [Registration], marker: &Marker) -> Option<&
         .filter(|it| it.names(marker.pid(), marker.started()));
     let registration = matches.next()?;
     matches.next().is_none().then_some(registration)
+}
+
+/// What one session claims of a registry: the registry, and the agent pair.
+///
+/// Two sessions cannot both be the agent one pair names, so a pair claimed
+/// twice in one registry describes neither of them.
+type Claim = (PathBuf, u32, u64);
+
+/// Strips the description from every session whose claim another session shares.
+///
+/// [`described`] guards one side of the join: two registrations answering to one
+/// session name nothing. The other side needs its own guard, because the child
+/// keys a registration by the process identifier alone. Two process namespaces
+/// sharing one mount namespace share one registry, so a pair issued in both
+/// writes one file twice and the second write replaces the first. One
+/// registration then answers to two sessions, `described` sees no ambiguity, and
+/// each row takes the other's name.
+///
+/// A pair claimed twice therefore costs both rows their description rather than
+/// giving one of them a name that is not its own, which is the posture the
+/// naming record sets and the slice's core states ([ADR-0114], [ADR-0123]).
+///
+/// [ADR-0114]: ../../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
+/// [ADR-0123]: ../../../docs/decisions/ADR-0123-read-a-sessions-own-peer-registry.md
+fn disambiguate(findings: &mut [SessionFinding], claims: &[Option<Claim>]) {
+    let mut seen: HashMap<&Claim, usize> = HashMap::new();
+    for claim in claims.iter().flatten() {
+        *seen.entry(claim).or_default() += 1;
+    }
+    for (finding, claim) in findings.iter_mut().zip(claims) {
+        if claim
+            .as_ref()
+            .is_some_and(|claim| seen.get(claim).copied().unwrap_or_default() > 1)
+        {
+            finding.name = None;
+            finding.working_directory = None;
+            finding.claude_status = None;
+        }
+    }
 }
 
 /// The registries one survey read, so many sessions of one scope read that

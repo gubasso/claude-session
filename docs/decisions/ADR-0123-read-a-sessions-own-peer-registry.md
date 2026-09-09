@@ -16,6 +16,8 @@ Chosen option: read each session's declared registry. The wrapper wrote the link
 
 The target's final `peers/<boot>/<namespace>` components are re-anchored under this run's peer root. The foreign absolute prefix is never opened or dereferenced. A missing link, real directory, or target outside that shape names nothing and leaves the row named by its directory.
 
+The join is guarded on both sides. The child keys a registration by the process identifier alone, so two process namespaces sharing one mount namespace write one filename twice and leave one record two sessions answer to. A pair claimed twice therefore describes neither session: the name, the working directory, and the status word all go, because none of the three can be attributed once two rows claim the record they came from.
+
 ## Consequences
 
 - Good: sessions are named across mount boundaries without moving the boundary.
