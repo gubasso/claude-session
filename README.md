@@ -4,7 +4,7 @@
 
 A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 
-> Status: unreleased. The wrapper forwards to `claude` natively and owns `help`, `version`, `doctor`, the `account` and `session` namespaces, `completion`, `man`, `profile`, and `config`. Everything else described in [docs](./docs/README.md) is design ahead of the code.
+> The wrapper forwards to `claude` natively and owns `help`, `version`, `doctor`, the `account` and `session` namespaces, `completion`, `man`, `profile`, and `config`. Everything else described in [docs](./docs/README.md) is design ahead of the code.
 
 ## Usage
 
@@ -162,7 +162,7 @@ Common starting points:
 
 ## Install
 
-`0.1.0` is on crates.io, the version [ADR-0022](./docs/decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md) held back until the wrapper forwarded to `claude`.
+The crate is on crates.io. [ADR-0022](./docs/decisions/ADR-0022-cut-the-first-release-when-passthrough-works.md) held the first release back until the wrapper forwarded to `claude`.
 
 ```bash
 cargo install claude-session
