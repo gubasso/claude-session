@@ -1,5 +1,7 @@
 # claude-session
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/gubasso/claude-session/badge)](https://scorecard.dev/viewer/?uri=github.com/gubasso/claude-session)
+
 A Rust CLI that wraps the `claude` command with session-oriented conveniences.
 
 > Status: unreleased. The wrapper forwards to `claude` natively and owns `help`, `version`, `doctor`, the `account` and `session` namespaces, `completion`, `man`, `profile`, and `config`. Everything else described in [docs](./docs/README.md) is design ahead of the code.

@@ -41,6 +41,7 @@ Never register `release.yml` as the publisher. The first publish uses a disposab
 | `.github/workflows/pr-title.yml`    | The Conventional Commits check on the request title                        | release-kit  |
 | `.github/workflows/release-plz.yml` | Release request, source publish, and tag creation                          | release-kit  |
 | `.github/workflows/release.yml`     | Cargo-dist-generated tag workflow and GitHub Release assets                | cargo-dist   |
+| `.github/workflows/scorecard.yml`   | The weekly OpenSSF Scorecard run, which gates nothing                      | this project |
 | `release-plz.toml`                  | Source-release policy                                                      | this project |
 | `dist-workspace.toml`               | Binary-distribution policy                                                 | this project |
 | `nix/package.nix`                   | The package expression the pipeline builds                                 | this project |
@@ -136,7 +137,7 @@ This is external state the repository cannot assert, and it is no longer tracked
 
 Rulesets are used rather than classic branch protection: they compose, they are readable by non-admins, they cover tags as well as branches, and they express a bypass actor explicitly. The bypass actor must be the installed App; naming `github-actions[bot]` instead fails with HTTP 422 from the ruleset API, because a personal account cannot use it as a bypass actor ([ADR-0039](../decisions/ADR-0039-use-a-github-app-for-release-automation.md)).
 
-Not adopted: OpenSSF Scorecard. Deferred until after the first tagged release, with the trigger and the reasoning in [ADR-0073](../decisions/ADR-0073-defer-openssf-scorecard-until-the-first-release.md).
+OpenSSF Scorecard reads this repository weekly and on every push to `master`, and publishes the result to the public API. `.github/workflows/scorecard.yml` owns the run. It gates nothing, so the one required check stays `gate` in `ci.yml`. Branch-Protection and Pinned-Dependencies score below their maximum for recorded reasons, and [ADR-0120](../decisions/ADR-0120-adopt-the-openssf-scorecard-workflow.md) carries both.
 
 ## Further reading
 
