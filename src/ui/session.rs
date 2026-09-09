@@ -7,6 +7,7 @@
 pub(crate) mod human;
 
 use crate::{
+    domain::registration::Subject,
     error::AppError,
     services::session::gc::SessionFinding,
     ui::{
@@ -43,6 +44,7 @@ fn finding_row(finding: &SessionFinding) -> serde_json::Value {
         // that ground's projection.
         "ground": finding.ground.spelling(),
         "current": finding.current,
+        "reachable": finding.reachable,
         "path": finding.path.display().to_string(),
     });
     // Absent when no record this version reads could be read, so the key
@@ -53,13 +55,19 @@ fn finding_row(finding: &SessionFinding) -> serde_json::Value {
     if let Some(pid) = finding.pid {
         value["pid"] = pid.into();
     }
-    // Absent for the same reason and by the same rule: a session no reachable
+    // Absent for the same reason and by the same rule: a session no resolved
     // registration names carries no name, rather than a key spelling the
     // directory that is already on the row ([ADR-0051], [ADR-0114]).
     //
     // [ADR-0114]: ../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
     if let Some(name) = finding.name.as_deref() {
         value["name"] = name.into();
+    }
+    if let Some(directory) = finding.working_directory.as_deref() {
+        value["working_directory"] = directory.into();
+    }
+    if let Some(status) = finding.claude_status.as_deref() {
+        value["claude_status"] = status.into();
     }
     value
 }
@@ -70,6 +78,7 @@ pub(crate) fn list(
     json_mode: bool,
     color: Color,
     findings: &[SessionFinding],
+    subject: Option<&Subject>,
 ) -> Result<(), AppError> {
     let bytes = if json_mode {
         let rows: Vec<_> = findings.iter().map(finding_row).collect();
@@ -78,7 +87,7 @@ pub(crate) fn list(
             "session list document",
         )?
     } else {
-        human::list(Palette::new(color.stdout()), findings).into_bytes()
+        human::list(Palette::new(color.stdout()), findings, subject).into_bytes()
     };
     writer.stdout(&bytes).map_err(|error| output_error(&error))
 }

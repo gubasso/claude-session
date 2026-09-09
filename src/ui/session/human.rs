@@ -26,6 +26,7 @@
 use crate::{
     domain::{
         checks::CheckStatus,
+        registration::Subject,
         witness::{Ground, Verdict},
     },
     services::session::gc::SessionFinding,
@@ -42,7 +43,7 @@ const fn because(ground: Ground) -> &'static str {
         Ground::Gone => "agent exited",
         Ground::ForeignBoot => "from an earlier boot",
         Ground::Unrecorded => "no record of what it was",
-        Ground::Foreign => "another machine's",
+        Ground::Foreign => "namespace this run cannot see",
         Ground::Unreadable => "start time unreadable",
         Ground::Unplaced => "cannot be judged here",
     }
@@ -94,8 +95,22 @@ fn why(finding: &SessionFinding) -> String {
 }
 
 /// Renders every session directory and its verdict.
-pub(super) fn list(palette: Palette, findings: &[SessionFinding]) -> String {
+pub(super) fn list(
+    palette: Palette,
+    findings: &[SessionFinding],
+    filter: Option<&Subject>,
+) -> String {
     if findings.is_empty() {
+        if let Some(subject) = filter {
+            return format!(
+                "{}\n\n{}",
+                palette.heading("Sessions"),
+                paragraph(&format!(
+                    "No session named {}. Run claude-session session list to see every session.",
+                    subject.as_str()
+                ))
+            );
+        }
         return format!(
             "{}\n\n{}",
             palette.heading("Sessions"),
@@ -125,7 +140,7 @@ pub(super) fn list(palette: Palette, findings: &[SessionFinding]) -> String {
         out.push_str(&palette.recolour_token(format!("{row}\n"), &token, shade(finding.verdict)));
     }
     out.push('\n');
-    out.push_str(&summary(findings));
+    out.push_str(&summary(findings, filter));
     out
 }
 
@@ -133,7 +148,19 @@ pub(super) fn list(palette: Palette, findings: &[SessionFinding]) -> String {
 ///
 /// Short enough not to wrap, because a command broken across two lines cannot
 /// be copied back into a shell.
-fn summary(findings: &[SessionFinding]) -> String {
+///
+/// A filtered listing gets a different line, because these rows are not the set
+/// the collector would act on: `session clean` surveys the whole tree and takes
+/// no filter, so counting the filtered rows and then naming that verb would
+/// understate what it removes. The filtered line points at the unfiltered
+/// listing instead, which is the only view whose count the verb answers to.
+fn summary(findings: &[SessionFinding], filter: Option<&Subject>) -> String {
+    if filter.is_some() {
+        return paragraph(concat!(
+            "One name of the whole tree. See what claude-session session clean would ",
+            "take with: claude-session session list"
+        ));
+    }
     if findings
         .iter()
         .any(|finding| finding.ground == Ground::Unplaced)
@@ -165,7 +192,7 @@ const GROUPS: &[(Verdict, &str)] = &[
     (Verdict::Dead, "whose agent has exited"),
     (
         Verdict::Unknown,
-        "this run cannot account for: no readable record, or a namespace this kernel cannot see",
+        "this run cannot account for: no readable record, or a namespace this run cannot see",
     ),
 ];
 

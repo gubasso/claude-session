@@ -4,7 +4,7 @@ use crate::{
     adapters::terminal::Terminal as _,
     commands::dispatch::{DispatchOutcome, OutputMode},
     context::AppContext,
-    domain::witness::Ground,
+    domain::{registration::Subject, witness::Ground},
     error::{AppError, Diagnostic, ErrorKind},
     services::session::gc::{self, SessionFinding},
 };
@@ -13,13 +13,20 @@ use crate::{
 ///
 /// An inspection verb: it exits `0` whatever it finds, including nothing.
 /// The verdicts are answers, and `clean` is the invocation that acts on them.
-pub(crate) fn list(context: &AppContext) -> Result<DispatchOutcome, AppError> {
-    let findings = gc::survey(context)?;
+pub(crate) fn list(
+    context: &AppContext,
+    name: Option<&Subject>,
+) -> Result<DispatchOutcome, AppError> {
+    let mut findings = gc::survey(context)?;
+    if let Some(name) = name {
+        findings.retain(|finding| finding.answers_to(name));
+    }
     crate::ui::session::list(
         context.writer(),
         context.output_mode() == OutputMode::Json,
         context.color(),
         &findings,
+        name,
     )?;
     Ok(DispatchOutcome::Complete(0))
 }

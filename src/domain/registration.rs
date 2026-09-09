@@ -7,13 +7,18 @@
 //! a session is unreadable without it: the wrapper's directory name is an
 //! internal identifier, and the reader has never seen it ([ADR-0114]).
 //!
-//! This module reads no file — that is the session service — and carries only
-//! the name and the pair that proves whose name it is. Everything else the
-//! record holds belongs to the child ([ADR-0089]).
+//! This module reads no file — that is the session service — and carries the
+//! name, the pair that proves whose name it is, and the two descriptive facts
+//! ADR-0124 permits. Everything else belongs to the child ([ADR-0089]).
 //!
 //! [ADR-0089]: ../../docs/decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md
 //! [ADR-0108]: ../../docs/decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md
 //! [ADR-0114]: ../../docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
+//! [ADR-0124]: ../../docs/decisions/ADR-0124-describe-a-reported-session-with-the-children-facts.md
+
+use std::str::FromStr as _;
+
+use crate::error::DomainError;
 
 /// The longest name a report carries.
 ///
@@ -21,6 +26,37 @@
 /// agent identifier is: a cut name is one two sessions could share, and a row
 /// naming the wrong session is worse than a row naming none.
 const LONGEST: usize = 64;
+const LONGEST_DIRECTORY: usize = 4096;
+
+/// The one subject a report can carry and a filter can name.
+///
+/// A subject is refused rather than cut because a cut name is one two sessions
+/// could share, and naming the wrong session is worse than naming none.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Subject(String);
+
+impl std::str::FromStr for Subject {
+    type Err = DomainError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let refused = value.is_empty()
+            || value.chars().count() > LONGEST
+            || value.chars().any(char::is_control)
+            || value.trim() != value;
+        if refused {
+            return Err(DomainError::InvalidArguments(
+                "a session name must be 1 to 64 printable, unpadded characters".to_owned(),
+            ));
+        }
+        Ok(Self(value.to_owned()))
+    }
+}
+
+impl Subject {
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 /// One child registration, reduced to what a report may say.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -28,6 +64,8 @@ pub(crate) struct Registration {
     pid: u32,
     started: u64,
     name: String,
+    working_directory: Option<String>,
+    child_status: Option<String>,
 }
 
 impl Registration {
@@ -42,7 +80,22 @@ impl Registration {
         let value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
         let pid = u32::try_from(value.get("pid")?.as_u64()?).ok()?;
         let started = ticks(value.get("procStart")?)?;
-        Self::new(pid, started, value.get("name")?.as_str()?)
+        let mut registration = Self::new(pid, started, value.get("name")?.as_str()?)?;
+        registration.working_directory = value
+            .get("cwd")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| {
+                !value.is_empty()
+                    && value.chars().count() <= LONGEST_DIRECTORY
+                    && !value.chars().any(char::is_control)
+            })
+            .map(str::to_owned);
+        registration.child_status = value
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|value| Subject::from_str(value).ok())
+            .map(|value| value.0);
+        Some(registration)
     }
 
     /// Builds a registration from the three facts, validating the name.
@@ -51,14 +104,13 @@ impl Registration {
     /// name is rendered into a report the wrapper decorates itself, and a
     /// stripped name is no longer the name the child answers to.
     pub(crate) fn new(pid: u32, started: u64, name: &str) -> Option<Self> {
-        let refused = name.is_empty()
-            || name.chars().count() > LONGEST
-            || name.chars().any(char::is_control)
-            || name.trim() != name;
-        (!refused).then(|| Self {
+        let name = Subject::from_str(name).ok()?;
+        Some(Self {
             pid,
             started,
-            name: name.to_owned(),
+            name: name.0,
+            working_directory: None,
+            child_status: None,
         })
     }
 
@@ -77,6 +129,14 @@ impl Registration {
     /// Borrows the name the child registered.
     pub(crate) fn name(&self) -> &str {
         &self.name
+    }
+
+    pub(crate) fn working_directory(&self) -> Option<&str> {
+        self.working_directory.as_deref()
+    }
+
+    pub(crate) fn child_status(&self) -> Option<&str> {
+        self.child_status.as_deref()
     }
 }
 
@@ -163,6 +223,40 @@ mod tests {
             Registration::from_bytes(&document(&"n".repeat(LONGEST))).is_some(),
             "the longest name a report carries is carried"
         );
+    }
+
+    #[test]
+    fn a_subject_and_a_registered_name_share_one_alphabet() {
+        for name in [
+            "",
+            " ",
+            " padded",
+            "padded ",
+            "two\nlines",
+            &"n".repeat(LONGEST + 1),
+        ] {
+            assert_eq!(
+                name.parse::<Subject>().is_ok(),
+                Registration::new(7, 42, name).is_some(),
+                "{name:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_working_directory_is_not_held_to_the_name_rule() {
+        let long = format!(" /{} ", "d".repeat(LONGEST + 1));
+        let value = serde_json::json!({
+            "pid": 7,
+            "procStart": "42",
+            "name": "one",
+            "cwd": long,
+            "status": "busy",
+        });
+        let registration =
+            Registration::from_bytes(&serde_json::to_vec(&value).expect("registration document"))
+                .expect("registration");
+        assert_eq!(registration.working_directory(), value["cwd"].as_str());
     }
 
     /// The child owns the schema, so a field this wrapper never reads may

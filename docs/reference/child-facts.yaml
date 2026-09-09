@@ -11,10 +11,11 @@
 #   no-collision    the child's own spelling, which passthrough must not claim
 #   scope-our-claim child behaviour carried so the wrapper does not over-claim
 #   name-the-subject the child's name for a thing a wrapper report is about
+#   describe-the-subject facts that distinguish a subject the report already names
 #   contested       carried today, with an open question deciding whether it stays
 #
 # `contested` is temporary by construction: its `why` names the question, and the
-# entry leaves when the question exits. It is not a fourth obligation.
+# entry leaves when the question exits. It is not a fifth obligation.
 #
 # Every entry is enforced by ../../tests/repo_contracts/child_facts.rs, which
 # fails on an occurrence at an unlisted site and on an entry that matches
@@ -155,7 +156,7 @@ carried:
 
   - fact: procStart
     obligation: name-the-subject
-    why: The wrapper reads the child's peer registration to name a session in its own report, because the reader knows a session by the name the child gives it and not by the directory the wrapper made (ADR-0114). This field is half the join that proves whose name it is, against the witness the launch wrote, so a reissued process identifier cannot lend a live agent's name to a dead session. The record's `name` key is carried against the same obligation and is an ordinary English word the discovery scan cannot see, the limit this file's header states and ../plan/open-questions.md Q-012 owns.
+    why: The wrapper reads the child's peer registration to name a session in its own report, because the reader knows a session by the name the child gives it and not by the directory the wrapper made (ADR-0114). This field is half the join that proves whose name it is, against the witness the launch wrote, so a reissued process identifier cannot lend a live agent's name to a dead session. The record's `name` key is carried against the same obligation and is an ordinary English word the discovery scan cannot see. Its working directory and status word describe the subject under ADR-0124; neither can be registered mechanically because one is ordinary language and the other occurs under unrelated obligations. Q-012 owns that limit.
     sites:
       - docs/plan/open-questions.md
       - docs/reference/research-tracking.yaml

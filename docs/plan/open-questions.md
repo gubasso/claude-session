@@ -58,6 +58,8 @@ Widened: the slice 029 review found the same silence over a larger set. `src/ser
 
 Widened again: slice 037 carries the child's own name for a session so the report about it names its subject as its reader does, under the fourth obligation [ADR-0114](../decisions/ADR-0114-name-a-reported-session-as-the-child-does.md) adds. The registry entry is filed under `procStart`, the half of the record the scan can see, while `name` — the half the carry exists for — is an ordinary English word it cannot, so the entry justifies its companion in prose and the gate enforces only the joinder. That is the same limit under a new obligation rather than a new limit, and it is the second class of carry the scan reaches only sideways.
 
+Widened a fourth time: slice 039 carries the registration's working directory and child status word under `describe-the-subject`. The status key is an ordinary English word the scan cannot reach. The working-directory spelling occurs throughout support code and under another obligation, so one registry entry cannot honestly cover it. Both are registered in ADR-0124's reasoning and enforced only at review.
+
 Exit: ADR, decide whether observing and deleting an artifact is a carry the registry governs at all, or whether the registry is about names the wrapper puts in front of the child — and, for the asset set, whether an entry may declare itself unreachable by the scan rather than being omitted. Registering a scannable name means extending the literal list, which makes the gate enforce every future mention; deciding a class is out of scope means saying so in the registry header, because its current silence reads as coverage.
 
 ## Q-014 — Which launch-path guards survive a directory that is always fresh?
@@ -107,3 +109,11 @@ None of ADR-0089's obligations fits. The wrapper does not launch through it, no 
 The alternative is to drop the name and describe the variable without spelling it, which makes the recipe unusable, or to publish the fragile move-and-rewrite route instead, which the same review rejected. Neither is better than an entry with an honest label.
 
 Exit: ADR, decide whether ADR-0089 grows an obligation covering a name a guide must spell, or whether the registry's scope narrows to run-time carries and documentation is enforced at review. Either way the `contested` entry leaves with the decision.
+
+## Q-019 — Should a session proven to exist in another registry be uncollectable?
+
+Blocks: whether `session clean` may keep treating a named session from another peer scope as garbage, and whether ADR-0112's collection rule remains sufficient for shared state trees.
+
+Raised: slice 039 made another container's session visible by resolving the registry its own launch linked. The row can now carry the operator's name and prove its registry is outside this run's reachable scope, yet its `foreign` ground remains `unknown` and therefore collectable. An operator who can see and name that live session can reasonably expect the destructive verb to respect it.
+
+Exit: ADR, supersede ADR-0112 with a policy deciding whether a valid foreign registry link proves enough to keep the directory, including how stale registries are distinguished. A slice must change `Verdict::collectable` or the collector's selection and add destructive-path acceptance before this question closes.
