@@ -60,11 +60,14 @@ The live `[workspace]` policy is:
 
 ```toml
 changelog_update = true
+git_tag_name = "v{{ version }}"
 release_always = false
 publish = true
 git_release_enable = false
 semver_check = false
 ```
+
+`git_tag_name` is explicit because this manifest is a workspace root with an `xtask` member, so release-plz's default would be `claude-session-v{{ version }}`. The `release-tags` ruleset protects `refs/tags/v*`, and a tag outside that pattern is deletable and movable.
 
 `semver_check` is disabled only because the `claude_session` library target exists for this crate's own tests and no external consumer holds that API. The CLI compatibility is still versioned. `git_release_enable` is false because cargo-dist creates the GitHub Release, being the half that has the installers to attach.
 

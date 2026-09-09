@@ -1,5 +1,11 @@
 [workspace]
 changelog_update = true
+# This manifest is a workspace root with an `xtask` member, so release-plz's
+# default tag is `claude-session-v{{ version }}`. The `release-tags` ruleset
+# protects `refs/tags/v*`, which that form does not match, so every release
+# tag was deletable and movable. The v-prefixed form is what the convention
+# protects.
+git_tag_name = "v{{ version }}"
 # The bot's own release request has a release-plz-* head branch, which is
 # exactly what the branch heuristic behind this default recognizes: the
 # release half fires only on the push that lands that request's bump, so an
