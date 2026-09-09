@@ -188,7 +188,7 @@ Pieces are folded left to right into one document:
 
 Array strategy is the one genuinely contested decision. Replace is the default because it is predictable: what the last piece says is what you get. Concatenation is what you want for additive lists — extra permitted paths, extra tools — and it is opt-in per key through a strategy table in the profile, because a global concat setting is wrong for roughly half of any real settings file.
 
-Worth knowing before it surprises a piece author: the child merges arrays the other way. Where one array-valued setting appears in several of the child's own scopes, the child concatenates and de-duplicates rather than replacing. The wrapper's pieces are not the child's scopes, and predictability wins inside the wrapper — but a `permissions.allow` split across two pieces behaves differently from the same list split across two of the child's files. The child's rule is tracked as [`child-settings-scope-precedence`](./research-tracking.yaml).
+Worth knowing before it surprises a piece author: the child merges arrays the other way. Where one array-valued setting appears in several of the child's own scopes, the child concatenates and de-duplicates rather than replacing. The wrapper's pieces are not the child's scopes, and predictability wins inside the wrapper — but a `permissions.allow` split across two pieces behaves differently from the same list split across two of the child's files. This page's own entry in [research tracking](./research-tracking.yaml) owns the freshness of the child's rule.
 
 #### Declaring a strategy
 

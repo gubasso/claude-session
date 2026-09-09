@@ -19,7 +19,7 @@ When the first non-flag token is a wrapper verb, the invocation is a wrapper com
 
 This table is the denylist. Every flag on it is intercepted by the wrapper in leading position and does not reach the child there. Every flag not on it is forwarded verbatim, whether or not the wrapper recognizes it, and whether or not it exists in the child.
 
-The child-status column is measured, not assumed. It is the intersection audited by [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md), taken from `claude` 2.1.220 on 2026-08-06 and recorded in [the child inventory](../../tests/fixtures/child-inventory.yaml); the `child-flag-and-verb-inventory` fact in [research tracking](./research-tracking.yaml) owns its freshness.
+The child-status column is measured, not assumed. It is the intersection audited by [ADR-0044](../decisions/ADR-0044-audit-wrapper-spellings-against-the-child-inventory.md), taken from `claude` 2.1.220 on 2026-08-06 and recorded in [the child inventory](../../tests/fixtures/child-inventory.yaml). This page's own entry in [research tracking](./research-tracking.yaml) owns that measurement's freshness.
 
 | Flag               | Meaning                                              | Why the wrapper claims it                                                                                                   | Child status                              |
 | ------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
@@ -214,7 +214,7 @@ The page states an `about` and a version that `--help` never shows, because the 
 
 ## Version output
 
-`--version` and the `version` verb compose wrapper and child output on standard output:
+`--version` and the `version` verb compose wrapper and child output on standard output. The numbers in this section illustrate the shape and state no current version: the wrapper reads its own from `Cargo.toml` at build time, and the child's from the child.
 
 ```text
   This is claude-session 0.1.0.

@@ -60,24 +60,6 @@ tracked:
     dependents:
       - docs/reference/testing-and-quality.md
 
-  - path: .github/workflows/release-plz.yml
-    last_checked: 2026-07-30
-    cadence: quarterly
-    why: Publishing identities, action contracts, tag pins, and forge token behavior are externally controlled.
-    revalidate: >-
-      Compare every action tag with current releases and advisories. Re-check
-      crates.io Trusted Publishing identity fields, supported triggers,
-      enforcement, and first-publish requirements. Re-check release-plz
-      commands, default-branch behavior, OIDC authentication, outputs, and tag
-      shape. Re-check GitHub default-token retriggering, the installed-App token
-      action's inputs and behavior, and personal-account ruleset bypass actors.
-      Use the current public crates.io, release-plz, GitHub Actions, action, and
-      ruleset documentation.
-    dependents:
-      - docs/guides/releasing.md
-      - docs/reference/release-workflow.md
-      - release-plz.toml
-
   - path: .github/workflows/release.yml
     last_checked: 2026-07-30
     cadence: quarterly
@@ -275,7 +257,12 @@ tracked:
       default branch, OIDC, outputs, and tags; GitHub default-token retriggering,
       installed-App token inputs, and personal-account bypass actors; and
       cargo-dist's stable schema, workflow trigger, targets, runners, and
-      generated actions. Reconcile any drift with the three workflow entries.
+      generated actions. Reconcile any drift with the two workflow entries.
+      `.github/workflows/release-plz.yml` carries no entry of its own, because
+      release-kit owns that file: `rk status --check` reports drift against the
+      version release-kit landed, and `rk versions --check` compares its action
+      pins with their sources. An action pin that moved there is upgraded
+      through `rk upgrade`, never by editing the file (ADR-0118).
     dependents:
       - .github/workflows/release-plz.yml
       - .github/workflows/release.yml

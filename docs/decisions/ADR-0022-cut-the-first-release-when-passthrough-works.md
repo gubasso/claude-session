@@ -2,7 +2,7 @@
 
 ## Context and Problem Statement
 
-The crate builds a placeholder binary, but the release machinery is already wired: `release-plz.toml`, the helper scripts under `scripts/`, and [the release runbook](../guides/releasing.md) could publish today. crates.io versions are immutable — a published version can be yanked but never replaced — so the timing of the first upload is a one-way door. It also decides what `README.md` may promise and which guides can honestly be written.
+The crate builds a placeholder binary, but the release machinery is wired and could publish today. crates.io versions are immutable, because a published version can be yanked but never replaced, so the timing of the first upload is a one-way door. It also decides what `README.md` can promise and which guides can honestly be written.
 
 ## Considered Options
 
@@ -19,15 +19,15 @@ Chosen option: publish nothing until passthrough works. The crate's description 
 ## Consequences
 
 - Good: every published version does what the crate description says, so nothing needs yanking.
-- Good: one rule governs what user-facing documentation may promise — nothing until `0.1.0` exists. The `guides/` zone stays at its contributor guide rather than filling with tasks no reader can verify.
+- Good: one rule governs what user-facing documentation can promise, which is nothing until `0.1.0` exists.
 - Bad: the crate name is unreserved until then.
 - Bad: release-plz and Trusted Publishing get their first end-to-end exercise on the real `0.1.0` rather than on a throwaway version.
 
 ## Status
 
-Accepted
+Implemented
 
-`Cargo.toml` holds `0.1.0` as the unreleased authoring version; the tag that mirrors it does not exist yet.
+The project published `0.1.0` on 2026-09-08, after the wrapper forwarded argv, standard streams, and the child's exit status. The trunk carries `0.1.4`, and no version was yanked. [The changelog](../../CHANGELOG.md) records every release.
 
 Documentation timing now follows [ADR-0075](./ADR-0075-build-through-the-current-slice.md). The release decision recorded here is unchanged.
 
