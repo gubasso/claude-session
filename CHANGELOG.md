@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/gubasso/claude-session/compare/v0.1.1...v0.1.2) - 2026-09-09
+
+### Fixed
+
+- (release) define the dist profile and tag under the protected prefix ([#31](https://github.com/gubasso/claude-session/pull/31))
+
 ## [0.1.1](https://github.com/gubasso/claude-session/compare/claude-session-v0.1.0...claude-session-v0.1.1) - 2026-09-09
 
 ### Other
