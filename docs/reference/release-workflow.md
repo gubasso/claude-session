@@ -68,6 +68,8 @@ semver_check = false
 
 `semver_check` is disabled only because the `claude_session` library target exists for this crate's own tests and no external consumer holds that API. The CLI compatibility is still versioned. `git_release_enable` is false because cargo-dist creates the GitHub Release, being the half that has the installers to attach.
 
+A `[changelog]` section carries two postprocessors. The default template writes the scope as `*(scope)*` and the breaking marker as `[**breaking**]`, and `AGENTS.md` forbids decorative emphasis in every Markdown file, the generated changelog included. Without them the repository contract fails on the release request and no release can merge.
+
 ## Package metadata and contents
 
 `Cargo.toml` owns all live package metadata and the anchored `exclude` denylist. Verify both buildability and contents:
