@@ -1,0 +1,61 @@
+# OpenSSF Scorecard, the supply-chain self-assessment (ADR-0120).
+#
+# This file is shaped by the publishing API rather than by taste. It rejects
+# results from a workflow that carries top-level `env` or `defaults`, that
+# grants a write permission at the workflow level, that gives `id-token: write`
+# to a job other than the one running the action, or that runs a step outside
+# its approved action list. Read those rules before editing anything here:
+# https://github.com/ossf/scorecard-action#workflow-restrictions
+#
+# The results are advisory. No job here gates a pull request, and the required
+# check stays the `gate` job in ci.yml. A score is a signal to read, never a
+# merge condition.
+name: scorecard
+
+on:
+  push:
+    # The publisher accepts the default branch alone.
+    branches: [master]
+  schedule:
+    # Weekly, on Tuesday. The score reads repository state rather than a
+    # change, so it needs a heartbeat as well as a push.
+    - cron: "27 4 * * 2"
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: scorecard analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # The code-scanning upload.
+      security-events: write
+      # The OIDC token that proves to the publisher which workflow produced
+      # this result. Required by `publish_results`, and held by this job only.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The analysis reads public repository state through its own token,
+          # so the checkout keeps no credential in the workspace.
+          persist-credentials: false
+
+      - name: Run the analysis
+        uses: ossf/scorecard-action@v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Keep the raw result for five days
+        uses: actions/upload-artifact@v7
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif

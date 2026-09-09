@@ -60,6 +60,21 @@ tracked:
     dependents:
       - docs/reference/testing-and-quality.md
 
+  - path: .github/workflows/scorecard.yml
+    last_checked: 2026-09-09
+    cadence: quarterly
+    why: The publisher's rules on the producing workflow, the approved action list, and the four action pins are all externally controlled, and a rejected result fails the run rather than degrading it.
+    revalidate: >-
+      Compare every action tag in this workflow with the action's current
+      release and security advisories. Re-read the scorecard-action workflow
+      restrictions and its approved action list, since a rule added there makes
+      a previously accepted workflow fail. Re-check which checks read a
+      long-lived token, because the two this project knowingly scores low on
+      are the reason ADR-0120 reads the number rather than chasing it.
+    dependents:
+      - docs/decisions/ADR-0120-adopt-the-openssf-scorecard-workflow.md
+      - docs/reference/release-workflow.md
+
   - path: .github/workflows/release.yml
     last_checked: 2026-07-30
     cadence: quarterly
