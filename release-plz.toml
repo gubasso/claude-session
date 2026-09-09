@@ -17,3 +17,18 @@ git_release_enable = false
 # tests can link it, and no external consumer holds that API. The shipped
 # surface is the binary. Set true if the library ever gains outside consumers.
 semver_check = false
+
+[changelog]
+# The default body template writes the scope as `*(scope)*` and the breaking
+# marker as `[**breaking**]`. AGENTS.md forbids decorative emphasis, and the
+# `every_markdown_file_is_free_of_decorative_emphasis` contract scans every
+# Markdown file in the tree, so a generated changelog carrying either fails the
+# gate on the release request and no release can merge.
+#
+# These edit the rendered text rather than replacing `body`. A copy of
+# release-plz's own template would silently drift from it at every upgrade,
+# where two rules that match nothing are visible in the request's diff.
+postprocessors = [
+  { pattern = '\*\(([^)]*)\)\*', replace = "(${1})" },
+  { pattern = '\[\*\*breaking\*\*\]', replace = "[breaking]" },
+]
