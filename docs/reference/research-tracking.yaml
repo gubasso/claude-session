@@ -60,6 +60,19 @@ tracked:
     dependents:
       - docs/reference/testing-and-quality.md
 
+  - path: .github/workflows/codeql.yml
+    last_checked: 2026-09-09
+    cadence: quarterly
+    why: The three action pins and CodeQL's Rust extractor support are externally controlled.
+    revalidate: >-
+      Compare every action tag in this workflow with the action's current
+      release and security advisories. Re-check that the resolved CodeQL bundle
+      supports Rust with `build-mode: none`, and re-read the CodeQL CLI licence
+      terms before either the repository visibility or declared licence changes.
+    dependents:
+      - docs/decisions/ADR-0122-adopt-codeql-for-rust-analysis.md
+      - docs/reference/release-workflow.md
+
   - path: .github/workflows/scorecard.yml
     last_checked: 2026-09-09
     cadence: quarterly
