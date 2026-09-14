@@ -1,25 +1,15 @@
 # Security policy
 
-## Reporting a vulnerability
+## Report a vulnerability
 
-Report a vulnerability privately through [GitHub private vulnerability reporting](https://github.com/gubasso/claude-session/security/advisories/new). Do not open a public issue for one.
+Please report a suspected vulnerability through [this project's private vulnerability reporting form](https://github.com/gubasso/claude-session/security/advisories/new). Sign in to GitHub to use the form. This channel is available for public repositories after private reporting is enabled. If it is unavailable, contact a maintainer through an existing private conversation before sending sensitive details.
 
-Include what you have: a description of the problem, the steps that reproduce it, the version you saw it on, and any mitigation you know of.
+Do not disclose a vulnerability in a public issue, pull request, discussion, or commit. Keep reproduction material and any proposed fix private while the report is assessed.
 
-## What happens next
+Include the affected release, the component involved, the configuration needed to reach it, reproduction steps or a minimal proof of concept, and the security impact you observed. Remove credentials and personal information from attachments. For a dependency advisory, explain how the affected behavior can be reached through this project; a dependency version and a CVE identifier alone do not establish impact.
 
-One maintainer reads the report. Handling is best effort, so expect a first reply in weeks rather than days, and expect it to say whether the report is accepted or declined.
+## Supported releases and disclosure
 
-An accepted report becomes a GitHub security advisory on this repository, which is also how a fix is announced. A published advisory reaches the [RustSec advisory database](https://rustsec.org), so `cargo audit` sees it.
+Start with the latest published release. Older releases receive fixes only where the project explicitly documents a maintained release line. A fix is delivered as a new version; withdrawing an affected version contains exposure and does not repair existing installations.
 
-## Supported versions
-
-Only the latest published version is supported. This project is `0.x`, a fix ships as a new version rather than as a patch to an older one, and a yank contains a bad version rather than recovering it. [The release workflow](https://github.com/gubasso/claude-session/blob/master/docs/reference/release-workflow.md) owns that policy.
-
-## Dependency advisories
-
-A CVE in a dependency is not by itself a vulnerability in this wrapper. CI already runs `cargo audit` and `cargo deny` on every change, so a report that names a version and an advisory id, with no path showing the problem is reachable from this code, tells nobody anything new. Show the reachable path or the proof of concept.
-
-## What this project cannot do
-
-This is a wrapper around the `claude` CLI. A vulnerability in `claude` itself, in the Anthropic API, or in a dependency belongs to whoever owns that code. Report it there. This policy covers the wrapper.
+Reports are handled on a best-effort basis. We ask reporters to coordinate public disclosure while maintainers investigate and prepare a fix. This policy commits to no response or disclosure deadline.
