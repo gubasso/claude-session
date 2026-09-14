@@ -1796,14 +1796,16 @@ fn a_launch_splits_state_by_terminal_and_shares_the_login_and_projects() {
     );
 }
 
-/// Slice 029 acceptance: the user's own assets reach the session directory,
-/// and a name their tree does not hold is simply absent rather than empty.
+/// Slice 029 and 040 acceptance: the user's own assets reach the session
+/// directory, each from its own source, and a name neither source holds is
+/// simply absent rather than empty.
 #[test]
-fn a_launch_supplies_the_assets_the_tree_holds_and_no_others() {
+fn a_launch_supplies_the_assets_each_source_holds_and_no_others() {
     let harness = Harness::new();
     harness.initialize_login("work");
-    // `skills` is the fixture's baseline; `agents` is added here so the test
-    // covers a supplied name and an absent one in the same run.
+    // `skills` is the fixture's baseline and comes from the child's own
+    // directory; `agents` is added here so the test covers the tree source, and
+    // the names below cover an absent one, all in the same run.
     fs::create_dir_all(harness.assets().join("agents")).expect("asset fixture");
     assert!(
         harness
@@ -1814,7 +1816,10 @@ fn a_launch_supplies_the_assets_the_tree_holds_and_no_others() {
             .success()
     );
     let session = only_session_dir(&harness, "work");
-    for name in ["skills", "agents"] {
+    for (name, source) in [
+        ("skills", harness.child_skills()),
+        ("agents", harness.assets().join("agents")),
+    ] {
         let link = session.join(name);
         assert!(
             link.symlink_metadata()
@@ -1824,7 +1829,8 @@ fn a_launch_supplies_the_assets_the_tree_holds_and_no_others() {
         );
         assert_eq!(
             fs::read_link(&link).expect("link target"),
-            harness.assets().join(name)
+            source,
+            "{name} is linked from the source that owns it"
         );
     }
     for name in ["commands", "rules", "workflows", "themes", "CLAUDE.md"] {
@@ -1836,6 +1842,37 @@ fn a_launch_supplies_the_assets_the_tree_holds_and_no_others() {
     assert!(
         session.join("plugins").symlink_metadata().is_err(),
         "the plugin tree is never linked, and no seed means nothing is created"
+    );
+}
+
+/// Slice 040 acceptance: a skill installer writes an ordinary directory, and an
+/// absent one costs the session skills alone.
+///
+/// The tree half proves the split rather than the link: a launch that read
+/// skills from the tree would supply them here, and this asserts it does not.
+#[test]
+fn a_launch_reads_skills_from_the_child_directory_and_never_the_tree() {
+    let harness = Harness::new();
+    harness.initialize_login("work");
+    fs::remove_dir(harness.child_skills()).expect("asset fixture");
+    fs::create_dir_all(harness.assets().join("skills")).expect("asset fixture");
+    fs::create_dir_all(harness.assets().join("agents")).expect("asset fixture");
+    assert!(
+        harness
+            .companion_profile_command()
+            .args(["--account", "work"])
+            .status()
+            .expect("wrapper")
+            .success()
+    );
+    let session = only_session_dir(&harness, "work");
+    assert!(
+        session.join("skills").symlink_metadata().is_err(),
+        "the tree's skills directory is not a source, so nothing is created"
+    );
+    assert!(
+        session.join("agents").symlink_metadata().is_ok(),
+        "the rest of the tree still reaches the session directory"
     );
 }
 
@@ -1940,10 +1977,10 @@ fn a_repointed_asset_link_fails_the_declared_links_check() {
     let link = session.join("skills");
     fs::remove_file(&link).expect("declared link");
     std::os::unix::fs::symlink(harness.root().join("elsewhere"), &link).expect("repointed link");
-    // The source goes too. A launch validates the seat whether or not the tree
-    // still holds the asset, so a report that looked only at held names would
-    // pass here while the next launch refused.
-    fs::remove_dir(harness.assets().join("skills")).expect("asset fixture");
+    // The source goes too. A launch validates the seat whether or not the
+    // source still holds the asset, so a report that looked only at held names
+    // would pass here while the next launch refused.
+    fs::remove_dir(harness.child_skills()).expect("asset fixture");
     let output = harness
         .assert_command()
         .args(["--profile", "companion", "--account", "work", "doctor"])

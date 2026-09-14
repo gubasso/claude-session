@@ -21,6 +21,8 @@ The `0700` on wrapper-managed directories is the specification's own default rat
 
 The asset tree and the plugin seed are the two artifacts under the Data base, and the two the wrapper reads without managing: both hold user-authored content, both are read for presence, and neither is ever created, validated, or corrected ([ADR-0106](../decisions/ADR-0106-supply-child-assets-from-one-tree.md), [ADR-0117](../decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md)). The asset tree is linked from; the seed is not, because the child records a marketplace's install location as an absolute path, so one tree shared between session directories reports its plugins as uncached.
 
+The skill directory is a third such source and sits under no XDG base at all. It is `.claude/skills` under `$HOME`, which is where the child reads skills when nothing relocates the directory, and it is read on exactly the terms above ([ADR-0125](../decisions/ADR-0125-supply-skills-from-the-native-directory.md)). It is outside the table below because the table lists what the wrapper places, and the wrapper places nothing there.
+
 `XDG_RUNTIME_DIR` is not used. A lock lives beside the file it guards, so it is reachable wherever that file is ([ADR-0060](../decisions/ADR-0060-lock-the-writes-that-are-not-derivable.md)), and the one base with no portable default is also the one base with nothing to put in it. Durable state never falls back to it or to a shared temporary directory.
 
 ## Artifact table

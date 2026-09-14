@@ -1,6 +1,6 @@
 # Supplying your own skills, agents, and rules
 
-Every launch gives its terminal an isolated configuration directory, and `claude` reads its user-level assets from whatever directory it was pointed at. So the skills, agents, and rules you wrote do not appear there on their own. This guide sets up the one tree that reaches every session, on every account, in every terminal.
+Every launch gives its terminal an isolated configuration directory, and `claude` reads its user-level assets from whatever directory it was pointed at. So the skills, agents, and rules you wrote do not appear there on their own. This guide sets up the two directories that reach every session, on every account, in every terminal: one tree for the assets you author by hand, and `claude`'s own skill directory for the assets installers write.
 
 It is a one-time step per machine. The wrapper writes no user configuration ([ADR-0015](../decisions/ADR-0015-retire-the-init-verb.md)), so nothing does this for you.
 
@@ -12,13 +12,32 @@ ${XDG_DATA_HOME:-$HOME/.local/share}/claude-session/assets/
 
 The Data base rather than State, because this is content you author and could carry to another machine. [XDG storage](../reference/xdg-storage.md#artifact-table) owns the placement.
 
-## What it may hold
+## Where skills live instead
 
-The names `claude` reads from its own configuration directory, and no others:
+Skills do not go in that tree. They stay where `claude` reads them already:
+
+```text
+$HOME/.claude/skills/
+```
+
+Keep it an ordinary directory, never a link. Skills are the one asset with installers of their own, a skill installer writes this path, and a careful one refuses to write through a symbolic link ([ADR-0125](../decisions/ADR-0125-supply-skills-from-the-native-directory.md)). Every session reaches this directory, on every account, in every terminal, exactly as it reaches the tree below.
+
+If an earlier setup moved your skills into the asset tree and left a link behind, move them back:
+
+```bash
+assets="${XDG_DATA_HOME:-$HOME/.local/share}/claude-session/assets"
+rm ~/.claude/skills
+mv "$assets/skills" ~/.claude/skills
+```
+
+Read the link before you remove it. `rm` on a symbolic link removes the link alone, but the same command on a real directory full of skills removes the skills.
+
+## What the tree may hold
+
+The other names `claude` reads from its own configuration directory, and no others:
 
 | Name               | Holds                                   |
 | ------------------ | --------------------------------------- |
-| `skills/`          | Skills, one directory each              |
 | `agents/`          | Subagent definitions                    |
 | `commands/`        | Single-file commands                    |
 | `rules/`           | Rules that apply to every project       |
@@ -45,7 +64,7 @@ mkdir -p "$assets"
 If you already keep these under `claude`'s own directory, move them:
 
 ```bash
-mv ~/.claude/skills ~/.claude/agents "$assets/"
+mv ~/.claude/agents "$assets/"
 ```
 
 Moving rather than copying is the point: two trees drift, and the one under `~/.claude` is read by an unwrapped `claude` only.
@@ -58,7 +77,7 @@ If you keep them in a repository you already version, move the repository there 
 claude-session doctor
 ```
 
-The `session-assets-linked` check names what a launch would supply. An empty tree is a warning rather than a failure: it costs you every asset you wrote, but it never stops a launch.
+The `session-assets-linked` check names what a launch would supply, and names the directory behind each half. It warns only when both sources are empty, which is a warning rather than a failure: it costs you every asset you wrote, but it never stops a launch.
 
 After a launch, the assets appear inside the session directory as links:
 

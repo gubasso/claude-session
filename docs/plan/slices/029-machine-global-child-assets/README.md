@@ -51,7 +51,7 @@ A session directory the wrapper materialises carries the user's own assets, from
 
 ## Acceptance
 
-- When a launch materialises a session directory, it shall supply every asset the user's asset tree holds. -> accounts::a_launch_supplies_the_assets_the_tree_holds_and_no_others
+- When a launch materialises a session directory, it shall supply every asset the user's asset tree holds. -> accounts::a_launch_supplies_the_assets_each_source_holds_and_no_others
 - Where the asset tree holds no member of the declared set, the launch shall supply nothing at that name rather than an empty one.
 - When an asset is supplied, the child shall discover it exactly as it discovers one in its own configuration directory.
 - When the work lands, no document shall name the predecessor's tree as a location the wrapper reads at run time.

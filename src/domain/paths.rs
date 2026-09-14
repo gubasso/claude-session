@@ -15,6 +15,16 @@ use crate::{domain::identifier::Identifier, error::DomainError};
 /// One constant, so the four bases can only move together.
 const NAMESPACE: &str = "claude-session";
 
+/// The child's own user-scope configuration directory, relative to `$HOME`.
+///
+/// Carried against the launch obligation of [ADR-0089]: the wrapper supplies
+/// the skill directory from here, and cannot name it without the child's own
+/// spelling ([ADR-0125]).
+///
+/// [ADR-0089]: ../../docs/decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md
+/// [ADR-0125]: ../../docs/decisions/ADR-0125-supply-skills-from-the-native-directory.md
+const CHILD_CONFIG_DIR: &str = ".claude";
+
 /// Absolute XDG namespace paths owned by the wrapper.
 #[derive(Clone, Debug)]
 pub(crate) struct XdgPaths {
@@ -22,10 +32,24 @@ pub(crate) struct XdgPaths {
     state: PathBuf,
     data: PathBuf,
     cache: PathBuf,
+    /// The child's native configuration directory, under `$HOME`.
+    child_config: PathBuf,
 }
 
 impl XdgPaths {
     /// Resolves all four bases from an OS-string environment snapshot.
+    ///
+    /// `$HOME` is required, and required to be absolute, whether or not a base
+    /// falls back to it. Before [ADR-0125] it was needed only for a fallback,
+    /// so a run with four absolute bases could resolve without one. That run
+    /// can no longer be served: the skill source is `$HOME` joined with the
+    /// child's own directory, and a relative or empty value would make it a
+    /// path read against the working directory and then stored, verbatim, as
+    /// the target of a link inside a session. One required value beats the
+    /// three branches that serving the other case would need
+    /// ([ADR-0048](../../docs/decisions/ADR-0048-build-for-a-present-need.md)).
+    ///
+    /// [ADR-0125]: ../../docs/decisions/ADR-0125-supply-skills-from-the-native-directory.md
     pub(crate) fn resolve(environment: &[(OsString, OsString)]) -> Result<Self, DomainError> {
         let map: HashMap<&OsStr, &OsStr> = environment
             .iter()
@@ -33,24 +57,24 @@ impl XdgPaths {
             .collect();
         let home = map
             .get(OsStr::new("HOME"))
-            .map(|value| PathBuf::from(*value));
-        let base = |name: &str, fallback: &str| -> Result<PathBuf, DomainError> {
+            .map(|value| PathBuf::from(*value))
+            .filter(|home| home.is_absolute())
+            .ok_or(DomainError::MissingHome)?;
+        let base = |name: &str, fallback: &str| -> PathBuf {
             if let Some(value) = map.get(OsStr::new(name)) {
                 let path = PathBuf::from(value);
                 if !value.is_empty() && path.is_absolute() {
-                    return Ok(path);
+                    return path;
                 }
             }
-            let Some(home) = &home else {
-                return Err(DomainError::MissingHome);
-            };
-            Ok(home.join(fallback))
+            home.join(fallback)
         };
         Ok(Self {
-            config: base("XDG_CONFIG_HOME", ".config")?.join(NAMESPACE),
-            state: base("XDG_STATE_HOME", ".local/state")?.join(NAMESPACE),
-            data: base("XDG_DATA_HOME", ".local/share")?.join(NAMESPACE),
-            cache: base("XDG_CACHE_HOME", ".cache")?.join(NAMESPACE),
+            config: base("XDG_CONFIG_HOME", ".config").join(NAMESPACE),
+            state: base("XDG_STATE_HOME", ".local/state").join(NAMESPACE),
+            data: base("XDG_DATA_HOME", ".local/share").join(NAMESPACE),
+            cache: base("XDG_CACHE_HOME", ".cache").join(NAMESPACE),
+            child_config: home.join(CHILD_CONFIG_DIR),
         })
     }
 
@@ -83,6 +107,17 @@ impl XdgPaths {
     /// ([ADR-0106](../../docs/decisions/ADR-0106-supply-child-assets-from-one-tree.md)).
     pub(crate) fn assets(&self) -> PathBuf {
         self.data.join("assets")
+    }
+    /// Returns the skill directory the child reads when nothing relocates it.
+    ///
+    /// Outside every XDG base and outside the wrapper's managed region, because
+    /// it is the child's own published location and the wrapper only reads it.
+    /// Skills are the one asset with installers of their own, and an installer
+    /// writes this path; supplying them from here is what lets it stay an
+    /// ordinary directory
+    /// ([ADR-0125](../../docs/decisions/ADR-0125-supply-skills-from-the-native-directory.md)).
+    pub(crate) fn child_skills(&self) -> PathBuf {
+        self.child_config.join("skills")
     }
     /// Returns the user's machine-local read-only tree of child plugins.
     ///
@@ -306,12 +341,53 @@ mod tests {
 
     fn fixture() -> XdgPaths {
         XdgPaths::resolve(&[
+            (OsString::from("HOME"), OsString::from("/h")),
             (OsString::from("XDG_CONFIG_HOME"), OsString::from("/c")),
             (OsString::from("XDG_STATE_HOME"), OsString::from("/s")),
             (OsString::from("XDG_DATA_HOME"), OsString::from("/d")),
             (OsString::from("XDG_CACHE_HOME"), OsString::from("/k")),
         ])
         .expect("absolute bases resolve")
+    }
+
+    /// The skill source is `$HOME` joined with the child's own directory, and a
+    /// launch stores it verbatim as a link target inside a session. A relative
+    /// or empty value would therefore be read against the working directory and
+    /// then persisted, so resolution refuses one rather than carrying it
+    /// (ADR-0125).
+    ///
+    /// Four absolute bases is the case that makes this a rule of its own: every
+    /// base resolves without ever consulting `$HOME`, so nothing else in the
+    /// type would notice the value is unusable.
+    #[test]
+    fn an_unusable_home_is_refused_even_when_every_base_resolves() {
+        for home in ["", "relative/home", "~/home"] {
+            let resolved = XdgPaths::resolve(&[
+                (OsString::from("HOME"), OsString::from(home)),
+                (OsString::from("XDG_CONFIG_HOME"), OsString::from("/c")),
+                (OsString::from("XDG_STATE_HOME"), OsString::from("/s")),
+                (OsString::from("XDG_DATA_HOME"), OsString::from("/d")),
+                (OsString::from("XDG_CACHE_HOME"), OsString::from("/k")),
+            ]);
+            assert!(
+                matches!(resolved, Err(DomainError::MissingHome)),
+                "HOME={home:?} is not an absolute path, so resolution must refuse it"
+            );
+        }
+        let absent = XdgPaths::resolve(&[
+            (OsString::from("XDG_CONFIG_HOME"), OsString::from("/c")),
+            (OsString::from("XDG_STATE_HOME"), OsString::from("/s")),
+            (OsString::from("XDG_DATA_HOME"), OsString::from("/d")),
+            (OsString::from("XDG_CACHE_HOME"), OsString::from("/k")),
+        ]);
+        assert!(matches!(absent, Err(DomainError::MissingHome)));
+    }
+
+    /// The child's own directory is where a skill installer writes, so it comes
+    /// from `$HOME` rather than from any XDG base (ADR-0125).
+    #[test]
+    fn the_skill_source_is_the_native_directory() {
+        assert_eq!(fixture().child_skills(), Path::new("/h/.claude/skills"));
     }
 
     /// A compiler-checked copy of the artifact table's path column, so a
