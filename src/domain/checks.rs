@@ -140,8 +140,9 @@ impl Check {
     pub(crate) const fn consequence(self) -> &'static str {
         match self {
             Self::BaseDirsResolve => {
-                "The wrapper cannot find its own configuration or state, so nothing it \
-                has stored is reachable."
+                "Path resolution refused, so the wrapper acts on none of the answer. It \
+                needs an absolute HOME and usable XDG bases together, and no check below \
+                this one runs without both."
             }
             // Reported rather than failed, so the consequence is that there is
             // none. Saying so is what stops a reader hunting for a remedy the
@@ -245,8 +246,9 @@ impl Check {
     pub(crate) const fn remediation(self) -> Option<&'static str> {
         match self {
             Self::BaseDirsResolve => Some(concat!(
-                "Set XDG_CONFIG_HOME and XDG_STATE_HOME to absolute paths, or unset them ",
-                "so the defaults apply."
+                "Set HOME to an absolute path. Then set XDG_CONFIG_HOME and XDG_STATE_HOME ",
+                "to absolute paths, or unset them so the defaults apply. HOME comes first ",
+                "because it is required whether or not a base falls back to it."
             )),
             Self::RuntimeDirPresent => None,
             Self::WrapperConfigParses => Some(concat!(
@@ -273,8 +275,10 @@ impl Check {
                 "process's own namespace and start time, and nothing else."
             )),
             Self::SessionAssetsLinked => Some(concat!(
-                "Put the skills, agents, and other assets you want in every session ",
-                "under {path}. Moving an existing collection there is enough."
+                "Put the agents, rules, and other assets you want in every session ",
+                "under {path}. Moving an existing collection there is enough. Skills ",
+                "come from {skills} instead, which is the directory claude reads them ",
+                "from already, so an installer needs no new target."
             )),
             Self::SessionPluginSeed => Some(concat!(
                 "Build a plugin tree with claude's own plugin commands, then copy its ",

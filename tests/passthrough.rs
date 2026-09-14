@@ -229,7 +229,7 @@ fn a_non_utf8_plugin_seed_path_reaches_the_child_intact() {
         .root()
         .join(std::ffi::OsStr::from_bytes(b"data-\xff"));
     std::fs::create_dir_all(base.join("claude-session/plugin-seed")).expect("seed fixture");
-    std::fs::create_dir_all(base.join("claude-session/assets/skills")).expect("asset fixture");
+    std::fs::create_dir_all(base.join("claude-session/assets/agents")).expect("asset fixture");
     std::fs::write(
         base.join("claude-session/plugin-seed/known_marketplaces.json"),
         b"{}\n",

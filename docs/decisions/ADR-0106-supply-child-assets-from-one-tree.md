@@ -37,3 +37,5 @@ Implemented
 Rests on [ADR-0103](./ADR-0103-permit-a-declared-link.md). Enacted in [the asset service](../../src/services/assets.rs) and [the guide](../guides/supplying-child-assets.md). Shaped by [029](../plan/slices/029-machine-global-child-assets/README.md).
 
 Amended by [ADR-0117](./ADR-0117-supply-plugins-from-a-read-only-seed.md); `plugins/` is still never linked.
+
+Amended by [ADR-0125](./ADR-0125-supply-skills-from-the-native-directory.md).

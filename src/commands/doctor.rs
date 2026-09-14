@@ -47,12 +47,12 @@ pub(crate) fn without_paths(
         results.push(CheckResult::skipped(
             *check,
             concat!(
-                "the wrapper could not work out where to store its files, so nothing ",
-                "below it could be checked. Fix the storage locations above first."
+                "path resolution refused, so nothing below it could be checked. Fix ",
+                "the storage locations above first."
             ),
         ));
     }
-    let child = ChildReport::skipped("the wrapper could not work out where to store its files");
+    let child = ChildReport::skipped("path resolution refused before any child could be asked");
     let summary = Summary::fold(&results);
     let verdict = Verdict::fold(summary, &child, strict);
     let writer = crate::ui::writer::OutputWriter::system();
@@ -259,16 +259,17 @@ pub(crate) fn run(
                 }
                 // Every asset seat a launch would inspect is a declared link,
                 // and a check promising that declared links resolve has to look
-                // at all of them. Every declared name rather than the ones the
-                // tree currently holds: a launch validates the seat whether or
-                // not the source is still there, so filtering by presence would
-                // leave the report silent about exactly the link an emptied
-                // tree makes the next launch refuse. A seat that does not exist
-                // produces no defect, because the walk stops at the first
-                // component that is not there.
-                let tree = context.paths().assets();
-                for name in crate::services::assets::declared() {
-                    paths.push((session.join(name), Some(tree.join(name))));
+                // at all of them. Every declared name rather than the ones a
+                // source currently holds: a launch validates the seat whether
+                // or not the source is still there, so filtering by presence
+                // would leave the report silent about exactly the link an
+                // emptied source makes the next launch refuse. A seat that does
+                // not exist produces no defect, because the walk stops at the
+                // first component that is not there. The source comes from the
+                // asset service rather than from a tree joined here, so the two
+                // sources of ADR-0125 cannot diverge between here and a launch.
+                for asset in crate::services::assets::declared(context) {
+                    paths.push((session.join(asset.name), Some(asset.path)));
                 }
             }
         }
@@ -467,22 +468,29 @@ fn identity_result(context: &AppContext) -> CheckResult {
     }
 }
 
-/// Reports how many of the child's asset names the user's tree would supply.
+/// Reports how many of the child's asset names a launch would supply.
 ///
-/// A tree with nothing in it is a warning rather than a failure: it costs the
-/// reader every skill they wrote, but it never stops a launch, and a first run
-/// on a new machine legitimately has none ([ADR-0106]).
+/// Two empty sources is a warning rather than a failure: it costs the reader
+/// every skill they wrote, but it never stops a launch, and a first run on a
+/// new machine legitimately has none ([ADR-0106], [ADR-0125]).
+///
+/// One row for both sources, because the reader's question is what a session
+/// gets rather than which directory each name came from. The message names the
+/// directory behind each half, so the answer to the second question is still
+/// there when the first one is answered.
 ///
 /// [ADR-0106]: ../../docs/decisions/ADR-0106-supply-child-assets-from-one-tree.md
+/// [ADR-0125]: ../../docs/decisions/ADR-0125-supply-skills-from-the-native-directory.md
 fn assets_result(context: &AppContext) -> CheckResult {
     let tree = context.paths().assets();
+    let native = context.paths().child_skills().display().to_string();
     let hint = || {
         Check::SessionAssetsLinked
-            .hint(&[("path", &tree.display().to_string())])
+            .hint(&[("path", &tree.display().to_string()), ("skills", &native)])
             .unwrap_or_default()
     };
-    let held = match crate::services::assets::present(context) {
-        // A tree the wrapper could not look at is not a tree holding nothing,
+    let (held, skills) = match crate::services::assets::present(context) {
+        // A directory the wrapper could not look at is not one holding nothing,
         // and telling the reader to populate it would be the wrong instruction
         // for a permission they have to fix first.
         crate::services::assets::Survey::Uninspectable(path, why) => {
@@ -492,29 +500,33 @@ fn assets_result(context: &AppContext) -> CheckResult {
                 hint(),
             );
         }
-        crate::services::assets::Survey::Held(held) => held,
+        crate::services::assets::Survey::Held { tree, skills } => (tree, skills),
     };
-    if held.is_empty() {
+    if held.is_empty() && skills.is_none() {
         return CheckResult::defect(
             Check::SessionAssetsLinked,
             format!(
                 concat!(
-                    "{} holds none of the {} assets claude reads, so every session ",
-                    "starts without your own."
+                    "{} holds none of the {} assets claude reads and {} does not ",
+                    "exist, so every session starts without your own."
                 ),
                 tree.display(),
-                crate::services::assets::declared().len()
+                crate::services::assets::tree_count(),
+                native
             ),
             hint(),
         );
     }
+    let mut clauses = Vec::new();
+    if !held.is_empty() {
+        clauses.push(format!("{} from {}", held.join(", "), tree.display()));
+    }
+    if let Some(skills) = skills {
+        clauses.push(format!("skills from {}", skills.display()));
+    }
     CheckResult::pass(
         Check::SessionAssetsLinked,
-        format!(
-            "{} would reach every session, from {}",
-            held.join(", "),
-            tree.display()
-        ),
+        format!("{} would reach every session", clauses.join(", and ")),
     )
 }
 

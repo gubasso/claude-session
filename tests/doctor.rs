@@ -1149,3 +1149,35 @@ fn the_plugin_seed_row_reports_only_state_a_launch_could_copy() {
         assert_eq!(row["status"], expected, "{shape}: {row}");
     }
 }
+
+/// Slice 040 acceptance: `$HOME` became a requirement of its own, so the check
+/// that reports a resolution failure has to name it.
+///
+/// Four absolute bases is the case that makes this worth a test. Every base
+/// resolves without consulting `$HOME`, so a reader following a remedy that
+/// names only the two XDG variables would change them, change them back, and
+/// still be looking at the same failure.
+#[test]
+fn an_unusable_home_is_reported_with_a_remedy_that_names_it() {
+    let harness = Harness::new();
+    let base = harness.root();
+    let output = harness
+        .assert_command()
+        .env_remove("HOME")
+        .env("XDG_CONFIG_HOME", base.join("config"))
+        .env("XDG_STATE_HOME", base.join("state"))
+        .env("XDG_DATA_HOME", base.join("data"))
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .args(["doctor"])
+        .output()
+        .expect("doctor");
+    let text = support::flowed(&String::from_utf8_lossy(&output.stdout));
+    assert!(
+        text.contains("base-dirs-resolve") && text.contains("[fail]"),
+        "the resolution failure must be reported: {text}"
+    );
+    assert!(
+        text.contains("Set HOME to an absolute path"),
+        "the remedy must name HOME, which is the variable this run is missing: {text}"
+    );
+}

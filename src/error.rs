@@ -251,8 +251,8 @@ impl From<DomainError> for AppError {
                 Diagnostic::new(
                     "XDG paths cannot be resolved",
                     "process environment",
-                    "HOME is unset and an XDG base needs its default",
-                    "set absolute XDG base variables",
+                    "HOME is unset, empty, or not an absolute path",
+                    "set HOME to an absolute path",
                 ),
             ),
         }

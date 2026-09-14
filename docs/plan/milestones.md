@@ -6,6 +6,7 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
+- 040 native-skill-directory — active — 1 implementation session — after 029; the anchor that slice created is what a skill installer refuses to write through
 - 034 account-usage-reporting — shaped — 2 implementation sessions — after 019 and 025; the provider-fact carry needs its own record before code
 
 ## closed
