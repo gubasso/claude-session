@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/gubasso/claude-session/compare/v0.1.10...v0.2.0) - 2026-09-14
+
+### Added
+
+- (session/assets) [breaking] supply skills from the directory claude publishes ([#53](https://github.com/gubasso/claude-session/pull/53))
+
 ## [0.1.10](https://github.com/gubasso/claude-session/compare/v0.1.9...v0.1.10) - 2026-09-14
 
 ### Other
