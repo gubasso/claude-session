@@ -17,6 +17,12 @@ permissions: {}
 on:
   push:
     branches: [master, 'release/**']
+  # zizmor: ignore[dangerous-triggers] the gate below trusts no value this
+  # event carries: it reads the candidate back from the forge, proves its
+  # author, base, and head repository there, and merges nothing else.
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
 
 jobs:
   # Merging the release pull request is the release: the bump push lands here,
@@ -24,7 +30,7 @@ jobs:
   # makes the tag trigger release.yml; a tag pushed with GITHUB_TOKEN starts no
   # further workflow. On a release/* line the same job tags the line's patch.
   release-plz-release:
-    if: github.repository_owner == 'gubasso'
+    if: github.repository_owner == 'gubasso' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -54,7 +60,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
   release-plz-pr:
-    if: github.repository_owner == 'gubasso'
+    if: github.repository_owner == 'gubasso' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -83,36 +89,108 @@ jobs:
           command: release-pr
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-      # Arm the request the moment it exists: the forge merges it once every
-      # required check is green, which is the trunk style's release decision,
-      # made once at landing rather than per release; the lines style leaves
-      # every request for a human and this step steps aside. Two things keep
-      # the arm correct. The app token is one: auto-merge enabled under
-      # GITHUB_TOKEN would merge a bump whose push starts no workflow,
-      # leaving it untagged and unpublished with nothing reporting a failure.
-      # Re-arming is the other: arming an armed request is a no-op, so every
-      # refresh re-arms and the arm cannot drift out of sync.
-      - name: arm the release request
+
+  # The release request's hold. Under local integration the trunk carries no
+  # required-check rule, because a ruleset carrying one rejects the direct
+  # push that mode exists to make, so what held the release request moves
+  # here. The job wakes when ci completes, and judges again on
+  # every push, so a request that was already green when nothing new ran
+  # still merges.
+  #
+  # It trusts no value the event carries. Every fact it acts on is read back
+  # from the forge: the request must be open, not a draft, based on the
+  # trunk, headed from this repository, and authored by the release app. The
+  # branch shape is a second, structural guard and never the proof of
+  # identity, because a branch pattern authenticates nothing.
+  release-gate:
+    needs: [release-plz-pr]
+    if: >-
+      always()
+      && github.repository_owner == 'gubasso'
+      && (github.event_name == 'push'
+      || github.event.workflow_run.event == 'pull_request')
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      # The token is minted before the proofs rather than after them, because
+      # the app's own slug and every read below come from it. Minting grants
+      # nothing on its own: the merge is the only action this job takes, and
+      # every proof precedes it. Reading a check run is what adds
+      # permission-checks to the pair the request half takes.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-checks: read
+      - name: merge the release request once its check is green
         env:
-          RELEASE_STYLE: trunk
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
-          REF: ${{ github.ref_name }}
-          RELEASE_PR: ${{ steps.release-pr.outputs.pr }}
+          APP_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
+          TRUNK: master
+          GATE_CHECK: gate
+          BRANCH_SHAPE: release-plz-
         run: |
           set -eu
-          if [ "$RELEASE_STYLE" != "trunk" ]; then
-            echo "the lines style merges each release by hand; not arming."
+          # One candidate, or none. Every proof is read from the forge's own
+          # answer: open and not a draft, based on the trunk, headed from
+          # exactly this repository, and authored by the release app. A
+          # release line's request is based on the line rather than on the
+          # trunk, so this filter never sees it.
+          #
+          # The REST answer is what states the app's login as the app's own
+          # slug with the bot suffix. The pull-request list of the forge CLI
+          # renders the same actor as `app/<slug>`, and the GraphQL one as
+          # the bare slug, so a filter written against either would refuse
+          # every release rather than admit a foreign request.
+          selection="$(gh api "repos/{owner}/{repo}/pulls" -X GET \
+            -f state=open -f base="$TRUNK" -f per_page=100 \
+            --jq '[ .[]
+                    | select(.draft == false)
+                    | select(.base.ref == env.TRUNK)
+                    | select(.head.repo.full_name == env.GH_REPO)
+                    | select(.user.type == "Bot")
+                    | select(.user.login == env.APP_LOGIN)
+                    | select(.head.ref | startswith(env.BRANCH_SHAPE))
+                  ]
+                  | if length == 1
+                    then "\(.[0].number) \(.[0].head.sha)"
+                    else "" end')"
+          if [ -z "$selection" ]; then
+            echo "no single release request the release app owns against $TRUNK; nothing merged."
             exit 0
           fi
-          if [ "$REF" != "master" ]; then
-            echo "a line's request is never armed; its candidate is what a human validated."
+          number="${selection% *}"
+          head="${selection#* }"
+          # The named check for that exact head, latest result only. A
+          # missing, duplicated, unfinished, or non-success answer all leave
+          # the request open, and the log says which one it was.
+          verdict="$(gh api "repos/{owner}/{repo}/commits/$head/check-runs" -X GET \
+            -f check_name="$GATE_CHECK" -f filter=latest \
+            --jq 'if (.check_runs | length) == 1
+                  then "\(.check_runs[0].status) \(.check_runs[0].conclusion)"
+                  else "\(.check_runs | length) results" end')"
+          if [ "$verdict" != "completed success" ]; then
+            echo "the check $GATE_CHECK at $head reads: $verdict; #$number stays open."
             exit 0
           fi
-          number="$(printf '%s' "${RELEASE_PR:-}" | sed -n 's/.*"number":[[:space:]]*\([0-9]*\).*/\1/p' | head -n 1)"
-          if [ -z "$number" ]; then
-            echo "no release request to arm."
+          # The match moves the stale-head proof into the write itself, so a
+          # refresh between the judgment and the merge refuses rather than
+          # merging bytes nothing judged.
+          if gh pr merge "$number" --match-head-commit "$head" --squash --delete-branch; then
+            echo "merged pull request #$number at $head."
             exit 0
           fi
-          gh pr merge "$number" --auto --squash --delete-branch
-          echo "armed pull request #$number."
+          # Another run of this job may have merged the same judged head
+          # first. That is this job's own outcome reached by another route,
+          # and nothing else is.
+          outcome="$(gh pr view "$number" --json state,headRefOid --jq '"\(.state) \(.headRefOid)"')"
+          if [ "$outcome" = "MERGED $head" ]; then
+            echo "pull request #$number was already merged at $head."
+            exit 0
+          fi
+          echo "::error::the merge of #$number at $head failed and the request reads: $outcome."
+          exit 1
