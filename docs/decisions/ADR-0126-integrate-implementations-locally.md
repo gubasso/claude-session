@@ -11,7 +11,7 @@
 
 ## Decision Outcome
 
-Chosen option: integrate locally, because a single writer gains nothing from a request that nobody reviews. `.release-kit/config.toml` records `integration = "local"` and `checkout_mode = "linked-worktree"`. Every code-changing branch still lives in its own worktree. `rk integrate` runs the `manual` hook stage, checks the message against the `commit-msg` judgment, and publishes the squash commit. The push is a separate fast-forward. The `master-protection` ruleset keeps only the deletion and non-fast-forward rules.
+Chosen option: integrate locally, because a single writer gains nothing from a request that nobody reviews. `.release-kit/config.toml` records `integration = "local"` and `checkout_mode = "linked-worktree"`. Every code-changing branch still lives in its own worktree. `rk integrate` runs the `manual` hook stage, checks the message against the `commit-msg` judgment, and publishes the squash commit. The push is a separate fast-forward. `rk setup step protect-trunk` owns the trunk rulesets: deletion and force-push protection hold for every actor, and the repository-administrator role alone bypasses the request rules for the direct push.
 
 The `manual` stage carries every commit-stage and push-stage hook, so the gate before the trunk is the whole suite. [Testing and quality](../reference/testing-and-quality.md#the-gate) owns that stage assignment. The release request still merges at the forge, so tags and publishing are unchanged.
 

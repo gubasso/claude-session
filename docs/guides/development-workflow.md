@@ -73,10 +73,10 @@ When a live owner and another document disagree, change the non-owner. If the ow
 
 Use `.draft/` only as ignored scratch space. Rewrite durable substance into its owner and remove the draft so it cannot compete with shipped documentation.
 
-## Before proposing a change
+## Before integrating a change
 
 ```bash
 just hooks
 ```
 
-This runs both hook stages. Fix the reported cause; do not bypass or substitute a partial gate. Branch and release rules live in the [release workflow](../reference/release-workflow.md#branch-and-release-invariant).
+This runs the `manual` hook stage, the gate `rk integrate` runs. Fix the reported cause; do not bypass or substitute a partial gate. Branch and release rules live in the [release workflow](../reference/release-workflow.md#branch-and-release-invariant).

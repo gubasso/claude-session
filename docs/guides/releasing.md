@@ -24,7 +24,7 @@ Every step in this section runs once, ever. A routine release repeats none of th
 7. Exercise an OIDC release and verify its source package, tag, and binary assets.
 8. Enable crates.io "require trusted publishing" after the successful OIDC publish.
 
-Ordering is load-bearing: the App bypass actor exists before any ruleset does. `rk guide setup` performs these in that order and says why at each step.
+Ordering is load-bearing. `rk guide setup` performs these in that order and says why at each step.
 
 ## First manual publish
 

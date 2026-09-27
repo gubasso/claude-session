@@ -1,6 +1,6 @@
 {
   "schema_version": 10,
-  "rk_version": "0.8.3",
+  "rk_version": "0.8.5",
   "origin": "init",
   "landed_at": "2026-09-08T19:02:08Z",
   "profile": {
@@ -41,7 +41,7 @@
     {
       "destination": ".github/workflows/release-plz.yml",
       "kind": "rendered",
-      "sha256": "87f28e0b4ea955742b07090327360bf8324b004b5fad56e0239a3d7d9e6808ec"
+      "sha256": "0153222618886e7d40f8ac005c2480a266857e8a30d6efce9eeb5ea42c5bba59"
     },
     {
       "destination": ".pre-commit-config.yaml",

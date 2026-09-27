@@ -19,6 +19,13 @@ readme = "README.md"
 keywords = ["claude", "cli", "session", "wrapper", "anthropic"]
 categories = ["command-line-utilities", "development-tools"]
 exclude = [
+  # release-kit's landing record and configuration, and the glossary and
+  # Nix expression it lands. release-plz counts a commit touching a
+  # packaged file toward a release, so shipping them turned every rk
+  # upgrade into a release with no code change.
+  "/.release-kit",
+  "/GLOSSARY.md",
+  "/nix/package.nix",
   "/AGENTS.md",
   "/CLAUDE.md",
   "/.claude",
