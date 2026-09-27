@@ -4,10 +4,10 @@ This page owns the release values this project decides for itself. The conventio
 
 ## Branch and release invariant
 
-`master` is the only permanent branch and the repository default. Every change reaches it through a short-lived branch that is squash-merged and deleted, and every code-changing branch lives in its own worktree. Nothing is committed on `master` and no tag is authored by hand.
+`master` is the only permanent branch and the repository default. Every change reaches it as one squash commit that `rk integrate` writes from a short-lived branch in its own worktree, after the `manual` hook stage passes ([ADR-0126](../decisions/ADR-0126-integrate-implementations-locally.md)). The operator pushes `master` as a fast-forward. Nothing else commits on `master`, and no tag is authored by hand.
 
 ```text
-worktree branch → pull request → squash to master → release PR → vX.Y.Z + crates.io + release assets
+worktree branch → rk integrate → push master → release PR → vX.Y.Z + crates.io + release assets
 ```
 
 The release style is `trunk`: the bot's release request carries auto-merge from creation, so a green trunk ships itself. A release is held by disarming that request before its last check goes green.

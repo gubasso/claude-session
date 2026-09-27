@@ -41,7 +41,7 @@ This procedure ships `0.1.0` only after ADR-0022 is satisfied. Trusted Publishin
 
 Every version after `0.1.0` is routine, and `rk guide release` is its command list. The slice that ships a rung carries that version's own documentation and gates — the claims it adds to `README.md`, the reference pages its surface changes, and any package content it introduces — as tail work inside the slice. Slice 009 is one-time first-release readiness and is never reopened for a later version.
 
-The shape of it: work reaches `master` through a squash-merged pull request from its own worktree branch, release-plz opens or updates the release request, and that request merges itself once every required check is green. A release is held by disarming the request before its last check goes green. Never hand-create a tag and never push `master`.
+The shape of it: `rk integrate` squashes each worktree branch onto `master`, the operator pushes `master` as a fast-forward, release-plz opens or updates the release request, and that request merges itself once every required check is green. A release is held by disarming the request before its last check goes green. Never hand-create a tag and never force-push `master`.
 
 ## Prepare a release locally
 

@@ -89,7 +89,7 @@ repos:
   # which the stdlib-based pretty-format-json cannot. check-json5 above stays the
   # syntax gate; dprint owns formatting. Config in the sibling `./dprint.json`
   # (plugin version pinned there). External dependency: dprint must be on PATH
-  # (`cargo install dprint` or your package manager). pre-commit only — git push
+  # (`cargo install dprint` or your package manager). Not at pre-push — git push
   # may strip PATH, and formatting is already applied by commit time.
   - repo: local
     hooks:
@@ -99,7 +99,7 @@ repos:
         language: system
         files: '\.(json|jsonc|json5)$'
         pass_filenames: true
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
 
   # --- EditorConfig ---
   - repo: https://github.com/editorconfig-checker/editorconfig-checker
@@ -176,9 +176,11 @@ repos:
   #   - pre-push:   unit + integration   (single-digit-seconds budget)
   #   - CI:         everything + E2E     (live in .github/workflows)
   #
-  # The unit hook is therefore wired to BOTH `pre-commit` and `pre-push`
-  # stages: it's nearly free and guards against committed-but-not-tested
-  # changes (rebases, amends) reaching the remote.
+  # Every pre-push hook also runs at `manual`, the stage `rk integrate` runs
+  # before it writes the trunk commit (ADR-0126), and pre-push re-validates
+  # the trunk on its push. The unit hook is wired to `pre-commit` as well:
+  # it's nearly free and guards against committed-but-not-tested changes
+  # (rebases, amends) reaching the trunk.
   #
   # Requires:
   #   - `cargo nextest` on PATH (cargo install --locked cargo-nextest)
@@ -194,7 +196,7 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
-        stages: [pre-commit, pre-push]
+        stages: [pre-commit, pre-push, manual]
 
       - id: cargo-nextest-integration
         name: cargo nextest (integration tests)
@@ -209,7 +211,7 @@ repos:
         # one wide enough to cover them would match every file anyway.
         always_run: true
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-push, manual]
 
       # `always_run` with no filenames: a generated example's relationship is to
       # the whole configuration model rather than to any one changed file, so a
@@ -220,7 +222,7 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
 
       - id: acceptance-test-ids
         name: resolve slice acceptance test IDs
@@ -228,7 +230,7 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-push, manual]
 
       - id: cargo-doc-tests
         name: cargo test --doc (doctests)
@@ -240,7 +242,7 @@ repos:
         language: system
         types_or: [rust, toml]
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-push, manual]
 
   # --- Spell check (system binary from the devShell) ---
   #
@@ -272,21 +274,21 @@ repos:
     hooks:
       - id: ripsecrets
 
-  # --- Heavy checks (pre-push only) ---
+  # --- Heavy checks (pre-push and manual) ---
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
     hooks:
       - id: gitleaks
         entry: gitleaks git --redact --verbose
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-push, manual]
 
   # --- Unused dependency detection ---
   - repo: https://github.com/bnjbvr/cargo-machete
     rev: v0.9.2
     hooks:
       - id: cargo-machete
-        stages: [pre-push]
+        stages: [pre-push, manual]
 
   - repo: local
     hooks:
@@ -295,7 +297,7 @@ repos:
         entry: cargo audit
         language: system
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-push, manual]
 
       # `licenses` is enabled: this repo carries a deny.toml with a filled
       # allow-list, and Cargo.toml declares `license = "MIT OR Apache-2.0"`.
@@ -304,7 +306,7 @@ repos:
         entry: cargo deny check advisories bans sources licenses
         language: system
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-push, manual]
 
   # --- Shell: lint + format (scripts/ ships installable helpers) ---
   #
@@ -341,27 +343,27 @@ repos:
         entry: nixfmt
         language: system
         types: [nix]
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
       - id: statix
         name: statix (nix anti-patterns)
         entry: statix check
         language: system
         types: [nix]
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
       - id: deadnix
         name: deadnix (dead code)
         entry: deadnix --fail
         language: system
         types: [nix]
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
       - id: nix-flake-check
         name: nix flake check (eval)
         entry: nix flake check
         language: system
         files: '\.nix$'
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-push, manual]
 
   # --- Markdown: canonical format (dprint) + style gate (markdownlint) ---
   #
@@ -380,7 +382,7 @@ repos:
   # never collides with the type's `dprint` hook.
   #
   # External dependency: dprint must be on PATH (`cargo install dprint` or your
-  # package manager), the same model as the json/nix hooks. pre-commit only —
+  # package manager), the same model as the json/nix hooks. Not at pre-push —
   # git push may strip PATH and the format is already applied by commit time.
   - repo: local
     hooks:
@@ -390,7 +392,7 @@ repos:
         language: system
         files: '\.(md|markdown)$'
         pass_filenames: true
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
 
   # --- Explicit relative links (ambiguity guard; pre-commit, local) ---
   #

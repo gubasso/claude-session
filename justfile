@@ -105,10 +105,9 @@ artifacts out="target/artifacts":
 hooks-install:
 	{{dev}} pre-commit install --install-hooks
 
-# Run every pre-commit hook across all files, all stages.
+# Run the full gate across all files: the manual stage `rk integrate` runs.
 hooks:
-	{{dev}} pre-commit run --all-files --hook-stage pre-commit
-	{{dev}} pre-commit run --all-files --hook-stage pre-push
+	{{dev}} pre-commit run --all-files --hook-stage manual
 
 # --- Publishing (thin wrappers; see docs/guides/releasing.md) ----------------
 

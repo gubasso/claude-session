@@ -29,3 +29,5 @@ Keeping the branch name was rejected because release-kit does not make the trunk
 Accepted
 
 Supersedes [ADR-0020](./ADR-0020-adopt-a-two-branch-release-model.md). Enacted by the landing record under `.release-kit/` and by the landed workflows.
+
+Amended by [ADR-0126](./ADR-0126-integrate-implementations-locally.md): `rk integrate` replaces the squash-merged pull request, and the working-copy mode is `linked-worktree`.

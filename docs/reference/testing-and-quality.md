@@ -216,12 +216,13 @@ Five of these have teeth beyond their own assertion. The exit-code matrix, writt
 
 Hooks are the source of truth; task-runner gate recipes delegate to them, while inner-loop recipes stay raw `cargo`.
 
-`just hooks` is the single local command that reproduces the project's verdict. It runs both stages:
+`just hooks` is the single local command that reproduces the project's verdict. It runs the `manual` stage, which is the same command `rk integrate` runs before it writes the trunk commit ([ADR-0126](../decisions/ADR-0126-integrate-implementations-locally.md)):
 
 ```bash
-pre-commit run --all-files --hook-stage pre-commit
-pre-commit run --all-files --hook-stage pre-push
+pre-commit run --all-files --hook-stage manual
 ```
+
+Every commit-stage and push-stage row in the table below also runs at `manual`, so that stage is the union of both. The push stage stays as the re-validation of the trunk when the operator pushes it.
 
 `pre-commit run --all-files` on its own is not the gate. `--all-files` selects files, not stages, so it runs the commit stage alone and silently omits the push-stage half of the table below — the integration tests, the doctests, and every advisory and secret scan.
 
@@ -229,32 +230,31 @@ Run it inside the devShell. Several hooks take their binary from the shell rathe
 
 The Backing column says whether the hook exists today. `deferred` means the row is a specification the repository does not yet enforce; it is closed by the round that builds the mechanism, never by deleting the row.
 
-| Hook                                             | Stage        | Enforces                                       | Backing                                                                   |
-| ------------------------------------------------ | ------------ | ---------------------------------------------- | ------------------------------------------------------------------------- |
-| `cargo fmt`                                      | commit       | Canonical formatting                           | present                                                                   |
-| `clippy` auto-fix, then gate                     | commit       | Lint clean, warnings as errors                 | present                                                                   |
-| `cargo nextest` (`pre-commit` profile)           | commit, push | Unit tests                                     | present                                                                   |
-| `cargo nextest` (`pre-push` profile)             | push         | Integration tests                              | present                                                                   |
-| `cargo test --doc`                               | push         | Doctests, guarded on a library target existing | present                                                                   |
-| `taplo`                                          | commit       | TOML formatting                                | present                                                                   |
-| `typos`                                          | commit       | Spelling                                       | present                                                                   |
-| `ripsecrets`                                     | commit       | Fast secret scan                               | present                                                                   |
-| `gitleaks`                                       | push         | Full secret scan                               | present                                                                   |
-| `cargo audit`                                    | push         | Advisories                                     | present                                                                   |
-| `cargo deny`                                     | push         | Advisories, bans, sources, licences            | partial — see [dependencies](./dependencies.md#lockfile-and-supply-chain) |
-| `cargo machete`                                  | push         | Unused dependencies                            | present                                                                   |
-| `cargo xtask gen-config`                         | commit       | Generated examples match the config types      | present                                                                   |
-| `dprint`                                         | commit       | Markdown and JSON formatting                   | present                                                                   |
-| `markdownlint-cli2`                              | commit       | Markdown structure and link integrity          | present                                                                   |
-| `md-slice-readme`, `md-milestones`, `md-adr`     | commit       | Fixed heading shapes, one array per shape      | present                                                                   |
-| `shellcheck`, `shfmt`                            | commit       | Shell scripts                                  | present                                                                   |
-| `nixfmt`, `statix`, `deadnix`                    | commit       | Nix sources                                    | present                                                                   |
-| `no-commit-to-branch`                            | commit       | No direct commit on `master`                   | present — in the release-kit block                                        |
-| `rk-branch-name`, `rk-worktree-location`         | commit       | Branch naming and the worktree rule            | present — in the release-kit block                                        |
-| `conventional-pre-commit`                        | commit-msg   | Conventional Commits, scope required           | present — in the release-kit block                                        |
-| `rk-message`                                     | commit-msg   | Message content guards                         | present — in the release-kit block                                        |
-| `rk-status-check`                                | commit       | The landed release payload is undrifted        | present — in the release-kit block                                        |
-| `rk-no-push-to-trunk`, `rk-no-hand-authored-tag` | push         | The trunk and tag invariants                   | present — in the release-kit block                                        |
+| Hook                                         | Stage        | Enforces                                       | Backing                                                                   |
+| -------------------------------------------- | ------------ | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `cargo fmt`                                  | commit       | Canonical formatting                           | present                                                                   |
+| `clippy` auto-fix, then gate                 | commit       | Lint clean, warnings as errors                 | present                                                                   |
+| `cargo nextest` (`pre-commit` profile)       | commit, push | Unit tests                                     | present                                                                   |
+| `cargo nextest` (`pre-push` profile)         | push         | Integration tests                              | present                                                                   |
+| `cargo test --doc`                           | push         | Doctests, guarded on a library target existing | present                                                                   |
+| `taplo`                                      | commit       | TOML formatting                                | present                                                                   |
+| `typos`                                      | commit       | Spelling                                       | present                                                                   |
+| `ripsecrets`                                 | commit       | Fast secret scan                               | present                                                                   |
+| `gitleaks`                                   | push         | Full secret scan                               | present                                                                   |
+| `cargo audit`                                | push         | Advisories                                     | present                                                                   |
+| `cargo deny`                                 | push         | Advisories, bans, sources, licences            | partial — see [dependencies](./dependencies.md#lockfile-and-supply-chain) |
+| `cargo machete`                              | push         | Unused dependencies                            | present                                                                   |
+| `cargo xtask gen-config`                     | commit       | Generated examples match the config types      | present                                                                   |
+| `dprint`                                     | commit       | Markdown and JSON formatting                   | present                                                                   |
+| `markdownlint-cli2`                          | commit       | Markdown structure and link integrity          | present                                                                   |
+| `md-slice-readme`, `md-milestones`, `md-adr` | commit       | Fixed heading shapes, one array per shape      | present                                                                   |
+| `shellcheck`, `shfmt`                        | commit       | Shell scripts                                  | present                                                                   |
+| `nixfmt`, `statix`, `deadnix`                | commit       | Nix sources                                    | present                                                                   |
+| `rk-branch-name`, `rk-worktree-location`     | commit       | Branch naming and the worktree rule            | present — in the release-kit block                                        |
+| `conventional-pre-commit`                    | commit-msg   | Conventional Commits, scope required           | present — in the release-kit block                                        |
+| `rk-message`                                 | commit-msg   | Message content guards                         | present — in the release-kit block                                        |
+| `rk-status-check`                            | commit       | The landed release payload is undrifted        | present — in the release-kit block                                        |
+| `rk-no-hand-authored-tag`                    | push         | The tag invariant                              | present — in the release-kit block                                        |
 
 This table lists the gates the specifications depend on, not every hook configured. The file-hygiene hooks — private-key detection, symlink and large-file checks, JSON5 and editorconfig validation — are configured and depend on no specification, so they carry no row.
 
@@ -287,11 +287,9 @@ The two clippy rules are wired at pre-commit and pre-push; the two facts are tes
 
 ## Protected branches
 
-The gate refuses a commit made directly on `master`, which is the only permanent branch ([release workflow](./release-workflow.md#branch-and-release-invariant)). `master` is written through squash-merged pull requests alone, so a local commit there has no legitimate case and the hook rejects that class with no false positives. `rk-worktree-location` covers the rest of the rule: the main checkout commits nothing at all, because every code-changing branch belongs in its own worktree.
+`master` is the only permanent branch ([release workflow](./release-workflow.md#branch-and-release-invariant)), and `rk integrate` is the only writer of a local commit on it. That command writes the squash commit with `git commit-tree`, which fires no hook, so it holds the message to the landed `commit-msg` judgment itself. `rk-worktree-location` refuses every other commit in the main checkout, because every code-changing branch belongs in its own worktree.
 
-`no-commit-to-branch` is live, inside the release-kit block, and carries `args: [--branch, master]`. The hook's default set is `master` and `main`; only `master` exists here, and the explicit argument keeps the hook from asserting a branch this project's model does not name.
-
-A continuous-integration sweep commits nothing, so a job running `pre-commit` against a trunk checkout sets `SKIP=no-commit-to-branch,rk-worktree-location` in its environment.
+A continuous-integration sweep commits nothing, so a job running `pre-commit` against a trunk checkout sets `SKIP=rk-worktree-location` in its environment.
 
 The general rule is unchanged: local hooks validate content, and forge rules enforce branch topology. `rk setup check --target .` is what proves the forge side, and no dated manual reading stands in for it.
 
