@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/gubasso/claude-session/compare/v0.2.0...v0.2.1) - 2026-09-27
+
+### Other
+
+- (release) upgrade release-kit to v0.8.3 with local integration
+
 ## [0.2.0](https://github.com/gubasso/claude-session/compare/v0.1.10...v0.2.0) - 2026-09-14
 
 ### Added
