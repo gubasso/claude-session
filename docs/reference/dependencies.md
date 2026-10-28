@@ -164,6 +164,8 @@ The states are distinct: reviewed authorizes consideration, not installation; de
 | `cargo audit`                 | Independent advisory check                                                | fails the build                                          |
 | `cargo machete`               | No declared-but-unused dependency                                         | fails the build                                          |
 
+An advisory that `deny.toml` ignores passes `cargo deny` with no output. `scripts/report-ignored-advisories` prints each ignore with its reason in `just deny`, in the `report-ignored-advisories` hook at pre-push and in the `manual` stage, and as a warning annotation in CI. Each ignore has a page under [known issues](./known-issues/README.md) that says what removes it.
+
 The project is dual-licensed MIT or Apache-2.0, and the allow-list is compatible with both.
 
 That tightening was applied in the round that added the first dependency: `wildcards` and the two `sources` keys are `deny`, and every [ruled-out crate](#ruled-out) is in `[bans].deny` carrying the reason this page records, so the prose ruling is the mechanism rather than a convention review has to remember. No `wrappers` escape is granted, because a ruled-out crate arriving transitively is the same signal as a direct one. `multiple-versions` stays a warning, because a duplicate is a judgement about a transitive graph the project does not control.

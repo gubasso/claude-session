@@ -67,9 +67,11 @@ test-ci:
 audit:
 	{{dev}} cargo audit
 
-# Run cargo-deny checks (advisories, bans, sources, licenses).
+# Run cargo-deny checks (advisories, bans, sources, licenses), then print each
+# advisory deny.toml ignores, with its reason.
 deny:
 	{{dev}} cargo deny check advisories bans sources licenses
+	{{dev}} scripts/report-ignored-advisories
 
 # Build the crate documentation.
 doc:

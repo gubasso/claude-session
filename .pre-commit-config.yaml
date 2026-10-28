@@ -308,6 +308,18 @@ repos:
         pass_filenames: false
         stages: [pre-push, manual]
 
+      # cargo-deny prints nothing for an ignored advisory, so this hook prints
+      # each one with its reason and always passes. `verbose` shows the output
+      # of a passing hook.
+      - id: report-ignored-advisories
+        name: report ignored advisories
+        entry: scripts/report-ignored-advisories
+        language: system
+        always_run: true
+        pass_filenames: false
+        verbose: true
+        stages: [pre-push, manual]
+
   # --- Shell: lint + format (scripts/ ships installable helpers) ---
   #
   # This repo ships extension-less executable bash helpers under `scripts/`
