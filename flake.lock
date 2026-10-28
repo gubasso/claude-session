@@ -79,16 +79,16 @@
         "spec-driven-docs": "spec-driven-docs"
       },
       "locked": {
-        "lastModified": 1790542034,
-        "narHash": "sha256-VCYwCqaABFRt2pC6qQAJenrmB+eMNF3DJF2SUxe13QE=",
+        "lastModified": 1793150271,
+        "narHash": "sha256-4UKb+bbNQJOomxwfn5PPE5tMVtxwx0LGwOxc5f/Qf1o=",
         "owner": "gubasso",
         "repo": "release-kit",
-        "rev": "f032ef55ffd705908ae3a6c419b8dea26875edfc",
+        "rev": "0543ebe2a2614fe3dfcdbdae1bf352b1a5835512",
         "type": "github"
       },
       "original": {
         "owner": "gubasso",
-        "ref": "v0.8.5",
+        "ref": "v0.9.1",
         "repo": "release-kit",
         "type": "github"
       }
@@ -102,6 +102,33 @@
         ],
         "rust-overlay": "rust-overlay_2",
         "spec-driven-docs": "spec-driven-docs_2"
+      },
+      "locked": {
+        "lastModified": 1790547658,
+        "narHash": "sha256-nSuDl0ojr6zbeku2ezWh0F7lwoufTt8HdHhaUAS7l04=",
+        "owner": "gubasso",
+        "repo": "release-kit",
+        "rev": "7ea05b70d7c72c39bd8149f38e8660c96b81c39e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "gubasso",
+        "ref": "v0.8.7",
+        "repo": "release-kit",
+        "type": "github"
+      }
+    },
+    "release-kit_3": {
+      "inputs": {
+        "nixpkgs": [
+          "release-kit",
+          "spec-driven-docs",
+          "release-kit",
+          "spec-driven-docs",
+          "nixpkgs"
+        ],
+        "rust-overlay": "rust-overlay_3",
+        "spec-driven-docs": "spec-driven-docs_3"
       },
       "locked": {
         "lastModified": 1789151515,
@@ -118,16 +145,18 @@
         "type": "github"
       }
     },
-    "release-kit_3": {
+    "release-kit_4": {
       "inputs": {
         "nixpkgs": [
           "release-kit",
           "spec-driven-docs",
           "release-kit",
           "spec-driven-docs",
+          "release-kit",
+          "spec-driven-docs",
           "nixpkgs"
         ],
-        "rust-overlay": "rust-overlay_3"
+        "rust-overlay": "rust-overlay_4"
       },
       "locked": {
         "lastModified": 1788619045,
@@ -149,7 +178,7 @@
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
         "release-kit": "release-kit",
-        "rust-overlay": "rust-overlay_6"
+        "rust-overlay": "rust-overlay_8"
       }
     },
     "rust-overlay": {
@@ -228,15 +257,18 @@
           "spec-driven-docs",
           "release-kit",
           "spec-driven-docs",
+          "release-kit",
+          "spec-driven-docs",
+          "release-kit",
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1787627053,
-        "narHash": "sha256-QdVaU2WSCKsxZ0sBDIRnaaukp6Z5IMUE0gDEDoSRJd0=",
+        "lastModified": 1787834454,
+        "narHash": "sha256-jXSvqn04IOecJCvSvl8+g3PsbDVNP6qKs6dKUs/b16k=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "132a10336af9ae819bdf640c0dd1c789b12d7107",
+        "rev": "dc2fd1acc537f3583744e1373597a5731ff7a6e3",
         "type": "github"
       },
       "original": {
@@ -248,6 +280,10 @@
     "rust-overlay_5": {
       "inputs": {
         "nixpkgs": [
+          "release-kit",
+          "spec-driven-docs",
+          "release-kit",
+          "spec-driven-docs",
           "release-kit",
           "spec-driven-docs",
           "nixpkgs"
@@ -270,6 +306,52 @@
     "rust-overlay_6": {
       "inputs": {
         "nixpkgs": [
+          "release-kit",
+          "spec-driven-docs",
+          "release-kit",
+          "spec-driven-docs",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787627053,
+        "narHash": "sha256-QdVaU2WSCKsxZ0sBDIRnaaukp6Z5IMUE0gDEDoSRJd0=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "132a10336af9ae819bdf640c0dd1c789b12d7107",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "rust-overlay_7": {
+      "inputs": {
+        "nixpkgs": [
+          "release-kit",
+          "spec-driven-docs",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787627053,
+        "narHash": "sha256-QdVaU2WSCKsxZ0sBDIRnaaukp6Z5IMUE0gDEDoSRJd0=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "132a10336af9ae819bdf640c0dd1c789b12d7107",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "rust-overlay_8": {
+      "inputs": {
+        "nixpkgs": [
           "nixpkgs"
         ]
       },
@@ -289,13 +371,39 @@
     },
     "spec-driven-docs": {
       "inputs": {
-        "flake-utils": "flake-utils_2",
         "nixpkgs": [
           "release-kit",
           "nixpkgs"
         ],
         "release-kit": "release-kit_2",
-        "rust-overlay": "rust-overlay_5"
+        "rust-overlay": "rust-overlay_7"
+      },
+      "locked": {
+        "lastModified": 1791683767,
+        "narHash": "sha256-LgHmBfs7D+eSlyt9ZEacn3HjiTzFw9Wii5/h2XcD2sI=",
+        "owner": "gubasso",
+        "repo": "spec-driven-docs",
+        "rev": "aea7807b4b5113d9142ee3d0618464c0940b3c4d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "gubasso",
+        "ref": "v0.14.1",
+        "repo": "spec-driven-docs",
+        "type": "github"
+      }
+    },
+    "spec-driven-docs_2": {
+      "inputs": {
+        "flake-utils": "flake-utils_2",
+        "nixpkgs": [
+          "release-kit",
+          "spec-driven-docs",
+          "release-kit",
+          "nixpkgs"
+        ],
+        "release-kit": "release-kit_3",
+        "rust-overlay": "rust-overlay_6"
       },
       "locked": {
         "lastModified": 1789239283,
@@ -312,17 +420,19 @@
         "type": "github"
       }
     },
-    "spec-driven-docs_2": {
+    "spec-driven-docs_3": {
       "inputs": {
         "flake-utils": "flake-utils_3",
         "nixpkgs": [
           "release-kit",
           "spec-driven-docs",
           "release-kit",
+          "spec-driven-docs",
+          "release-kit",
           "nixpkgs"
         ],
-        "release-kit": "release-kit_3",
-        "rust-overlay": "rust-overlay_4"
+        "release-kit": "release-kit_4",
+        "rust-overlay": "rust-overlay_5"
       },
       "locked": {
         "lastModified": 1788623534,

@@ -24,12 +24,14 @@ line_prefix = "release/" # P: release-line branch prefix, rendered into the rele
 trunk = "master"                  # P: the one permanent branch, rendered into every artifact naming it
 checkout_mode = "linked-worktree" # P: linked-worktree or main-worktree, where a topic branch opens
 integration = "local"             # P: local or forge, which authority moves an implementation onto the trunk
+merge_form = "squash"             # P: squash or rebase, how the commits of a branch reach the trunk
 
 [capabilities]
 nix_packaging = true    # P: opt-in Nix capability
 reporting_policy = true # P: the landed vulnerability reporting policy
 scorecard = false       # P: opt-in OpenSSF Scorecard workflow, github only
 code_scanning = "off"   # P: opt-in code scanning provider: codeql, semgrep, or off
+workflow_guards = true  # P: opt-in workflow guards: the agent and commit policy lines, the glossary, the workflow hooks, merge-cleanup, and branch-reminder
 
 [security]
 advisories = ""          # N: project receiving vulnerability reports
@@ -58,7 +60,9 @@ tag_pattern = "refs/tags/v*" # F: invariant, covers every published version
 bypass_actors = [
   "repository-admin",
 ] # F: invariant, the actors git.integration names
-allowed_merge_methods = ["squash"] # F: invariant, exactly squash
+allowed_merge_methods = [
+  "squash",
+] # F: invariant, exactly the method git.merge_form names: squash or rebase
 strict_required_status_checks = true # F: invariant, true
 owned_trunk_rules = [
   "deletion",
@@ -72,12 +76,12 @@ require_code_owner_review = false # F: floor false; true is stricter
 require_last_push_approval = false # F: floor false; true is stricter
 
 [protection.github]
-squash_title_source = "PR_TITLE" # F: invariant, PR_TITLE
-squash_body_source = "PR_BODY"   # F: invariant, PR_BODY
+squash_title_source = "PR_TITLE" # F: invariant under the squash merge form, PR_TITLE
+squash_body_source = "PR_BODY"   # F: invariant under the squash merge form, PR_BODY
 
 [protection.gitlab]
 merge_method = "ff"                 # F: invariant, linear history
-squash_option = "always"            # F: invariant, always squash
+squash_option = "always"            # F: invariant, the squash git.merge_form names: always under squash, never under rebase
 squash_commit_template = "%{title}" # F: invariant, references title and description
 push_access_level = 40              # F: invariant, the level git.integration names
 merge_access_level = 40             # F: floor thirty

@@ -1,6 +1,6 @@
 {
-  "schema_version": 10,
-  "rk_version": "0.8.5",
+  "schema_version": 12,
+  "rk_version": "0.9.1",
   "origin": "init",
   "landed_at": "2026-09-08T19:02:08Z",
   "profile": {
@@ -18,12 +18,14 @@
   "git": {
     "trunk": "master",
     "checkout_mode": "linked-worktree",
-    "integration": "local"
+    "integration": "local",
+    "merge_form": "squash"
   },
   "capabilities": {
     "nix_packaging": true,
     "reporting_policy": true,
-    "scorecard": false
+    "scorecard": false,
+    "workflow_guards": true
   },
   "parameters": {
     "repo": "gubasso/claude-session",
@@ -46,13 +48,13 @@
     {
       "destination": ".pre-commit-config.yaml",
       "kind": "rendered",
-      "sha256": "00cd0e8d543612be4e0db105b9a1a49e7afa709068772f7df4306704d1c07f02",
+      "sha256": "55730f8858889fb131fdeb73c58d0669cc5bd39477212a6ed299515e2a7dae6d",
       "placement": "region"
     },
     {
       "destination": "AGENTS.md",
       "kind": "rendered",
-      "sha256": "c9a4efa8ba9f9d393e0e7a48f8263bb1f6cbe7e4714aac845af9ae345d8b4fb1",
+      "sha256": "68aff6f88f758755ce2d066d6bcbdba5562589bdc7945db4e6e8cab3ef1ae5c3",
       "placement": "region"
     },
     {
