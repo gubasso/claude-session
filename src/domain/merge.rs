@@ -568,7 +568,7 @@ mod tests {
     }
 
     fn table(yaml: &str) -> StrategyTable {
-        serde_yaml_ng::from_str(yaml).expect("strategy table")
+        crate::domain::yaml::from_str(yaml).expect("strategy table")
     }
 
     fn pointer(text: &str) -> Pointer {

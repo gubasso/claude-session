@@ -20,3 +20,4 @@ pub(crate) mod registration;
 pub(crate) mod secret;
 pub(crate) mod strategy;
 pub(crate) mod witness;
+pub(crate) mod yaml;

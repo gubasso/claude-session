@@ -6,7 +6,6 @@ Each entry names the upstream issue, the case that raised it, the workaround thi
 
 A defect with no case here belongs upstream alone. A defect this project caused belongs in a decision record instead.
 
-| System         | Page                                  |
-| -------------- | ------------------------------------- |
-| release-kit    | [release-kit](./release-kit.md)       |
-| unsafe-libyaml | [unsafe-libyaml](./unsafe-libyaml.md) |
+| System      | Page                            |
+| ----------- | ------------------------------- |
+| release-kit | [release-kit](./release-kit.md) |

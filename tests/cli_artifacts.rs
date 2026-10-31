@@ -275,7 +275,7 @@ fn generated_artifacts_leave_child_argv_opaque() {
         "/tests/fixtures/child-inventory.yaml"
     ))
     .expect("child inventory");
-    let inventory: Inventory = serde_yaml_ng::from_str(&fixture).expect("inventory parses");
+    let inventory: Inventory = serde_saphyr::from_str(&fixture).expect("inventory parses");
 
     // The wrapper's own denylist, which the artifacts must carry precisely
     // because the wrapper claims those spellings, plus its verb-level flags.

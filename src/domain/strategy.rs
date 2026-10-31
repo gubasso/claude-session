@@ -140,8 +140,8 @@ impl<'de> Deserialize<'de> for StrategyTable {
 mod tests {
     use super::*;
 
-    fn parse(yaml: &str) -> Result<StrategyTable, serde_yaml_ng::Error> {
-        serde_yaml_ng::from_str(yaml)
+    fn parse(yaml: &str) -> Result<StrategyTable, serde_saphyr::Error> {
+        crate::domain::yaml::from_str(yaml)
     }
 
     #[test]
@@ -209,5 +209,107 @@ mod tests {
     #[test]
     fn an_unknown_row_field_is_rejected() {
         assert!(parse("\"/a\":\n  strategy: concat\n  nope: 1\n").is_err());
+    }
+
+    fn merge_key_of(yaml: &str) -> String {
+        let table = parse(yaml).expect("parses");
+        let pointer = Pointer::parse("/a").expect("valid");
+        match table.get(&pointer) {
+            Some(ArrayStrategy::MergeByKey { key }) => key.clone(),
+            other => panic!("expected merge-by-key, found {other:?}"),
+        }
+    }
+
+    /// A merge key names a field of the child's array elements, so it is the
+    /// text the author wrote. A plain scalar that YAML could also read as a
+    /// boolean or a number stays that exact string.
+    #[test]
+    fn a_merge_key_keeps_the_spelling_of_a_scalar_yaml_could_retype() {
+        for spelling in ["on", "yes", "007", "1_000", "true", "12", "0xb"] {
+            assert_eq!(
+                merge_key_of(&format!(
+                    "\"/a\":\n  strategy: merge-by-key\n  key: {spelling}\n"
+                )),
+                spelling,
+                "{spelling}"
+            );
+        }
+        assert_eq!(
+            merge_key_of("\"/a\":\n  strategy: merge-by-key\n  key: \"null\"\n"),
+            "null"
+        );
+    }
+
+    /// A string tag, an application tag, and a binary tag leave the text of a
+    /// merge key as written. The binary tag is not decoded.
+    #[test]
+    fn a_tag_on_a_merge_key_leaves_its_text() {
+        for (tagged, text) in [
+            ("!!str matcher", "matcher"),
+            ("!foo matcher", "matcher"),
+            ("!!binary aGVsbG8=", "aGVsbG8="),
+        ] {
+            assert_eq!(
+                merge_key_of(&format!(
+                    "\"/a\":\n  strategy: merge-by-key\n  key: {tagged}\n"
+                )),
+                text,
+                "{tagged}"
+            );
+        }
+    }
+
+    /// An alias repeats an anchored entry, so two locations can share one
+    /// declaration.
+    #[test]
+    fn an_alias_repeats_an_anchored_entry() {
+        let table = parse("\"/a\": &row\n  strategy: concat\n\"/b\": *row\n").expect("parses");
+        for location in ["/a", "/b"] {
+            let pointer = Pointer::parse(location).expect("valid");
+            assert_eq!(
+                table.get(&pointer),
+                Some(&ArrayStrategy::Concat),
+                "{location}"
+            );
+        }
+    }
+
+    /// A merge key is an ordinary key. In an entry it is an unknown field, and
+    /// in the table it is not a JSON pointer, so both are refused. It never
+    /// copies a declaration from another mapping.
+    #[test]
+    fn a_merge_key_is_rejected_in_an_entry_and_in_the_table() {
+        assert!(parse("\"/a\":\n  <<: { strategy: concat }\n").is_err());
+        assert!(parse("<<:\n  \"/a\": { strategy: concat }\n").is_err());
+    }
+
+    /// A location is a JSON pointer, which is text. A key that is a sequence
+    /// or a mapping is refused.
+    #[test]
+    fn a_non_string_table_key_is_rejected() {
+        assert!(parse("? [\"/a\"]\n: { strategy: concat }\n").is_err());
+        assert!(parse("? { a: 1 }\n: { strategy: concat }\n").is_err());
+    }
+
+    /// A core tag that names another type does not fit the string field of a
+    /// merge key. Before serde-saphyr the tag was ignored and the text kept.
+    #[test]
+    fn a_core_tag_of_another_type_on_a_merge_key_is_rejected() {
+        for tag in ["!!int", "!!bool", "!!null", "!!seq"] {
+            assert!(
+                parse(&format!(
+                    "\"/a\":\n  strategy: merge-by-key\n  key: {tag} matcher\n"
+                ))
+                .is_err(),
+                "{tag}"
+            );
+        }
+    }
+
+    /// A missing field inside an entry still names its place.
+    #[test]
+    fn a_missing_strategy_names_its_place() {
+        let error = parse("\"/a\": {}\n").expect_err("refused");
+        assert!(error.location().is_some(), "{error}");
     }
 }

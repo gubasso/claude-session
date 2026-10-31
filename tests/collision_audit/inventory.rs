@@ -39,12 +39,15 @@ pub(crate) struct Inventory {
 }
 
 pub(crate) fn parse(yaml: &str) -> Result<Inventory, Vec<Violation>> {
-    let raw: Raw = match serde_yaml_ng::from_str(yaml) {
+    let raw: Raw = match serde_saphyr::from_str(yaml) {
         Ok(raw) => raw,
         Err(err) => {
             let message = format!("the fixture does not parse: {err}");
-            return Err(vec![match err.location() {
-                Some(at) => Violation::at(FIXTURE, at.line(), message),
+            let line = err
+                .location()
+                .and_then(|at| usize::try_from(at.line()).ok());
+            return Err(vec![match line {
+                Some(line) => Violation::at(FIXTURE, line, message),
                 None => Violation::whole(FIXTURE, message),
             }]);
         }

@@ -717,6 +717,49 @@ fn a_malformed_profile_is_a_data_format_error() {
     assert!(stderr.contains("work.yaml"), "{stderr}");
 }
 
+/// What a person reads when a profile does not parse: the published kind, the
+/// file, the place in it where the parser has one, and a message about the
+/// file rather than about the parser's API. An empty explicit document has no
+/// mapping to point into, so its message names no place.
+#[test]
+fn a_profile_parse_failure_names_the_file_and_the_place() {
+    let cases = [
+        ("layers: [\n", Some("line 1, column 9")),
+        (
+            "layers:\n  - base\nlayers:\n  - work\n",
+            Some("line 3, column 1"),
+        ),
+        ("layers:\n  - base\nnope: 1\n", Some("line 3, column 1")),
+        ("{}\n", Some("line 1, column 1")),
+        ("---\n", None),
+    ];
+    for (profile, place) in cases {
+        let harness = Harness::new();
+        harness.write_piece("base", PIECE_BASE);
+        harness.write_profile("work", profile);
+
+        let output = harness
+            .companion_account_command()
+            .args(["--profile", "work"])
+            .output()
+            .expect("wrapper");
+        assert_eq!(output.status.code(), Some(65), "{profile:?}");
+        // The diagnostic wraps its prose, so a place can break across lines.
+        let stderr = String::from_utf8_lossy(&output.stderr)
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(stderr.contains("work.yaml"), "{profile:?}\n{stderr}");
+        match place {
+            Some(place) => assert!(stderr.contains(place), "{profile:?}\n{stderr}"),
+            None => assert!(!stderr.contains(" line "), "{profile:?}\n{stderr}"),
+        }
+        for advice in ["Options", "Policy", "Option<"] {
+            assert!(!stderr.contains(advice), "{profile:?}\n{stderr}");
+        }
+    }
+}
+
 #[test]
 fn an_empty_layer_list_is_a_data_format_error() {
     let harness = Harness::new();

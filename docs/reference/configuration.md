@@ -160,6 +160,23 @@ layers:
 
 Order is significant and later wins. Unknown fields in a profile are rejected. An empty list is rejected. A referenced piece that does not exist is an error naming both the profile and the resolved path it looked for.
 
+#### How a profile is read
+
+A profile is one YAML 1.2 document holding one mapping, read straight into typed fields by `serde-saphyr` with the options that `src/domain/yaml.rs` sets ([ADR-0127](../decisions/ADR-0127-parse-yaml-with-serde-saphyr.md)). A duplicate key is rejected, and a merge key `<<` is an ordinary key, so the closed field set rejects it. A plain scalar that YAML could read as a boolean or a number, such as `on`, `yes`, or `007`, is a name exactly as written.
+
+These inputs read differently since the parser became `serde-saphyr`:
+
+| Input                                                                                                                                 | Before                        | Now                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| An unquoted `null` as a layer name, `layers: [null]`                                                                                  | The layer `null`              | Rejected: it is the YAML null. Write a piece named `null` as `"null"`.                                                        |
+| `array_strategies: null` or `array_strategies: ~`                                                                                     | Rejected                      | No strategies, the same as an absent field                                                                                    |
+| A core tag of another type on a layer name or a `key`: `!!int`, `!!bool`, `!!null`, `!!seq`                                           | The tag ignored               | Rejected. `!!str` and an application tag such as `!foo` still work.                                                           |
+| One anchor repeated by 100 or more aliases                                                                                            | Accepted                      | Rejected by the parse budget. 99 aliases pass.                                                                                |
+| A missing field in an empty explicit document, `---`                                                                                  | An error with line and column | An error with neither. A missing field in an empty mapping, `{}`, now names line 1, column 1, where it named no place before. |
+| Indentation spaces followed by a tab, a tab after `-`, an unknown directive such as `%FOO bar` or `%FOO`, and a `%YAML 1.3` directive | Rejected                      | Accepted. A tab as the first indentation character stays rejected.                                                            |
+
+The wording of a parse error can differ from the earlier parser for any input. The error always names the profile file, and the line and column wherever the parser has them.
+
 One name, four layers, everywhere the concept appears ([ADR-0050](../decisions/ADR-0050-name-the-profile-surface-once.md)).
 
 ### Selecting the active profile

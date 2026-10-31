@@ -105,7 +105,7 @@ struct Occurrence {
 
 fn registry() -> (Registry, Vec<Violation>) {
     let text = read(REGISTRY);
-    match serde_yaml_ng::from_str::<Registry>(&text) {
+    match serde_saphyr::from_str::<Registry>(&text) {
         Ok(parsed) => (parsed, Vec::new()),
         Err(err) => (
             Registry {

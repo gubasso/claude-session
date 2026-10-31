@@ -70,7 +70,6 @@ feature-depth = 1
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
-  { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml is unmaintained with no safe upgrade, and reaches this crate only through serde_yaml_ng; replace serde_yaml_ng with a safe-Rust YAML crate, then drop this entry (docs/reference/known-issues/unsafe-libyaml.md)" },
   #"RUSTSEC-0000-0000",
   #{ id = "RUSTSEC-0000-0000", reason = "you can specify a reason the advisory is ignored" },
   #"a-crate-that-is-yanked@0.1.1", # you can also ignore yanked crate versions if you wish
@@ -196,7 +195,11 @@ deny = [
   { crate = "fslock", reason = "use std fs::File::lock (ADR-0060)" },
   { crate = "cap-std", reason = "traversal confinement is out of scope (ADR-0061)" },
   { crate = "openat", reason = "traversal confinement is out of scope (ADR-0061)" },
-  { crate = "serde_yaml", reason = "use serde_yaml_ng: the original is deprecated and unmaintained" },
+  { crate = "serde_yaml", reason = "use serde-saphyr: the original is deprecated and unmaintained" },
+  { crate = "serde_yaml_ng", reason = "use serde-saphyr: it parses with unsafe-libyaml, which RustSec marks unmaintained (ADR-0127)" },
+  { crate = "serde_norway", reason = "use serde-saphyr: it parses with unsafe-libyaml-norway, a fork of the same unsafe parser (ADR-0127)" },
+  { crate = "serde_yml", reason = "use serde-saphyr: unsound and unmaintained under RUSTSEC-2025-0068 (ADR-0127)" },
+  { crate = "yaml_serde", reason = "use serde-saphyr: its parser is c2rust unsafe code with no commit since March 2026 (ADR-0127)" },
   { crate = "env_logger", reason = "use tracing-subscriber: one configuration surface, not two" },
   { crate = "structopt", reason = "merged into clap derive" },
   { crate = "failure", reason = "use thiserror and anyhow" },
