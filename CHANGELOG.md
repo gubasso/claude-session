@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/gubasso/claude-session/compare/v0.2.2...v0.2.3) - 2026-10-31
+
+### Fixed
+
+- (profile) parse yaml with serde-saphyr instead of serde_yaml_ng
+
 ## [0.2.2](https://github.com/gubasso/claude-session/compare/v0.2.1...v0.2.2) - 2026-09-27
 
 ### Other
