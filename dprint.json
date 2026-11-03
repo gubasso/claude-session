@@ -8,7 +8,11 @@
     "node_modules",
     "**/*-lock.json",
     "**/package-lock.json",
-    "**/*.jsonl"
+    "**/*.jsonl",
+    // rk writes the landing record, so it follows rk's form. Source: the
+    // dev-environment rule of nix-secrets
+    // (home/apps/claude-session/rules/dev-environment.md).
+    ".release-kit/manifest.json"
   ],
   "plugins": ["https://plugins.dprint.dev/json-0.23.0.wasm"]
 }

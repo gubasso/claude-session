@@ -1,0 +1,18 @@
+# The files that a tool generates follow their generator, and typos judges none
+# of them: release-plz writes CHANGELOG.md, rk writes SECURITY.md,
+# the landing record, and two workflows, cargo-dist writes release.yml, and
+# cargo and nix write the lock files. The hook passes --force-exclude, so this
+# list also holds for the files that pre-commit hands it.
+# Source: the dev-environment rule of nix-secrets
+# (home/apps/claude-session/rules/dev-environment.md).
+[files]
+extend-exclude = [
+  "/CHANGELOG.md",
+  "/SECURITY.md",
+  "/.release-kit/manifest.json",
+  "/.github/workflows/pr-title.yml",
+  "/.github/workflows/release-plz.yml",
+  "/.github/workflows/release.yml",
+  "Cargo.lock",
+  "flake.lock",
+]

@@ -175,11 +175,18 @@ fn scan(path: &str, text: &str) -> Vec<Occurrence> {
     found.into_iter().collect()
 }
 
-/// Every occurrence in the tree, less the two self-referential files.
+/// release-plz writes the changelog from commit subjects, so a child-owned
+/// name there is the subject's carry, already judged where it was authored
+/// (the dev-environment rule of nix-secrets). The gate judges the words this
+/// repository writes.
+const GENERATED: &[&str] = &["CHANGELOG.md"];
+
+/// Every occurrence in the tree, less the two self-referential files and the
+/// generated changelog.
 fn occurrences() -> Vec<Occurrence> {
     let mut found = Vec::new();
     for path in tree::files("", SUFFIXES) {
-        if SELF_REFERENTIAL.contains(&path.as_str()) {
+        if SELF_REFERENTIAL.contains(&path.as_str()) || GENERATED.contains(&path.as_str()) {
             continue;
         }
         found.extend(scan(&path, &read(&path)));

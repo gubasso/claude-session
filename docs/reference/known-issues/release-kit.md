@@ -1,6 +1,6 @@
 # release-kit
 
-release-kit owns this project's release convention and the files its landing wrote ([ADR-0118](../../decisions/ADR-0118-adopt-the-release-kit-trunk-convention.md)). The adoption in September 2026 and the upgrade to 0.4.0 produced four real cases. Each one is filed upstream and worked around here.
+release-kit owns this project's release convention and the files its landing wrote ([ADR-0118](../../decisions/ADR-0118-adopt-the-release-kit-trunk-convention.md)). The adoption in September 2026 and the upgrade to 0.4.0 produced four real cases. The three below are open, each filed upstream and worked around here. The fourth, a generated changelog that fought the formatter, closed when the checks stopped judging generated files, which the dev-environment rule of nix-secrets requires of every project.
 
 ## The dist profile is missing, so a first release ships no binaries
 
@@ -25,18 +25,6 @@ Case: this manifest is a workspace root with an `xtask` member, so the tag `clau
 Workaround: `release-plz.toml` pins `git_tag_name = "v{{ version }}"`.
 
 Remove when: release-kit seeds that key for a workspace target, or its protection covers the workspace tag shape.
-
-## The generated changelog fights the formatter
-
-Upstream: [gubasso/release-kit#115](https://github.com/gubasso/release-kit/issues/115).
-
-release-plz writes the changelog with its own default header and body template. This repository runs `dprint` over every Markdown file and forbids decorative emphasis. The default header wraps a sentence that `dprint` unwraps, and the default body writes a scope as italics and the breaking marker as bold.
-
-Case: the emphasis contract failed on every release request, so no release could merge. After that was fixed, the trunk was dirty after each release, because the next `just hooks` run unwrapped the header again.
-
-Workaround: `release-plz.toml` carries a `[changelog]` section with a rewrapped `header` and two `postprocessors`.
-
-Remove when: release-kit either excludes the generated changelog from a target's formatter and prose gates, or seeds a template that survives them.
 
 ## The rendered security policy has no slot for the wrapper's scope
 

@@ -23,8 +23,16 @@ const SENTINELS: &[&str] = &[
     "docs/reference/testing-and-quality.md",
 ];
 
+/// Markdown that a tool writes follows that tool's form, so the gate does not
+/// judge it (the dev-environment rule of nix-secrets): release-plz writes the
+/// changelog, and rk renders the security policy whole.
+const GENERATED: &[&str] = &["CHANGELOG.md", "SECURITY.md"];
+
 fn documents() -> Vec<String> {
     tree::files("", SUFFIXES)
+        .into_iter()
+        .filter(|path| !GENERATED.contains(&path.as_str()))
+        .collect()
 }
 
 /// The reason inside an `allow-emphasis` comment, when the line is one.
@@ -253,6 +261,19 @@ fn the_walk_excludes_build_output() {
         assert!(
             !path.starts_with("target/") && !path.contains("/.git/") && !path.contains("/.draft/"),
             "{path} is build or draft state and must not be gated"
+        );
+    }
+}
+
+/// The generated Markdown follows its generator, so the walk leaves it out
+/// while the files beside it stay in.
+#[test]
+fn the_walk_skips_generated_markdown() {
+    let documents = documents();
+    for generated in GENERATED {
+        assert!(
+            !documents.iter().any(|path| path == generated),
+            "{generated} is generated and must not be gated"
         );
     }
 }

@@ -151,7 +151,7 @@ Each of these locks down a contract that is otherwise decorative:
 | Confirmation escape       | With no controlling terminal, `--yes` removes and its absence exits `Unavailable`                         | [CLI surface](./cli-surface.md)               |
 | ADR contract              | Record id, shape, status vocabulary, relationship links, and the word cap                                 | [Documentation sweeps](#documentation-sweeps) |
 | Plan-zone contract        | Milestone rows, slice shape, appetite agreement, EARS acceptance, and the question register               | [Documentation sweeps](#documentation-sweeps) |
-| Decorative emphasis       | No bold or italic prose outside code, over every document in the tree                                     | [AGENTS.md](../../AGENTS.md)                  |
+| Decorative emphasis       | No bold or italic prose outside code, over every authored document                                        | [AGENTS.md](../../AGENTS.md)                  |
 | Boundary facts            | `domain/` names no adapter or service, `src/` names no `xtask`, the manifest lists no tooling crate       | [Boundary lints](#boundary-lints)             |
 
 ### Naming the implementation a test rejects

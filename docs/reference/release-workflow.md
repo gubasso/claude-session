@@ -73,9 +73,9 @@ semver_check = false
 
 `semver_check` is disabled only because the `claude_session` library target exists for this crate's own tests and no external consumer holds that API. The CLI compatibility is still versioned. `git_release_enable` is false because cargo-dist creates the GitHub Release, being the half that has the installers to attach.
 
-A `[changelog]` section carries a rewrapped header and two postprocessors. The default template writes the scope as `*(scope)*` and the breaking marker as `[**breaking**]`, and `AGENTS.md` forbids decorative emphasis in every Markdown file, the generated changelog included. Without them the repository contract fails on the release request and no release can merge.
+release-plz writes `CHANGELOG.md` with its own header and body template, and no `[changelog]` section changes them. The formatters and the prose gates exclude the changelog instead, as the dev-environment rule of nix-secrets requires: a generated file follows its generator, and a project configures a generator only as the tool documents, never to satisfy one of its own checks.
 
-Three of the values above work around defects in release-kit rather than expressing a preference of this project. [Known issues](./known-issues/release-kit.md) records each upstream issue and what to delete when its fix lands: the `git_tag_name` pin, the `[changelog]` section, and `Cargo.toml`'s `[profile.dist]` block.
+Two settings work around defects in release-kit rather than expressing a preference of this project. [Known issues](./known-issues/release-kit.md) records each upstream issue and what to delete when its fix lands: the `git_tag_name` pin and `Cargo.toml`'s `[profile.dist]` block.
 
 ## Package metadata and contents
 

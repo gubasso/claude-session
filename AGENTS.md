@@ -50,6 +50,7 @@ Record each significant, hard-to-reverse choice in one filled file under `docs/d
 - Track external-system bugs under `docs/reference/known-issues/` only when the first real case exists; expand while active and collapse after resolution.
 - Track perishable facts in [research tracking](./docs/reference/research-tracking.yaml) with exactly `path`, `last_checked`, `cadence`, `why`, `revalidate`, and `dependents`.
 - Use no bold or italics. Put identifiers in inline code, use language-labelled fenced blocks, and keep comments only for rationale, invariants, boundary conditions, or owning ADR links.
+- Generated files are exempt from the rules above, because they follow their generator and the checks exclude them: `CHANGELOG.md`, `SECURITY.md`, `.release-kit/manifest.json`, `.github/workflows/pr-title.yml`, `.github/workflows/release-plz.yml`, `.github/workflows/release.yml`, `Cargo.lock`, and `flake.lock`. Configure a generator only as its tool documents, never to satisfy a check here. The source is the dev-environment rule of nix-secrets (home/apps/claude-session/rules/dev-environment.md).
 - Keep drafts in ignored `.draft/`. Promotion is a rewrite into the owner, followed by deletion of the draft.
 
 ## Working Conventions

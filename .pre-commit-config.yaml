@@ -75,12 +75,31 @@ repos:
         files: '^(\.github/workflows/|\.gitlab-ci\.yml$|\.gitlab/ci/|AGENTS\.md$|\.release-kit/|\.pre-commit-config\.yaml$|release-plz\.toml$|dist-workspace\.toml$|release-please-config\.json$|cliff\.toml$|\.release-please-manifest\.json$|VERSION$)'
 # END release-kit
   # --- Housekeeping (auto-fix where possible) ---
+  #
+  # A generated file follows its generator, and no hook of this project
+  # rewrites or judges it. Source: the dev-environment rule of nix-secrets
+  # (home/apps/claude-session/rules/dev-environment.md). The generated files
+  # and their generators:
+  #   CHANGELOG.md                             release-plz
+  #   SECURITY.md, .github/workflows/pr-title.yml,
+  #   .github/workflows/release-plz.yml        rk, rendered whole
+  #   .release-kit/manifest.json               rk
+  #   .github/workflows/release.yml            cargo-dist
+  #   Cargo.lock, flake.lock                   cargo, nix
+  # Each tool excludes them in its own configuration: dprint.json,
+  # dprint.markdown.json, .markdownlint-cli2.jsonc, _typos.toml, and
+  # .editorconfig-checker.json; taplo skips Cargo.lock by itself. The fixers
+  # and the pygrep link rules have no configuration, so each takes its own
+  # exclude. The reading hooks keep them: the parsers, the secret scans, and
+  # the merge-conflict and large-file checks.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
+        exclude: '^(CHANGELOG\.md|SECURITY\.md|\.release-kit/manifest\.json|\.github/workflows/(pr-title|release-plz|release)\.yml|Cargo\.lock|flake\.lock)$'
       - id: end-of-file-fixer
+        exclude: '^(CHANGELOG\.md|SECURITY\.md|\.release-kit/manifest\.json|\.github/workflows/(pr-title|release-plz|release)\.yml|Cargo\.lock|flake\.lock)$'
       - id: check-added-large-files
         args: ['--maxkb=16384']
       - id: check-case-conflict
@@ -115,7 +134,9 @@ repos:
     hooks:
       - id: dprint
         name: dprint fmt (json/jsonc)
-        entry: dprint fmt
+        # --allow-no-files: dprint exits 14 when every path it receives is one its
+        # own configuration excludes, such as a commit of only a generated file.
+        entry: dprint fmt --allow-no-files
         language: system
         files: '\.(json|jsonc|json5)$'
         pass_filenames: true
@@ -420,7 +441,8 @@ repos:
     hooks:
       - id: dprint-markdown
         name: dprint fmt (markdown)
-        entry: dprint fmt --config dprint.markdown.json
+        # --allow-no-files, for the same reason as the JSON hook above.
+        entry: dprint fmt --config dprint.markdown.json --allow-no-files
         language: system
         files: '\.(md|markdown)$'
         pass_filenames: true
@@ -441,11 +463,13 @@ repos:
         language: pygrep
         types: [markdown]
         entry: '\]\((?!https?://|ftp://|mailto:|tel:|/|#|\.\.?/)[^)/\s:]+\.[A-Za-z0-9]+(?:#[^)]*)?\)'
+        exclude: '^(CHANGELOG|SECURITY)\.md$'
       - id: no-bare-relative-link-defs
         name: markdown link definitions must be explicit (./, ../, or a path)
         language: pygrep
         types: [markdown]
         entry: '^\s*\[[^\]]+\]:\s+(?!https?://|ftp://|mailto:|tel:|/|#|\.\.?/|<)[^\s/:#]+\.[A-Za-z0-9]+'
+        exclude: '^(CHANGELOG|SECURITY)\.md$'
 
   # --- Markdown lint (style gate + ordered-list renumber autofix) ---
   #

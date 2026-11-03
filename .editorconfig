@@ -27,10 +27,6 @@ indent_size = 2
 [*.nix]
 indent_size = 2
 
-# flake.lock is nix-generated JSON (2-space); the tool owns its formatting.
-[flake.lock]
-indent_size = 2
-
 # Shell — matches the shfmt hook, pinned to `-i 2` in .pre-commit-config.yaml.
 [*.sh]
 indent_size = 2
