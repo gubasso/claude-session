@@ -6,7 +6,6 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 040 native-skill-directory — active — 1 implementation session — after 029; the anchor that slice created is what a skill installer refuses to write through
 - 034 account-usage-reporting — shaped — 2 implementation sessions — after 019 and 025; the provider-fact carry needs its own record before code
 
 ## closed
@@ -49,3 +48,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 037 session-report-by-name — done — 1 implementation session — after 036; landed in one session, and the join against the witness turned out to be what makes a borrowed name safe to show at all
 - 038 child-plugin-seed — done — 2 implementation sessions — after 029, which named the read-only seed as the plugin route and left it for the need that now exists; landed in one session, and the measurement that rejected the link also showed a moved seed loads nothing
 - 039 cross-container-session-lookup — done — 2 implementation sessions — after 037; a report names a session from that session's own registry rather than only this run's
+- 040 native-skill-directory — done — 1 implementation session — after 029; landed in one session, and made `$HOME` required so the skill source can never resolve relative
