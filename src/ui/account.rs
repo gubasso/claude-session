@@ -14,7 +14,8 @@ pub(crate) mod human;
 use crate::{
     domain::{
         account::{
-            AccountFinding, AccountStatus, ModeCommit, ProfileBinding, Removal, SelectionSource,
+            AccountFinding, AccountStatus, ModeCommit, ProfileBinding, Removal, Retired,
+            SelectionSource,
         },
         config::Source,
         identifier::Identifier,
@@ -128,7 +129,14 @@ pub(crate) fn login(
         optional(
             &mut value,
             "retired_superseded_credential",
-            commit.retired.then_some(true.into()),
+            (commit.retired != Retired::Nothing).then_some(true.into()),
+        );
+        // Present only when the retired file also carried MCP sign-ins, which
+        // the reader has to sign in to again.
+        optional(
+            &mut value,
+            "retired_mcp_sign_ins",
+            (commit.retired == Retired::CredentialWithMcpSignIns).then_some(true.into()),
         );
         document(&value, "account login document")?
     } else {

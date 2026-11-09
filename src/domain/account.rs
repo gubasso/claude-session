@@ -681,8 +681,21 @@ pub(crate) struct AccountStatus {
 #[derive(Clone, Debug)]
 pub(crate) struct ModeCommit {
     pub(crate) metadata: AuthModeMetadata,
-    /// Whether this commit unlinked the artifact the replaced mode used.
-    pub(crate) retired: bool,
+    /// What this commit unlinked of the artifact the replaced mode used.
+    pub(crate) retired: Retired,
+}
+
+/// What one mode commit retired.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Retired {
+    /// The account held no artifact of the other mode.
+    Nothing,
+    /// The artifact of the other mode is gone.
+    Credential,
+    /// The child's saved login is gone, and the MCP sign-ins the child kept in
+    /// the same file went with it, because the wrapper unlinks that file whole
+    /// and never rewrites it (ADR-0128).
+    CredentialWithMcpSignIns,
 }
 
 /// What one removal did.

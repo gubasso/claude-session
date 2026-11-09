@@ -127,7 +127,7 @@ The wrapper does not confine traversal through an `openat(2)` descriptor walk. T
 
 Managed-directory creation is idempotent, and a directory the wrapper creates is requested `0700` rather than created permissive and then narrowed, so no invocation opens a window in which the component is readable by anyone else. Because `mkdir(2)` applies the process umask to the requested mode, the wrapper settles the mode it just asked for on the component it just created. That only ever widens back toward `0700`, which is why it is not the create-then-correct sequence the rule above rules out.
 
-The wrapper validates the child-owned `.credentials.json` path before relying on its presence, but never changes its mode, rewrites it, or follows it to read credential content.
+The wrapper validates the child-owned `.credentials.json` path before relying on it, and never changes its mode, rewrites it, or follows a link at that path. It reads the file only for the names of its top-level keys, which tell a saved login from MCP server sign-ins, and keeps no value ([ADR-0128](../decisions/ADR-0128-tell-a-saved-login-by-its-key.md)).
 
 ## Atomic writes
 

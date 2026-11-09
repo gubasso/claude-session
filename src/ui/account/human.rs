@@ -16,7 +16,7 @@ use crate::{
     domain::{
         account::{
             AccountFinding, AccountStatus, AuthMode, ModeCommit, ProfileBinding, Removal,
-            ReportMode, SelectionSource, Warning,
+            ReportMode, Retired, SelectionSource, Warning,
         },
         checks::CheckStatus,
         config::Source,
@@ -344,7 +344,7 @@ pub(super) fn login(
     // whether they wanted the other mode back.
     //
     // [ADR-0051]: ../../../docs/decisions/ADR-0051-let-every-surface-element-discriminate.md
-    if commit.retired {
+    if commit.retired != Retired::Nothing {
         rows.push_str(&row(
             palette,
             CheckStatus::Pass,
@@ -358,6 +358,17 @@ pub(super) fn login(
                     than left on disk for nothing to read."
                 }
             },
+        ));
+    }
+    // The child keeps MCP sign-ins in the file that holds its saved login, and
+    // the wrapper unlinks that file whole rather than rewrite a child file. The
+    // reader is the only one who can sign in to those servers again.
+    if commit.retired == Retired::CredentialWithMcpSignIns {
+        rows.push_str(&row(
+            palette,
+            CheckStatus::Warn,
+            "The MCP server sign-ins claude kept in the same file are gone with it, so \
+            sign in to those servers again from claude.",
         ));
     }
     let profile_row = if binding.present {

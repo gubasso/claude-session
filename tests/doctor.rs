@@ -682,7 +682,7 @@ fn doctor_evaluates_selected_account_usability_locally() {
                 .join("accounts/work/config/.credentials.json")
         )
         .expect("fixture"),
-        b"child-owned-fixture"
+        br#"{"claudeAiOauth":{"accessToken":"child-owned-fixture"}}"#
     );
 
     std::fs::remove_file(

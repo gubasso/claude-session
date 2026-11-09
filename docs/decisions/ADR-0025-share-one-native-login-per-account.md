@@ -34,3 +34,5 @@ Accepted
 Supersedes [ADR-0011](./ADR-0011-isolate-credentials-by-seed-and-session.md).
 
 Amended by [ADR-0064](./ADR-0064-key-composed-settings-by-profile-and-input-digest.md) — the shared account `config/` this record establishes is unchanged; what a group retained is now profile-owned composed settings, stored outside the account tree.
+
+Amended by [ADR-0128](./ADR-0128-tell-a-saved-login-by-its-key.md): the wrapper reads the top-level key names of the shared credential file to tell a saved login from MCP server sign-ins, and still reads no credential value.

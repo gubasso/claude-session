@@ -6,6 +6,7 @@ pub(crate) mod lock;
 pub(crate) mod onboarding;
 pub(crate) mod refresh;
 pub(crate) mod remove;
+pub(crate) mod saved_login;
 pub(crate) mod status;
 pub(crate) mod token;
 
@@ -22,7 +23,7 @@ use crate::{
     domain::{
         account::{
             AccountFinding, AccountSelection, AmbientCredential, AuthMode, AuthModeMetadata,
-            ModeCommit, Plan, RecordedAt, ReportMode, SelectionSource, Warning,
+            ModeCommit, Plan, RecordedAt, ReportMode, Retired, SelectionSource, Warning,
         },
         checks::{AccountCheck, Check, CheckResult},
         child::{ChildInvocation, ChildOutcome, ChildVersion, MINIMUM_CHILD_VERSION},
@@ -521,19 +522,23 @@ fn inspect(context: &AppContext, name: Identifier) -> AccountFinding {
             // level deeper than the account directory, so `config` has to be
             // checked in its own right or a `config` symlink would let a file
             // outside the private tree answer the usability question.
-            let (artifact, intermediate_safe) = match metadata.mode {
-                AuthMode::Login => (
-                    paths.account_credentials(&name),
-                    owned_directory(&paths.account_config(&name)),
-                ),
-                AuthMode::Token => (paths.account_oauth_token(&name), true),
+            //
+            // A login-mode artifact is judged by what it holds, not only by
+            // its being there: the child writes MCP sign-ins into the same
+            // file, and a file holding only those is no login (ADR-0128).
+            let artifact_usable = match metadata.mode {
+                AuthMode::Login => {
+                    owned_directory(&paths.account_config(&name))
+                        && saved_login::present(&paths.account_credentials(&name))
+                }
+                AuthMode::Token => owned_regular(&paths.account_oauth_token(&name)),
             };
             (
                 match metadata.mode {
                     AuthMode::Login => ReportMode::Login,
                     AuthMode::Token => ReportMode::Token,
                 },
-                directory_safe && intermediate_safe && owned_regular(&artifact),
+                directory_safe && artifact_usable,
             )
         }
         None => (ReportMode::Invalid, false),
@@ -646,7 +651,9 @@ pub(crate) fn validate_selected_launch(
         }
     })?;
     match metadata.mode {
-        AuthMode::Login if owned_regular(&context.paths().account_credentials(&account.id)) => {
+        AuthMode::Login
+            if saved_login::present(&context.paths().account_credentials(&account.id)) =>
+        {
             Ok(Some(LaunchAccount {
                 mode: AuthMode::Login,
                 plan: None,
@@ -702,7 +709,9 @@ pub(crate) fn launch_warnings(
     mode: ReportMode,
 ) -> Vec<Warning> {
     let mut warnings = ambient_warnings(context);
-    if mode == ReportMode::Token && owned_regular(&context.paths().account_credentials(account)) {
+    if mode == ReportMode::Token
+        && saved_login::present(&context.paths().account_credentials(account))
+    {
         warnings.push(Warning::TokenOverLogin);
     }
     warnings
@@ -918,7 +927,9 @@ pub(crate) fn credentials_committable(
         &context.paths().account_config(account),
         guard::Expected::Directory,
     )?;
-    Ok(owned_regular(&context.paths().account_credentials(account)))
+    Ok(saved_login::present(
+        &context.paths().account_credentials(account),
+    ))
 }
 
 /// Unlinks the credential the mode just recorded does not use.
@@ -934,6 +945,11 @@ pub(crate) fn credentials_committable(
 /// that never held the other artifact, and the same property repairs an account
 /// orphaned by a switch made before this existed.
 ///
+/// The child's credential file is the one exception to "unconditional". The
+/// child keeps MCP sign-ins in it as well, so a file holding no saved login is
+/// not the superseded credential and stays. A file that does hold one is
+/// unlinked whole, MCP sign-ins included, and the result says so (ADR-0128).
+///
 /// The unlink takes the final component only, so an artifact replaced by a link
 /// loses the link rather than whatever it pointed at. Its parents are a
 /// different matter, and [`retirement_walk`] validates them.
@@ -946,7 +962,7 @@ pub(crate) fn retire_superseded(
     context: &AppContext,
     account: &Identifier,
     recorded: AuthMode,
-) -> Result<bool, AppError> {
+) -> Result<Retired, AppError> {
     let superseded = match recorded {
         AuthMode::Login => context.paths().account_oauth_token(account),
         AuthMode::Token => context.paths().account_credentials(account),
@@ -959,9 +975,23 @@ pub(crate) fn retire_superseded(
     retirement_walk(context, account, recorded).map_err(|error| {
         retirement_failure(account, &superseded, error.kind(), &error.diagnostic().why)
     })?;
+    let retired = match recorded {
+        AuthMode::Login => Retired::Credential,
+        AuthMode::Token => {
+            let keys = saved_login::read(&superseded);
+            if !keys.login {
+                return Ok(Retired::Nothing);
+            }
+            if keys.mcp_sign_ins {
+                Retired::CredentialWithMcpSignIns
+            } else {
+                Retired::Credential
+            }
+        }
+    };
     match fs::remove_file(&superseded) {
-        Ok(()) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Ok(()) => Ok(retired),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Retired::Nothing),
         Err(error) => Err(retirement_failure(
             account,
             &superseded,

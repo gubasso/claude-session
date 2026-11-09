@@ -243,7 +243,7 @@ fn native_login_delegates_to_the_child_owned_shared_config() {
     assert_eq!(mode(&account.join("auth-mode.json")), 0o600);
     assert_eq!(
         fs::read(account.join("config/.credentials.json")).expect("credential"),
-        b"child-owned-login-bytes"
+        br#"{"claudeAiOauth":{"accessToken":"child-owned-fixture"}}"#
     );
     let metadata: serde_json::Value =
         serde_json::from_slice(&fs::read(account.join("auth-mode.json")).expect("metadata"))
@@ -295,7 +295,7 @@ fn failed_repeat_native_login_preserves_the_existing_account() {
                 .join("accounts/work/config/.credentials.json")
         )
         .expect("credential"),
-        b"child-owned-fixture"
+        br#"{"claudeAiOauth":{"accessToken":"child-owned-fixture"}}"#
     );
 }
 
@@ -1061,7 +1061,7 @@ fn status_carries_shadowing_as_data_rather_than_prose() {
         harness
             .state()
             .join("accounts/both/config/.credentials.json"),
-        b"child-owned-fixture",
+        br#"{"claudeAiOauth":{"accessToken":"child-owned-fixture"}}"#,
     )
     .expect("saved login fixture");
     let status = account_json(&harness, &["account", "status", "both", "--json"]);
@@ -2545,7 +2545,7 @@ fn a_refresh_login_records_a_saved_login() {
     );
     assert_eq!(
         fs::read(account.join("config/.credentials.json")).expect("credential"),
-        b"child-owned-login-bytes"
+        br#"{"claudeAiOauth":{"accessToken":"child-owned-fixture"}}"#
     );
 }
 
@@ -2911,7 +2911,7 @@ fn a_native_login_retires_the_token_it_supersedes() {
     );
     assert_eq!(
         fs::read(account.join("config/.credentials.json")).expect("credential"),
-        b"child-owned-login-bytes",
+        br#"{"claudeAiOauth":{"accessToken":"child-owned-fixture"}}"#,
         "the credential this login recorded must survive it"
     );
     let metadata: serde_json::Value =
@@ -3097,11 +3097,179 @@ fn a_retirement_that_cannot_complete_keeps_the_credential_it_committed() {
     );
     assert_eq!(
         fs::read(account.join("config/.credentials.json")).expect("credential"),
-        b"child-owned-login-bytes",
+        br#"{"claudeAiOauth":{"accessToken":"child-owned-fixture"}}"#,
         "the login is reported, not undone"
     );
     let metadata: serde_json::Value =
         serde_json::from_slice(&fs::read(account.join("auth-mode.json")).expect("metadata"))
             .expect("json");
     assert_eq!(metadata["mode"], "login");
+}
+
+/// The child keeps MCP server sign-ins in the same file as its saved login, so
+/// a file holding only those is what an MCP sign-in leaves in a token account.
+const MCP_SIGN_INS_ONLY: &[u8] =
+    br#"{"mcpOAuth":{"firecrawl|0":{"serverName":"firecrawl","accessToken":"mcp-fixture"}}}"#;
+
+/// Both halves of the child's credential file, as a login plus an MCP sign-in.
+const LOGIN_AND_MCP_SIGN_INS: &[u8] =
+    b"{\"claudeAiOauth\":{\"accessToken\":\"child-owned-fixture\"},\
+    \"mcpOAuth\":{\"firecrawl|0\":{\"accessToken\":\"mcp-fixture\"}}}";
+
+/// Replaces the child's credential file of `work` with `contents`.
+fn child_credential(harness: &Harness, contents: &[u8]) -> std::path::PathBuf {
+    let path = harness
+        .state()
+        .join("accounts/work/config/.credentials.json");
+    fs::write(&path, contents).expect("credential fixture");
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("credential mode");
+    path
+}
+
+/// An MCP sign-in in a token account is no saved login, so neither the launch
+/// nor the status report claims that the token shadows one.
+#[test]
+fn mcp_sign_ins_alone_are_not_a_shadowed_saved_login() {
+    let harness = Harness::new();
+    harness.initialize_token("work", b"sk-launch-value", b"sk-launch-value");
+    child_credential(&harness, MCP_SIGN_INS_ONLY);
+    let output = harness
+        .companion_profile_command()
+        .args(["--account", "work", "run"])
+        .output()
+        .expect("launch");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.contains("outranks the saved login"), "{stderr}");
+    let status = account_json(&harness, &["account", "status", "work", "--json"]);
+    assert_eq!(status["child_login_present"], false, "{status}");
+    let warnings = status["warnings"].as_array().expect("warnings array");
+    assert!(
+        !warnings.iter().any(|warning| warning
+            .as_str()
+            .is_some_and(|text| text.contains("outranks the saved login"))),
+        "{status}"
+    );
+}
+
+/// A login-mode account whose file holds only MCP sign-ins has nothing the
+/// child can log in with, so it is reported unusable and its launch refuses.
+#[test]
+fn a_login_account_with_only_mcp_sign_ins_is_not_usable() {
+    let harness = Harness::new();
+    harness.initialize_companion_profile();
+    saved_login_account(&harness);
+    child_credential(&harness, MCP_SIGN_INS_ONLY);
+    let status = account_json(&harness, &["account", "status", "work", "--json"]);
+    assert_eq!(status["usable"], false, "{status}");
+    assert_eq!(status["child_login_present"], false, "{status}");
+    let output = harness
+        .companion_profile_command()
+        .args(["--account", "work", "run"])
+        .output()
+        .expect("launch");
+    assert!(!output.status.success(), "the launch must refuse");
+    assert!(
+        read_invocations(&harness.record_dir().join("invocations"))
+            .iter()
+            .all(|invocation| invocation.last() != Some(&b"run".to_vec())),
+        "the child must not be launched"
+    );
+}
+
+/// A switch to token mode retires a saved login, and a file holding only MCP
+/// sign-ins is not one, so it stays and the report retires nothing.
+#[test]
+fn a_token_login_keeps_a_file_that_holds_only_mcp_sign_ins() {
+    let harness = Harness::new();
+    harness.initialize_companion_profile();
+    saved_login_account(&harness);
+    let path = child_credential(&harness, MCP_SIGN_INS_ONLY);
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+            "--json",
+        ])
+        .write_stdin("sk-replacing-token\n")
+        .output()
+        .expect("token login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(&path).expect("kept"), MCP_SIGN_INS_ONLY);
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert!(
+        report.get("retired_superseded_credential").is_none(),
+        "{report}"
+    );
+    assert!(report.get("retired_mcp_sign_ins").is_none(), "{report}");
+}
+
+/// A saved login that shares its file with MCP sign-ins is retired with the
+/// whole file, and the report names the sign-ins the reader has to redo.
+#[test]
+fn a_token_login_that_retires_mcp_sign_ins_says_so() {
+    let harness = Harness::new();
+    harness.initialize_companion_profile();
+    saved_login_account(&harness);
+    let path = child_credential(&harness, LOGIN_AND_MCP_SIGN_INS);
+    let output = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+            "--json",
+        ])
+        .write_stdin("sk-replacing-token\n")
+        .output()
+        .expect("token login");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!path.exists(), "the saved login must be retired");
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(report["retired_superseded_credential"], true, "{report}");
+    assert_eq!(report["retired_mcp_sign_ins"], true, "{report}");
+
+    saved_login_account(&harness);
+    child_credential(&harness, LOGIN_AND_MCP_SIGN_INS);
+    let human = harness
+        .assert_command()
+        .args([
+            "account",
+            "login",
+            "work",
+            "--profile",
+            "companion",
+            "--token",
+            "--stdin",
+        ])
+        .write_stdin("sk-second-token\n")
+        .output()
+        .expect("token login");
+    let stdout = support::flowed(&String::from_utf8_lossy(&human.stdout));
+    assert!(
+        stdout.contains("The MCP server sign-ins claude kept in the same file are gone"),
+        "{stdout}"
+    );
 }

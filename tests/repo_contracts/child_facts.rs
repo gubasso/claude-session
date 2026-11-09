@@ -52,6 +52,11 @@ const LITERALS: &[&str] = &[
     // session directory it created (ADR-0117). Distinctive enough for the scan
     // to reach, unlike the two plugin-state filenames it is written beside.
     "lspRecommendationDisabled",
+    // The two top-level keys of the child's credential file. The wrapper reads
+    // their names, never their values, to tell a saved login from MCP server
+    // sign-ins kept in the same file (ADR-0128).
+    "claudeAiOauth",
+    "mcpOAuth",
 ];
 
 /// The obligations ADR-0089 names, as amended by ADR-0114, plus the temporary

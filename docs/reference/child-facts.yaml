@@ -229,3 +229,26 @@ carried:
     sites:
       - src/domain/account.rs
       - tests/accounts.rs
+
+  - fact: claudeAiOauth
+    obligation: scope-our-claim
+    why: The child keeps its claude.ai login under this key and its MCP server sign-ins in the same file, so the wrapper reads the key's presence, never its value, before it claims a saved login in a warning, a status report, a launch, a login commit, or a retirement (ADR-0128).
+    sites:
+      - docs/decisions/ADR-0128-tell-a-saved-login-by-its-key.md
+      - docs/reference/accounts.md
+      - docs/reference/research-tracking.yaml
+      - src/services/account/saved_login.rs
+      - tests/accounts.rs
+      - tests/doctor.rs
+      - tests/support.rs
+      - tests/support/recording_child.rs
+
+  - fact: mcpOAuth
+    obligation: scope-our-claim
+    why: The child keeps MCP server sign-ins under this key in the file that holds its saved login, so a retirement that unlinks that file says when it took sign-ins with it, rather than claim that it removed only a login (ADR-0128).
+    sites:
+      - docs/decisions/ADR-0128-tell-a-saved-login-by-its-key.md
+      - docs/reference/accounts.md
+      - docs/reference/research-tracking.yaml
+      - src/services/account/saved_login.rs
+      - tests/accounts.rs

@@ -271,8 +271,11 @@ impl Harness {
         fs::create_dir_all(&config).expect("account fixture");
         fs::set_permissions(&account, fs::Permissions::from_mode(0o700)).expect("account mode");
         fs::set_permissions(&config, fs::Permissions::from_mode(0o700)).expect("config mode");
-        fs::write(config.join(".credentials.json"), b"child-owned-fixture")
-            .expect("credential fixture");
+        fs::write(
+            config.join(".credentials.json"),
+            br#"{"claudeAiOauth":{"accessToken":"child-owned-fixture"}}"#,
+        )
+        .expect("credential fixture");
         Self::initialize_child_config(&config);
         fs::write(
             account.join("auth-mode.json"),

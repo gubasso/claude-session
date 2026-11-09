@@ -85,7 +85,7 @@ fn main() {
         fs::create_dir_all(&config).expect("config directory");
         fs::write(
             config.join(".credentials.json"),
-            b"child-owned-login-bytes",
+            br#"{"claudeAiOauth":{"accessToken":"child-owned-fixture"}}"#,
         )
         .expect("credential");
     }

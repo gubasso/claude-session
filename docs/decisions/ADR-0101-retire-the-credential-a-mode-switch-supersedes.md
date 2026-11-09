@@ -27,4 +27,6 @@ The unlink is decided by the mode just recorded rather than by the mode replaced
 
 Implemented
 
-Delivered by [slice 027](../plan/slices/027-superseded-credential-retirement/README.md), in `retire_superseded` and the two commits calling it.
+Delivered by [slice 027](../plan/slices/027-superseded-credential-retirement/README.md), in `retire_superseded`.
+
+Amended by [ADR-0128](./ADR-0128-tell-a-saved-login-by-its-key.md).

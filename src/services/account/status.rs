@@ -34,7 +34,7 @@ pub(crate) fn project(
         guard::Expected::Directory,
     )?;
     let metadata = read(context, account);
-    let child_login_present = super::owned_regular(&paths.account_credentials(account));
+    let child_login_present = super::saved_login::present(&paths.account_credentials(account));
     let mut status = AccountStatus {
         account: account.clone(),
         selected,

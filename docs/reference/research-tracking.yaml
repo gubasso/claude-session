@@ -7,6 +7,23 @@
 # inside each artifact's `revalidate` field.
 
 tracked:
+  - path: docs/decisions/ADR-0128-tell-a-saved-login-by-its-key.md
+    last_checked: 2026-11-09
+    cadence: monthly
+    why: The child keeps its claude.ai login under `claudeAiOauth` and every MCP server sign-in under `mcpOAuth`, both in the one `.credentials.json` of an account. The saved-login probe, the shadowing warning, launch usability, the login commit, and mode-switch retirement all rest on those two key names and on the two halves sharing one file.
+    revalidate: >-
+      Sign in to an MCP server that uses OAuth from a token account, and
+      confirm that the child writes `.credentials.json` with a top-level
+      `mcpOAuth` object and no `claudeAiOauth`. Run a claude.ai login in a
+      fresh account and confirm that the login is a `claudeAiOauth` object in
+      the same file. Check the upstream requests to move MCP sign-ins into
+      their own file (anthropics/claude-code issues 92748 and 93331): if the
+      child splits the file, the retirement no longer costs MCP sign-ins and
+      the report line about them goes.
+    dependents:
+      - docs/reference/accounts.md
+      - docs/reference/xdg-storage.md
+      - src/services/account/saved_login.rs
   - path: docs/decisions/ADR-0117-supply-plugins-from-a-read-only-seed.md
     last_checked: 2026-09-02
     cadence: monthly

@@ -49,3 +49,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 038 child-plugin-seed — done — 2 implementation sessions — after 029, which named the read-only seed as the plugin route and left it for the need that now exists; landed in one session, and the measurement that rejected the link also showed a moved seed loads nothing
 - 039 cross-container-session-lookup — done — 2 implementation sessions — after 037; a report names a session from that session's own registry rather than only this run's
 - 040 native-skill-directory — done — 1 implementation session — after 029; landed in one session, and made `$HOME` required so the skill source can never resolve relative
+- 041 saved-login-presence — done — 1 implementation session — after 027; landed in one session, and an MCP sign-in in a token account was what showed that a file at the login path is not a login
