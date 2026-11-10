@@ -75,7 +75,7 @@ semver_check = false
 
 release-plz writes `CHANGELOG.md` with its own header and body template, and no `[changelog]` section changes them. The formatters and the prose gates exclude the changelog instead, as the dev-environment rule of nix-secrets requires: a generated file follows its generator, and a project configures a generator only as the tool documents, never to satisfy one of its own checks.
 
-Two settings work around defects in release-kit rather than expressing a preference of this project. [Known issues](./known-issues/release-kit.md) records each upstream issue and what to delete when its fix lands: the `git_tag_name` pin and `Cargo.toml`'s `[profile.dist]` block.
+The `git_tag_name` pin and `Cargo.toml`'s `[profile.dist]` block are configuration that release-kit expects: its rust binding seeds the tag shape, and its landing refuses a workflow with no `dist` profile. [Known issues](./known-issues/release-kit.md) keeps the history of both.
 
 ## Package metadata and contents
 
