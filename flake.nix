@@ -49,7 +49,6 @@
             pkgs.cargo-nextest
             pkgs.cargo-deny
             pkgs.cargo-audit
-            pkgs.cargo-machete
             # TOML formatter for the local `taplo format` pre-commit hook.
             pkgs.taplo
             # JSON/JSONC + markdown formatter; the dprint pre-commit hooks run as
@@ -57,15 +56,12 @@
             pkgs.dprint
             pkgs.just
             pkgs.pre-commit
-            # Nix quality tools for the pre-commit `_nix` overlay hooks
-            # (nixfmt/statix/deadnix run as language:system off PATH).
+            # Nix tools of the system hooks: nixfmt, which `nix fmt` runs too
+            # (the formatter above), and statix, which has no upstream hook.
+            # deadnix and typos run as upstream hooks that pre-commit builds
+            # (ADR-0129), so they have no package here.
             pkgs.nixfmt
             pkgs.statix
-            pkgs.deadnix
-            # Spell check. Upstream ships it as a `language: python` hook whose
-            # wheel carries a generic-glibc binary, which cannot execute here
-            # (ADR-0040), so it runs as language:system off PATH.
-            pkgs.typos
             # Node for the markdownlint-cli2 pre-commit hook, which is pinned to
             # `language_version: system` because pre-commit's own nodeenv
             # fallback downloads a generic-glibc node (ADR-0040). npm still

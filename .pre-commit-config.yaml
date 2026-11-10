@@ -127,11 +127,12 @@ repos:
   # dprint's json plugin formats JSON and JSONC (comments + trailing commas),
   # which the stdlib-based pretty-format-json cannot. check-json5 above stays the
   # syntax gate; dprint owns formatting. Config in the sibling `./dprint.json`
-  # (plugin version pinned there). External dependency: dprint must be on PATH
-  # (`cargo install dprint` or your package manager). Not at pre-push — git push
-  # may strip PATH, and formatting is already applied by commit time.
+  # (plugin version pinned there). The devShell supplies dprint. Not at
+  # pre-push — git push may strip PATH, and formatting is already applied by
+  # commit time.
   - repo: local
     hooks:
+      # owner: devshell (no-hook-language) upstream dprint publishes no pre-commit hook.
       - id: dprint
         name: dprint fmt (json/jsonc)
         # --allow-no-files: dprint exits 14 when every path it receives is one its
@@ -159,6 +160,7 @@ repos:
   # --- Rust: format & lint (auto-fix) ---
   - repo: local
     hooks:
+      # owner: devshell (project-environment) cargo fmt is part of the Rust toolchain that the devShell pins.
       - id: cargo-fmt
         name: cargo fmt
         entry: cargo fmt --all
@@ -166,6 +168,7 @@ repos:
         types: [rust]
         pass_filenames: false
 
+      # owner: devshell (project-environment) cargo clippy is part of the Rust toolchain and builds the crate.
       - id: clippy-fix
         name: clippy auto-fix
         entry: cargo clippy --fix --allow-dirty --allow-staged --all-features -- -W clippy::all
@@ -173,6 +176,7 @@ repos:
         types: [rust]
         pass_filenames: false
 
+      # owner: devshell (project-environment) cargo clippy is part of the Rust toolchain and builds the crate.
       - id: clippy-strict
         name: clippy gate
         entry: cargo clippy --all-targets --all-features -- -D warnings
@@ -180,6 +184,7 @@ repos:
         types: [rust]
         pass_filenames: false
 
+      # owner: devshell (no-hook-language) upstream taplo publishes no pre-commit hook.
       - id: taplo-format
         name: taplo format
         entry: taplo format
@@ -224,13 +229,14 @@ repos:
   # (rebases, amends) reaching the trunk.
   #
   # Requires:
-  #   - `cargo nextest` on PATH (cargo install --locked cargo-nextest)
+  #   - `cargo nextest`, which the devShell supplies
   #   - `.config/nextest.toml` defining the `pre-commit` and `pre-push`
   #     profiles. A canonical copy lives in this template at
   #     `.config/nextest.toml`; the `/pre-commit` skill mirrors it into
   #     `<repo>/.config/nextest.toml`.
   - repo: local
     hooks:
+      # owner: devshell (project-environment) cargo nextest runs the test suite of the crate.
       - id: cargo-nextest-unit
         name: cargo nextest (unit tests)
         entry: cargo nextest run --profile pre-commit --all-features --no-tests=pass
@@ -239,6 +245,7 @@ repos:
         pass_filenames: false
         stages: [pre-commit, pre-push, manual]
 
+      # owner: devshell (project-environment) cargo nextest runs the test suite of the crate.
       - id: cargo-nextest-integration
         name: cargo nextest (integration tests)
         entry: cargo nextest run --profile pre-push --all-features --no-tests=pass
@@ -257,6 +264,7 @@ repos:
       # `always_run` with no filenames: a generated example's relationship is to
       # the whole configuration model rather than to any one changed file, so a
       # file filter would skip exactly the commit that made it stale.
+      # owner: devshell (project-environment) cargo xtask runs code of this workspace.
       - id: gen-config
         name: cargo xtask gen-config (generated examples)
         entry: cargo xtask gen-config
@@ -265,6 +273,7 @@ repos:
         pass_filenames: false
         stages: [pre-commit, manual]
 
+      # owner: devshell (no-hook-language) a script of this repository that runs cargo nextest from the devShell.
       - id: acceptance-test-ids
         name: resolve slice acceptance test IDs
         entry: scripts/check-acceptance-tests
@@ -273,6 +282,7 @@ repos:
         pass_filenames: false
         stages: [pre-push, manual]
 
+      # owner: devshell (project-environment) cargo test --doc runs the doctests of the crate.
       - id: cargo-doc-tests
         name: cargo test --doc (doctests)
         # Guard: doctests only exist in library targets. This is a
@@ -285,27 +295,20 @@ repos:
         pass_filenames: false
         stages: [pre-push, manual]
 
-  # --- Spell check (system binary from the devShell) ---
+  # --- Spell check ---
   #
-  # crate-ci publishes this as a `language: python` hook whose wheel carries a
-  # prebuilt generic-glibc binary. That binary names
-  # /lib64/ld-linux-x86-64.so.2 as its ELF interpreter, which does not exist on a
-  # Nix host, so the hook installs cleanly and then fails at exec with a bare
-  # ENOENT. There is no configuration knob for it; the fix is to take the
-  # binary from the flake devShell instead (ADR-0040). nixpkgs carries it at
-  # the version this file previously pinned.
-  #
-  # Args mirror the upstream hook definition so behaviour is unchanged.
+  # The upstream hook, `language: python`, pinned at the version the devShell
+  # carried. Its wheel holds a prebuilt binary that links the standard ELF
+  # loader, which the host supplies (nix-ld on a NixOS host), so the reason for
+  # a system hook is gone. Its args are the upstream defaults.
   #
   # Commit-message linting was `committed` here. The release-kit block above
   # now owns that job through conventional-pre-commit and rk-message, and two
   # hooks on one job is what the landing's reconciliation forbids (ADR-0118).
-  - repo: local
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.48.0
     hooks:
       - id: typos
-        name: typos
-        entry: typos --write-changes --force-exclude
-        language: system
         types: [text]
         stages: [pre-commit, pre-merge-commit, pre-push, manual]
 
@@ -333,6 +336,7 @@ repos:
 
   - repo: local
     hooks:
+      # owner: devshell (project-environment) cargo audit is a cargo subcommand that reads the lock file of the crate.
       - id: cargo-audit
         name: cargo audit
         entry: cargo audit
@@ -342,6 +346,7 @@ repos:
 
       # `licenses` is enabled: this repo carries a deny.toml with a filled
       # allow-list, and Cargo.toml declares `license = "MIT OR Apache-2.0"`.
+      # owner: devshell (project-environment) cargo deny is a cargo subcommand that reads the lock file of the crate.
       - id: cargo-deny
         name: cargo deny
         entry: cargo deny check advisories bans sources licenses
@@ -352,6 +357,7 @@ repos:
       # cargo-deny prints nothing for an ignored advisory, so this hook prints
       # each one with its reason and always passes. `verbose` shows the output
       # of a passing hook.
+      # owner: devshell (no-hook-language) a script of this repository that reads deny.toml with taplo.
       - id: report-ignored-advisories
         name: report ignored advisories
         entry: scripts/report-ignored-advisories
@@ -383,20 +389,23 @@ repos:
   # --- Nix: format (auto-fix) + lint (gate) ---
   #
   # Every project carries a per-project flake devShell, so these run against its
-  # Nix sources. Tools come from that devShell (nix develop / direnv) and run as
-  # system hooks off PATH, like dprint/cargo-fmt. nixfmt (RFC 166, the
+  # Nix sources. nixfmt and statix come from that devShell (nix develop /
+  # direnv) and run as system hooks off PATH, like dprint/cargo-fmt; deadnix
+  # runs as its upstream hook below. nixfmt (RFC 166, the
   # nixpkgs-standard formatter) rewrites in place; statix and deadnix are
   # report-only gates — fix by hand or allowlist. statix walks the tree itself,
   # so its scope/ignore lives in the sibling `./statix.toml`. `nix flake check`
   # evaluates the flake and is scoped to Nix changes, at the pre-push stage.
   - repo: local
     hooks:
+      # owner: devshell (outside-caller) nix fmt runs the formatter of this flake, pkgs.nixfmt, so the hook runs the same one.
       - id: nixfmt
         name: nixfmt (format)
         entry: nixfmt
         language: system
         types: [nix]
         stages: [pre-commit, manual]
+      # owner: devshell (no-hook-language) statix has no hook in a language that pre-commit builds.
       - id: statix
         name: statix (nix anti-patterns)
         entry: statix check
@@ -404,12 +413,7 @@ repos:
         types: [nix]
         pass_filenames: false
         stages: [pre-commit, manual]
-      - id: deadnix
-        name: deadnix (dead code)
-        entry: deadnix --fail
-        language: system
-        types: [nix]
-        stages: [pre-commit, manual]
+      # owner: host (no-hook-language) nix comes from the host and has no hook in a language that pre-commit builds.
       - id: nix-flake-check
         name: nix flake check (eval)
         entry: nix flake check
@@ -418,6 +422,23 @@ repos:
         pass_filenames: false
         stages: [pre-push, manual]
 
+  # deadnix publishes a rust hook, which pre-commit builds; its manifest
+  # carries --fail and the nix file type.
+  - repo: https://github.com/astro/deadnix
+    rev: v1.3.2
+    hooks:
+      - id: deadnix
+        stages: [pre-commit, manual]
+  - repo: local
+    hooks:
+      # A flake holds no language library: a package belongs to the manifest
+      # of its stack, and the devShell keeps the toolchain.
+      - id: no-language-library-in-flake
+        name: a flake holds no language library
+        language: pygrep
+        entry: '^(?!\s*#).*(withPackages|python3[0-9]*Packages\.|pythonPackages\.|nodePackages\.|perlPackages\.)'
+        files: '(^|/)flake\.nix$|(^|/)nix/.*\.nix$'
+        stages: [pre-commit]
   # --- Markdown: canonical format (dprint) + style gate (markdownlint) ---
   #
   # Universal overlay: every project carries docs/READMEs, so its markdown is
@@ -434,11 +455,12 @@ repos:
   # independent of the type's own JSON dprint.json, and the `dprint-markdown` id
   # never collides with the type's `dprint` hook.
   #
-  # External dependency: dprint must be on PATH (`cargo install dprint` or your
-  # package manager), the same model as the json/nix hooks. Not at pre-push —
+  # The devShell supplies dprint, the same model as the json/nix hooks. Not at
+  # pre-push —
   # git push may strip PATH and the format is already applied by commit time.
   - repo: local
     hooks:
+      # owner: devshell (no-hook-language) upstream dprint publishes no pre-commit hook.
       - id: dprint-markdown
         name: dprint fmt (markdown)
         # --allow-no-files, for the same reason as the JSON hook above.

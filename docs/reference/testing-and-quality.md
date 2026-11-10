@@ -226,7 +226,7 @@ Every commit-stage and push-stage row in the table below also runs at `manual`, 
 
 `pre-commit run --all-files` on its own is not the gate. `--all-files` selects files, not stages, so it runs the commit stage alone and silently omits the push-stage half of the table below — the integration tests, the doctests, and every advisory and secret scan.
 
-Run it inside the devShell. Several hooks take their binary from the shell rather than building one, so outside it they fail at exec rather than reporting on content ([ADR-0040](../decisions/ADR-0040-provision-hook-binaries-from-the-devshell.md)).
+Run it inside the devShell. The hooks that keep `language: system` take their tool from the shell, and each names its owner in an `# owner:` comment, so outside the shell they fail at exec rather than reporting on content ([ADR-0129](../decisions/ADR-0129-each-dependency-has-its-most-specific-native-owner.md)).
 
 The Backing column says whether the hook exists today. `deferred` means the row is a specification the repository does not yet enforce; it is closed by the round that builds the mechanism, never by deleting the row.
 

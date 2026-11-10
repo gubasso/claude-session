@@ -29,4 +29,6 @@ Implemented
 
 Enacted by [`flake.nix`](../../flake.nix) and [`.pre-commit-config.yaml`](../../.pre-commit-config.yaml).
 
-Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md): `committed` is gone, its job now the landed block's. The rule here still governs `typos` and `markdownlint-cli2`.
+Amended by [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md): `committed` is gone, its job now the landed block's. The rule here still governs `markdownlint-cli2`.
+
+Amended by [ADR-0129](./ADR-0129-each-dependency-has-its-most-specific-native-owner.md): drops `typos`.
