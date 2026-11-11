@@ -1,6 +1,6 @@
 # release-kit
 
-release-kit owns this project's release convention and the files its landing wrote ([ADR-0118](../../decisions/ADR-0118-adopt-the-release-kit-trunk-convention.md)). The adoption in September 2026 and the upgrade to 0.4.0 produced four real cases. One is open below, filed upstream and worked around here. Three are closed. A generated changelog that fought the formatter closed when the checks stopped judging generated files, which the dev-environment rule of nix-secrets requires of every project. The other two closed upstream and keep a closing note below.
+release-kit owns this project's release convention and the files its landing wrote ([ADR-0118](../../decisions/ADR-0118-adopt-the-release-kit-trunk-convention.md)). The adoption in September 2026 and the upgrade to 0.4.0 produced four real cases, and all four are closed. A generated changelog that fought the formatter closed when the checks stopped judging generated files, which the dev-environment rule of nix-secrets requires of every project. The other three closed upstream and keep a closing note below.
 
 ## Closed: the dist profile is missing
 
@@ -14,14 +14,8 @@ Upstream: [gubasso/release-kit#114](https://github.com/gubasso/release-kit/issue
 
 This manifest is a workspace root with an `xtask` member, so release-plz defaulted to the tag `claude-session-v0.1.1`, which the `refs/tags/v*` ruleset does not protect. That tag keeps its name. release-kit now seeds `git_tag_name = "v{{ version }}"` in `release-plz.toml`, and this project keeps that line as normal configuration.
 
-## The rendered security policy has no slot for the wrapper's scope
+## Closed: the rendered security policy has no slot for the wrapper's scope
 
-Upstream: [gubasso/release-kit#209](https://github.com/gubasso/release-kit/issues/209).
+Upstream: [gubasso/release-kit#209](https://github.com/gubasso/release-kit/issues/209), closed.
 
-release-kit 0.4.0 owns `SECURITY.md` as a rendered file, byte for byte. Its two tunable keys, `security.contact` and `security.response`, name who receives a report and how fast an answer arrives. Neither states what a project does not own, so a wrapper has nowhere to put its boundary.
-
-Case: this project's own policy said that a vulnerability in the `claude` CLI, in the Anthropic API, or in a dependency belongs to whoever owns that code. Taking the rendered bytes at 0.4.0 dropped that sentence, and [ADR-0121](../../decisions/ADR-0121-report-a-vulnerability-through-the-forge.md) states as a consequence that the policy carries it. A reporter who arrives through the forge's own reporting form reads `SECURITY.md` and nothing else.
-
-Workaround: the sentence lives in [the README](../../../README.md) beside the pointer to the policy, and ADR-0121 names both enactment points.
-
-Remove when: release-kit renders a project-supplied scope paragraph into the policy, or gives the target a marked region inside that file.
+release-kit 0.4.0 rendered `SECURITY.md` byte for byte, with no key for what a project does not own. Taking those bytes dropped this project's sentence that a vulnerability in the `claude` CLI or in the Anthropic API belongs to Anthropic, so the sentence moved to [the README](../../../README.md), where [ADR-0121](../../decisions/ADR-0121-report-a-vulnerability-through-the-forge.md) records it. A reporter who arrives through the forge's reporting form reads only `SECURITY.md`. release-kit 0.9.10 added `security.scope`, one paragraph that the policy renders after its reporting channel. `.release-kit/config.toml` sets it, so `SECURITY.md` carries the sentence again, and the README keeps it beside its pointer to the policy.

@@ -4,6 +4,8 @@
 
 Please report a suspected vulnerability through [this project's private vulnerability reporting form](https://github.com/gubasso/claude-session/security/advisories/new). Sign in to GitHub to use the form. This channel is available for public repositories after private reporting is enabled. If it is unavailable, contact a maintainer through an existing private conversation before sending sensitive details.
 
+This policy covers the claude-session wrapper. A vulnerability in the `claude` CLI itself, or in the Anthropic API, belongs to Anthropic, so report it there.
+
 Do not disclose a vulnerability in a public issue, pull request, discussion, or commit. Keep reproduction material and any proposed fix private while the report is assessed.
 
 Include the affected release, the component involved, the configuration needed to reach it, reproduction steps or a minimal proof of concept, and the security impact you observed. Remove credentials and personal information from attachments. For a dependency advisory, explain how the affected behavior can be reached through this project; a dependency version and a CVE identifier alone do not establish impact.

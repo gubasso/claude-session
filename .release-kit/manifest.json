@@ -1,6 +1,6 @@
 {
   "schema_version": 12,
-  "rk_version": "0.9.8",
+  "rk_version": "0.9.10",
   "origin": "init",
   "landed_at": "2026-09-08T19:02:08Z",
   "profile": {
@@ -31,6 +31,7 @@
     "repo": "gubasso/claude-session",
     "security_contact": "",
     "security_response": "best-effort",
+    "security_scope": "This policy covers the claude-session wrapper. A vulnerability in the `claude` CLI itself, or in the Anthropic API, belongs to Anthropic, so report it there.",
     "required_check": "gate",
     "required_workflow": "ci"
   },
@@ -66,7 +67,7 @@
     {
       "destination": "SECURITY.md",
       "kind": "rendered",
-      "sha256": "eeed9bf1a702edf6d1f26fc67bbb65eecbfaa276f55802bf0b19183220ab6ee7"
+      "sha256": "7bd943abed2f74aaccf8b9eca5c56b1f00de3e0156560337c193e4170a0a29cd"
     },
     {
       "destination": "dist-workspace.toml",

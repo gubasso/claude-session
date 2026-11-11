@@ -34,9 +34,10 @@ code_scanning = "off"   # P: opt-in code scanning provider: codeql, semgrep, or 
 workflow_guards = true  # P: opt-in workflow guards: the agent and commit policy lines, the glossary, the workflow hooks, merge-cleanup, and branch-reminder
 
 [security]
-advisories = ""          # N: project receiving vulnerability reports
-contact = ""             # P: one line naming who receives a report when the forge channel is unavailable; empty keeps the forge's own wording
-response = "best-effort" # P: the acknowledgment window the policy promises: best-effort, 1 day, <n> days, 1 business day, or <n> business days
+advisories = ""                                                                                                                                                         # N: project receiving vulnerability reports
+contact = ""                                                                                                                                                            # P: one line naming who receives a report when the forge channel is unavailable; empty keeps the forge's own wording
+response = "best-effort"                                                                                                                                                # P: the acknowledgment window the policy promises: best-effort, 1 day, <n> days, 1 business day, or <n> business days
+scope = "This policy covers the claude-session wrapper. A vulnerability in the `claude` CLI itself, or in the Anthropic API, belongs to Anthropic, so report it there." # P: one paragraph naming what the project does not own and where to report it instead; empty renders nothing
 
 [setup]
 required_check = "gate" # P: the check the release gate believes, and the check the trunk ruleset requires under forge integration
