@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.2.8](https://github.com/gubasso/claude-session/compare/v0.2.7...v0.2.8) - 2026-11-11
+
+### Other
+
+- *(gitignore)* drop the retired cog name from the Rust section header
+
 ## [0.2.7](https://github.com/gubasso/claude-session/compare/v0.2.6...v0.2.7) - 2026-11-11
 
 ### Other
