@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.2.6](https://github.com/gubasso/claude-session/compare/v0.2.5...v0.2.6) - 2026-11-11
+
+### Fixed
+
+- *(account)* keep a paste sent as soon as the token prompt appears
+
 ## [0.2.5](https://github.com/gubasso/claude-session/compare/v0.2.4...v0.2.5) - 2026-11-09
 
 ### Fixed
