@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.2.9](https://github.com/gubasso/claude-session/compare/v0.2.8...v0.2.9) - 2026-11-11
+
+### Other
+
+- *(release)* move release-kit to v0.9.10 and state the wrapper scope
+
 ## [0.2.8](https://github.com/gubasso/claude-session/compare/v0.2.7...v0.2.8) - 2026-11-11
 
 ### Other
