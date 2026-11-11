@@ -110,6 +110,8 @@ jobs:
     name: dist (generate check + plan)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
     steps:
       - uses: actions/checkout@v7
       # dist-workspace.toml sets pr-run-mode = "skip", so the generated
@@ -136,7 +138,55 @@ jobs:
           dist generate --mode ci
           git diff --exit-code -- .github/workflows/release.yml
       - name: The configuration produces a viable release
-        run: dist plan
+        id: plan
+        run: |
+          set -euo pipefail
+          dist plan --output-format=json > plan-dist-manifest.json
+          echo "plan=$(jq -c . plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
+
+  # Builds every target of dist-workspace.toml before a merge. The matrix is
+  # the artifacts matrix of the plan, the same one the generated release.yml
+  # builds from on the tag, so a target the code cannot build fails the
+  # request instead of a release whose tag already exists.
+  dist-build:
+    name: dist build (${{ join(matrix.targets, ', ') }})
+    needs: dist-plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.dist-plan.outputs.plan).ci.github.artifacts_matrix }}
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container && matrix.container.image || null }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install Rust where the container has none
+        if: ${{ matrix.container }}
+        run: |
+          if ! command -v cargo > /dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Install dist
+        run: ${{ matrix.install_dist.run }}
+      - name: dist runs at the configured pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          pin="$(grep -m1 '^cargo-dist-version' dist-workspace.toml | cut -d'"' -f2)"
+          dist --version | grep -Fq "$pin"
+      - name: Install the system packages the target needs
+        run: ${{ matrix.packages_install }}
+      - name: Build the matrix target
+        env:
+          DIST_ARGS: ${{ matrix.dist_args }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          dist build $DIST_ARGS
 
   # The one required check the trunk protection names. A forge resolves a
   # job's `needs` inside one workflow file, so every job whose failure must
@@ -145,7 +195,7 @@ jobs:
     name: gate
     runs-on: ubuntu-latest
     if: ${{ !cancelled() }}
-    needs: [lint, test, build, supply-chain, flake, dist-plan]
+    needs: [lint, test, build, supply-chain, flake, dist-plan, dist-build]
     steps:
       - name: Every needed job succeeded
         env:
