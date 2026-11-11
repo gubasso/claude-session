@@ -13,6 +13,14 @@
       url = "github:gubasso/release-kit/v0.9.8";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # The store guard of the canon (exobrain): `exobrain store-guard --daily`
+    # in .envrc warns about working-tree copies in the Nix store.
+    exobrain-tech = {
+      url = "github:gubasso/exobrain-tech/v1.0.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+      # Its rk serves only its own devShell, so it takes this flake's.
+      inputs.release-kit.follows = "release-kit";
+    };
   };
 
   outputs =
@@ -21,6 +29,7 @@
       rust-overlay,
       flake-utils,
       release-kit,
+      exobrain-tech,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -84,6 +93,10 @@
             # for the working tree, which is unambiguous about what it builds.
             # `packages.default` above builds the wrapper for the pipeline's
             # proof (ADR-0119) and installs nothing here.
+          ]
+          # exobrain, the store guard that .envrc runs once a day.
+          ++ pkgs.lib.optionals (system == "x86_64-linux") [
+            exobrain-tech.packages.${system}.default
           ];
           # native deps for -sys crates, uncomment as needed:
           # buildInputs = [ pkgs.openssl ];

@@ -556,3 +556,9 @@ repos:
         additional_dependencies: ['markdownlint-rule-relative-links']
         files: '^docs/decisions/(ADR-[0-9]+-.*|template)\.md$'
         args: ['--config', '.markdownlint/adr.markdownlint-cli2.jsonc']
+  # A flake reference reads the git tree of a checkout, never a path copy of
+  # the whole folder into the Nix store. The hook is published by exobrain-tech.
+  - repo: https://github.com/gubasso/exobrain-tech
+    rev: v1.0.0
+    hooks:
+      - id: no-path-flake-reference
