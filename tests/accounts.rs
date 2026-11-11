@@ -1230,8 +1230,9 @@ fn a_multi_line_paste_into_the_terminal_is_refused() {
         .stderr(std::process::Stdio::piped());
     let mut child = command.spawn().expect("terminal login");
     // The paste has to arrive after the prompt. Engaging echo-off flushes
-    // type-ahead by design, so anything written before then is discarded and
-    // the case under test would never be reached.
+    // type-ahead by design, so anything written before the prompt is
+    // discarded and the case under test would never be reached. The wrapper
+    // flushes before it writes the prompt, so the prompt is the signal.
     let mut transcript = Vec::new();
     {
         use std::io::{Read as _, Write as _};

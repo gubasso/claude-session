@@ -59,13 +59,18 @@ impl Terminal for SystemTerminal {
 
     fn read_secret(&self, prompt: &str) -> io::Result<Result<Secret, SecretError>> {
         let tty = open_tty()?;
-        write_prompt(&tty, prompt)?;
         let (line, trailing) = {
             // The guard restores the saved attributes on every path out,
             // including an unwind. It is the only thing between a bug in the
             // read below and a terminal left with echo off, which is why only
-            // the reads live inside its scope.
+            // the prompt and the reads live inside its scope.
+            //
+            // It is engaged before the prompt is written, because engaging it
+            // flushes pending input. Flushed after the prompt, a paste the
+            // user sent as soon as the prompt appeared would be discarded and
+            // read as nothing at all.
             let _echo = EchoOff::engage(&tty)?;
+            write_prompt(&tty, prompt)?;
             let line = read_line(&tty)?;
             (line, drain(&tty)?)
         };
