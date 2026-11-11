@@ -1,6 +1,6 @@
 /target
 
-# --- cog gitignore (rust) ---
+# --- gitignore (rust) ---
 # Rust
 /target/
 **/*.rs.bk
