@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.2.12](https://github.com/gubasso/claude-session/compare/v0.2.11...v0.2.12) - 2026-11-12
+
+### Added
+
+- *(session)* show the child session id and kind in session list
+
 ## [0.2.11](https://github.com/gubasso/claude-session/compare/v0.2.10...v0.2.11) - 2026-11-12
 
 ### Other
