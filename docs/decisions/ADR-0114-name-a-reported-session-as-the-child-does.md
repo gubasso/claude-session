@@ -29,4 +29,4 @@ The join is the registration's process identifier and start time against the wit
 
 Implemented
 
-Amends [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md) with a fourth obligation. Amended by [ADR-0123](./ADR-0123-read-a-sessions-own-peer-registry.md), which changes the registry read, and [ADR-0124](./ADR-0124-describe-a-reported-session-with-the-children-facts.md), which adds descriptive facts. Enacted by [`domain::registration`](../../src/domain/registration.rs). Shaped by [037](../plan/slices/037-session-report-by-name/README.md).
+Amends [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md) with a fourth obligation. Amended by [ADR-0123](./ADR-0123-read-a-sessions-own-peer-registry.md), which changes the registry read, and [ADR-0124](./ADR-0124-describe-a-reported-session-with-the-children-facts.md), which adds descriptive facts, and [ADR-0132](./ADR-0132-identify-a-reported-session-by-the-children-id-and-kind.md), which adds two more. Enacted by [`domain::registration`](../../src/domain/registration.rs). Shaped by [037](../plan/slices/037-session-report-by-name/README.md).

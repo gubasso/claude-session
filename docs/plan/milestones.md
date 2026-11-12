@@ -6,6 +6,7 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
+- 042 session-list-describes-the-child — shaped — 1 implementation session — ahead of 034 by the operator's ruling of 2026-11-12
 - 034 account-usage-reporting — shaped — 2 implementation sessions — after 019 and 025; the provider-fact carry needs its own record before code
 
 ## closed

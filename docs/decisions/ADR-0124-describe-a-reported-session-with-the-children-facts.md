@@ -27,4 +27,4 @@ The obligation authorizes the working directory and child status word, and nothi
 
 Implemented
 
-Amends [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md) with `describe-the-subject` and [ADR-0114](./ADR-0114-name-a-reported-session-as-the-child-does.md) with two descriptive facts. Shaped and enacted by [039](../plan/slices/039-cross-container-session-lookup/README.md).
+Amends [ADR-0089](./ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md) with `describe-the-subject` and [ADR-0114](./ADR-0114-name-a-reported-session-as-the-child-does.md) with two descriptive facts. Amended by [ADR-0132](./ADR-0132-identify-a-reported-session-by-the-children-id-and-kind.md), which adds the child's session id and kind. Shaped and enacted by [039](../plan/slices/039-cross-container-session-lookup/README.md).
