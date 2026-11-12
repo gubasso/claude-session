@@ -4,8 +4,9 @@
 //! a script was always meant to look ([ADR-0093]).
 //!
 //! A list is read by scanning, not by reading sentences, so this renders one
-//! table and nothing else: the verdict, the session, whose account it is, and
-//! the short reason behind the verdict. The long form of any reason lives in
+//! table and nothing else: the verdict, the session, the child's kind and
+//! short id, whose account it is, the short reason behind the verdict, and the
+//! working directory (ADR-0132). The long form of any reason lives in
 //! [sessions]; a report that explained itself on every row would bury the rows
 //! it exists to show.
 //!
@@ -22,6 +23,8 @@
     clippy::format_push_string,
     reason = "the renderer assembles one deterministic document before its sole write"
 )]
+
+use std::path::Path;
 
 use crate::{
     domain::{
@@ -66,9 +69,50 @@ const fn shade(verdict: Verdict) -> CheckStatus {
 /// The columns a row is read across, in scanning order.
 ///
 /// The verdict first, because it is what a reader is scanning for; the session
-/// next, because it is what they act on; the account and the reason after,
-/// because they qualify a row already found.
-const COLUMNS: &[&str] = &["status", "session", "account", "why"];
+/// next, because it is what they act on; the kind, the short id, the account,
+/// and the reason after, because they qualify a row already found. The
+/// directory is last: it is the one cell that runs long, and the last column is
+/// not padded, so a long path moves no other column.
+const COLUMNS: &[&str] = &[
+    "status",
+    "session",
+    "kind",
+    "id",
+    "account",
+    "why",
+    "directory",
+];
+
+/// How many characters of the child's session id the table shows.
+///
+/// Enough to tell a screenful of sessions apart. The whole id is on the row of
+/// the document beside this one, which is where a caller that matches on it
+/// was always meant to look.
+const SHORT_ID: usize = 8;
+
+/// The first characters of the child's session id, or none.
+fn short_id(finding: &SessionFinding) -> String {
+    finding
+        .session_id
+        .as_deref()
+        .map(|id| id.chars().take(SHORT_ID).collect())
+        .unwrap_or_default()
+}
+
+/// The working directory, with `$HOME` written as `~`.
+///
+/// Only a whole leading component is replaced, so `/home/ab` never shortens
+/// `/home/abc`.
+fn directory(finding: &SessionFinding, home: &Path) -> String {
+    let Some(directory) = finding.working_directory.as_deref() else {
+        return String::new();
+    };
+    match Path::new(directory).strip_prefix(home) {
+        Ok(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
+        Ok(rest) => format!("~/{}", rest.display()),
+        Err(_) => directory.to_owned(),
+    }
+}
 
 /// Names one session the way its reader does.
 ///
@@ -85,9 +129,16 @@ fn subject(finding: &SessionFinding) -> &str {
         .unwrap_or_else(|| finding.session.as_str())
 }
 
-/// The reason column: the ground as a phrase, and the reader's own row marked.
+/// The reason column: the ground as a phrase, the child's status word on a
+/// running row, and the reader's own row marked.
 fn why(finding: &SessionFinding) -> String {
     let mut reason = because(finding.ground).to_owned();
+    if finding.ground == Ground::Running
+        && let Some(status) = finding.claude_status.as_deref()
+    {
+        reason.push_str(", ");
+        reason.push_str(status);
+    }
     if finding.current {
         reason.push_str(", this session");
     }
@@ -99,6 +150,7 @@ pub(super) fn list(
     palette: Palette,
     findings: &[SessionFinding],
     filter: Option<&Subject>,
+    home: &Path,
 ) -> String {
     if findings.is_empty() {
         if let Some(subject) = filter {
@@ -126,8 +178,11 @@ pub(super) fn list(
             vec![
                 format!("[{}]", finding.verdict.as_str()),
                 subject(finding).to_owned(),
+                finding.kind.clone().unwrap_or_default(),
+                short_id(finding),
                 finding.account.as_str().to_owned(),
                 why(finding),
+                directory(finding, home),
             ]
         })
         .collect();

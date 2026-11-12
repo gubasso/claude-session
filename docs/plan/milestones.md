@@ -6,7 +6,6 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 
 ## in flight
 
-- 042 session-list-describes-the-child — shaped — 1 implementation session — ahead of 034 by the operator's ruling of 2026-11-12
 - 034 account-usage-reporting — shaped — 2 implementation sessions — after 019 and 025; the provider-fact carry needs its own record before code
 
 ## closed
@@ -51,3 +50,4 @@ One line per slice: `<id> <slug> — <status> — <appetite>[ — <note>]`. The 
 - 039 cross-container-session-lookup — done — 2 implementation sessions — after 037; a report names a session from that session's own registry rather than only this run's
 - 040 native-skill-directory — done — 1 implementation session — after 029; landed in one session, and made `$HOME` required so the skill source can never resolve relative
 - 041 saved-login-presence — done — 1 implementation session — after 027; landed in one session, and an MCP sign-in in a token account was what showed that a file at the login path is not a login
+- 042 session-list-describes-the-child — done — 1 implementation session — ahead of 034 by the operator's ruling of 2026-11-12; landed in one session, and the child's own binary was what showed the kind tells a background session from an interactive one

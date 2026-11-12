@@ -27,6 +27,7 @@ pub(crate) fn list(
         context.color(),
         &findings,
         name,
+        context.paths().home(),
     )?;
     Ok(DispatchOutcome::Complete(0))
 }

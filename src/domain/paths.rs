@@ -34,6 +34,8 @@ pub(crate) struct XdgPaths {
     cache: PathBuf,
     /// The child's native configuration directory, under `$HOME`.
     child_config: PathBuf,
+    /// `$HOME` itself, which a report abbreviates to `~` in a path it shows.
+    home: PathBuf,
 }
 
 impl XdgPaths {
@@ -75,6 +77,7 @@ impl XdgPaths {
             data: base("XDG_DATA_HOME", ".local/share").join(NAMESPACE),
             cache: base("XDG_CACHE_HOME", ".cache").join(NAMESPACE),
             child_config: home.join(CHILD_CONFIG_DIR),
+            home,
         })
     }
 
@@ -118,6 +121,10 @@ impl XdgPaths {
     /// ([ADR-0125](../../docs/decisions/ADR-0125-supply-skills-from-the-native-directory.md)).
     pub(crate) fn child_skills(&self) -> PathBuf {
         self.child_config.join("skills")
+    }
+    /// Returns `$HOME`, absolute by construction.
+    pub(crate) fn home(&self) -> &Path {
+        &self.home
     }
     /// Returns the user's machine-local read-only tree of child plugins.
     ///

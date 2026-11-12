@@ -27,6 +27,6 @@ Both values pass the check the status word passes, and are carried verbatim. The
 
 ## Status
 
-Accepted
+Implemented
 
-Amends [ADR-0124](./ADR-0124-describe-a-reported-session-with-the-children-facts.md) with two descriptive facts, and [ADR-0114](./ADR-0114-name-a-reported-session-as-the-child-does.md) with what the registration read admits. Shaped by [042](../plan/slices/042-session-list-describes-the-child/README.md).
+Amends [ADR-0124](./ADR-0124-describe-a-reported-session-with-the-children-facts.md) with two descriptive facts, and [ADR-0114](./ADR-0114-name-a-reported-session-as-the-child-does.md) with what the registration read admits. Enacted by [`domain::registration`](../../src/domain/registration.rs). Shaped by [042](../plan/slices/042-session-list-describes-the-child/README.md).

@@ -8,8 +8,9 @@
 //! internal identifier, and the reader has never seen it ([ADR-0114]).
 //!
 //! This module reads no file — that is the session service — and carries the
-//! name, the pair that proves whose name it is, and the two descriptive facts
-//! ADR-0124 permits. Everything else belongs to the child ([ADR-0089]).
+//! name, the pair that proves whose name it is, the two descriptive facts
+//! ADR-0124 permits, and the session id and kind ADR-0132 adds. Everything
+//! else belongs to the child ([ADR-0089]).
 //!
 //! [ADR-0089]: ../../docs/decisions/ADR-0089-carry-a-child-owned-fact-only-against-an-obligation.md
 //! [ADR-0108]: ../../docs/decisions/ADR-0108-share-the-child-peer-registry-across-sessions.md
@@ -66,6 +67,8 @@ pub(crate) struct Registration {
     name: String,
     working_directory: Option<String>,
     child_status: Option<String>,
+    session_id: Option<String>,
+    kind: Option<String>,
 }
 
 impl Registration {
@@ -90,11 +93,9 @@ impl Registration {
                     && !value.chars().any(char::is_control)
             })
             .map(str::to_owned);
-        registration.child_status = value
-            .get("status")
-            .and_then(serde_json::Value::as_str)
-            .and_then(|value| Subject::from_str(value).ok())
-            .map(|value| value.0);
+        registration.child_status = word(&value, "status");
+        registration.session_id = word(&value, "sessionId");
+        registration.kind = word(&value, "kind");
         Some(registration)
     }
 
@@ -111,6 +112,8 @@ impl Registration {
             name: name.0,
             working_directory: None,
             child_status: None,
+            session_id: None,
+            kind: None,
         })
     }
 
@@ -138,6 +141,30 @@ impl Registration {
     pub(crate) fn child_status(&self) -> Option<&str> {
         self.child_status.as_deref()
     }
+
+    /// The child's own session id, carried verbatim (ADR-0132).
+    pub(crate) fn session_id(&self) -> Option<&str> {
+        self.session_id.as_deref()
+    }
+
+    /// The child's session kind, carried verbatim: the wrapper holds no
+    /// vocabulary of kinds, as it holds none of status words (ADR-0132).
+    pub(crate) fn kind(&self) -> Option<&str> {
+        self.kind.as_deref()
+    }
+}
+
+/// Reads one short descriptive value, or drops it.
+///
+/// The check a name passes, so a value a report renders can hold no control
+/// character and no padding. A value that fails costs the row that one fact,
+/// never its name.
+fn word(value: &serde_json::Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(serde_json::Value::as_str)
+        .and_then(|value| Subject::from_str(value).ok())
+        .map(|value| value.0)
 }
 
 /// Reads a start time the child records as text or as a number.
@@ -182,6 +209,33 @@ mod tests {
         let one = Registration::from_bytes(&document("claude-session-53")).expect("a name");
         assert!(!one.names(2_675_277, 1));
         assert!(!one.names(1, 183_335_578));
+    }
+
+    #[test]
+    fn a_registration_carries_the_child_id_and_kind() {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&document("claude-session-53")).expect("a document");
+        value["kind"] = "bg".into();
+        let one =
+            Registration::from_bytes(&serde_json::to_vec(&value).expect("bytes")).expect("a name");
+        assert_eq!(
+            one.session_id(),
+            Some("12fdd685-1e9b-416f-8b8d-4431f3fd5e05")
+        );
+        assert_eq!(one.kind(), Some("bg"));
+    }
+
+    #[test]
+    fn an_invalid_id_or_kind_is_dropped_and_the_name_stays() {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&document("claude-session-53")).expect("a document");
+        value["sessionId"] = "x".repeat(65).into();
+        value["kind"] = "bg\u{1b}[31m".into();
+        let one =
+            Registration::from_bytes(&serde_json::to_vec(&value).expect("bytes")).expect("a name");
+        assert_eq!(one.name(), "claude-session-53");
+        assert_eq!(one.session_id(), None);
+        assert_eq!(one.kind(), None);
     }
 
     #[test]

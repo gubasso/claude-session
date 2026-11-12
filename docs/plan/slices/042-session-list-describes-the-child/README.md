@@ -45,11 +45,11 @@ A row carries the child's session id and kind only from a registration that the 
 
 ## Acceptance
 
-- Where a proven registration carries a session id and a kind, the document row shall carry them as `session_id` and `kind`.
-- Where a registration carries no valid session id or kind, the document row shall omit that field rather than write `null`.
-- If two sessions claim one registration, then neither row shall carry a session id or a kind.
-- The human table shall show the kind, the first eight characters of the session id, and the working directory for each described row.
-- The report shall not carry the child's messaging socket path or token in either form.
+- Where a proven registration carries a session id and a kind, the document row shall carry them as `session_id` and `kind`. -> sessions_gc::the_document_carries_the_child_session_id_and_kind
+- Where a registration carries no valid session id or kind, the document row shall omit that field rather than write `null`. -> sessions_gc::a_registration_without_an_id_or_kind_omits_them
+- If two sessions claim one registration, then neither row shall carry a session id or a kind. -> sessions_gc::one_registration_answering_to_two_sessions_names_neither
+- The human table shall show the kind, the first eight characters of the session id, and the working directory for each described row. -> sessions_gc::the_table_shows_kind_short_id_and_directory
+- The report shall not carry the child's messaging socket path or token in either form. -> sessions_gc::no_report_carries_the_messaging_socket_path
 
 ## Rabbit holes
 

@@ -48,6 +48,10 @@ const LITERALS: &[&str] = &[
     // to name a session as its reader does (ADR-0114). Its companion in that
     // record is `name`, an ordinary English word this scan cannot reach.
     "procStart",
+    // The child's own session id in the same record, which a report carries
+    // so a caller can find a session where names repeat (ADR-0132). Its
+    // companion `kind` is an ordinary word this scan cannot reach.
+    "sessionId",
     // The child's own recommendation gate, which a launch answers in the
     // session directory it created (ADR-0117). Distinctive enough for the scan
     // to reach, unlike the two plugin-state filenames it is written beside.

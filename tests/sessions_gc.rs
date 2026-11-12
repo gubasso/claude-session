@@ -171,6 +171,7 @@ fn register_as(
         "procStart": ticks.to_string(),
         "name": name,
         "nameSource": "derived",
+        "kind": "interactive",
     });
     if let Some((cwd, status)) = description {
         value["cwd"] = cwd.into();
@@ -1001,7 +1002,13 @@ fn one_registration_answering_to_two_sessions_names_neither() {
     let document = session_json(&harness, &["session", "list", "--json"]);
     for session in ["foreignslot", "twinslot"] {
         let row = row(&document, session);
-        for key in ["name", "working_directory", "claude_status"] {
+        for key in [
+            "name",
+            "working_directory",
+            "claude_status",
+            "session_id",
+            "kind",
+        ] {
             assert!(
                 row.get(key).is_none(),
                 "{session} took the {key} of a registration a second row claims as well: {document}"
@@ -1155,4 +1162,140 @@ fn a_registration_without_them_omits_them_rather_than_nulling_them() {
             .contains_key("working_directory")
     );
     assert!(!row.as_object().expect("row").contains_key("claude_status"));
+}
+
+/// The id every fixture registration carries.
+const FIXTURE_SESSION_ID: &str = "0f9a1c33-6f1e-4c21-9f3f-b0a2d4e6c810";
+
+/// Slice 042 acceptance: a proven registration lends the row the child's own
+/// session id and kind.
+#[test]
+fn the_document_carries_the_child_session_id_and_kind() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    register(&registry, pid, ticks, "other-container");
+    let row = row(
+        &session_json(&harness, &["session", "list", "--json"]),
+        "foreignslot",
+    );
+    assert_eq!(row["session_id"], FIXTURE_SESSION_ID);
+    assert_eq!(row["kind"], "interactive");
+}
+
+/// Slice 042 acceptance: a registration without the two facts costs the row
+/// those two keys, never a `null`.
+#[test]
+fn a_registration_without_an_id_or_kind_omits_them() {
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    fs::write(
+        registry.join(format!("{pid}.json")),
+        serde_json::to_vec(&serde_json::json!({
+            "pid": pid,
+            "procStart": ticks.to_string(),
+            "name": "other-container",
+        }))
+        .expect("registration"),
+    )
+    .expect("registration file");
+    let row = row(
+        &session_json(&harness, &["session", "list", "--json"]),
+        "foreignslot",
+    );
+    assert_eq!(row["name"], "other-container");
+    let row = row.as_object().expect("row");
+    assert!(!row.contains_key("session_id"), "{row:?}");
+    assert!(!row.contains_key("kind"), "{row:?}");
+}
+
+/// Slice 042 acceptance: the table shows the kind, the short id, and the
+/// working directory, with `$HOME` written as `~`.
+#[test]
+fn the_table_shows_kind_short_id_and_directory() {
+    let harness = Harness::new();
+    assert!(
+        harness.bound_command().status().expect("wrapper").success(),
+        "the launch runs"
+    );
+    let namespace = only_namespace_dir(&harness, "companion");
+    let real = recorded(&namespace);
+    let registry = registry(&only_session_dir_named_agent(&namespace));
+    let live = plant_live(&namespace, &real, "liveslot");
+    symlink(&registry, live.join("sessions")).expect("session registry link");
+    let pid = std::process::id();
+    let directory = harness.root().join("home").join("work").join("project");
+    register_as(
+        &registry,
+        &format!("{pid}.json"),
+        pid,
+        started(pid),
+        "claude-session-53",
+        Some((directory.to_str().expect("utf-8 path"), "busy")),
+    );
+    let text = session_text(&harness);
+    let header = text.lines().nth(2).expect("the column names");
+    assert_eq!(
+        header.split_whitespace().collect::<Vec<_>>(),
+        [
+            "status",
+            "session",
+            "kind",
+            "id",
+            "account",
+            "why",
+            "directory"
+        ],
+        "{text}"
+    );
+    let named = text_row(&text, "claude-session-53");
+    assert!(named.contains("interactive"), "{named}");
+    assert!(named.contains(" 0f9a1c33 "), "{named}");
+    assert!(!named.contains(FIXTURE_SESSION_ID), "{named}");
+    assert!(named.contains("running, busy"), "{named}");
+    assert!(named.ends_with("~/work/project"), "{named}");
+}
+
+/// Slice 042 acceptance: the child's messaging socket path and token reach no
+/// report, in either form, from either verb.
+#[test]
+fn no_report_carries_the_messaging_socket_path() {
+    const SOCKET: &str = "/run/socket-path-marker-4b1d/peer.sock";
+    const TOKEN: &str = "token-marker-9c2e";
+    let harness = Harness::new();
+    let (_, registry, pid, ticks) = foreign_session(&harness, "foreignslot");
+    fs::write(
+        registry.join(format!("{pid}.json")),
+        serde_json::to_vec(&serde_json::json!({
+            "pid": pid,
+            "sessionId": FIXTURE_SESSION_ID,
+            "procStart": ticks.to_string(),
+            "name": "other-container",
+            "kind": "interactive",
+            "messagingSocketPath": SOCKET,
+        }))
+        .expect("registration"),
+    )
+    .expect("registration file");
+    fs::write(registry.join(format!("{pid}.0123abcd.key")), TOKEN).expect("key file");
+    let mut seen = String::new();
+    for arguments in [
+        &["session", "list"][..],
+        &["session", "list", "--json"],
+        &["session", "clean", "--yes", "--json"],
+    ] {
+        let output = harness
+            .assert_command()
+            .args(arguments)
+            .output()
+            .expect("report");
+        assert!(output.status.success(), "{arguments:?}");
+        seen.push_str(&String::from_utf8_lossy(&output.stdout));
+        seen.push_str(&String::from_utf8_lossy(&output.stderr));
+    }
+    assert!(
+        seen.contains("other-container"),
+        "the row was described: {seen}"
+    );
+    assert!(!seen.contains("socket-path-marker"), "{seen}");
+    assert!(!seen.contains(TOKEN), "{seen}");
 }

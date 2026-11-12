@@ -52,6 +52,11 @@ pub(crate) struct SessionFinding {
     pub(crate) working_directory: Option<String>,
     /// The child's own status word, carried verbatim.
     pub(crate) claude_status: Option<String>,
+    /// The child's own session id, which is unique where names repeat
+    /// (ADR-0132).
+    pub(crate) session_id: Option<String>,
+    /// The child's session kind, carried verbatim.
+    pub(crate) kind: Option<String>,
     /// Whether this session's registrations live in this run's own peer scope.
     ///
     /// Naming a session and reaching it stopped being one answer ([ADR-0123]).
@@ -230,6 +235,10 @@ fn survey_account(
                 claude_status: registration
                     .and_then(Registration::child_status)
                     .map(str::to_owned),
+                session_id: registration
+                    .and_then(Registration::session_id)
+                    .map(str::to_owned),
+                kind: registration.and_then(Registration::kind).map(str::to_owned),
                 reachable: registry.is_some()
                     && registry.as_ref() == observatory.own_registry.as_ref(),
                 // The ancestry is read in this run's namespace and under this
@@ -483,6 +492,8 @@ fn disambiguate(findings: &mut [SessionFinding], claims: &[Option<Claim>]) {
             finding.name = None;
             finding.working_directory = None;
             finding.claude_status = None;
+            finding.session_id = None;
+            finding.kind = None;
         }
     }
 }

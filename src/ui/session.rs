@@ -69,6 +69,14 @@ fn finding_row(finding: &SessionFinding) -> serde_json::Value {
     if let Some(status) = finding.claude_status.as_deref() {
         value["claude_status"] = status.into();
     }
+    // The child's own id, beside `session`, which is the wrapper's directory
+    // (ADR-0132).
+    if let Some(id) = finding.session_id.as_deref() {
+        value["session_id"] = id.into();
+    }
+    if let Some(kind) = finding.kind.as_deref() {
+        value["kind"] = kind.into();
+    }
     value
 }
 
@@ -79,6 +87,7 @@ pub(crate) fn list(
     color: Color,
     findings: &[SessionFinding],
     subject: Option<&Subject>,
+    home: &std::path::Path,
 ) -> Result<(), AppError> {
     let bytes = if json_mode {
         let rows: Vec<_> = findings.iter().map(finding_row).collect();
@@ -87,7 +96,7 @@ pub(crate) fn list(
             "session list document",
         )?
     } else {
-        human::list(Palette::new(color.stdout()), findings, subject).into_bytes()
+        human::list(Palette::new(color.stdout()), findings, subject, home).into_bytes()
     };
     writer.stdout(&bytes).map_err(|error| output_error(&error))
 }

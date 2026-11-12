@@ -315,13 +315,14 @@ tracked:
       - release-plz.toml
 
   - path: docs/reference/sessions.md
-    last_checked: 2026-08-21
+    last_checked: 2026-11-12
     cadence: monthly
-    why: The name, working directory, and child status word a session report carries come from the child's undocumented peer registration, whose fields, spelling, and location may change without a note anywhere a reader would look.
+    why: The name, working directory, child status word, session id, and kind a session report carries come from the child's undocumented peer registration, whose fields, spelling, and location may change without a note anywhere a reader would look.
     revalidate: >-
       Launch the child through the wrapper and read the registration it writes
       under the shared peer registry. Confirm the record is still keyed by
-      process identifier, still carries `name`, `procStart`, `cwd`, and `status`, and that
+      process identifier, still carries `name`, `procStart`, `cwd`, `status`,
+      `sessionId`, and `kind`, and that
       `procStart` still counts the same clock ticks the witness records, since
       that equality is what proves whose name a row carries. Confirm a rename
       inside the child still reaches the record. Confirm each session's
@@ -332,6 +333,7 @@ tracked:
     dependents:
       - docs/decisions/ADR-0114-name-a-reported-session-as-the-child-does.md
       - docs/decisions/ADR-0124-describe-a-reported-session-with-the-children-facts.md
+      - docs/decisions/ADR-0132-identify-a-reported-session-by-the-children-id-and-kind.md
       - src/domain/registration.rs
       - src/services/session/gc.rs
 
