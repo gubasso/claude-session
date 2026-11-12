@@ -68,7 +68,11 @@ pub(crate) fn resolve(
         source: Source::User,
         existed,
     });
-    if let Some(project) = super::project::discover(environment.current_dir()) {
+    let ceilings = super::project::ceilings(crate::adapters::environment::value(
+        environment.variables(),
+        "GIT_CEILING_DIRECTORIES",
+    ));
+    if let Some(project) = super::project::discover(environment.current_dir(), &ceilings) {
         let existed = apply_file(&mut resolved, &project, Source::Project, true)?;
         consulted.push(ConsultedFile {
             path: project,

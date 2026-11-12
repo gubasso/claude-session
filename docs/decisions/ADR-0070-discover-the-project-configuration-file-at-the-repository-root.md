@@ -29,4 +29,4 @@ Unifying every ancestor was rejected because it makes a home-directory file a si
 
 Accepted
 
-Constrained by [ADR-0071](./ADR-0071-restrict-the-project-layer-to-the-profile-key.md), which decides what this file is permitted to set.
+Constrained by [ADR-0071](./ADR-0071-restrict-the-project-layer-to-the-profile-key.md), which decides what this file is permitted to set. Amended by [ADR-0130](./ADR-0130-stop-project-discovery-at-a-git-ceiling.md).

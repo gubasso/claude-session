@@ -43,6 +43,114 @@ fn unknown_configuration_key_names_key_and_file() {
     assert!(stderr.contains(config.to_str().expect("utf8")));
 }
 
+/// The wrapper honours `GIT_CEILING_DIRECTORIES` as git does: a repository
+/// marker above a listed directory is not the working directory's repository,
+/// so the project file beside it does not apply (ADR-0130).
+#[test]
+fn project_discovery_stops_at_a_git_ceiling() {
+    let harness = Harness::new();
+    let outer = harness.root().join("outer");
+    let nested = outer.join("inner/nested");
+    fs::create_dir_all(outer.join(".git")).expect("marker");
+    fs::create_dir_all(&nested).expect("cwd");
+    fs::write(
+        outer.join(".claude-session.toml"),
+        "child_bin='/not/allowed'\n",
+    )
+    .expect("project file above the ceiling");
+    let mut below = harness.bound_command();
+    below
+        .current_dir(&nested)
+        .env("GIT_CEILING_DIRECTORIES", outer.join("inner"));
+    assert!(
+        below.status().expect("wrapper").success(),
+        "a project file above the ceiling was read"
+    );
+    let mut without = harness.bound_command();
+    without.current_dir(&nested);
+    assert_eq!(
+        without.status().expect("wrapper").code(),
+        Some(78),
+        "without the ceiling the walk reaches the repository and its file"
+    );
+}
+
+/// git applies a ceiling to ancestors alone, so a ceiling naming the working
+/// directory itself leaves its own repository in reach (ADR-0130).
+#[test]
+fn a_git_ceiling_equal_to_the_working_directory_does_not_stop_discovery() {
+    let harness = Harness::new();
+    let repo = harness.root().join("repo");
+    fs::create_dir_all(repo.join(".git")).expect("marker");
+    fs::write(
+        repo.join(".claude-session.toml"),
+        "child_bin='/not/allowed'\n",
+    )
+    .expect("project file");
+    let mut command = harness.bound_command();
+    command
+        .current_dir(&repo)
+        .env("GIT_CEILING_DIRECTORIES", &repo);
+    assert_eq!(command.status().expect("wrapper").code(), Some(78));
+}
+
+/// Empty and relative entries are skipped rather than read as the working
+/// directory, and an absolute entry after them still applies (ADR-0130).
+#[test]
+fn empty_and_relative_git_ceiling_entries_are_skipped() {
+    let harness = Harness::new();
+    let outer = harness.root().join("outer");
+    let nested = outer.join("inner/nested");
+    fs::create_dir_all(outer.join(".git")).expect("marker");
+    fs::create_dir_all(&nested).expect("cwd");
+    fs::write(
+        outer.join(".claude-session.toml"),
+        "child_bin='/not/allowed'\n",
+    )
+    .expect("project file above the ceiling");
+    let value = format!("relative/dir::{}", outer.join("inner").display());
+    let mut command = harness.bound_command();
+    command
+        .current_dir(&nested)
+        .env("GIT_CEILING_DIRECTORIES", value);
+    assert!(command.status().expect("wrapper").success());
+}
+
+/// An entry after an empty one is compared as written, as git compares it,
+/// with one trailing separator removed, so a spelling that only names the
+/// directory after normalization is no ceiling, and an entry that cannot be
+/// resolved before the empty one is dropped rather than kept as written
+/// (ADR-0130).
+#[test]
+fn a_git_ceiling_entry_after_an_empty_one_is_compared_as_written() {
+    let harness = Harness::new();
+    let outer = harness.root().join("outer");
+    let nested = outer.join("inner/nested");
+    fs::create_dir_all(outer.join(".git")).expect("marker");
+    fs::create_dir_all(&nested).expect("cwd");
+    fs::write(
+        outer.join(".claude-session.toml"),
+        "child_bin='/not/allowed'\n",
+    )
+    .expect("project file");
+    for spelling in ["/.", "//"] {
+        let value = format!(
+            "{}::{}{spelling}",
+            harness.root().join("absent/inner").display(),
+            outer.join("inner").display()
+        );
+        let mut command = harness.bound_command();
+        command
+            .current_dir(&nested)
+            .env("GIT_CEILING_DIRECTORIES", value);
+        assert_eq!(
+            command.status().expect("wrapper").code(),
+            Some(78),
+            "{spelling}"
+        );
+    }
+}
+
 #[test]
 fn project_discovery_stops_at_repository_boundary() {
     let harness = Harness::new();

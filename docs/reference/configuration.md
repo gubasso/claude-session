@@ -30,9 +30,9 @@ A missing file at any layer is not an error. An unreadable or malformed file is 
 
 #### Project file discovery
 
-The search starts at the working directory and walks upward. The first `.claude-session.toml` found wins — files are not unified across directories. The walk stops at the enclosing repository root, the directory holding a `.git` entry, which is a file for worktrees and submodules and a directory otherwise. Git itself is never invoked. Outside a repository there is no project layer at all.
+The search starts at the working directory and walks upward. The first `.claude-session.toml` found wins — files are not unified across directories. The walk stops at the enclosing repository root, the directory holding a `.git` entry, which is a file for worktrees and submodules and a directory otherwise. Git itself is never invoked. Outside a repository there is no project layer at all. The walk honours `GIT_CEILING_DIRECTORIES` as git does: it never enters a listed directory from below, so a `.git` entry at or above a ceiling is not the working directory's repository ([ADR-0130](../decisions/ADR-0130-stop-project-discovery-at-a-git-ceiling.md)). The operating system resolves an entry before the first empty one, where git uses its own resolver, so the two differ for a spelling that only git resolves, such as `file/..`: the wrapper drops that entry and git keeps it.
 
-The stop rule follows the layer's purpose: these are per-repository overrides, so the repository is the boundary. It needs no marker key, no ceiling variable, and no merge-many rule ([ADR-0070](../decisions/ADR-0070-discover-the-project-configuration-file-at-the-repository-root.md)). Nested repositories stop at the inner one.
+The stop rule follows the layer's purpose: these are per-repository overrides, so the repository is the boundary. It needs no marker key, no ceiling variable of its own, and no merge-many rule ([ADR-0070](../decisions/ADR-0070-discover-the-project-configuration-file-at-the-repository-root.md)). Nested repositories stop at the inner one.
 
 ### Environment variables
 

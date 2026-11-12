@@ -88,6 +88,16 @@ impl Harness {
     pub(crate) fn root(&self) -> &Path {
         self.root.path()
     }
+    /// The directory above the fixture, which every wrapper the harness starts
+    /// takes as its git ceiling. Project discovery then ends at the fixture, so
+    /// a `.git` entry that the host keeps above the temporary directory cannot
+    /// make a fixture tree part of a repository (ADR-0130).
+    pub(crate) fn ceiling(&self) -> &Path {
+        self.root
+            .path()
+            .parent()
+            .expect("a temporary directory has a parent")
+    }
     pub(crate) fn child(&self) -> &Path {
         &self.child
     }
@@ -112,6 +122,7 @@ impl Harness {
         command
             .env("CLAUDE_SESSION_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
+            .env("GIT_CEILING_DIRECTORIES", self.ceiling())
             .current_dir(self.root.path());
         command
     }
@@ -179,6 +190,7 @@ impl Harness {
         command
             .env("CLAUDE_SESSION_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
+            .env("GIT_CEILING_DIRECTORIES", self.ceiling())
             .arg("--wait")
             .arg(devshell_binary("timeout"))
             .args(TERMINAL_DEADLINE)
@@ -235,6 +247,7 @@ impl Harness {
         command
             .env("CLAUDE_SESSION_CHILD_BIN", &self.child)
             .env("CS_TEST_RECORD_DIR", self.record_dir())
+            .env("GIT_CEILING_DIRECTORIES", self.ceiling())
             .arg("-q")
             .arg("-e")
             .arg("-c")
