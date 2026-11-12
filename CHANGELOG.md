@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.2.11](https://github.com/gubasso/claude-session/compare/v0.2.10...v0.2.11) - 2026-11-12
+
+### Other
+
+- *(nix)* ship a bash completion and drop the install recipes
+
 ## [0.2.10](https://github.com/gubasso/claude-session/compare/v0.2.9...v0.2.10) - 2026-11-12
 
 ### Fixed
