@@ -26,7 +26,8 @@ lint:
 test:
 	{{dev}} cargo nextest run --all-features --no-tests=pass
 
-# Build the debug binary.
+# Build the debug binary into target/. No recipe installs the wrapper into a
+# PATH directory; a debug build runs from target/ (ADR-0131).
 build:
 	{{dev}} cargo build --all-features
 
@@ -129,22 +130,9 @@ release-pr:
 release-update:
 	./scripts/release release-plz-update
 
-# --- Install (thin wrappers over ./install.sh, ./uninstall.sh) --------------
-
-# Build and install the CLI with cargo (honors PREFIX, INSTALLER_LOCKED).
-install:
-	./install.sh
-
-# Remove the cargo-installed CLI (honors PREFIX); no-op when not installed.
-uninstall:
-	./uninstall.sh
-
-# Uninstall then install — the clean-slate refresh.
-reinstall: uninstall install
-
 # --- Housekeeping -----------------------------------------------------------
 
-# Run the CLI locally; forward args, e.g. `just run -- --help`.
+# Run the working tree's CLI from target/; forward args, e.g. `just run -- --help`.
 run *ARGS:
 	{{dev}} cargo run -p claude-session --all-features -- {{ARGS}}
 

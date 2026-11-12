@@ -6,7 +6,11 @@
 # committed Cargo.lock. A workspace root fails by name below rather than
 # throwing on a missing attribute: point the importTOML call at the member
 # crate's Cargo.toml and set mainProgram yourself.
-{ lib, rustPlatform }:
+{
+  lib,
+  rustPlatform,
+  installShellFiles,
+}:
 
 let
   cargoToml = lib.importTOML ../Cargo.toml;
@@ -29,10 +33,19 @@ rustPlatform.buildRustPackage {
   # whether it works.
   doCheck = false;
 
+  # installShellCompletion comes from the installShellFiles hook:
+  # https://nixos.org/manual/nixpkgs/stable/#installshellfiles
+  nativeBuildInputs = [ installShellFiles ];
+
   # One cheap proof that the built binary runs at all, which is what doCheck
-  # would otherwise have given for free.
+  # would otherwise have given for free. The bash completion is the binary's
+  # own output, installed where bash-completion loads it (ADR-0131). It goes
+  # through a file rather than <(...), so a failing `completion bash` fails
+  # the build instead of installing an empty script.
   postInstall = ''
     $out/bin/${package.name} --version
+    $out/bin/${package.name} completion bash > ${package.name}.bash
+    installShellCompletion --cmd ${package.name} --bash ${package.name}.bash
   '';
 
   meta = {

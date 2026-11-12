@@ -30,3 +30,5 @@ Publishing through Nix was rejected on the discrimination test of [ADR-0051](./A
 Accepted
 
 Amends [ADR-0116](./ADR-0116-install-the-wrapper-one-way.md), whose single-install-path outcome stands and whose no-package outcome this record replaces. Enacted by [`nix/package.nix`](../../nix/package.nix) and [`flake.nix`](../../flake.nix).
+
+Amended by [ADR-0131](./ADR-0131-install-nothing-from-the-working-tree.md): `just install` is gone, so no recipe reaches `PATH`, and this project edits `nix/package.nix`, which release-kit seeds.

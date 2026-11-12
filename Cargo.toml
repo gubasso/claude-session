@@ -38,8 +38,6 @@ exclude = [
   "/docs",
   "/flake.lock",
   "/flake.nix",
-  "/install-common.sh",
-  "/install.sh",
   "/justfile",
   "/.markdownlint-cli2.jsonc",
   # The per-shape MD043 arrays are development tooling like the file above them;
@@ -55,7 +53,6 @@ exclude = [
   # would carry tests it cannot satisfy. Tests run from the git tree; cargo-dist
   # and release-plz build from the checkout, so the release path is unaffected.
   "/tests",
-  "/uninstall.sh",
   # A second workspace member is development tooling, and a denylist entry
   # anchors one path, so the directory needs its own line beside the alias file.
   "/xtask",

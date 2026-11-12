@@ -26,8 +26,10 @@ Keeping it unused was rejected on the discrimination test of [ADR-0051](./ADR-00
 
 ## Status
 
-Implemented
+Superseded
 
-Enacted by [`flake.nix`](../../flake.nix), whose devShell comment names this record, and by [`install.sh`](../../install.sh), which `just install` runs.
+Enacted by [`flake.nix`](../../flake.nix), whose devShell comment named this record, and by `install.sh`, which `just install` ran.
 
 Amended by [ADR-0119](./ADR-0119-build-the-wrapper-from-the-flake.md), which restores a package output the pipeline consumes. The single install path stands.
+
+Superseded by [ADR-0131](./ADR-0131-install-nothing-from-the-working-tree.md).

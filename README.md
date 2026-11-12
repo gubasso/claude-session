@@ -200,9 +200,12 @@ Common tasks run through the project task runner:
 ```bash
 just lint    # run linters and formatters
 just test    # run the test suite
-just build   # build the project
+just build   # build the debug binary into target/
+just run -- --help   # run the working tree from target/
 just hooks   # the full gate, both hook stages — this is the verdict
 ```
+
+No recipe installs the wrapper into a `PATH` directory. A debug build runs from `target/` ([ADR-0131](./docs/decisions/ADR-0131-install-nothing-from-the-working-tree.md)).
 
 ## License
 

@@ -46,10 +46,11 @@
         # `nix fmt` uses the RFC 166 formatter (also on PATH for the pre-commit hook).
         formatter = pkgs.nixfmt;
 
-        # The wrapper, built from the release-kit-owned expression. The gated
+        # The wrapper, built from the release-kit-seeded expression. The gated
         # pipeline's `flake` job is what consumes it, so the build is proven on
-        # every request (ADR-0119). `just install` remains how the binary
-        # reaches a developer's PATH (ADR-0116).
+        # every request (ADR-0119). The operator's hosts install it from the
+        # configuration repository that owns them; no recipe here installs it
+        # (ADR-0131).
         packages.default = pkgs.callPackage ./nix/package.nix { };
 
         devShells.default = pkgs.mkShell {
@@ -86,11 +87,10 @@
             # release convention is read from the flake rather than a host
             # install.
             release-kit.packages.${system}.default
-            # The wrapper itself is deliberately absent: `just install` is the
-            # one thing that puts `claude-session` on PATH (ADR-0116).
-            # Entering this shell — or having direnv enter it — therefore
-            # shadows nothing and one binary answers everywhere. Use `just run`
-            # for the working tree, which is unambiguous about what it builds.
+            # The wrapper itself is deliberately absent, so entering this
+            # shell, or having direnv enter it, never shadows the installed
+            # `claude-session`. Use `just build` or `just run`
+            # for the working tree, which run from target/ (ADR-0131).
             # `packages.default` above builds the wrapper for the pipeline's
             # proof (ADR-0119) and installs nothing here.
           ]
