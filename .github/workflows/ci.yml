@@ -1,7 +1,7 @@
 # CI for claude-session.
 #
 # Every job reuses the pinned Nix devShell from flake.nix (devShells.default),
-# so CI, the pre-commit hooks, and local `just` runs all share one toolchain —
+# so CI, the git hooks, and local `just` runs all share one toolchain —
 # the rust-overlay toolchain read from rust-toolchain.toml plus cargo-nextest,
 # cargo-deny, cargo-audit and taplo.
 #

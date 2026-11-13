@@ -16,7 +16,7 @@
     # The store guard of the canon (exobrain): `exobrain store-guard --daily`
     # in .envrc warns about working-tree copies in the Nix store.
     exobrain-tech = {
-      url = "github:gubasso/exobrain-tech/v1.0.0";
+      url = "github:gubasso/exobrain-tech/v1.1.0";
       inputs.nixpkgs.follows = "nixpkgs";
       # Its rk serves only its own devShell, so it takes this flake's.
       inputs.release-kit.follows = "release-kit";
@@ -43,7 +43,7 @@
         toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
       in
       {
-        # `nix fmt` uses the RFC 166 formatter (also on PATH for the pre-commit hook).
+        # `nix fmt` uses the RFC 166 formatter (also on PATH for the nixfmt hook).
         formatter = pkgs.nixfmt;
 
         # The wrapper, built from the release-kit-seeded expression. The gated
@@ -59,22 +59,23 @@
             pkgs.cargo-nextest
             pkgs.cargo-deny
             pkgs.cargo-audit
-            # TOML formatter for the local `taplo format` pre-commit hook.
+            # TOML formatter for the local `taplo format` hook.
             pkgs.taplo
-            # JSON/JSONC + markdown formatter; the dprint pre-commit hooks run as
+            # JSON/JSONC + markdown formatter; the dprint hooks run as
             # language:system and require it on PATH.
             pkgs.dprint
             pkgs.just
-            pkgs.pre-commit
+            # The git hook runner prek is not here: the host supplies it
+            # beside git (host-requirements.toml).
             # Nix tools of the system hooks: nixfmt, which `nix fmt` runs too
             # (the formatter above), and statix, which has no upstream hook.
-            # deadnix and typos run as upstream hooks that pre-commit builds
+            # deadnix and typos run as upstream hooks that the hook runner builds
             # (ADR-0129), so they have no package here.
             pkgs.nixfmt
             pkgs.statix
-            # Node for the markdownlint-cli2 pre-commit hook, which is pinned to
-            # `language_version: system` because pre-commit's own nodeenv
-            # fallback downloads a generic-glibc node (ADR-0040). npm still
+            # Node for the markdownlint-cli2 hook, which is pinned to
+            # `language_version: system` because the hook runner's own node
+            # download is a generic-glibc build (ADR-0040). npm still
             # installs the hook's pure-JS custom rule, which nixpkgs does not
             # package.
             pkgs.nodejs

@@ -1,3 +1,6 @@
+# The host supplies the hook runner prek (host-requirements.toml). This is the
+# oldest prek that runs this file: https://prek.j178.dev/reference/configuration/#minimum_prek_version
+minimum_prek_version: "0.5.7"
 default_install_hook_types: [pre-commit, commit-msg, pre-push, pre-merge-commit]
 
 repos:
@@ -419,7 +422,7 @@ repos:
         language: system
         types: [nix]
         stages: [pre-commit, pre-merge-commit, manual]
-      # owner: devshell (no-hook-language) statix has no hook in a language that pre-commit builds.
+      # owner: devshell (no-hook-language) statix has no hook in a language that the hook runner builds.
       - id: statix
         name: statix (nix anti-patterns)
         entry: statix check
@@ -427,7 +430,7 @@ repos:
         types: [nix]
         pass_filenames: false
         stages: [pre-commit, pre-merge-commit, manual]
-      # owner: host (no-hook-language) nix comes from the host and has no hook in a language that pre-commit builds.
+      # owner: host (no-hook-language) nix comes from the host and has no hook in a language that the hook runner builds.
       - id: nix-flake-check
         name: nix flake check (eval)
         entry: nix flake check
@@ -436,7 +439,7 @@ repos:
         pass_filenames: false
         stages: [pre-push, pre-merge-commit, manual]
 
-  # deadnix publishes a rust hook, which pre-commit builds; its manifest
+  # deadnix publishes a rust hook, which the hook runner builds; its manifest
   # carries --fail and the nix file type.
   - repo: https://github.com/astro/deadnix
     rev: v1.3.2
@@ -571,8 +574,15 @@ repos:
         files: '^docs/decisions/(ADR-[0-9]+-.*|template)\.md$'
         args: ['--config', '.markdownlint/adr.markdownlint-cli2.jsonc']
   # A flake reference reads the git tree of a checkout, never a path copy of
-  # the whole folder into the Nix store. The hook is published by exobrain-tech.
+  # the whole folder into the Nix store. A flake holds no git hook runner, and
+  # host-requirements.toml parses whenever it changes. The three hooks are
+  # published by exobrain-tech, whose `exobrain` comes from the devShell.
   - repo: https://github.com/gubasso/exobrain-tech
-    rev: v1.0.0
+    rev: v1.1.0
     hooks:
       - id: no-path-flake-reference
+      - id: no-hook-runner-in-flake
+      # owner: devshell (no-hook-language) exobrain-tech publishes this hook
+      # only as system. It runs exobrain host-check --parse-only from the flake
+      # devShell each time host-requirements.toml changes.
+      - id: host-requirements

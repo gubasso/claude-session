@@ -183,7 +183,7 @@ cargo install --path .
 
 ## Development shell
 
-This project ships a Nix flake devShell with all tooling pinned.
+This project ships a Nix flake devShell with all tooling pinned. The host tools that it does not pin, such as `nix` and the hook runner `prek`, are listed in [host-requirements.toml](./host-requirements.toml).
 
 ```bash
 # Interactive: allow direnv to load the shell on cd

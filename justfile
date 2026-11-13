@@ -6,11 +6,18 @@
 #
 #     just dev="" test          # skip the devShell
 #
-# Requires: nix (flakes enabled). The devShell provides the rust toolchain from
-# rust-toolchain.toml plus cargo-nextest, cargo-deny, cargo-audit, taplo, just,
-# pre-commit, and the nix quality tools.
+# The host tools are listed in host-requirements.toml. The devShell provides the
+# rust toolchain from rust-toolchain.toml plus cargo-nextest, cargo-deny,
+# cargo-audit, taplo, just, exobrain, and the nix quality tools.
 
 dev := "nix develop --command"
+
+# The global host tools, checked once before any recipe runs. just evaluates
+# every top-level assignment first, so a missing tool stops the run with the
+# checker's message. The checker comes from the devShell, so it runs through
+# the same prefix as every recipe. A recipe that alone uses a host tool checks
+# it as its first line.
+_host := shell(dev + " exobrain host-check nix git")
 
 # List available recipes.
 default:
@@ -104,14 +111,16 @@ artifacts out="target/artifacts":
 
 # --- Hooks ------------------------------------------------------------------
 
-# Install the pre-commit, commit-msg, and pre-push hooks.
+# Install the hooks of every stage in default_install_hook_types.
 hooks-install:
-	{{dev}} pre-commit install --install-hooks
+	{{dev}} exobrain host-check prek
+	{{dev}} prek install --prepare-hooks
 
 # Run the full gate across all files: the manual stage holds the hooks that
 # rk integrate runs at pre-merge-commit.
 hooks:
-	{{dev}} pre-commit run --all-files --hook-stage manual
+	{{dev}} exobrain host-check prek
+	{{dev}} prek run --all-files --hook-stage manual
 
 # --- Publishing (thin wrappers; see docs/guides/releasing.md) ----------------
 

@@ -219,14 +219,14 @@ Hooks are the source of truth; task-runner gate recipes delegate to them, while 
 `just hooks` is the single local command that reproduces the project's verdict. It runs the `manual` stage over every file. `rk integrate` runs the same hooks through the clone's `pre-merge-commit` hook, on the files of the squash, before it writes the trunk commit ([ADR-0126](../decisions/ADR-0126-integrate-implementations-locally.md), [ADR-0133](../decisions/ADR-0133-release-on-the-operators-order.md)). `just hooks` runs:
 
 ```bash
-pre-commit run --all-files --hook-stage manual
+prek run --all-files --hook-stage manual
 ```
 
 `rk integrate` refuses in a clone where the `pre-merge-commit` hook is not installed, and `just hooks-install` installs it.
 
 Every commit-stage and push-stage row in the table below also runs at `manual` and at `pre-merge-commit`, so each of those stages is the union of both. The push stage stays as the re-validation of the trunk when the operator pushes it.
 
-`pre-commit run --all-files` on its own is not the gate. `--all-files` selects files, not stages, so it runs the commit stage alone and silently omits the push-stage half of the table below — the integration tests, the doctests, and every advisory and secret scan.
+`prek run --all-files` on its own is not the gate. `--all-files` selects files, not stages, so it runs the commit stage alone and silently omits the push-stage half of the table below — the integration tests, the doctests, and every advisory and secret scan.
 
 Run it inside the devShell. The hooks that keep `language: system` take their tool from the shell, and each names its owner in an `# owner:` comment, so outside the shell they fail at exec rather than reporting on content ([ADR-0129](../decisions/ADR-0129-each-dependency-has-its-most-specific-native-owner.md)).
 
@@ -262,7 +262,7 @@ This table lists the gates the specifications depend on, not every hook configur
 
 Fast, autofixing checks run at commit; slow and network-dependent ones at push. Do not bypass a hook. A hook that is wrong should be fixed in its configuration.
 
-Continuous integration runs a subset, not the whole gate. `ci.yml` invokes the task-runner recipes — formatting, clippy, the `ci` test profile, a release build, docs, `cargo audit`, `cargo deny`, and `nix flake check` — and never invokes `pre-commit`. Everything else in the table is enforced locally only and can therefore reach a green pull request unrun. Closing that is a workflow change, and until it lands this page does not claim the two are equivalent.
+Continuous integration runs a subset, not the whole gate. `ci.yml` invokes the task-runner recipes — formatting, clippy, the `ci` test profile, a release build, docs, `cargo audit`, `cargo deny`, and `nix flake check` — and never invokes the hook runner `prek`. Everything else in the table is enforced locally only and can therefore reach a green pull request unrun. Closing that is a workflow change, and until it lands this page does not claim the two are equivalent.
 
 ## Boundary lints
 
@@ -291,7 +291,7 @@ The two clippy rules are wired at pre-commit and pre-push; the two facts are tes
 
 `master` is the only permanent branch ([release workflow](./release-workflow.md#branch-and-release-invariant)), and `rk integrate` is the only writer of a local commit on it. That command writes the squash commit with `git commit-tree`, which fires no hook, so it holds the message to the landed `commit-msg` judgment itself. `rk-worktree-location` refuses every other commit in the main checkout, because every code-changing branch belongs in its own worktree.
 
-A continuous-integration sweep commits nothing, so a job running `pre-commit` against a trunk checkout sets `SKIP=rk-worktree-location` in its environment.
+A continuous-integration sweep commits nothing, so a job running the hook runner against a trunk checkout sets `SKIP=rk-worktree-location` in its environment.
 
 The general rule is unchanged: local hooks validate content, and forge rules enforce branch topology. `rk setup check --target .` is what proves the forge side, and no dated manual reading stands in for it.
 
