@@ -1,6 +1,6 @@
 {
   "schema_version": 12,
-  "rk_version": "0.9.10",
+  "rk_version": "0.9.15",
   "origin": "init",
   "landed_at": "2026-09-08T19:02:08Z",
   "profile": {
@@ -32,30 +32,29 @@
     "security_contact": "",
     "security_response": "best-effort",
     "security_scope": "This policy covers the claude-session wrapper. A vulnerability in the `claude` CLI itself, or in the Anthropic API, belongs to Anthropic, so report it there.",
-    "required_check": "gate",
-    "required_workflow": "ci"
+    "required_check": "gate"
   },
   "files": [
     {
       "destination": ".github/workflows/pr-title.yml",
       "kind": "rendered",
-      "sha256": "972336ac17d76fa11d785a8dfb381b3bdc7dc8af318ae9225a4855c08bc1b13c"
+      "sha256": "0ee43c01d0036757935e4398d4c793b925ce37cbdef78baee48a8d7f0bd7146e"
     },
     {
       "destination": ".github/workflows/release-plz.yml",
       "kind": "rendered",
-      "sha256": "741d2f434834d532d66691534c3b311dd516711b90c953767b8bc9eaf9ca4ca6"
+      "sha256": "2d4364d341124745ec767e9eeb526152e51f6aa247dd04edd12acdf64037b8fd"
     },
     {
       "destination": ".pre-commit-config.yaml",
       "kind": "rendered",
-      "sha256": "b7b5ac37eab34417b4b11525f55c98a28fe82fb1d5b0b3950bd635ddaee741d2",
+      "sha256": "6af1a9b4f22433dff5c8401adf982bbab2ac1f70b675d9a6464055a3c1529746",
       "placement": "region"
     },
     {
       "destination": "AGENTS.md",
       "kind": "rendered",
-      "sha256": "68aff6f88f758755ce2d066d6bcbdba5562589bdc7945db4e6e8cab3ef1ae5c3",
+      "sha256": "efb65372771a20c77cba5a4f6c04b89c3464df4ce4843073360eea54345b22db",
       "placement": "region"
     },
     {
@@ -77,7 +76,7 @@
     {
       "destination": "nix/package.nix",
       "kind": "seeded",
-      "sha256": "379922ee05a5f4c475a94f96ddc2dab5e160501288487078497c33dd4a792886"
+      "sha256": "c7cf5a97fe20b0bf3e580f99c22768578bc35458c743924e25e96a5df550ffc2"
     },
     {
       "destination": "release-plz.toml",
@@ -87,7 +86,7 @@
   ],
   "pins": {
     "attest": "4",
-    "cargo-dist": "0.32.0",
+    "cargo-dist": "0.34.0",
     "checkout": "4",
     "conventional-pre-commit": "4.5.0",
     "create-github-app-token": "3",

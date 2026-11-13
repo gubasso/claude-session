@@ -108,7 +108,8 @@ artifacts out="target/artifacts":
 hooks-install:
 	{{dev}} pre-commit install --install-hooks
 
-# Run the full gate across all files: the manual stage `rk integrate` runs.
+# Run the full gate across all files: the manual stage holds the hooks that
+# rk integrate runs at pre-merge-commit.
 hooks:
 	{{dev}} pre-commit run --all-files --hook-stage manual
 

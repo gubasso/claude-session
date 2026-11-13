@@ -79,4 +79,4 @@ Use `.draft/` only as ignored scratch space. Rewrite durable substance into its 
 just hooks
 ```
 
-This runs the `manual` hook stage, the gate `rk integrate` runs. Fix the reported cause; do not bypass or substitute a partial gate. Branch and release rules live in the [release workflow](../reference/release-workflow.md#branch-and-release-invariant).
+This runs the `manual` hook stage over every file. It holds the same hooks as the `pre-merge-commit` gate that `rk integrate` runs on the squash. Fix the reported cause; do not bypass or substitute a partial gate. Branch and release rules live in the [release workflow](../reference/release-workflow.md#branch-and-release-invariant).

@@ -28,3 +28,5 @@ The `manual` stage carries every commit-stage and push-stage hook, so the gate b
 Accepted
 
 Amends [ADR-0118](./ADR-0118-adopt-the-release-kit-trunk-convention.md). Enacted by `git.integration` in `.release-kit/config.toml`, the `manual` stages in `.pre-commit-config.yaml`, and the `just hooks` recipe.
+
+Amended by [ADR-0133](./ADR-0133-release-on-the-operators-order.md).

@@ -16,7 +16,7 @@ The release convention is release-kit's ([ADR-0118](../decisions/ADR-0118-adopt-
 Every step in this section runs once, ever. A routine release repeats none of them.
 
 1. Validate metadata and package contents with `./scripts/publish-dry`.
-2. Run the repository-side setup by `rk guide setup`, whose steps 1 to 3 cover the trunk, the protections, and the auto-merge switch, and whose steps 5 to 8 cover the bot identity and the registry.
+2. Run the repository-side setup by `rk guide setup`, whose steps 1 to 3 cover the trunk, the bot identity, and the protections, and whose steps 5, 6, and 8 cover the registry.
 3. Prove what was applied with `rk setup check --target .`.
 4. When ADR-0022 is satisfied, perform [the first manual publish](#first-manual-publish).
 5. Register the crates.io Trusted Publisher against `release-plz.yml`, using the identity in the reference.
@@ -41,7 +41,7 @@ This procedure ships `0.1.0` only after ADR-0022 is satisfied. Trusted Publishin
 
 Every version after `0.1.0` is routine, and `rk guide release` is its command list. The slice that ships a rung carries that version's own documentation and gates — the claims it adds to `README.md`, the reference pages its surface changes, and any package content it introduces — as tail work inside the slice. Slice 009 is one-time first-release readiness and is never reopened for a later version.
 
-The shape of it: `rk integrate` squashes each worktree branch onto `master`, the operator pushes `master` as a fast-forward, release-plz opens or updates the release request, and that request merges itself once every required check is green. A release is held by disarming the request before its last check goes green. Never hand-create a tag and never force-push `master`.
+The shape of it: `rk integrate` squashes each worktree branch onto `master`, the operator pushes `master` as a fast-forward, release-plz opens or updates the release request, and the operator merges it with `rk release merge --target . --apply` once every required check is green ([ADR-0133](../decisions/ADR-0133-release-on-the-operators-order.md)). Nothing merges it before that order, so a release is held by not giving it. Never hand-create a tag and never force-push `master`.
 
 ## Prepare a release locally
 

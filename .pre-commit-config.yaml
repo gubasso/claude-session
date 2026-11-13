@@ -1,18 +1,22 @@
-default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_install_hook_types: [pre-commit, commit-msg, pre-push, pre-merge-commit]
 
 repos:
 # BEGIN release-kit
-# The release convention's hooks. Install every stage they run at:
-# pre-commit install --hook-type pre-commit --hook-type commit-msg --hook-type pre-push
-# A CI sweep commits nothing, so a job running pre-commit against a trunk
-# checkout sets SKIP=no-commit-to-branch,rk-worktree-location in its environment. Append the id of
-# every check this project classifies local-only: the value is a list the
-# project owns the tail of.
-# rk integrate runs this project's pre-integrate suite as
-# `pre-commit run --hook-stage manual --all-files`. Assign to the manual
-# stage every check that must pass before work reaches the trunk, and have
-# continuous integration invoke the same stages: a check that runs on one
-# side of the boundary alone guards one side alone.
+# The release convention's hooks. Install every stage they run at with
+# the hook manager this project uses, for example:
+# prek install --hook-type pre-commit --hook-type commit-msg --hook-type pre-push --hook-type pre-merge-commit
+# A CI sweep commits nothing, so a job running the project's hook manager
+# against a trunk checkout sets SKIP=no-commit-to-branch,rk-worktree-location in its environment.
+# Append the id of every check this project classifies local-only: the
+# value is a list the project owns the tail of.
+# rk integrate runs this clone's pre-merge-commit hook through git, on the
+# change the integration squashes, and refuses where none is installed.
+# Tag pre-merge-commit on every check that must pass before work reaches
+# the trunk, and add it to default_stages where this file sets them. Have
+# continuous integration invoke the same checks: a check that runs on one
+# side of the boundary alone guards one side alone. prek runs each nested
+# .pre-commit-config.yaml as a project of its own, so a project that runs
+# prek lists a directory of fixtures in a root .prekignore.
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.5.0
     hooks:
@@ -39,7 +43,7 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
-        entry: sh -c 'branch=$(git symbolic-ref --quiet --short HEAD) || exit 0; [ "$branch" = master ] && exit 0; printf %s "$branch" | grep -Eq "^((build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)/[A-Za-z0-9._/-]+|([0-9]+|[A-Z][A-Z0-9]+-[0-9]+)-[A-Za-z0-9._-]+|release[-/].+)$" && exit 0; echo "branch $branch is neither <type>/<slug> nor <issue-id>-<slug>; gh issue develop <issue> --checkout or its glab counterpart mints the linked form" >&2; exit 1'
+        entry: sh -c 'branch=$(git symbolic-ref --quiet --short HEAD) || exit 0; [ "$branch" = master ] && exit 0; printf %s "$branch" | grep -Eq "^((build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)/[A-Za-z0-9._/-]+|([0-9]+|[A-Z][A-Z0-9]+-[0-9]+)-[A-Za-z0-9._-]+|release[-/].+|rk-release/.+)$" && exit 0; echo "branch $branch is neither <type>/<slug> nor <issue-id>-<slug>; gh issue develop <issue> --checkout or its glab counterpart mints the linked form" >&2; exit 1'
       - id: rk-worktree-location
         name: rk worktree location
         language: system
@@ -52,7 +56,7 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
-        entry: sh -c '[ "$PRE_COMMIT_REMOTE_BRANCH" = refs/heads/master ] || exit 0; tracked=$(git rev-parse --verify --quiet "refs/remotes/$PRE_COMMIT_REMOTE_NAME/master"); for base in "$PRE_COMMIT_FROM_REF" "$tracked"; do case "$base" in "") continue;; *[!0]*) ;; *) continue;; esac; git merge-base --is-ancestor "$base" "$PRE_COMMIT_TO_REF" 2>/dev/null && continue; echo "refusing a force push to master, because $base is not an ancestor of the pushed tip; rebase onto the remote trunk instead of rewriting it" >&2; exit 1; done'
+        entry: sh -c '[ "$PRE_COMMIT_REMOTE_BRANCH" = refs/heads/master ] || exit 0; listed=$(git ls-remote "${PRE_COMMIT_REMOTE_URL:-$PRE_COMMIT_REMOTE_NAME}" refs/heads/master) || { echo "the remote master cannot be read, so a push to it is refused" >&2; exit 1; }; remote=${listed%%[[:space:]]*}; tracked=$(git rev-parse --verify --quiet "refs/remotes/$PRE_COMMIT_REMOTE_NAME/master"); for base in "$remote" "$PRE_COMMIT_FROM_REF" "$tracked"; do case "$base" in "") continue;; *[!0]*) ;; *) continue;; esac; git cat-file -e "$base^{commit}" 2>/dev/null || { echo "refusing a force push to master, because the remote holds $base, which this clone has not fetched; fetch, then rebase onto the remote trunk" >&2; exit 1; }; git merge-base --is-ancestor "$base" "$PRE_COMMIT_TO_REF" 2>/dev/null && continue; echo "refusing a force push to master, because $base is not an ancestor of the pushed tip; rebase onto the remote trunk instead of rewriting it" >&2; exit 1; done'
       - id: rk-no-merge-commit-to-trunk
         name: rk no merge commit to trunk
         stages: [pre-push]
@@ -72,7 +76,7 @@ repos:
         language: system
         pass_filenames: false
         entry: rk status --check --target .
-        files: '^(\.github/workflows/|\.gitlab-ci\.yml$|\.gitlab/ci/|AGENTS\.md$|\.release-kit/|\.pre-commit-config\.yaml$|release-plz\.toml$|dist-workspace\.toml$|release-please-config\.json$|cliff\.toml$|\.release-please-manifest\.json$|VERSION$)'
+        files: '^(\.github/workflows/|\.gitlab-ci\.yml$|\.gitlab/ci/|AGENTS\.md$|\.release-kit/|\.pre-commit-config\.yaml$|release-plz\.toml$|dist-workspace\.toml$|cliff\.toml$|VERSION$)'
 # END release-kit
   # --- Housekeeping (auto-fix where possible) ---
   #
@@ -96,16 +100,24 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        # The manifest stages omit pre-merge-commit, which rk integrate runs.
+        stages: [pre-commit, pre-push, pre-merge-commit, manual]
         args: [--markdown-linebreak-ext=md]
         exclude: '^(CHANGELOG\.md|SECURITY\.md|\.release-kit/manifest\.json|\.github/workflows/(pr-title|release-plz|release)\.yml|Cargo\.lock|flake\.lock)$'
       - id: end-of-file-fixer
+        # The manifest stages omit pre-merge-commit, which rk integrate runs.
+        stages: [pre-commit, pre-push, pre-merge-commit, manual]
         exclude: '^(CHANGELOG\.md|SECURITY\.md|\.release-kit/manifest\.json|\.github/workflows/(pr-title|release-plz|release)\.yml|Cargo\.lock|flake\.lock)$'
       - id: check-added-large-files
+        # The manifest stages omit pre-merge-commit, which rk integrate runs.
+        stages: [pre-commit, pre-push, pre-merge-commit, manual]
         args: ['--maxkb=16384']
       - id: check-case-conflict
       - id: check-merge-conflict
         args: ['--assume-in-merge']
       - id: check-shebang-scripts-are-executable
+        # The manifest stages omit pre-merge-commit, which rk integrate runs.
+        stages: [pre-commit, pre-push, pre-merge-commit, manual]
         # Rust inner attributes (`#![allow(...)]`) are not shebangs.
         exclude: '\.rs$'
       - id: check-symlinks
@@ -113,6 +125,8 @@ repos:
       - id: check-yaml
       - id: check-xml
       - id: destroyed-symlinks
+        # The manifest stages omit pre-merge-commit, which rk integrate runs.
+        stages: [pre-commit, pre-push, pre-merge-commit, manual]
       - id: detect-private-key
       # - id: no-commit-to-branch
 
@@ -141,7 +155,7 @@ repos:
         language: system
         files: '\.(json|jsonc|json5)$'
         pass_filenames: true
-        stages: [pre-commit, manual]
+        stages: [pre-commit, pre-merge-commit, manual]
 
   # --- EditorConfig ---
   - repo: https://github.com/editorconfig-checker/editorconfig-checker
@@ -243,7 +257,7 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
-        stages: [pre-commit, pre-push, manual]
+        stages: [pre-commit, pre-push, pre-merge-commit, manual]
 
       # owner: devshell (project-environment) cargo nextest runs the test suite of the crate.
       - id: cargo-nextest-integration
@@ -259,7 +273,7 @@ repos:
         # one wide enough to cover them would match every file anyway.
         always_run: true
         pass_filenames: false
-        stages: [pre-push, manual]
+        stages: [pre-push, pre-merge-commit, manual]
 
       # `always_run` with no filenames: a generated example's relationship is to
       # the whole configuration model rather than to any one changed file, so a
@@ -271,7 +285,7 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
-        stages: [pre-commit, manual]
+        stages: [pre-commit, pre-merge-commit, manual]
 
       # owner: devshell (no-hook-language) a script of this repository that runs cargo nextest from the devShell.
       - id: acceptance-test-ids
@@ -280,7 +294,7 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
-        stages: [pre-push, manual]
+        stages: [pre-push, pre-merge-commit, manual]
 
       # owner: devshell (project-environment) cargo test --doc runs the doctests of the crate.
       - id: cargo-doc-tests
@@ -293,7 +307,7 @@ repos:
         language: system
         types_or: [rust, toml]
         pass_filenames: false
-        stages: [pre-push, manual]
+        stages: [pre-push, pre-merge-commit, manual]
 
   # --- Spell check ---
   #
@@ -325,14 +339,14 @@ repos:
       - id: gitleaks
         entry: gitleaks git --redact --verbose
         pass_filenames: false
-        stages: [pre-push, manual]
+        stages: [pre-push, pre-merge-commit, manual]
 
   # --- Unused dependency detection ---
   - repo: https://github.com/bnjbvr/cargo-machete
     rev: v0.9.2
     hooks:
       - id: cargo-machete
-        stages: [pre-push, manual]
+        stages: [pre-push, pre-merge-commit, manual]
 
   - repo: local
     hooks:
@@ -342,7 +356,7 @@ repos:
         entry: cargo audit
         language: system
         pass_filenames: false
-        stages: [pre-push, manual]
+        stages: [pre-push, pre-merge-commit, manual]
 
       # `licenses` is enabled: this repo carries a deny.toml with a filled
       # allow-list, and Cargo.toml declares `license = "MIT OR Apache-2.0"`.
@@ -352,7 +366,7 @@ repos:
         entry: cargo deny check advisories bans sources licenses
         language: system
         pass_filenames: false
-        stages: [pre-push, manual]
+        stages: [pre-push, pre-merge-commit, manual]
 
       # cargo-deny prints nothing for an ignored advisory, so this hook prints
       # each one with its reason and always passes. `verbose` shows the output
@@ -365,7 +379,7 @@ repos:
         always_run: true
         pass_filenames: false
         verbose: true
-        stages: [pre-push, manual]
+        stages: [pre-push, pre-merge-commit, manual]
 
   # --- Shell: lint + format (scripts/ ships installable helpers) ---
   #
@@ -404,7 +418,7 @@ repos:
         entry: nixfmt
         language: system
         types: [nix]
-        stages: [pre-commit, manual]
+        stages: [pre-commit, pre-merge-commit, manual]
       # owner: devshell (no-hook-language) statix has no hook in a language that pre-commit builds.
       - id: statix
         name: statix (nix anti-patterns)
@@ -412,7 +426,7 @@ repos:
         language: system
         types: [nix]
         pass_filenames: false
-        stages: [pre-commit, manual]
+        stages: [pre-commit, pre-merge-commit, manual]
       # owner: host (no-hook-language) nix comes from the host and has no hook in a language that pre-commit builds.
       - id: nix-flake-check
         name: nix flake check (eval)
@@ -420,7 +434,7 @@ repos:
         language: system
         files: '\.nix$'
         pass_filenames: false
-        stages: [pre-push, manual]
+        stages: [pre-push, pre-merge-commit, manual]
 
   # deadnix publishes a rust hook, which pre-commit builds; its manifest
   # carries --fail and the nix file type.
@@ -428,7 +442,7 @@ repos:
     rev: v1.3.2
     hooks:
       - id: deadnix
-        stages: [pre-commit, manual]
+        stages: [pre-commit, pre-merge-commit, manual]
   - repo: local
     hooks:
       # A flake holds no language library: a package belongs to the manifest
@@ -468,7 +482,7 @@ repos:
         language: system
         files: '\.(md|markdown)$'
         pass_filenames: true
-        stages: [pre-commit, manual]
+        stages: [pre-commit, pre-merge-commit, manual]
 
   # --- Explicit relative links (ambiguity guard; pre-commit, local) ---
   #

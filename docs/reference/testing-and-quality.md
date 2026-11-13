@@ -216,13 +216,15 @@ Five of these have teeth beyond their own assertion. The exit-code matrix, writt
 
 Hooks are the source of truth; task-runner gate recipes delegate to them, while inner-loop recipes stay raw `cargo`.
 
-`just hooks` is the single local command that reproduces the project's verdict. It runs the `manual` stage, which is the same command `rk integrate` runs before it writes the trunk commit ([ADR-0126](../decisions/ADR-0126-integrate-implementations-locally.md)):
+`just hooks` is the single local command that reproduces the project's verdict. It runs the `manual` stage over every file. `rk integrate` runs the same hooks through the clone's `pre-merge-commit` hook, on the files of the squash, before it writes the trunk commit ([ADR-0126](../decisions/ADR-0126-integrate-implementations-locally.md), [ADR-0133](../decisions/ADR-0133-release-on-the-operators-order.md)). `just hooks` runs:
 
 ```bash
 pre-commit run --all-files --hook-stage manual
 ```
 
-Every commit-stage and push-stage row in the table below also runs at `manual`, so that stage is the union of both. The push stage stays as the re-validation of the trunk when the operator pushes it.
+`rk integrate` refuses in a clone where the `pre-merge-commit` hook is not installed, and `just hooks-install` installs it.
+
+Every commit-stage and push-stage row in the table below also runs at `manual` and at `pre-merge-commit`, so each of those stages is the union of both. The push stage stays as the re-validation of the trunk when the operator pushes it.
 
 `pre-commit run --all-files` on its own is not the gate. `--all-files` selects files, not stages, so it runs the commit stage alone and silently omits the push-stage half of the table below — the integration tests, the doctests, and every advisory and secret scan.
 
