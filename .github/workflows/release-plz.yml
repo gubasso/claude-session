@@ -162,7 +162,7 @@ jobs:
           esac
       - name: install rk
         env:
-          RK_VERSION: "0.9.15"
+          RK_VERSION: "0.10.0"
         run: |
           set -eu
           curl --proto '=https' --tlsv1.2 -LsSf "https://github.com/gubasso/release-kit/releases/download/v${RK_VERSION}/release-kit-installer.sh" | RELEASE_KIT_UNMANAGED_INSTALL="$RUNNER_TEMP/rk" sh
@@ -270,7 +270,7 @@ jobs:
           sed 's/^release_always = false$/release_always = true/' release-plz.toml > "$RUNNER_TEMP/release-plz-rc.toml"
       - name: install rk
         env:
-          RK_VERSION: "0.9.15"
+          RK_VERSION: "0.10.0"
         run: |
           set -eu
           curl --proto '=https' --tlsv1.2 -LsSf "https://github.com/gubasso/release-kit/releases/download/v${RK_VERSION}/release-kit-installer.sh" | RELEASE_KIT_UNMANAGED_INSTALL="$RUNNER_TEMP/rk" sh

@@ -4,6 +4,7 @@
     "^\\.release-kit/manifest\\.json$",
     "^\\.github/workflows/(pr-title|release-plz|release)\\.yml$",
     "(^|/)Cargo\\.lock$",
-    "(^|/)flake\\.lock$"
+    "(^|/)flake\\.lock$",
+    "^\\.(claude|agents)/skills/"
   ]
 }

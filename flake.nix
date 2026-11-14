@@ -10,7 +10,8 @@
     # pin and the lock together, so the project supplies its own `rk` instead of
     # depending on a host install.
     release-kit = {
-      url = "github:gubasso/release-kit/v0.9.15";
+      url = "github:gubasso/release-kit/v0.10.0";
+      inputs.release-kit.follows = "";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     # The store guard of the canon (exobrain): `exobrain store-guard --daily`

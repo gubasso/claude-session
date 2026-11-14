@@ -87,11 +87,13 @@
   "ignores": [
     "node_modules/",
     "draft*",
-    // Generated: release-plz writes CHANGELOG.md and rk renders SECURITY.md
-    // whole, so both follow their generator, and no check of this project
-    // judges them. Source: the dev-environment rule of nix-secrets
-    // (home/apps/claude-session/rules/dev-environment.md).
+    // Generated: release-plz writes CHANGELOG.md, and rk renders SECURITY.md
+    // and the agent skills whole, so they follow their generator, and no
+    // check of this project judges them. Source: the dev-environment rule of
+    // nix-secrets (home/apps/claude-session/rules/dev-environment.md).
     "CHANGELOG.md",
-    "SECURITY.md"
+    "SECURITY.md",
+    ".claude/skills/**",
+    ".agents/skills/**"
   ]
 }

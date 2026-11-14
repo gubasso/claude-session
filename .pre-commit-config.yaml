@@ -106,11 +106,11 @@ repos:
         # The manifest stages omit pre-merge-commit, which rk integrate runs.
         stages: [pre-commit, pre-push, pre-merge-commit, manual]
         args: [--markdown-linebreak-ext=md]
-        exclude: '^(CHANGELOG\.md|SECURITY\.md|\.release-kit/manifest\.json|\.github/workflows/(pr-title|release-plz|release)\.yml|Cargo\.lock|flake\.lock)$'
+        exclude: '^(CHANGELOG\.md|SECURITY\.md|\.release-kit/manifest\.json|\.github/workflows/(pr-title|release-plz|release)\.yml|Cargo\.lock|flake\.lock|\.(claude|agents)/skills/.+)$'
       - id: end-of-file-fixer
         # The manifest stages omit pre-merge-commit, which rk integrate runs.
         stages: [pre-commit, pre-push, pre-merge-commit, manual]
-        exclude: '^(CHANGELOG\.md|SECURITY\.md|\.release-kit/manifest\.json|\.github/workflows/(pr-title|release-plz|release)\.yml|Cargo\.lock|flake\.lock)$'
+        exclude: '^(CHANGELOG\.md|SECURITY\.md|\.release-kit/manifest\.json|\.github/workflows/(pr-title|release-plz|release)\.yml|Cargo\.lock|flake\.lock|\.(claude|agents)/skills/.+)$'
       - id: check-added-large-files
         # The manifest stages omit pre-merge-commit, which rk integrate runs.
         stages: [pre-commit, pre-push, pre-merge-commit, manual]
@@ -502,13 +502,13 @@ repos:
         language: pygrep
         types: [markdown]
         entry: '\]\((?!https?://|ftp://|mailto:|tel:|/|#|\.\.?/)[^)/\s:]+\.[A-Za-z0-9]+(?:#[^)]*)?\)'
-        exclude: '^(CHANGELOG|SECURITY)\.md$'
+        exclude: '^((CHANGELOG|SECURITY)\.md|\.(claude|agents)/skills/.+)$'
       - id: no-bare-relative-link-defs
         name: markdown link definitions must be explicit (./, ../, or a path)
         language: pygrep
         types: [markdown]
         entry: '^\s*\[[^\]]+\]:\s+(?!https?://|ftp://|mailto:|tel:|/|#|\.\.?/|<)[^\s/:#]+\.[A-Za-z0-9]+'
-        exclude: '^(CHANGELOG|SECURITY)\.md$'
+        exclude: '^((CHANGELOG|SECURITY)\.md|\.(claude|agents)/skills/.+)$'
 
   # --- Markdown lint (style gate + ordered-list renumber autofix) ---
   #

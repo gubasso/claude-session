@@ -263,20 +263,21 @@
         "nixpkgs": [
           "nixpkgs"
         ],
+        "release-kit": [],
         "rust-overlay": "rust-overlay_7",
         "spec-driven-docs": "spec-driven-docs_2"
       },
       "locked": {
-        "lastModified": 1794580099,
-        "narHash": "sha256-Y+jg9f7wo3YzcIc4a5uptd4JKknzWRZsPdjy4cFWZ8I=",
+        "lastModified": 1794670359,
+        "narHash": "sha256-Vj9ZS1cI7iP2k3fJ6AOTdLISMtIIbgr42eBBEoN4ZrM=",
         "owner": "gubasso",
         "repo": "release-kit",
-        "rev": "3fd21b57a6c930ce0c41874dbb40b0b0be26ca99",
+        "rev": "b16bd64f4418cad98ccfd6cf69e345831a9e44c9",
         "type": "github"
       },
       "original": {
         "owner": "gubasso",
-        "ref": "v0.9.15",
+        "ref": "v0.10.0",
         "repo": "release-kit",
         "type": "github"
       }
@@ -623,16 +624,16 @@
         "rust-overlay": "rust-overlay_11"
       },
       "locked": {
-        "lastModified": 1794491417,
-        "narHash": "sha256-Zc+vvxBIXrC5YTsa4RdaWcdOpIM50/cuetu6THt0McU=",
+        "lastModified": 1794568820,
+        "narHash": "sha256-6AqB70o+wNLa8iWwrSK2JM0ng5Ksze2kWRIkGtOVvNU=",
         "owner": "gubasso",
         "repo": "spec-driven-docs",
-        "rev": "a933294bad551db3a8dd6054ba44e490ed390d4e",
+        "rev": "32a91f9ca029771d7f24336024306ed3cd6c2d24",
         "type": "github"
       },
       "original": {
         "owner": "gubasso",
-        "ref": "v0.15.2",
+        "ref": "v0.17.0",
         "repo": "spec-driven-docs",
         "type": "github"
       }
