@@ -42,6 +42,25 @@
         };
         # Reads channel + components + targets straight from rust-toolchain.toml.
         toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+        # dist-workspace.toml pins cargo-dist 0.34.0, the release that
+        # release-kit seeds. nixpkgs carries 0.32.0, so the flake builds the
+        # pinned release over the nixpkgs package. Drop the override once
+        # nixpkgs carries the pin.
+        cargo-dist = pkgs.cargo-dist.overrideAttrs (
+          finalAttrs: _prev: {
+            version = "0.34.0";
+            src = pkgs.fetchFromGitHub {
+              owner = "axodotdev";
+              repo = "cargo-dist";
+              rev = "v${finalAttrs.version}";
+              hash = "sha256-u0Ux0V6Jdeq/1uwSu9+8sm/KGAg3RbWQph/UdL2IMZU=";
+            };
+            cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
+              inherit (finalAttrs) pname version src;
+              hash = "sha256-sOLAyXEOGGnKNeEtPbjYjuJK/d71nluj2MsHNIuuLvQ=";
+            };
+          }
+        );
       in
       {
         # `nix fmt` uses the RFC 166 formatter (also on PATH for the nixfmt hook).
@@ -85,6 +104,9 @@
             # controlling terminal. Without it the tests would read those
             # binaries off the host PATH, which self-containment forbids.
             pkgs.util-linux
+            # `dist`, which regenerates .github/workflows/release.yml, at the
+            # version that dist-workspace.toml pins (built above).
+            cargo-dist
             # The release-kit CLI from this project's own pinned input, so the
             # release convention is read from the flake rather than a host
             # install.

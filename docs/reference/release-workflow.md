@@ -104,7 +104,7 @@ Every release produces exactly these, and nothing else:
 
 ## Binary distribution
 
-Source publication and binary distribution are orthogonal. Cargo-dist 0.32.0 builds one artifact, `x86_64-unknown-linux-gnu`, with a shell installer — the supported platform and nothing else ([ADR-0066](../decisions/ADR-0066-ship-one-linux-artifact.md)). No other architecture, no PowerShell installer, and no Homebrew tap.
+Source publication and binary distribution are orthogonal. Cargo-dist 0.34.0 builds one artifact, `x86_64-unknown-linux-gnu`, with a shell installer — the supported platform and nothing else ([ADR-0066](../decisions/ADR-0066-ship-one-linux-artifact.md)). No other architecture, no PowerShell installer, and no Homebrew tap.
 
 The generated `release.yml` reads its build matrix from `dist plan` at run time and names no target, so changing the target list in `dist-workspace.toml` does not by itself require regenerating it. Changing the installer list does. The App-authored release tag retriggers that workflow; its GitHub Release assets are consumable by cargo-binstall. [ADR-0038](../decisions/ADR-0038-distribute-binaries-with-cargo-dist.md) owns the choice of generator.
 

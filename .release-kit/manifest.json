@@ -261,7 +261,7 @@
     {
       "destination": "dist-workspace.toml",
       "kind": "seeded",
-      "sha256": "bdf4b0558285d731f8ea9148d1af2f2e137b3cba396a7c6bceb0354ed4580407"
+      "sha256": "77bd69bfb1f1155306c20c53fbf06dca27386db5cd0a97598275c7e49c174d13"
     },
     {
       "destination": "nix/package.nix",
