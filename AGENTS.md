@@ -78,6 +78,7 @@ Record each significant, hard-to-reverse choice in one filled file under `docs/d
 - The scope names the area you changed, and reads as `area/subarea` where that is clearer. Prefer a scope this repository already uses, which `git log --format=%s | sed -n 's/^[a-z]*(\([^)]*\)).*/\1/p' | sort -u` lists. Coin a new scope only where no existing one names the area.
 - Never author a tag, and never hand-edit a generated artifact workflow.
 - Run `rk status` before changing anything under `.github/workflows/` or `.gitlab-ci.yml`, or any file `.release-kit/manifest.json` names. Before reading a gap in `rk setup check` as a setup defect, run `rk setup status`. A credential this runtime cannot reach leaves a step unknown, which is an observation boundary and not drift. Never ask the operator to mount, expose, recreate, or rotate a secret only so an agent check can pass.
+- After an rk pin move, run the upgrade through the rk-setup skill of the rk in the devshell (`rk skill show rk-setup` before `rk upgrade`), never a host copy.
 - The full method is `rk method --list`. The recovery paths are `rk method recovery`.
 
 <!-- END release-kit -->

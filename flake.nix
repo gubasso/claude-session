@@ -10,17 +10,26 @@
     # pin and the lock together, so the project supplies its own `rk` instead of
     # depending on a host install.
     release-kit = {
-      url = "github:gubasso/release-kit/v0.10.0";
-      inputs.release-kit.follows = "";
-      inputs.nixpkgs.follows = "nixpkgs";
+      url = "github:gubasso/release-kit/v0.10.1";
+      inputs = {
+        release-kit.follows = "";
+        spec-driven-docs.follows = "";
+        nixpkgs.follows = "nixpkgs";
+        exobrain-tech.follows = "exobrain-tech";
+        rust-overlay.follows = "rust-overlay";
+      };
     };
     # The store guard of the canon (exobrain): `exobrain store-guard --daily`
     # in .envrc warns about working-tree copies in the Nix store.
     exobrain-tech = {
       url = "github:gubasso/exobrain-tech/v1.1.0";
-      inputs.nixpkgs.follows = "nixpkgs";
-      # Its rk serves only its own devShell, so it takes this flake's.
-      inputs.release-kit.follows = "release-kit";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        # Its rk serves only its own devShell, so it takes this flake's.
+        release-kit.follows = "release-kit";
+        # Its sdd serves only its own devShell, and this project pins none.
+        spec-driven-docs.follows = "";
+      };
     };
   };
 
