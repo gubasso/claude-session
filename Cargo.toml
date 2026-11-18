@@ -92,6 +92,17 @@ tempfile = "3.27.0"
 inherits = "release"
 lto = "thin"
 
+# The dev profile keeps line tables for the crates of this workspace, so a
+# backtrace names the file and the line, and no debug information for the
+# dependencies. For a debugger, build once with full debug information:
+#   cargo test --config 'profile.dev.debug="full"' \
+#     --config 'profile.dev.package."*".debug="full"'
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [lints.rust]
 unsafe_code = "forbid"
 unused_must_use = "deny"

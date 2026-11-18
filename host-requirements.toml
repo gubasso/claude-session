@@ -24,3 +24,8 @@ version = ">=1.2.0"
 # .pre-commit-config.yaml, so the file names no floor.
 [tools.prek]
 version = "*"
+
+# The compile cache, which .envrc sets as RUSTC_WRAPPER, so every cargo build
+# through direnv calls it. The host configuration owns its one version, because
+# two kache versions must never share one cache, so the file names no floor.
+[tools.kache]
