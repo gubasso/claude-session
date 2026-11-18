@@ -27,13 +27,15 @@ indent_size = 2
 [*.nix]
 indent_size = 2
 
-# Shell — matches the shfmt hook, pinned to `-i 2` in .pre-commit-config.yaml.
+# Shell — shfmt reads these, so the hook passes it no layout flag.
 [*.sh]
 indent_size = 2
+switch_case_indent = true
 
-# Extension-less bash helpers shipped under scripts/ (same shfmt `-i 2` rule).
+# Extension-less bash helpers shipped under scripts/ (the same shfmt layout).
 [scripts/*]
 indent_size = 2
+switch_case_indent = true
 
 # Markdown — owned by other tooling; the ec hook excludes *.md.
 [*.md]

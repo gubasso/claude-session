@@ -15,20 +15,10 @@
         release-kit.follows = "";
         spec-driven-docs.follows = "";
         nixpkgs.follows = "nixpkgs";
-        exobrain-tech.follows = "exobrain-tech";
+        # Its exobrain serves only its own devShell. The host supplies the
+        # exobrain CLI of this project.
+        exobrain-tech.follows = "";
         rust-overlay.follows = "rust-overlay";
-      };
-    };
-    # The store guard of the canon (exobrain): `exobrain store-guard --daily`
-    # in .envrc warns about working-tree copies in the Nix store.
-    exobrain-tech = {
-      url = "github:gubasso/exobrain-tech/v1.1.0";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        # Its rk serves only its own devShell, so it takes this flake's.
-        release-kit.follows = "release-kit";
-        # Its sdd serves only its own devShell, and this project pins none.
-        spec-driven-docs.follows = "";
       };
     };
   };
@@ -39,7 +29,6 @@
       rust-overlay,
       flake-utils,
       release-kit,
-      exobrain-tech,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -95,7 +84,8 @@
             pkgs.dprint
             pkgs.just
             # The git hook runner prek is not here: the host supplies it
-            # beside git (host-requirements.toml).
+            # beside git (host-requirements.toml). So does exobrain, which the
+            # hooks, the justfile, and .envrc call.
             # Nix tools of the system hooks: nixfmt, which `nix fmt` runs too
             # (the formatter above), and statix, which has no upstream hook.
             # deadnix and typos run as upstream hooks that the hook runner builds
@@ -126,10 +116,6 @@
             # for the working tree, which run from target/ (ADR-0131).
             # `packages.default` above builds the wrapper for the pipeline's
             # proof (ADR-0119) and installs nothing here.
-          ]
-          # exobrain, the store guard that .envrc runs once a day.
-          ++ pkgs.lib.optionals (system == "x86_64-linux") [
-            exobrain-tech.packages.${system}.default
           ];
           # native deps for -sys crates, uncomment as needed:
           # buildInputs = [ pkgs.openssl ];

@@ -13,6 +13,12 @@ schema = 1
 
 [tools.git]
 
+# Global too: the checker itself, which the justfile runs before any recipe.
+# The git hooks call it (host-requirements, hook-revisions), and .envrc runs
+# its warnings. 1.2.0 is the first release that carries `exobrain hooks check`.
+[tools.exobrain]
+version = ">=1.2.0"
+
 # Path-scoped: the git hooks, and the hooks and hooks-install recipes. prek
 # enforces its own version through minimum_prek_version in
 # .pre-commit-config.yaml, so the file names no floor.
